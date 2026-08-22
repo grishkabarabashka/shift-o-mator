@@ -1,17 +1,22 @@
 /**
- * Боковая панель нарушений.
+ * Панель нарушений.
  *
  * Клик по строке ведёт в соответствующую ячейку сетки — без этого список
  * нарушений превращается в декорацию.
  *
+ * Дыры и конфликты разведены по разным спискам намеренно (ADR-0009): дыра
+ * чинится назначением кого-то, конфликт — снятием или исправлением назначения.
+ * Это разные действия, и сваливать их в один поток «ошибок» значит заставлять
+ * планировщика каждый раз читать текст, чтобы понять, что вообще делать.
+ *
  * Предупреждение снимается только осознанно: с комментарием, который остаётся
  * в плане. Через полгода видно, сколько раз и почему приходилось выходить за
- * рамки (ADR-0009).
+ * рамки.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { useState } from 'react';
-import type { Issue, IssueLevel } from '../../domain/types.ts';
+import { useMemo, useState } from 'react';
+import type { Issue } from '../../domain/types.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 import type { PlanningView } from '../planning/usePlanningView.ts';
@@ -20,24 +25,34 @@ interface Props {
   readonly view: PlanningView;
 }
 
-const FILTERS: ReadonlyArray<{ value: IssueLevel | 'ALL'; label: string }> = [
-  { value: 'ALL', label: 'Все' },
-  { value: 'BLOCKING', label: 'Блокеры' },
-  { value: 'WARNING', label: 'Предупр.' },
-  { value: 'INFO', label: 'Инфо' },
+type Bucket = 'GAP' | 'CONFLICT' | 'WARNING' | 'INFO';
+
+const BUCKETS: ReadonlyArray<{ id: Bucket; label: string; hint: string }> = [
+  { id: 'GAP', label: 'Gaps', hint: 'Work nobody is doing. Blocks publication.' },
+  { id: 'CONFLICT', label: 'Conflicts', hint: 'Records that cannot be true. Blocks publication.' },
+  { id: 'WARNING', label: 'Warnings', hint: 'Needs an acknowledgement with a comment.' },
+  { id: 'INFO', label: 'Info', hint: 'Signals only. Never blocks.' },
 ];
 
+function bucketOf(issue: Issue): Bucket {
+  if (issue.level === 'BLOCKING') return issue.category === 'CONFLICT' ? 'CONFLICT' : 'GAP';
+  return issue.level === 'WARNING' ? 'WARNING' : 'INFO';
+}
+
 export function IssuePanel({ view }: Props) {
-  const filter = useUi((s) => s.issueFilter);
-  const setFilter = useUi((s) => s.setIssueFilter);
   const select = useUi((s) => s.select);
   const focusDate = useUi((s) => s.focusDate);
   const acknowledge = useSchedule((s) => s.acknowledge);
 
-  const [pendingAck, setPendingAck] = useState<Issue | undefined>();
+  const [open, setOpen] = useState<Bucket>('GAP');
+  const [pendingAck, setPendingAck] = useState<Issue>();
   const [comment, setComment] = useState('');
 
-  const issues = view.issues.filter((issue) => filter === 'ALL' || issue.level === filter);
+  const byBucket = useMemo(() => {
+    const map = new Map<Bucket, Issue[]>(BUCKETS.map((bucket) => [bucket.id, []]));
+    for (const issue of view.issues) map.get(bucketOf(issue))?.push(issue);
+    return map;
+  }, [view.issues]);
 
   const goTo = (issue: Issue) => {
     if (issue.personId && issue.date) select({ personId: issue.personId, date: issue.date });
@@ -52,84 +67,124 @@ export function IssuePanel({ view }: Props) {
   };
 
   return (
-    <aside className="issues" aria-label="Нарушения">
-      <div className="issues__head">
-        <span>Нарушения</span>
-        <span>{view.issues.length}</span>
+    <aside className="card flex w-[290px] shrink-0 flex-col overflow-hidden" aria-label="Issues">
+      <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
+        <h2 className="text-[13px] font-semibold">Attention</h2>
+        <span className="text-[11.5px] text-faint">{view.issues.length} total</span>
       </div>
 
-      <div className="issues__filters">
-        {FILTERS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            className="issues__filter"
-            data-active={filter === item.value}
-            onClick={() => setFilter(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="issues__list">
-        {issues.length === 0 ? (
-          <p className="issues__empty">Ничего не найдено</p>
-        ) : (
-          issues.map((issue) => {
-            const ack = view.acknowledged.has(issue.key);
-            return (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {BUCKETS.map((bucket) => {
+          const issues = byBucket.get(bucket.id) ?? [];
+          const expanded = open === bucket.id;
+          return (
+            <section key={bucket.id} className="border-b border-line last:border-0">
               <button
-                key={issue.key}
                 type="button"
-                className="issue"
-                onClick={() => goTo(issue)}
-                onDoubleClick={() => {
-                  if (issue.level === 'WARNING' && !ack) setPendingAck(issue);
-                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-hover"
+                onClick={() => setOpen(expanded ? ('' as Bucket) : bucket.id)}
+                title={bucket.hint}
+                aria-expanded={expanded}
               >
-                <span className="issue__top">
-                  <span className="issue__level" data-level={issue.level}>
-                    {issue.level === 'BLOCKING' ? 'BLK' : issue.level === 'WARNING' ? 'WRN' : 'INF'}
-                  </span>
-                  {issue.date ? <span className="issue__date">{issue.date}</span> : null}
+                <span
+                  aria-hidden
+                  className="text-[9px] text-faint transition-transform"
+                  style={{ transform: expanded ? 'rotate(90deg)' : undefined }}
+                >
+                  ▶
                 </span>
-                <span className="issue__message">{issue.message}</span>
-                {issue.level === 'WARNING' ? (
-                  <span className="issue__ack">
-                    {ack ? 'подтверждено' : 'двойной клик — подтвердить с комментарием'}
-                  </span>
-                ) : null}
+                <span className="text-[12.5px] font-semibold">{bucket.label}</span>
+                <span className={`pill ml-auto ${pillOf(bucket.id, issues.length)}`}>
+                  {issues.length}
+                </span>
               </button>
-            );
-          })
-        )}
+
+              {expanded ? (
+                issues.length === 0 ? (
+                  <p className="px-3 pb-3 text-[11.5px] text-faint">
+                    {bucket.id === 'GAP'
+                      ? 'Every requirement is met for this period.'
+                      : 'Nothing here.'}
+                  </p>
+                ) : (
+                  <ul className="pb-1.5">
+                    {issues.map((issue) => {
+                      const ack = view.acknowledged.has(issue.key);
+                      return (
+                        <li key={issue.key}>
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-1.5 text-left hover:bg-hover"
+                            onClick={() => goTo(issue)}
+                          >
+                            <span className="flex items-baseline gap-2">
+                              {issue.date ? (
+                                <span className="shrink-0 font-mono text-[10.5px] text-faint">
+                                  {issue.date.slice(5)}
+                                </span>
+                              ) : null}
+                              <span className="text-[12px] leading-snug">{issue.message}</span>
+                            </span>
+                            {bucket.id === 'WARNING' ? (
+                              <span
+                                className="mt-0.5 block text-[10.5px]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (!ack) setPendingAck(issue);
+                                }}
+                              >
+                                {ack ? (
+                                  <span className="text-ok">✓ acknowledged</span>
+                                ) : (
+                                  <span className="text-accent underline">
+                                    acknowledge with a comment
+                                  </span>
+                                )}
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )
+              ) : null}
+            </section>
+          );
+        })}
       </div>
 
       <Dialog.Root
         open={pendingAck !== undefined}
-        onOpenChange={(open) => {
-          if (!open) {
+        onOpenChange={(next) => {
+          if (!next) {
             setPendingAck(undefined);
             setComment('');
           }
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="dialog__overlay" />
+          <Dialog.Overlay className="overlay" />
           <Dialog.Content className="dialog">
-            <Dialog.Title className="dialog__title">Подтвердить нарушение</Dialog.Title>
-            <Dialog.Description className="dialog__body">{pendingAck?.message}</Dialog.Description>
+            <Dialog.Title className="dialog__title">Acknowledge warning</Dialog.Title>
+            <Dialog.Description className="mb-3 text-[13px] text-muted">
+              {pendingAck?.message}
+            </Dialog.Description>
             <textarea
+              className="field h-20 w-full resize-none py-2 leading-snug"
               value={comment}
-              placeholder="Почему выходим за рамки"
+              placeholder="Why are we stepping outside the rule?"
               onChange={(event) => setComment(event.target.value)}
               autoFocus
             />
-            <div className="dialog__actions">
+            <p className="mt-1.5 text-[11.5px] text-faint">
+              Kept with the plan and visible in history — this is the record that answers
+              &ldquo;how often did we have to break the rule, and why&rdquo;.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
               <Dialog.Close asChild>
                 <button type="button" className="btn">
-                  Отмена
+                  Cancel
                 </button>
               </Dialog.Close>
               <button
@@ -138,7 +193,7 @@ export function IssuePanel({ view }: Props) {
                 disabled={comment.trim().length === 0}
                 onClick={confirm}
               >
-                Подтвердить
+                Acknowledge
               </button>
             </div>
           </Dialog.Content>
@@ -146,4 +201,11 @@ export function IssuePanel({ view }: Props) {
       </Dialog.Root>
     </aside>
   );
+}
+
+function pillOf(bucket: Bucket, count: number): string {
+  if (count === 0) return '';
+  if (bucket === 'GAP' || bucket === 'CONFLICT') return 'pill--bad';
+  if (bucket === 'WARNING') return 'pill--warn';
+  return 'pill--accent';
 }

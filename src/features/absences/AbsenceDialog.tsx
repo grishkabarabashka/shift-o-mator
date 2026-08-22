@@ -1,9 +1,10 @@
 /**
  * Ручной ввод и правка отсутствий.
  *
- * Создание приходит из выделения в сетке (SelectionToolbar): по одной записи
- * на каждого выделенного человека, все — одним патчем-батчем. Правка —
- * с двойного клика по уже стоящей отметке.
+ * Создание приходит либо из выделения в сетке (SelectionToolbar) — по одной
+ * записи на каждого выделенного человека, все одним патчем-батчем, — либо из
+ * контекстного меню одной ячейки (GridCell). Правка — с двойного клика или
+ * пункта меню на уже стоящей отметке.
  *
  * `COMP_DAY` в список типов не входит: отгул — это `CompDayEntry` с балансом
  * (ADR-0007), а не отсутствие; он редактируется через CompDayDialog.
@@ -17,10 +18,10 @@ import { useUi, type AbsenceRangeTarget } from '../../store/useUi.ts';
 import { Select, type SelectOption } from '../../ui/primitives.tsx';
 
 const TYPE_OPTIONS: readonly SelectOption[] = [
-  { value: 'VACATION', label: 'Отпуск' },
-  { value: 'TRAINING', label: 'Обучение' },
-  { value: 'SICK', label: 'Больничный' },
-  { value: 'OTHER', label: 'Прочее' },
+  { value: 'VACATION', label: 'Vacation' },
+  { value: 'TRAINING', label: 'Training' },
+  { value: 'SICK', label: 'Sick leave' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
 let seq = 0;
@@ -114,7 +115,7 @@ export function AbsenceDialog() {
         <Dialog.Overlay className="dialog__overlay" />
         <Dialog.Content className="dialog">
           <Dialog.Title className="dialog__title">
-            {draft.mode === 'create' ? 'Отметить отсутствие' : 'Изменить отсутствие'}
+            {draft.mode === 'create' ? 'Mark absence' : 'Edit absence'}
           </Dialog.Title>
 
           <div className="dialog__people">
@@ -127,9 +128,9 @@ export function AbsenceDialog() {
           </div>
 
           <label>
-            Тип
+            Type
             <Select
-              ariaLabel="Тип отсутствия"
+              ariaLabel="Absence type"
               value={type}
               onChange={(value) => setType(value as AbsenceType)}
               options={TYPE_OPTIONS}
@@ -137,23 +138,23 @@ export function AbsenceDialog() {
           </label>
 
           <label>
-            Комментарий
+            Comment
             <textarea value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
 
           <div className="dialog__actions">
             {draft.mode === 'edit' ? (
               <button type="button" className="btn" onClick={remove}>
-                Удалить
+                Delete
               </button>
             ) : null}
             <Dialog.Close asChild>
               <button type="button" className="btn">
-                Отмена
+                Cancel
               </button>
             </Dialog.Close>
             <button type="button" className="btn btn--primary" onClick={save}>
-              Сохранить
+              Save
             </button>
           </div>
         </Dialog.Content>

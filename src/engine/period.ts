@@ -1,0 +1,176 @@
+/**
+ * Видимый период: масштаб, шаг навигации и человекочитаемая подпись.
+ *
+ * Выделено в чистый модуль намеренно. Период выбирают три разных элемента
+ * управления — сегментированный переключатель, полоса дней и перетаскиваемая
+ * шкала, — и все они должны согласиться, что такое «неделя». Если это знание
+ * размазать по компонентам, «следующая неделя» из стрелки и «следующая неделя»
+ * из шкалы разъедутся на день.
+ *
+ * Неделя всегда ISO: понедельник–воскресенье. Черновики прототипа привязаны к
+ * началу недели в понедельник (спека §4.2), и расходиться с этим нельзя.
+ */
+
+import { DateTime } from 'luxon';
+import type { DateRange, IsoDate } from '../domain/types.ts';
+import { addDays, daysBetween, parseDate, toIsoDate } from './dates.ts';
+
+export type ZoomId = 'day' | 'two-day' | 'week' | 'two-week' | 'month' | 'quarter' | 'half-year';
+
+export interface ZoomSpec {
+  readonly id: ZoomId;
+  /** Подпись на переключателе. */
+  readonly label: string;
+  /** Полная подпись для aria и тултипа. */
+  readonly title: string;
+  /**
+   * Сетка редактируема только на коротких масштабах. Три и шесть месяцев —
+   * тепловая карта только на чтение (спека §4.2): 80 × 180 редактируемых
+   * ячеек не помещаются ни на экран, ни в разумное время отрисовки.
+   */
+  readonly detail: boolean;
+}
+
+export const ZOOMS: readonly ZoomSpec[] = [
+  { id: 'day', label: 'Day', title: 'One day', detail: true },
+  { id: 'two-day', label: '2 Days', title: 'Two days', detail: true },
+  { id: 'week', label: 'Week', title: 'ISO week, Monday to Sunday', detail: true },
+  { id: 'two-week', label: '2 Weeks', title: 'Two ISO weeks', detail: true },
+  { id: 'month', label: 'Month', title: 'Calendar month', detail: true },
+  { id: 'quarter', label: '3 Months', title: 'Three months — read-only heatmap', detail: false },
+  { id: 'half-year', label: '6 Months', title: 'Six months — read-only heatmap', detail: false },
+];
+
+const ZOOM_BY_ID = new Map(ZOOMS.map((zoom) => [zoom.id, zoom]));
+
+export function zoomSpec(id: ZoomId): ZoomSpec {
+  const spec = ZOOM_BY_ID.get(id);
+  if (!spec) throw new Error(`Unknown zoom ${id}`);
+  return spec;
+}
+
+/**
+ * Период выбранного масштаба, содержащий якорную дату.
+ *
+ * Якорь — не «начало периода», а «день, который планировщик хочет видеть».
+ * Поэтому неделя выравнивается на понедельник, а месяц — на первое число:
+ * иначе стрелка «вперёд» от 15 августа давала бы 15 сентября и заголовки
+ * колонок переставали бы совпадать с календарём.
+ */
+export function rangeFor(zoom: ZoomId, anchor: IsoDate): DateRange {
+  const dt = parseDate(anchor);
+  switch (zoom) {
+    case 'day':
+      return { from: anchor, to: anchor };
+    case 'two-day':
+      return { from: anchor, to: addDays(anchor, 1) };
+    case 'week': {
+      const monday = dt.startOf('week');
+      return { from: toIsoDate(monday), to: toIsoDate(monday.plus({ days: 6 })) };
+    }
+    case 'two-week': {
+      const monday = dt.startOf('week');
+      return { from: toIsoDate(monday), to: toIsoDate(monday.plus({ days: 13 })) };
+    }
+    case 'month':
+      return { from: toIsoDate(dt.startOf('month')), to: toIsoDate(dt.endOf('month')) };
+    case 'quarter':
+      return monthSpan(dt, 3);
+    case 'half-year':
+      return monthSpan(dt, 6);
+  }
+}
+
+function monthSpan(dt: DateTime, months: number): DateRange {
+  const start = dt.startOf('month');
+  return {
+    from: toIsoDate(start),
+    to: toIsoDate(start.plus({ months }).minus({ days: 1 })),
+  };
+}
+
+/**
+ * Якорь после шага вперёд или назад.
+ *
+ * Шаг равен видимому периоду, а не фиксированному числу дней: «дальше» от
+ * месяца — это месяц, а не 30 дней, иначе февраль сдвигал бы сетку.
+ */
+export function stepAnchor(zoom: ZoomId, anchor: IsoDate, direction: 1 | -1): IsoDate {
+  const dt = parseDate(anchor);
+  switch (zoom) {
+    case 'day':
+      return addDays(anchor, direction);
+    case 'two-day':
+      return addDays(anchor, 2 * direction);
+    case 'week':
+      return addDays(anchor, 7 * direction);
+    case 'two-week':
+      return addDays(anchor, 14 * direction);
+    case 'month':
+      return toIsoDate(dt.startOf('month').plus({ months: direction }));
+    case 'quarter':
+      return toIsoDate(dt.startOf('month').plus({ months: 3 * direction }));
+    case 'half-year':
+      return toIsoDate(dt.startOf('month').plus({ months: 6 * direction }));
+  }
+}
+
+/**
+ * Подпись периода. Общая часть не повторяется: «3 – 9 Aug 2026», а не
+ * «3 Aug 2026 – 9 Aug 2026». На узкой шапке это разница в две строки.
+ */
+export function formatRange(range: DateRange): string {
+  const from = parseDate(range.from);
+  const to = parseDate(range.to);
+
+  if (range.from === range.to) return from.toFormat('cccc, d LLLL yyyy');
+  if (from.year === to.year && from.month === to.month) {
+    return `${from.toFormat('d')} – ${to.toFormat('d LLLL yyyy')}`;
+  }
+  if (from.year === to.year) {
+    return `${from.toFormat('d LLL')} – ${to.toFormat('d LLL yyyy')}`;
+  }
+  return `${from.toFormat('d LLL yyyy')} – ${to.toFormat('d LLL yyyy')}`;
+}
+
+/** Число дней в периоде включительно. */
+export function rangeLength(range: DateRange): number {
+  return daysBetween(range.from, range.to) + 1;
+}
+
+/**
+ * Дорожка для перетаскиваемой шкалы: год вокруг якоря, выровненный по месяцам.
+ *
+ * Год, а не «весь диапазон данных»: планировщик двигает окно в пределах
+ * сезона, и шкала на десять лет сделала бы шаг в месяц неприцельным.
+ */
+export function scrubberTrack(anchor: IsoDate): DateRange {
+  const start = parseDate(anchor).startOf('month').minus({ months: 4 });
+  return { from: toIsoDate(start), to: toIsoDate(start.plus({ months: 12 }).minus({ days: 1 })) };
+}
+
+/** Метки месяцев внутри дорожки — для подписей под шкалой. */
+export function monthTicks(track: DateRange): { date: IsoDate; label: string }[] {
+  const ticks: { date: IsoDate; label: string }[] = [];
+  let cursor = parseDate(track.from).startOf('month');
+  const end = parseDate(track.to);
+  while (cursor <= end) {
+    ticks.push({ date: toIsoDate(cursor), label: cursor.toFormat('LLL') });
+    cursor = cursor.plus({ months: 1 });
+  }
+  return ticks;
+}
+
+/** Доля позиции даты внутри дорожки, 0…1. Для раскладки шкалы. */
+export function fractionOf(track: DateRange, date: IsoDate): number {
+  const total = rangeLength(track);
+  const offset = daysBetween(track.from, date);
+  return Math.min(Math.max(offset / total, 0), 1);
+}
+
+/** Обратное к `fractionOf`: дата по доле дорожки. */
+export function dateAtFraction(track: DateRange, fraction: number): IsoDate {
+  const total = rangeLength(track);
+  const clamped = Math.min(Math.max(fraction, 0), 1);
+  return addDays(track.from, Math.round(clamped * (total - 1)));
+}

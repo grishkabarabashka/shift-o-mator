@@ -1,5 +1,5 @@
-# Дизайн-документ переехал
+# The design document has moved
 
-Документация разложена по разделам в [Docs/](Docs/README.md).
+Documentation is now split into sections in [Docs/](Docs/README.md).
 
-Принятые архитектурные решения — [Docs/adr/](Docs/adr/).
+Accepted architectural decisions — [Docs/adr/](Docs/adr/).

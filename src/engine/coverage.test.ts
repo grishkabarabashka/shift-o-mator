@@ -1,141 +1,160 @@
 import { describe, expect, it } from 'vitest';
 import { buildIndex } from '../domain/lookup.ts';
-import type { CoverageRule } from '../domain/types.ts';
-import { leadRole, makeAssignment, makeDataset, makePerson, testUnit } from '../domain/testkit.ts';
-import { computeCoverage, coverageLevel, resolveCoverageRule, summarizeCoverage } from './coverage.ts';
+import {
+  leadRole,
+  makeAssignment,
+  makeDataset,
+  makeDayConfig,
+  makePerson,
+  nightRole,
+  testRegion,
+} from '../domain/testkit.ts';
+import type { DayConfiguration } from '../domain/types.ts';
+import { computeCoverage, coverageLevel, indexCoverage, summarizeCoverage } from './coverage.ts';
 
-const weekdayRule: CoverageRule = {
-  id: 'cr-weekday',
-  unitId: testUnit.id,
-  roleId: leadRole.id,
-  appliesTo: 'WEEKDAY',
-  min: 1,
-  target: 2,
-  max: 3,
-};
-
-const weekendRule: CoverageRule = {
-  id: 'cr-weekend',
-  unitId: testUnit.id,
-  roleId: leadRole.id,
-  appliesTo: 'WEEKEND',
-  min: 1,
-  target: 1,
-};
-
-const holidayRule: CoverageRule = {
-  id: 'cr-holiday',
-  unitId: testUnit.id,
-  roleId: leadRole.id,
-  appliesTo: 'HOLIDAY',
-  min: 2,
-};
-
-const drTestRule: CoverageRule = {
-  id: 'cr-dr-test',
-  unitId: testUnit.id,
-  roleId: leadRole.id,
-  appliesTo: 'DATE',
-  date: '2026-09-08',
-  label: 'DR test',
-  min: 3,
-  target: 4,
-};
-
-describe('уровень покрытия', () => {
-  it('различает четыре состояния клетки', () => {
-    expect(coverageLevel(0, 1, 2, 3)).toBe('BELOW_MIN');
-    expect(coverageLevel(1, 1, 2, 3)).toBe('BELOW_TARGET');
-    expect(coverageLevel(2, 1, 2, 3)).toBe('OK');
-    expect(coverageLevel(4, 1, 2, 3)).toBe('OVER_MAX');
-  });
-
-  it('без цели и максимума достаточно минимума', () => {
-    expect(coverageLevel(5, 1)).toBe('OK');
-  });
+const weekday: DayConfiguration = makeDayConfig({
+  id: 'dc-weekday',
+  key: 'weekday',
+  weekdays: [1, 2, 3, 4, 5],
+  roleRequirements: [{ roleId: leadRole.id, min: 1, max: 3, isDefault: true }],
 });
 
-describe('выбор действующего правила', () => {
-  const rules = [weekdayRule, weekendRule, holidayRule, drTestRule];
+const weekend: DayConfiguration = makeDayConfig({
+  id: 'dc-weekend',
+  key: 'weekend',
+  weekdays: [6, 7],
+  roleRequirements: [{ roleId: leadRole.id, min: 1, max: 1, isDefault: true }],
+});
 
-  it('правило с датой перекрывает всё остальное', () => {
-    expect(resolveCoverageRule(rules, leadRole.id, '2026-09-08', 'WEEKDAY')?.id).toBe('cr-dr-test');
+const holiday: DayConfiguration = makeDayConfig({
+  id: 'dc-holiday',
+  key: 'holiday',
+  weekdays: [],
+  roleRequirements: [{ roleId: leadRole.id, min: 2, isDefault: true }],
+});
+
+describe('уровень покрытия', () => {
+  it('различает четыре состояния', () => {
+    expect(coverageLevel(0, 1, 3)).toBe('GAP');
+    expect(coverageLevel(1, 1, 3)).toBe('THIN');
+    expect(coverageLevel(2, 1, 3)).toBe('OK');
+    expect(coverageLevel(4, 1, 3)).toBe('OVER');
   });
 
-  it('праздничное правило перекрывает будничное', () => {
-    expect(resolveCoverageRule(rules, leadRole.id, '2026-09-07', 'HOLIDAY')?.id).toBe('cr-holiday');
+  it('THIN — это ровно минимум, а не оттенок зелёного', () => {
+    expect(coverageLevel(2, 2)).toBe('THIN');
+    expect(coverageLevel(3, 2)).toBe('OK');
   });
 
-  it('выходное правило применяется только к выходным', () => {
-    expect(resolveCoverageRule(rules, leadRole.id, '2026-09-12', 'WEEKEND')?.id).toBe('cr-weekend');
-    expect(resolveCoverageRule(rules, leadRole.id, '2026-09-09', 'WEEKDAY')?.id).toBe('cr-weekday');
-  });
-
-  it('без подходящего правила требований нет', () => {
-    expect(resolveCoverageRule([holidayRule], leadRole.id, '2026-09-09', 'WEEKDAY')).toBeUndefined();
+  it('нулевой минимум THIN не даёт', () => {
+    // Роль с min 0 всегда «закрыта»; называть это впритык бессмысленно.
+    expect(coverageLevel(0, 0)).toBe('OK');
   });
 });
 
 describe('расчёт покрытия за период', () => {
   const people = [makePerson({ id: 'p-1' }), makePerson({ id: 'p-2' }), makePerson({ id: 'p-3' })];
 
-  function coverageFor(assignmentDates: ReadonlyArray<[string, string]>) {
-    const assignments = assignmentDates.map(([personId, date]) =>
+  function coverageFor(placements: ReadonlyArray<[string, string]>) {
+    const assignments = placements.map(([personId, date]) =>
       makeAssignment(personId, leadRole.id, date),
     );
     const data = makeDataset({
       people,
       assignments,
-      coverageRules: [weekdayRule, weekendRule, holidayRule, drTestRule],
-      holidays: [{ calendarKey: 'US', date: '2026-09-07', name: 'Labor Day' }],
+      dayConfigurations: [weekday, weekend, holiday],
+      holidays: [{ date: '2026-09-07', name: 'Labor Day', locationIds: ['loc-ny'], isFullDay: true }],
     });
     return computeCoverage({
-      unitId: testUnit.id,
+      regionId: testRegion.id,
       range: { from: '2026-09-07', to: '2026-09-13' },
       assignments: data.assignments,
-      coverageRules: data.coverageRules,
       index: buildIndex(data),
     });
   }
 
-  it('даёт по клетке на каждый день с действующим правилом', () => {
+  it('даёт по клетке на каждый день с действующим требованием', () => {
     expect(coverageFor([])).toHaveLength(7);
   });
 
   it('пустой день против минимума — дыра', () => {
-    const cells = coverageFor([]);
-    expect(cells.every((cell) => cell.level === 'BELOW_MIN')).toBe(true);
+    expect(coverageFor([]).every((cell) => cell.level === 'GAP')).toBe(true);
   });
 
   it('считает фактически назначенных', () => {
     const cells = coverageFor([
-      ['p-1', '2026-09-09'],
-      ['p-2', '2026-09-09'],
+      ['p-1', '2026-09-08'],
+      ['p-2', '2026-09-08'],
     ]);
-    const cell = cells.find((c) => c.date === '2026-09-09');
+    const cell = cells.find((c) => c.date === '2026-09-08');
     expect(cell?.actual).toBe(2);
     expect(cell?.level).toBe('OK');
   });
 
-  it('применяет к празднику праздничный минимум', () => {
-    const cells = coverageFor([['p-1', '2026-09-07']]);
-    const holiday = cells.find((c) => c.date === '2026-09-07');
-    expect(holiday?.min).toBe(2);
-    expect(holiday?.level).toBe('BELOW_MIN');
-    expect(holiday?.appliedScope).toBe('HOLIDAY');
+  it('один при минимуме один — впритык', () => {
+    const cell = coverageFor([['p-1', '2026-09-08']]).find((c) => c.date === '2026-09-08');
+    expect(cell?.level).toBe('THIN');
   });
 
-  it('переносит метку события в клетку', () => {
-    // ASSUMPTION в фикстурах, здесь — проверка механизма ADR-0008.
-    const cells = coverageFor([]);
-    const drTest = cells.find((c) => c.date === '2026-09-08');
-    expect(drTest?.ruleLabel).toBe('DR test');
-    expect(drTest?.min).toBe(3);
+  it('применяет к празднику праздничную конфигурацию', () => {
+    const holidayCell = coverageFor([['p-1', '2026-09-07']]).find((c) => c.date === '2026-09-07');
+    expect(holidayCell?.min).toBe(2);
+    expect(holidayCell?.level).toBe('GAP');
+    expect(holidayCell?.appliedKey).toBe('holiday');
   });
 
-  it('игнорирует назначения вне периода и чужих ролей', () => {
-    const cells = coverageFor([['p-1', '2026-10-01']]);
-    expect(cells.every((cell) => cell.actual === 0)).toBe(true);
+  it('выходные считаются по своей конфигурации', () => {
+    const cell = coverageFor([['p-1', '2026-09-12']]).find((c) => c.date === '2026-09-12');
+    expect(cell?.appliedKey).toBe('weekend');
+    expect(cell?.max).toBe(1);
+  });
+
+  it('игнорирует назначения вне периода', () => {
+    expect(coverageFor([['p-1', '2026-10-01']]).every((cell) => cell.actual === 0)).toBe(true);
+  });
+
+  it('маркеры ростера в покрытие не идут', () => {
+    const data = makeDataset({
+      people,
+      assignments: [makeAssignment('p-1', { kind: 'MARKER', marker: 'OFF' }, '2026-09-08')],
+      dayConfigurations: [weekday, weekend, holiday],
+    });
+    const cells = computeCoverage({
+      regionId: testRegion.id,
+      range: { from: '2026-09-08', to: '2026-09-08' },
+      assignments: data.assignments,
+      index: buildIndex(data),
+    });
+    expect(cells[0]?.actual).toBe(0);
+  });
+
+  it('роль без countsAsCoverage не учитывается', () => {
+    const shadow = { ...nightRole, id: 'r-shadow', code: 'Shadow', countsAsCoverage: false };
+    const config = makeDayConfig({
+      id: 'dc-shadow',
+      key: 'weekday',
+      weekdays: [1, 2, 3, 4, 5],
+      roleRequirements: [
+        { roleId: leadRole.id, min: 1, isDefault: true },
+        { roleId: shadow.id, min: 1, isDefault: false },
+      ],
+    });
+    const data = makeDataset({
+      people,
+      roles: [leadRole, shadow],
+      dayConfigurations: [config],
+      assignments: [makeAssignment('p-1', shadow.id, '2026-09-08')],
+    });
+    const cells = computeCoverage({
+      regionId: testRegion.id,
+      range: { from: '2026-09-08', to: '2026-09-08' },
+      assignments: data.assignments,
+      index: buildIndex(data),
+    });
+    // Клетка для Shadow не создаётся, и назначение никуда не засчитывается.
+    expect(cells).toHaveLength(1);
+    expect(cells[0]?.roleId).toBe(leadRole.id);
+    expect(cells[0]?.actual).toBe(0);
   });
 
   it('сводка считает клетки по уровням', () => {
@@ -147,7 +166,12 @@ describe('расчёт покрытия за период', () => {
       ]),
     );
     expect(summary.total).toBe(7);
-    expect(summary.belowTarget).toBe(1); // 10-е: один при цели два
-    expect(summary.belowMin).toBe(5);
+    expect(summary.thin).toBe(1); // 10-е: один при минимуме один
+    expect(summary.gaps).toBe(5);
+  });
+
+  it('индексирует клетки по дате и роли', () => {
+    const map = indexCoverage(coverageFor([['p-1', '2026-09-09']]));
+    expect(map.get(`2026-09-09|${leadRole.id}`)?.actual).toBe(1);
   });
 });

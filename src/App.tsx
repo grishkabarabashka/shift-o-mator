@@ -1,90 +1,73 @@
 /**
- * Экран планирования: сетка, полоса покрытия, панель нарушений.
+ * Корень приложения: загрузка данных, маршруты, общая оболочка.
  *
- * Остальные экраны (timeline, absence overview, аналитика) — следующие этапы
- * плана работ, см. Docs/09-roadmap.md.
+ * Данные грузятся один раз на (единица × период) и раздаются всем экранам через
+ * `usePlanningView`. Каждый экран, считающий покрытие заново, — это лишние
+ * секунды на переключении вкладки и, что хуже, шанс показать на дашборде не то
+ * же самое, что в сетке.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { DEFAULT_PERIOD } from './domain/fixtures.ts';
-import { addDays, monthRange, toIsoDate, parseDate } from './engine/dates.ts';
-import { useSchedule } from './store/useSchedule.ts';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { TooltipProvider } from './ui/primitives.tsx';
-import { AbsenceDialog } from './features/absences/AbsenceDialog.tsx';
-import { SelectionToolbar } from './features/absences/SelectionToolbar.tsx';
-import { CompDayDialog } from './features/compdays/CompDayDialog.tsx';
-import { CoverageStrip } from './features/coverage/CoverageStrip.tsx';
-import { IssuePanel } from './features/issues/IssuePanel.tsx';
-import { PlanningGrid } from './features/planning/PlanningGrid.tsx';
-import { RolePalette } from './features/planning/RolePalette.tsx';
+import { useSchedule } from './store/useSchedule.ts';
+import { TODAY, useUi } from './store/useUi.ts';
+import { useNow } from './ui/useNow.ts';
+import { AppShell } from './features/shell/AppShell.tsx';
 import { usePlanningView } from './features/planning/usePlanningView.ts';
-import { Header } from './features/shell/Header.tsx';
-
-const DEFAULT_UNIT = 'unit-amer';
-
-/**
- * Сегодняшняя дата берётся один раз за сессию: движок принимает её параметром,
- * и подсовывать в него `new Date()` из глубины компонентов нельзя.
- */
-function todayIso(): string {
-  return toIsoDate(parseDate(new Date().toISOString().slice(0, 10)));
-}
+import { DashboardPage } from './pages/DashboardPage.tsx';
+import { PeoplePage } from './pages/PeoplePage.tsx';
+import { SchedulePage } from './pages/SchedulePage.tsx';
+import { SettingsPage } from './pages/SettingsPage.tsx';
+import { TimelinePage } from './pages/TimelinePage.tsx';
 
 export function App() {
-  const [unitId, setUnitId] = useState(DEFAULT_UNIT);
-  const [anchor, setAnchor] = useState<string>(DEFAULT_PERIOD.from);
-  const asOf = useMemo(todayIso, []);
+  const unitId = useUi((s) => s.unitId);
+  const range = useUi((s) => s.range);
 
   const load = useSchedule((s) => s.load);
   const status = useSchedule((s) => s.status);
   const error = useSchedule((s) => s.error);
-  const reference = useSchedule((s) => s.reference);
 
-  const range = useMemo(() => monthRange(anchor), [anchor]);
-  const view = usePlanningView(asOf);
+  const view = usePlanningView(TODAY);
+  const now = useNow();
 
   useEffect(() => {
     void load(unitId, range);
   }, [load, unitId, range]);
 
-  const shiftMonth = (delta: number) => {
-    const next = delta > 0 ? addDays(range.to, 1) : addDays(range.from, -1);
-    setAnchor(next);
-  };
-
-  if (status === 'error') {
-    return <div className="app__loading">Не удалось загрузить данные: {error}</div>;
-  }
-
-  if (!reference || !view.ready) {
-    return <div className="app__loading">Загрузка…</div>;
-  }
-
   return (
     <TooltipProvider>
-      <div className="app">
-        <Header
-          units={reference.units}
-          unitId={unitId}
-          range={range}
-          view={view}
-          onUnitChange={setUnitId}
-          onShiftMonth={shiftMonth}
-        />
-        <div className="app__body">
-          <div className="app__main">
-            <div style={{ display: 'grid', gridTemplateRows: 'auto auto 1fr', minHeight: 0 }}>
-              <RolePalette roles={view.roles} referenceDate={range.from} />
-              <SelectionToolbar view={view} />
-              <PlanningGrid view={view} />
-            </div>
-            <CoverageStrip view={view} />
-          </div>
-          <IssuePanel view={view} />
-        </div>
-        <AbsenceDialog />
-        <CompDayDialog />
-      </div>
+      <BrowserRouter>
+        <AppShell>
+          {status === 'error' ? (
+            <Placeholder title="Could not load the schedule" body={error ?? 'Unknown error'} />
+          ) : !view.ready ? (
+            <Placeholder title="Loading…" body="Reading the published plan." />
+          ) : (
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage view={view} now={now} />} />
+              <Route path="/schedule" element={<SchedulePage view={view} asOf={TODAY} />} />
+              <Route path="/timeline" element={<TimelinePage view={view} now={now} />} />
+              <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          )}
+        </AppShell>
+      </BrowserRouter>
     </TooltipProvider>
+  );
+}
+
+function Placeholder({ title, body }: { readonly title: string; readonly body: string }) {
+  return (
+    <div className="grid h-full place-items-center p-8">
+      <div className="max-w-md text-center">
+        <h2 className="text-[16px] font-semibold">{title}</h2>
+        <p className="mt-1 text-[13px] text-muted">{body}</p>
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,520 @@
+/*
+ * Сетка планирования, полоса покрытия и таймлайн.
+ *
+ * Здесь единственное место, где плотность важнее воздуха: 80 строк на 31
+ * колонку должны читаться без прокрутки по вертикали внутри одной группы.
+ * Воздух приходит от полей вокруг карточки, а не изнутри таблицы.
+ *
+ * Сетка — CSS grid с липкими первой колонкой и шапкой. Липкость держится на
+ * `position: sticky` внутри одного скролл-контейнера, поэтому корень сетки
+ * прокручивается по обеим осям сам, а не через родителя.
+ */
+
+/* --------------------------------------------------------------------------
+ * Сетка
+ * ----------------------------------------------------------------------- */
+
+.grid-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  background: var(--surface);
+  border-radius: 10px;
+}
+
+.sheet {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+  user-select: none;
+}
+
+/* --- Шапка ---------------------------------------------------------------- */
+
+.sheet__corner,
+.sheet__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.sheet__corner {
+  left: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 38px;
+  border-right: 1px solid var(--line-strong);
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sheet__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  gap: 1px;
+  border-left: 1px solid var(--line);
+}
+
+.sheet__head-wd {
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sheet__head-num {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.sheet__head[data-nonworking] {
+  background: var(--surface-sunken);
+}
+.sheet__head[data-nonworking] .sheet__head-num {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+/* Праздник — точка под числом: цвета выходного мало, а места на подпись нет. */
+.sheet__head[data-holiday] .sheet__head-num::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 1px auto 0;
+  border-radius: 50%;
+  background: var(--warn);
+}
+/* Приход из дашборда: колонка, к которой нас привели. */
+.sheet__head[data-highlight] {
+  background: var(--bad-soft);
+  box-shadow: inset 0 -2px 0 var(--bad);
+}
+.sheet__head[data-highlight] .sheet__head-num {
+  color: var(--bad);
+  font-weight: 700;
+}
+.sheet__head[data-today] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--bad);
+}
+.sheet__head[data-today] .sheet__head-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* --- Группа --------------------------------------------------------------- */
+
+.sheet__group,
+.sheet__group-fill {
+  height: 26px;
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet__group {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-right: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sheet__group-count {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+/* --- Имя ------------------------------------------------------------------ */
+
+.sheet__name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  padding: 0 10px;
+  background: var(--surface);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.sheet__name-meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+/* --- Ячейка --------------------------------------------------------------- */
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--row-h);
+  padding: 2px;
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  cursor: cell;
+}
+
+.cell[data-nonworking] {
+  background: var(--surface-sunken);
+}
+.cell[data-today] {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.cell[data-today][data-nonworking] {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-sunken));
+}
+
+/* Отсутствие — штриховка: заливка конкурировала бы с цветом роли. */
+.cell[data-absent] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    color-mix(in srgb, var(--ink-faint) 22%, transparent) 4px,
+    color-mix(in srgb, var(--ink-faint) 22%, transparent) 8px
+  );
+}
+
+.cell[data-selected] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.cell[data-focused] {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Нарушения — рамка, а не заливка: цвет роли должен остаться читаемым. */
+.cell[data-issue='BLOCKING'],
+.cell[data-conflict] {
+  box-shadow: inset 0 0 0 2px var(--bad);
+}
+.cell[data-issue='WARNING'] {
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+.cell[data-focused][data-issue] {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 4px var(--bad-soft);
+}
+
+/* --- Содержимое ячейки ---------------------------------------------------- */
+
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.22);
+}
+
+.cell__status {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.cell__hint {
+  padding: 0 3px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* --------------------------------------------------------------------------
+ * Полоса покрытия
+ * ----------------------------------------------------------------------- */
+
+.cover {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  font-size: 11px;
+}
+
+.cover__label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--surface);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.cover__label--action {
+  border: 0;
+  border-right: 1px solid var(--line-strong);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.cover__label--action:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.cover__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+/* Итоговая строка выделена: она видна всегда, детализация — по требованию. */
+.cover__cell--total,
+.cover__label--action {
+  height: 30px;
+  border-bottom: 0;
+  background: var(--surface-sunken);
+}
+
+.cover__cell[data-level='OK'] {
+  color: var(--ok);
+}
+.cover__cell[data-level='THIN'] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.cover__cell[data-level='GAP'] {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.cover__cell[data-level='OVER'] {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+ * Тепловая карта длинных периодов (3 и 6 месяцев, только чтение)
+ * ----------------------------------------------------------------------- */
+
+.heat {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  font-size: 11px;
+}
+
+.heat__name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 10px;
+  background: var(--surface);
+  border-right: 1px solid var(--line-strong);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.heat__cell {
+  height: 18px;
+  border-right: 1px solid var(--surface);
+  border-bottom: 1px solid var(--surface);
+  background: var(--surface-sunken);
+}
+
+.heat__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 20px;
+  padding-left: 3px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+ * Таймлайн
+ * ----------------------------------------------------------------------- */
+
+.lane {
+  position: relative;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.lane__hour {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+
+.lane__block {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+}
+.lane__block:hover {
+  filter: brightness(1.1);
+}
+
+/* Перекрытие передачи смены — полупрозрачная накладка поверх блоков. */
+.lane__handover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--accent) 30%, transparent),
+    color-mix(in srgb, var(--accent) 30%, transparent) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+}
+
+.lane__now {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--bad);
+  pointer-events: none;
+  z-index: 3;
+}
+.lane__now::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
+.lane__gap {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bad-soft),
+    var(--bad-soft) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  border: 1px dashed var(--bad);
+  color: var(--bad);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.axis {
+  position: relative;
+  height: 16px;
+}
+.axis__tick {
+  position: absolute;
+  top: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}

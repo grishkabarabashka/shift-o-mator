@@ -1,36 +1,42 @@
-# ADR-0011. Блокировка периода через check-out, без real-time
+# ADR-0011. Period locking via check-out, no real-time collaboration
 
-**Статус:** принято
+**Status:** ~~accepted~~ — **superseded by
+[ADR-0015](0015-optimistic-drafts-and-publication.md)**
 
-## Контекст
+> Pessimistic locking is not used. The product allows concurrent draft sessions and
+> resolves conflicts at publish time. The rejection of real-time collaborative editing
+> below still holds and is carried into ADR-0015; the locking decision does not.
+> Retained for the record.
 
-Планировщиков один-два на единицу, работают они обычно только со своей единицей и редко —
-раз в 2–4 недели садятся и размечают период. Совместное редактирование в реальном времени
-(CRDT, операционные трансформации, presence) — это отдельная подсистема со своей моделью
-конфликтов.
+## Context
 
-## Решение
+There are one or two planners per unit, they usually work only within their own unit,
+and they work infrequently — sitting down every 2–4 weeks to lay out a period.
+Real-time collaborative editing (CRDTs, operational transforms, presence) is a whole
+separate subsystem with its own conflict model.
 
-Check-out на пару (единица планирования, период). Один берёт EMEA на сентябрь, остальные
-видят в режиме чтения с плашкой «редактирует Мария с 14:20».
+## Decision
 
-- Автоснятие блокировки по таймауту неактивности.
-- Принудительное снятие администратором — иначе кто-нибудь уйдёт в отпуск с зажатым
-  сентябрём.
+Check-out on a (planning unit, period) pair. One person takes EMEA for September;
+everyone else sees it read-only with a "Maria is editing since 14:20" banner.
 
-## Следствия
+- Auto-release on an inactivity timeout.
+- Force-release by an administrator — otherwise someone goes on vacation with
+  September locked.
 
-- Модель правок остаётся простой: локальный черновик, патчи, undo/redo, сохранение
-  батчем.
-- Конфликтов слияния не существует по построению.
-- В MVP без бэкенда блокировка эмулируется в репозитории: `acquireLock` / `releaseLock` /
-  `getLock` существуют с самого начала, чтобы интерфейс писался под реальный контракт.
-- Цена: два планировщика не могут одновременно править один и тот же период одной
-  единицы. При текущем числе редакторов это не ограничение.
+## Consequences
 
-## Альтернативы
+- The edit model stays simple: a local draft, patches, undo/redo, saved in batches.
+- Merge conflicts don't exist by construction.
+- In the MVP without a backend, locking is emulated in the repository:
+  `acquireLock` / `releaseLock` / `getLock` exist from day one, so the UI is written
+  against the real contract.
+- Cost: two planners can't simultaneously edit the same period of the same unit. At
+  the current number of editors, that's not a real constraint.
 
-- **Real-time совместное редактирование.** При таком числе редакторов добавит сложности
-  больше, чем сэкономит.
-- **Оптимистичная блокировка на уровне записи.** Даёт конфликты в момент сохранения,
-  то есть тогда, когда планировщик уже потратил полчаса.
+## Alternatives considered
+
+- **Real-time collaborative editing.** With this many editors, adds more complexity
+  than it saves.
+- **Optimistic locking at the record level.** Produces conflicts at save time — right
+  after the planner has already spent half an hour on it.

@@ -1,28 +1,29 @@
-# ADR-0004. Роли принадлежат единице; глобального справочника ролей нет
+# ADR-0004. Roles belong to a unit; there is no global role catalog
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-Код `SL` встречается в нескольких единицах. Соблазн завести глобальный справочник ролей
-и ссылаться на него отовсюду велик — и ошибочен: `AMER/SL` и `EMEA/SL` имеют разное
-время, разных людей и разные требования покрытия. Общее у них только название.
+The code `SL` shows up in several units. The temptation to build a global role
+catalog and reference it from everywhere is strong — and wrong: `AMER/SL` and
+`EMEA/SL` have different times, different people, and different coverage
+requirements. All they share is a name.
 
-## Решение
+## Decision
 
-`ShiftRole` содержит `unitId`. Глобального справочника нет. Совпадение кодов между
-юнитами нормально и ничего не означает.
+`ShiftRole` holds a `unitId`. There is no global catalog. Matching codes across units
+is normal and means nothing.
 
-## Следствия
+## Consequences
 
-- Правила покрытия ссылаются на `roleId` внутри своей единицы — двусмысленность исключена.
-- Изменение времени `EMEA/SL` не задевает `AMER/SL`.
-- Eligibility человека ссылается на роли его единицы; смена единицы человеком требует
-  пересмотра eligibility (в MVP не автоматизируется).
-- Отчёты «сколько SL-смен по всей компании» требуют явной группировки по коду — это
-  осознанная плата.
+- Coverage rules reference `roleId` within their own unit — no ambiguity.
+- Changing `EMEA/SL`'s time doesn't touch `AMER/SL`.
+- A person's eligibility references roles in their own unit; moving a person to
+  another unit requires revisiting their eligibility (not automated in the MVP).
+- Reports like "how many SL shifts company-wide" require an explicit group-by — an
+  accepted cost.
 
-## Альтернативы
+## Alternatives considered
 
-- **Глобальные роли с переопределением времени по юниту.** Тот же результат через лишний
-  уровень косвенности плюс постоянный вопрос «а что здесь переопределено».
+- **Global roles with a per-unit time override.** Same outcome through an extra layer
+  of indirection, plus a constant "what's overridden here" question.

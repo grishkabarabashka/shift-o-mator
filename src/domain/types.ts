@@ -1,9 +1,13 @@
 /**
  * Доменная модель shift-o-mator.
  *
- * Решения, на которых держится эта модель, описаны в Docs/adr/.
- * Ключевое: роль несёт своё время (ADR-0001), локация отвечает только за календарь
- * и отображение (ADR-0002).
+ * Решения — в Docs/adr/. Ключевые для этого файла:
+ *   ADR-0020  Region и PlanningUnit — две ортогональные оси
+ *   ADR-0001  роль несёт своё время, ADR-0018 shift ≠ role
+ *   ADR-0016  day configuration несёт набор ролей, а не только минимумы
+ *   ADR-0017  Absence — диапазон, ячейка — проекция
+ *   ADR-0015  черновики и публикация
+ *   ADR-0021  конфигурация версионируется датой вступления
  *
  * Этот модуль не зависит ни от чего, кроме стандартной библиотеки.
  */
@@ -28,18 +32,21 @@ export type IanaZone = string;
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const MONDAY = 1 as const;
+export const FRIDAY = 5 as const;
 export const SATURDAY = 6 as const;
 export const SUNDAY = 7 as const;
 
 export type LocationId = string;
+export type RegionId = string;
 export type UnitId = string;
+export type ShiftId = string;
 export type RoleId = string;
 export type PersonId = string;
 export type AssignmentId = string;
 export type AbsenceId = string;
 export type CompDayEntryId = string;
-export type CoverageRuleId = string;
-export type AbsenceCapacityRuleId = string;
+export type DayConfigId = string;
+export type DraftSessionId = string;
 
 /** Полуоткрытый интервал времени `[start, end)` в UTC. */
 export interface UtcInterval {
@@ -47,7 +54,7 @@ export interface UtcInterval {
   readonly end: IsoInstant;
 }
 
-/** Период планирования, обе границы включительно. */
+/** Период, обе границы включительно. */
 export interface DateRange {
   readonly from: IsoDate;
   readonly to: IsoDate;
@@ -57,145 +64,215 @@ export interface DateRange {
 // Локация и календарь
 // ---------------------------------------------------------------------------
 
-/** Ключ национального календаря праздников: `US`, `GB`, `CH`, `SG`, `IN`. */
 export type HolidayCalendarKey = string;
 
 /**
  * Локация отвечает ровно за две вещи: календарь нерабочих дней и таймзону
- * отображения. Ко времени смены отношения не имеет — см. ADR-0002.
+ * отображения. Ко времени смены отношения не имеет — ADR-0002.
  */
 export interface Location {
   readonly id: LocationId;
   readonly name: string;
   readonly timeZone: IanaZone;
   readonly holidayCalendarKey: HolidayCalendarKey;
-  /** Дни недели, считающиеся выходными в этой локации. */
   readonly weekendDays: readonly Weekday[];
 }
 
 export interface Holiday {
-  readonly calendarKey: HolidayCalendarKey;
   readonly date: IsoDate;
   readonly name: string;
+  readonly locationIds: readonly LocationId[];
+  readonly isFullDay: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Единица планирования
+// Регион — граница правил
 // ---------------------------------------------------------------------------
 
 export type CompDayTrigger = 'SATURDAY' | 'SUNDAY' | 'HOLIDAY';
 
-export interface CompDayRule {
-  readonly workedOn: CompDayTrigger;
-  /** Смещение предлагаемого отгула в календарных днях от отработанной даты. */
-  readonly defaultOffsetDays: number;
+/**
+ * Политика отгулов. Дата подбирается поиском в окне, а не фиксированным
+ * смещением, и отгулы не сгорают — ADR-0007.
+ */
+export interface CompOffPolicy {
+  readonly windowBeforeDays: number;
+  readonly windowAfterDays: number;
+  /** Дни недели, на которые отгул не ставится. По умолчанию Пн и Пт. */
+  readonly excludedWeekdays: readonly Weekday[];
+  /** Через сколько дней после начисления неотгуленный день подсвечивается. */
+  readonly agingThresholdDays: number;
+  readonly requiresApprovalWhenNoSlot: boolean;
 }
 
-/** Политика начисления отгулов, задаётся на единице планирования. См. ADR-0007. */
-export interface CompDayPolicy {
-  readonly rules: readonly CompDayRule[];
-  /** Через сколько недель неотгуленный день сгорает. */
-  readonly expiryWeeks: number;
+/** Регион задаёт, какие правила применяются. Не география — ADR-0003. */
+export interface Region {
+  readonly id: RegionId;
+  readonly name: string;
+  /** Таймзона, в которой дата классифицируется в day configuration. */
+  readonly primaryTimeZone: IanaZone;
+  /** Чей календарь праздников решает «праздник ли это для ростера». */
+  readonly primaryLocationId: LocationId;
+  readonly locationIds: readonly LocationId[];
+  readonly compOffPolicy: CompOffPolicy;
 }
+
+// ---------------------------------------------------------------------------
+// Единица планирования — граница планирования
+// ---------------------------------------------------------------------------
+
+export type UnitKind = 'REGION' | 'CROSS_REGION';
+
+/** По чему группируются строки сетки внутри единицы. */
+export type GroupBy = 'LOCATION' | 'REGION' | 'ORG_CATEGORY';
 
 /**
- * Организационная, а не географическая граница — см. ADR-0003.
- * В интерфейсе называется «регион».
+ * Единица планирования задаёт, на чьём экране человек. Ортогональна региону
+ * (ADR-0020) и является фильтром по умолчанию, а не границей прав.
  */
 export interface PlanningUnit {
   readonly id: UnitId;
   readonly name: string;
-  /** Кто вправе редактировать план этой единицы. */
-  readonly plannerPersonIds: readonly PersonId[];
-  readonly compDayPolicy: CompDayPolicy;
-  /**
-   * Локация, по календарю которой день классифицируется для правил покрытия
-   * (`WEEKDAY` / `WEEKEND` / `HOLIDAY`). Календарь comp days при этом всегда
-   * берётся по локации самого человека.
-   */
-  readonly coverageCalendarLocationId: LocationId;
+  readonly kind: UnitKind;
+  /** Заполнен при `kind === 'REGION'`. */
+  readonly regionId?: RegionId;
+  readonly groupBy: GroupBy;
 }
 
 // ---------------------------------------------------------------------------
-// Роль
+// Смена и роль
 // ---------------------------------------------------------------------------
 
+/** Контрактное окно человека. Отдельно от окна роли — ADR-0018. */
+export interface ShiftDefinition {
+  readonly id: ShiftId;
+  readonly regionId: RegionId;
+  readonly code: string;
+  readonly name: string;
+  readonly timeZone: IanaZone;
+  readonly start: TimeOfDay;
+  readonly end: TimeOfDay;
+  readonly crossesMidnight: boolean;
+  readonly breakMinutes: number;
+}
+
 /**
- * Роль несёт своё время — см. ADR-0001. Окно задано в фиксированной таймзоне
- * роли, а не в таймзоне человека и не в UTC-смещении.
- *
- * Роль принадлежит единице планирования; глобального справочника ролей нет
- * (ADR-0004), совпадение кодов между единицами ничего не означает.
+ * Роль несёт своё время в фиксированной таймзоне — ADR-0001.
+ * Принадлежит региону; глобального справочника нет — ADR-0004.
  */
 export interface ShiftRole {
   readonly id: RoleId;
-  readonly unitId: UnitId;
-  /** Короткий код для сетки: `SL`, `BATCH`, `CAVA`. */
+  readonly regionId: RegionId;
   readonly code: string;
   readonly label: string;
-  /** CSS-цвет чипа роли. */
+  /** Операционное назначение роли: показывается в пикере и настройках. */
+  readonly description?: string;
   readonly color: string;
-  /** Клавиша быстрого ввода в сетке. Уникальна в пределах единицы. */
   readonly hotkey?: string;
   readonly timeZone: IanaZone;
   readonly start: TimeOfDay;
   readonly end: TimeOfDay;
-  /** Окно переходит через полночь: `22:00`–`06:00`. */
   readonly crossesMidnight: boolean;
-  /** Можно ли править время в конкретной ячейке. */
-  readonly editableTime: boolean;
-  /** Участвует ли роль в расчёте покрытия. */
+  readonly breakMinutes: number;
   readonly countsAsCoverage: boolean;
+  readonly editableTime: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Конфигурация дня
+// ---------------------------------------------------------------------------
+
+/**
+ * `date` зарезервирован под событийные конфигурации и пока не реализован —
+ * ADR-0008. Порядок разрешения: DATE → HOLIDAY → WEEKEND → группа будней.
+ */
+export type DayConfigKey = 'weekday' | 'friday' | 'weekend' | 'holiday' | 'date';
+
+export interface RoleRequirement {
+  readonly roleId: RoleId;
+  /** Жёсткое требование. Ниже — дыра. */
+  readonly min: number;
+  /** Выше — предупреждение. `undefined` = без ограничения. */
+  readonly max?: number;
+  /** Предлагается в пикере даже без требования. */
+  readonly isDefault: boolean;
+  /** Роль в этой группе дней идёт в другое время. */
+  readonly timingOverride?: TimeOverride;
+}
+
+/**
+ * Группа дней со своим набором ролей — ADR-0016. Версионируется датой
+ * вступления: правило, поднятое сегодня, не перекрашивает прошлый март
+ * (ADR-0021).
+ */
+export interface DayConfiguration {
+  readonly id: DayConfigId;
+  readonly regionId: RegionId;
+  readonly key: DayConfigKey;
+  /** Для будних групп. Каждый день недели принадлежит ровно одной группе. */
+  readonly weekdays: readonly Weekday[];
+  /** Только для `key === 'date'`. */
+  readonly date?: IsoDate;
+  readonly label?: string;
+  readonly effectiveFrom: IsoDate;
+  readonly roleRequirements: readonly RoleRequirement[];
 }
 
 // ---------------------------------------------------------------------------
 // Человек
 // ---------------------------------------------------------------------------
 
+export type OrgCategory = 'SUPPORT' | 'SERVICE_TRANSITION' | 'MANAGEMENT';
+
 /**
- * Доступность роли с целевой долей вместо булева флага — см. ADR-0006.
- * Справедливость считается как отклонение фактической доли от целевой.
+ * Доступность роли с целевой долей вместо булева флага — ADR-0006.
+ * Доля — метрика справедливости; порядок кандидатов считается отдельно.
  */
 export interface RoleEligibility {
   readonly roleId: RoleId;
-  /** Желаемая доля этой роли в нагрузке человека, 0..1. Веса, не вероятности. */
   readonly targetShare: number;
   readonly minPerWeek?: number;
   readonly maxPerWeek?: number;
 }
 
 export interface PersonConstraints {
-  /** Минимальный отдых между концом одной смены и началом следующей. */
   readonly minRestHours: number;
   readonly maxConsecutiveDays: number;
-  /** Сколько выходных дней подряд с работой допустимо за 4 недели. */
-  readonly maxWeekendDaysPer4Weeks?: number;
+  readonly maxWeekendsPerQuarter?: number;
 }
 
 export interface PersonPreferences {
-  /** Дни недели, которые человек предпочитает не работать. Уровень INFO. */
   readonly avoidsWeekdays?: readonly Weekday[];
-  readonly prefersRoleIds?: readonly RoleId[];
+  readonly preferredPartnerIds?: readonly PersonId[];
+  readonly blackoutDates?: readonly IsoDate[];
   readonly note?: string;
 }
 
 /**
- * Отдельной сущности «рабочий паттерн» нет — см. ADR-0005. Участие в ротации
- * определяется набором доступных ролей и днями доступности.
+ * Отдельной сущности «рабочий паттерн» нет — ADR-0005. `defaultRoleId` и
+ * `availableWeekdays` читает только автогенерация.
  */
 export interface Person {
   readonly id: PersonId;
   readonly displayName: string;
-  readonly employeeId: string;
+  readonly initials: string;
+  readonly employeeId?: string;
+  /** Какие правила применяются. */
+  readonly regionId: RegionId;
+  /** На чьём экране человек планируется. */
   readonly unitId: UnitId;
   readonly locationId: LocationId;
-  /** Менеджеры: в сетке планирования не участвуют. */
-  readonly isPlannerOnly: boolean;
+  readonly defaultShiftId: ShiftId;
+  readonly orgCategory: OrgCategory;
+  readonly isActive: boolean;
+  /** Участвует ли в планировании вообще. Менеджеры: false. */
+  readonly isIncluded: boolean;
   readonly eligibility: readonly RoleEligibility[];
   readonly availableWeekdays: readonly Weekday[];
+  readonly defaultRoleId?: RoleId;
+  readonly weekendEligible: boolean;
   readonly constraints: PersonConstraints;
   readonly preferences?: PersonPreferences;
-  /** Для ICS-подписки. Заложен в модель сразу, используется начиная с этапа 11. */
   readonly calendarToken: string;
 }
 
@@ -203,53 +280,78 @@ export interface Person {
 // Назначение
 // ---------------------------------------------------------------------------
 
-export type AssignmentSource = 'MANUAL' | 'GENERATED' | 'PATTERN';
+export type AssignmentSource = 'MANUAL' | 'GENERATED' | 'IMPORTED';
 
-/** Разовое переопределение времени роли в конкретной ячейке. */
+/** Разовое переопределение времени роли. */
 export interface TimeOverride {
   readonly start: TimeOfDay;
   readonly end: TimeOfDay;
   readonly crossesMidnight: boolean;
 }
 
+/** `OFF` — запланированный выходной (`Off`/`W-Off`). `NOT_SCHEDULED` — `0`. */
+export type RosterMarker = 'OFF' | 'NOT_SCHEDULED';
+
+export type AssignmentContent =
+  | { readonly kind: 'ROLE'; readonly roleId: RoleId; readonly timeOverride?: TimeOverride }
+  | { readonly kind: 'MARKER'; readonly marker: RosterMarker };
+
 /**
- * Назначение человека на роль в конкретную дату.
+ * Ровно одно назначение на пару (человек, дата) — жёсткое ограничение.
+ * On-call — обычный код роли, занимающий день, а не параллельное дежурство.
  *
- * `date` — локальная дата смены **по таймзоне роли**. Это устраняет
- * неоднозначность для смен, пересекающих полночь.
+ * `date` — локальная дата смены по таймзоне роли: это снимает неоднозначность
+ * для смен через полночь.
  */
 export interface Assignment {
   readonly id: AssignmentId;
   readonly personId: PersonId;
-  readonly roleId: RoleId;
   readonly date: IsoDate;
-  readonly source: AssignmentSource;
-  readonly timeOverride?: TimeOverride;
+  readonly regionId: RegionId;
+  readonly content: AssignmentContent;
+  /** Выходной по календарю локации человека. */
+  readonly isWeekend: boolean;
   readonly note?: string;
+  readonly source: AssignmentSource;
+  /** Токен оптимистичной блокировки. */
+  readonly version: number;
   readonly createdBy: PersonId;
   readonly createdAt: IsoInstant;
+  readonly updatedBy?: PersonId;
+  readonly updatedAt?: IsoInstant;
+}
+
+export function assignmentRoleId(assignment: Assignment): RoleId | undefined {
+  return assignment.content.kind === 'ROLE' ? assignment.content.roleId : undefined;
+}
+
+export function isWorkingAssignment(assignment: Assignment): boolean {
+  return assignment.content.kind === 'ROLE';
 }
 
 // ---------------------------------------------------------------------------
 // Отсутствие
 // ---------------------------------------------------------------------------
 
-export type AbsenceType = 'VACATION' | 'COMP_DAY' | 'TRAINING' | 'SICK' | 'OTHER';
+/**
+ * Обучение сюда не входит: тренинги в рабочее время — это роль `Cover`,
+ * человек на работе и попадает в покрытие (ADR-0017).
+ */
+export type AbsenceType = 'VACATION' | 'SICK' | 'OTHER';
+
 export type AbsenceSource = 'IMPORT' | 'MANUAL';
 
-/** Отсутствие. Диапазон дат включительно, в календаре локации человека. */
+/** Отпуск — диапазон, и диапазон является источником истины (ADR-0017). */
 export interface Absence {
   readonly id: AbsenceId;
   readonly personId: PersonId;
   readonly type: AbsenceType;
   readonly from: IsoDate;
   readonly to: IsoDate;
-  /** Ручные записи импорт никогда не перетирает. */
   readonly source: AbsenceSource;
   readonly importBatchId?: string;
   /** Для обнаружения записей, исчезнувших из очередной выгрузки. */
   readonly lastSeenInImportAt?: IsoInstant;
-  /** Занесено ли обратно в корпоративную систему. */
   readonly syncedToHrAt?: IsoInstant;
   readonly note?: string;
 }
@@ -258,79 +360,75 @@ export interface Absence {
 // Comp day
 // ---------------------------------------------------------------------------
 
-export type CompDayStatus = 'PROPOSED' | 'SCHEDULED' | 'TAKEN' | 'EXPIRED' | 'DECLINED';
+/** Терминального статуса «сгорел» нет: отгулы не сгорают (ADR-0007). */
+export type CompDayStatus =
+  | 'PROPOSED'
+  | 'SCHEDULED'
+  | 'TAKEN'
+  | 'DECLINED'
+  | 'PENDING_APPROVAL';
 
-/**
- * Начисление отгула с балансом, а не событие в расписании — см. ADR-0007.
- * Начисление порождается системой как предложение и подтверждается планировщиком.
- */
 export interface CompDayEntry {
   readonly id: CompDayEntryId;
   readonly personId: PersonId;
   readonly earnedForAssignmentId: AssignmentId;
   readonly earnedForDate: IsoDate;
   readonly trigger: CompDayTrigger;
-  /** Дата из политики единицы. */
-  readonly proposedDate: IsoDate;
-  /** Дата после переноса планировщиком. */
+  /** Самая ранняя свободная подходящая дата в окне политики. */
+  readonly proposedDate?: IsoDate;
   readonly actualDate?: IsoDate;
   readonly status: CompDayStatus;
-  readonly expiresOn: IsoDate;
   readonly syncedToHrAt?: IsoInstant;
 }
 
-/** Дата, на которую отгул реально блокирует человека. */
-export function effectiveCompDayDate(entry: CompDayEntry): IsoDate {
+/** Дата, на которую отгул реально приходится. */
+export function effectiveCompDayDate(entry: CompDayEntry): IsoDate | undefined {
   return entry.actualDate ?? entry.proposedDate;
 }
 
-/** Блокирует ли отгул назначение. `PROPOSED` пока не блокирует — это предложение. */
+/** Блокирует ли отгул назначение. `PROPOSED` — только предложение системы. */
 export function compDayBlocksAssignment(entry: CompDayEntry): boolean {
   return entry.status === 'SCHEDULED' || entry.status === 'TAKEN';
 }
 
-// ---------------------------------------------------------------------------
-// Правила покрытия
-// ---------------------------------------------------------------------------
-
-export type CoverageScope = 'WEEKDAY' | 'WEEKEND' | 'HOLIDAY' | 'DATE';
-
-/**
- * Требование покрытия. Правило с `DATE` перекрывает `HOLIDAY`, оно — `WEEKEND`,
- * оно — `WEEKDAY`. События (DR-тест, закрытие месяца) описываются правилами
- * с датой, а не отдельной сущностью — см. ADR-0008.
- */
-export interface CoverageRule {
-  readonly id: CoverageRuleId;
-  readonly unitId: UnitId;
-  readonly roleId: RoleId;
-  readonly appliesTo: CoverageScope;
-  /** Только для `appliesTo === 'DATE'`. */
-  readonly date?: IsoDate;
-  /** Метка события: `DR test`, `Month end`. Показывается в полосе покрытия. */
-  readonly label?: string;
-  /** Жёсткое требование. Недобор — уровень BLOCKING. */
-  readonly min: number;
-  /** Желательное. Недобор — уровень WARNING. */
-  readonly target?: number;
-  /** Чтобы не переливать людей. Перебор — уровень WARNING. */
-  readonly max?: number;
+/** Числится ли отгул за человеком: ни отгулян, ни отклонён. */
+export function compDayIsOutstanding(entry: CompDayEntry): boolean {
+  return (
+    entry.status === 'PROPOSED' ||
+    entry.status === 'SCHEDULED' ||
+    entry.status === 'PENDING_APPROVAL'
+  );
 }
 
-export type CoverageLevel = 'BELOW_MIN' | 'BELOW_TARGET' | 'OK' | 'OVER_MAX';
+// ---------------------------------------------------------------------------
+// Покрытие
+// ---------------------------------------------------------------------------
 
-/** Результат расчёта покрытия: одна клетка полосы под сеткой. */
+/**
+ * `THIN` — минимум закрыт впритык, без запаса. Отдельное состояние, а не
+ * оттенок зелёного: это самый действенный сигнал для планировщика.
+ */
+export type CoverageLevel = 'GAP' | 'THIN' | 'OK' | 'OVER';
+
 export interface CoverageCell {
   readonly date: IsoDate;
+  readonly regionId: RegionId;
   readonly roleId: RoleId;
   readonly actual: number;
   readonly min: number;
-  readonly target?: number;
   readonly max?: number;
   readonly level: CoverageLevel;
-  /** Метка правила, если день покрыт правилом с датой. */
+  readonly appliedKey: DayConfigKey;
   readonly ruleLabel?: string;
-  readonly appliedScope: CoverageScope;
+}
+
+export interface CoverageSnapshot {
+  readonly date: IsoDate;
+  readonly regionId: RegionId;
+  readonly cells: readonly CoverageCell[];
+  readonly headcount: number;
+  readonly totalRequired: number;
+  readonly totalFilled: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,25 +436,22 @@ export interface CoverageCell {
 // ---------------------------------------------------------------------------
 
 export type AbsenceCapacityScope =
-  | { readonly kind: 'UNIT' }
+  | { readonly kind: 'REGION' }
   | { readonly kind: 'ROLE_POOL'; readonly roleId: RoleId };
 
 export type AbsenceDurationBucket = 'SHORT' | 'LONG';
 
-/**
- * Лимит одновременно отсутствующих. Ограничение по пулу ролей важнее общего —
- * см. ADR-0010: трое из четырёх, кто умеет быть shift lead, это проблема,
- * которую счётчик по единице не увидит.
- */
+/** Лимит по пулу ролей важнее общего — ADR-0010. */
 export interface AbsenceCapacityRule {
-  readonly id: AbsenceCapacityRuleId;
-  readonly unitId: UnitId;
+  readonly id: string;
+  readonly regionId: RegionId;
   readonly scope: AbsenceCapacityScope;
   readonly durationBucket: AbsenceDurationBucket;
-  /** Начиная со скольких рабочих дней отсутствие считается длительным. */
   readonly longThresholdWorkdays: number;
   readonly maxConcurrent: number;
   readonly countsTypes: readonly AbsenceType[];
+  /** Учитывать ли подтверждённые отгулы наравне с отпуском. */
+  readonly countsCompDays: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,15 +460,22 @@ export interface AbsenceCapacityRule {
 
 export type IssueLevel = 'BLOCKING' | 'WARNING' | 'INFO';
 
+/**
+ * Дыра — не сделана работа. Конфликт — записаны невозможные данные.
+ * Чинятся по-разному и в интерфейсе не смешиваются.
+ */
+export type IssueCategory = 'GAP' | 'CONFLICT' | 'FAIRNESS' | 'POLICY';
+
 export type IssueCode =
-  | 'COVERAGE_BELOW_MIN'
-  | 'COVERAGE_BELOW_TARGET'
+  | 'COVERAGE_GAP'
+  | 'COVERAGE_THIN'
   | 'COVERAGE_OVER_MAX'
   | 'ASSIGNED_DURING_ABSENCE'
   | 'ASSIGNED_DURING_COMP_DAY'
   | 'DOUBLE_ASSIGNMENT'
   | 'ROLE_NOT_ELIGIBLE'
-  | 'ROLE_OUTSIDE_UNIT'
+  | 'ROLE_OUTSIDE_REGION'
+  | 'ROLE_NOT_IN_DAY_CONFIG'
   | 'ABSENCE_CAPACITY_EXCEEDED'
   | 'MIN_REST_VIOLATED'
   | 'CONSECUTIVE_DAYS_EXCEEDED'
@@ -381,26 +483,23 @@ export type IssueCode =
   | 'UNAVAILABLE_WEEKDAY'
   | 'PREFERENCE_VIOLATED'
   | 'TARGET_SHARE_DEVIATION'
-  | 'COMP_DAY_EXPIRING';
+  | 'COMP_DAY_AGING'
+  | 'COMP_DAY_PENDING_APPROVAL';
 
-/**
- * Найденное нарушение. Якорь (`date`, `personId`, `roleId`) нужен, чтобы клик
- * в боковой панели вёл в конкретную ячейку сетки. Три уровня — см. ADR-0009.
- */
 export interface Issue {
-  /** Стабильный ключ: одно и то же нарушение даёт один и тот же ключ между
-   *  пересчётами. По нему находится подтверждение. */
+  /** Стабильный между пересчётами: по нему находится подтверждение. */
   readonly key: string;
   readonly level: IssueLevel;
+  readonly category: IssueCategory;
   readonly code: IssueCode;
   readonly message: string;
-  readonly unitId: UnitId;
+  readonly regionId: RegionId;
   readonly date?: IsoDate;
   readonly personId?: PersonId;
   readonly roleId?: RoleId;
 }
 
-/** Осознанное подтверждение нарушения уровня WARNING. Хранится вместе с планом. */
+/** Осознанное подтверждение WARNING. Хранится вместе с планом. */
 export interface Acknowledgement {
   readonly issueKey: string;
   readonly comment: string;
@@ -409,34 +508,149 @@ export interface Acknowledgement {
 }
 
 // ---------------------------------------------------------------------------
-// Блокировка периода
+// Черновик и публикация
 // ---------------------------------------------------------------------------
 
-/** Check-out на пару (единица, период) — см. ADR-0011. Real-time не делаем. */
-export interface PeriodLock {
+export type DraftStatus = 'OPEN' | 'PUBLISHED' | 'DISCARDED';
+
+export interface DraftSession {
+  readonly id: DraftSessionId;
+  readonly editorPersonId: PersonId;
   readonly unitId: UnitId;
   readonly range: DateRange;
-  readonly byPersonId: PersonId;
-  readonly acquiredAt: IsoInstant;
-  readonly expiresAt: IsoInstant;
+  readonly status: DraftStatus;
+  readonly createdAt: IsoInstant;
+  readonly updatedAt: IsoInstant;
 }
+
+export type DraftOp = 'CREATE' | 'UPDATE' | 'DELETE';
+export type DraftTargetType = 'ASSIGNMENT' | 'ABSENCE' | 'COMP_DAY';
+
+/**
+ * Каждое изменение несёт и предыдущее, и новое значение — отсюда undo/redo
+ * и экран сравнения при конфликте публикации.
+ */
+export type DraftChange =
+  | {
+      readonly id: string;
+      readonly seq: number;
+      readonly at: IsoInstant;
+      readonly targetType: 'ASSIGNMENT';
+      readonly op: DraftOp;
+      readonly before: Assignment | null;
+      readonly after: Assignment | null;
+    }
+  | {
+      readonly id: string;
+      readonly seq: number;
+      readonly at: IsoInstant;
+      readonly targetType: 'ABSENCE';
+      readonly op: DraftOp;
+      readonly before: Absence | null;
+      readonly after: Absence | null;
+    }
+  | {
+      readonly id: string;
+      readonly seq: number;
+      readonly at: IsoInstant;
+      readonly targetType: 'COMP_DAY';
+      readonly op: DraftOp;
+      readonly before: CompDayEntry | null;
+      readonly after: CompDayEntry | null;
+    };
+
+export interface PublishResult {
+  readonly created: number;
+  readonly updated: number;
+  readonly deleted: number;
+  readonly compDaysGenerated: number;
+  readonly remainingGaps: number;
+}
+
+/** Расхождение опубликованного и черновика при устаревшей версии. */
+export interface PublishConflict {
+  readonly changeId: string;
+  readonly targetType: DraftTargetType;
+  readonly published: unknown;
+  readonly draft: unknown;
+  readonly reason: string;
+}
+
+// ---------------------------------------------------------------------------
+// Аудит
+// ---------------------------------------------------------------------------
+
+export type HistoryAction = 'CREATED' | 'UPDATED' | 'DELETED';
+
+/** Append-only. Единственный контроль там, где нет ограничений прав. */
+export interface AssignmentHistoryEntry {
+  readonly id: string;
+  readonly assignmentId: AssignmentId;
+  readonly action: HistoryAction;
+  readonly snapshot: Assignment | null;
+  readonly actorId: PersonId;
+  readonly at: IsoInstant;
+}
+
+// ---------------------------------------------------------------------------
+// Проекция ячейки
+// ---------------------------------------------------------------------------
+
+export type CellStatus =
+  | 'OFF'
+  | 'NOT_SCHEDULED'
+  | 'PH'
+  | 'COMP_OFF'
+  | 'VACATION'
+  | 'SICK'
+  | 'OTHER';
+
+/**
+ * Что показывает сетка для пары (человек, дата). Приоритет разрешается в
+ * одном месте — `engine/cellValue.ts` — и больше нигде.
+ */
+export type CellValue =
+  | {
+      readonly kind: 'ROLE';
+      readonly roleId: RoleId;
+      readonly assignmentId: AssignmentId;
+      /** Предложенный, ещё не подтверждённый отгул на этот день. */
+      readonly proposedCompDay?: CompDayEntryId;
+      /** Назначение поверх отсутствия, отгула или праздника. */
+      readonly conflict?: CellConflict;
+    }
+  | {
+      readonly kind: 'STATUS';
+      readonly status: CellStatus;
+      readonly absenceId?: AbsenceId;
+      readonly compDayId?: CompDayEntryId;
+      readonly assignmentId?: AssignmentId;
+    }
+  | {
+      readonly kind: 'EMPTY';
+      readonly proposedCompDay?: CompDayEntryId;
+    };
+
+export type CellConflict = 'ABSENCE' | 'COMP_DAY' | 'HOLIDAY';
 
 // ---------------------------------------------------------------------------
 // Состояние
 // ---------------------------------------------------------------------------
 
-/** Справочная часть состояния: меняется на экране настроек, не при планировании. */
+/** Справочная часть: меняется в настройках, не при планировании. */
 export interface ReferenceData {
   readonly locations: readonly Location[];
   readonly holidays: readonly Holiday[];
+  readonly regions: readonly Region[];
   readonly units: readonly PlanningUnit[];
+  readonly shifts: readonly ShiftDefinition[];
   readonly roles: readonly ShiftRole[];
+  readonly dayConfigurations: readonly DayConfiguration[];
   readonly people: readonly Person[];
-  readonly coverageRules: readonly CoverageRule[];
   readonly absenceCapacityRules: readonly AbsenceCapacityRule[];
 }
 
-/** Планируемая часть состояния: то, что правит планировщик. */
+/** Опубликованный план: то, что видят все. */
 export interface PlanData {
   readonly assignments: readonly Assignment[];
   readonly absences: readonly Absence[];
@@ -444,4 +658,6 @@ export interface PlanData {
   readonly acknowledgements: readonly Acknowledgement[];
 }
 
-export interface ScheduleDataset extends ReferenceData, PlanData {}
+export interface ScheduleDataset extends ReferenceData, PlanData {
+  readonly history: readonly AssignmentHistoryEntry[];
+}

@@ -11,13 +11,11 @@
 import { DateTime, Interval } from 'luxon';
 import type { DatasetIndex } from '../domain/lookup.ts';
 import type {
-  CoverageScope,
   DateRange,
   IanaZone,
   IsoDate,
   IsoInstant,
   Location,
-  PlanningUnit,
   ShiftRole,
   TimeOverride,
   UtcInterval,
@@ -28,7 +26,7 @@ const ISO_DATE = 'yyyy-MM-dd';
 
 export function parseDate(date: IsoDate, zone: IanaZone = 'UTC'): DateTime {
   const dt = DateTime.fromISO(date, { zone });
-  if (!dt.isValid) throw new Error(`Некорректная дата: ${date}`);
+  if (!dt.isValid) throw new Error(`Invalid date: ${date}`);
   return dt;
 }
 
@@ -38,7 +36,7 @@ export function toIsoDate(dt: DateTime): IsoDate {
 
 export function toIsoInstant(dt: DateTime): IsoInstant {
   const iso = dt.toUTC().toISO({ suppressMilliseconds: true });
-  if (iso === null) throw new Error('Некорректный момент времени');
+  if (iso === null) throw new Error('Invalid instant');
   return iso;
 }
 
@@ -84,8 +82,12 @@ export function isWeekendIn(date: IsoDate, location: Location): boolean {
   return location.weekendDays.includes(weekdayOf(date));
 }
 
+/**
+ * Праздник по локации. Проверка идёт по конкретной локации, а не по ключу
+ * календаря: две локации одной страны могут иметь разный набор дат.
+ */
 export function isHolidayIn(date: IsoDate, location: Location, index: DatasetIndex): boolean {
-  return index.holidayDates.get(location.holidayCalendarKey)?.has(date) ?? false;
+  return index.holidaysByLocation.get(location.id)?.has(date) ?? false;
 }
 
 export function holidayNameIn(
@@ -121,20 +123,15 @@ export function countWorkdays(
   return count;
 }
 
-/**
- * Классификация дня для правил покрытия. Берётся календарь референсной локации
- * единицы (`coverageCalendarLocationId`), а не локации конкретного человека.
- */
-export function coverageDayKind(
-  date: IsoDate,
-  unit: PlanningUnit,
+/** Все праздники локации, попадающие в период. */
+export function holidaysIn(
+  range: DateRange,
+  location: Location,
   index: DatasetIndex,
-): Exclude<CoverageScope, 'DATE'> {
-  const location = index.locations.get(unit.coverageCalendarLocationId);
-  if (!location) throw new Error(`Референсная локация единицы ${unit.id} не найдена`);
-  if (isHolidayIn(date, location, index)) return 'HOLIDAY';
-  if (isWeekendIn(date, location)) return 'WEEKEND';
-  return 'WEEKDAY';
+): IsoDate[] {
+  const dates = index.holidaysByLocation.get(location.id);
+  if (!dates) return [];
+  return [...dates].filter((date) => rangeContains(range, date)).sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +143,7 @@ function timeOfDayParts(value: string): { hour: number; minute: number } {
   const hour = Number(hourText);
   const minute = Number(minuteText);
   if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
-    throw new Error(`Некорректное время суток: ${value}`);
+    throw new Error(`Invalid time of day: ${value}`);
   }
   return { hour, minute };
 }
@@ -173,7 +170,7 @@ export function shiftInterval(
 
   if (endAt <= startAt) {
     throw new Error(
-      `Окно роли ${role.code} за ${date} пустое или отрицательное: ${start}–${end}`,
+      `Role window for ${role.code} on ${date} is empty or negative: ${start}–${end}`,
     );
   }
 

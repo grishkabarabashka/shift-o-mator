@@ -1,36 +1,40 @@
-# ADR-0012. `ScheduleRepository` — единственная граница данных, все методы асинхронные
+# ADR-0012. `ScheduleRepository` is the single data boundary; every method is async
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-MVP собирается вне корпоративного периметра и работает на фикстурах. Прод — .NET в AKS
-с Postgres. Между этими состояниями не должно быть переписывания интерфейса.
+The MVP is built outside the corporate perimeter and runs on fixtures. Production is
+.NET on AKS with Postgres. There should be no interface rewrite between these two
+states.
 
-## Решение
+## Decision
 
-`ScheduleRepository` — единственная точка доступа к данным. Ни один компонент и ни одна
-функция движка не обращается к хранилищу напрямую.
+`ScheduleRepository` is the single point of access to data. No component and no
+engine function talks to storage directly.
 
-В MVP реализация in-memory поверх фикстур с персистом в IndexedDB и импортом/экспортом
-JSON. Позже та же сигнатура ложится на .NET-эндпоинты.
+In the MVP it's an in-memory implementation over fixtures with IndexedDB persistence
+and JSON import/export. Later, the same signature sits on top of .NET endpoints.
 
-**Все методы асинхронные с самого начала**, даже когда данные локальные.
+**Every method is async from day one**, even when the data is local.
 
-Генератор — за таким же интерфейсом: в MVP простой жадный на клиенте (чтобы проверить UX
-превью и объяснений), потом solver на бэке.
+The generator sits behind the same kind of interface: a simple greedy client-side one
+in the MVP (to validate the preview and explanation UX), a solver on the backend
+later.
 
-## Следствия
+## Consequences
 
-- Не придётся искать места, где код неявно рассчитывал на синхронность, — их не будет.
-- Загрузка состояния идёт через TanStack Query, черновик правок живёт отдельно в Zustand.
-  Смешение «данных с сервера» и «моих несохранённых правок» — главный источник багов
-  в редакторах, и это разделение делается сразу.
-- Движок (`engine/`) принимает данные аргументами и не знает про репозиторий вовсе.
-- Тесты движка не требуют моков хранилища.
+- No hunting later for places where the code implicitly assumed synchronicity — there
+  won't be any.
+- State loads through TanStack Query, and the editing draft lives separately in
+  Zustand. Mixing "data from the server" with "my unsaved edits" is the top source of
+  bugs in editors, and this separation is made from the start.
+- The engine (`engine/`) takes data as arguments and doesn't know about the
+  repository at all.
+- Engine tests need no storage mocks.
 
-## Альтернативы
+## Alternatives considered
 
-- **Прямой доступ к хранилищу из компонентов.** Переезд на API превращается в сплошную
-  правку.
-- **Синхронные методы в MVP.** Гарантированная переделка при появлении сети.
+- **Components accessing storage directly.** Moving to the API turns into a
+  wall-to-wall rewrite.
+- **Synchronous methods in the MVP.** A guaranteed rewrite once the network shows up.

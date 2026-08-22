@@ -1,7 +1,11 @@
-node_modules/
-dist/
-coverage/
-.vite/
+# Артефакты сборки и инструментов — только в корне.
+#
+# Пути якорятся слэшем в начале намеренно: незаякоренный `coverage/` совпадал с
+# `src/features/coverage/` и молча выкинул из репозитория полосу покрытия.
+/node_modules/
+/dist/
+/coverage/
+/.vite/
 *.local
 .DS_Store
 Thumbs.db
@@ -9,6 +13,6 @@ Thumbs.db
 .env.*
 !.env.example
 *.tsbuildinfo
-.idea/
-.vscode/*
-!.vscode/extensions.json
+/.idea/
+/.vscode/*
+!/.vscode/extensions.json

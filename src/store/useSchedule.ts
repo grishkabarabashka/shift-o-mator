@@ -1,26 +1,36 @@
 /**
- * Черновик графика.
+ * Состояние экрана планирования.
  *
- * Правки идут списком патчей (`Patch`), из чего почти бесплатно получается
- * undo/redo. Серверное состояние и несохранённые правки не смешиваются:
- * `plan` — это база плюс применённые патчи, `pending` — то, что ещё не ушло
- * в репозиторий.
+ * Опубликованные данные и черновик разделены (ADR-0015): `published` — то, что
+ * видят все, `draft` — упорядоченные изменения текущего редактора. Сетка
+ * показывает `published + draft`, но публикуется только явным действием.
+ *
+ * Undo/redo получается из того, что каждое изменение несёт `before` и `after`.
  */
 
 import { create } from 'zustand';
 import { scheduleRepository } from '../data/memoryRepository.ts';
-import type { LockResult } from '../data/repository.ts';
-import { buildIndex, type DatasetIndex } from '../domain/lookup.ts';
-import { applyPatches, invertAll, isNoop, type Patch } from '../domain/patch.ts';
+import type { PublishOutcome } from '../data/repository.ts';
+import {
+  absenceChange,
+  applyChanges,
+  assignmentChange,
+  compDayChange,
+  isNoop,
+} from '../domain/draft.ts';
+import { buildIndex, cellKey, type DatasetIndex } from '../domain/lookup.ts';
 import type {
   Absence,
   Assignment,
   CompDayEntry,
   DateRange,
+  DraftChange,
+  DraftSession,
   IsoDate,
-  PeriodLock,
   PersonId,
   PlanData,
+  PublishConflict,
+  PublishResult,
   ReferenceData,
   RoleId,
   ScheduleDataset,
@@ -45,149 +55,207 @@ export interface ScheduleState {
   currentUserId: PersonId | undefined;
 
   reference: ReferenceData | undefined;
+  /** Опубликованные данные — то, что видят все. */
+  published: PlanData | undefined;
+  /** Опубликованные плюс применённый черновик — то, что рисует сетка. */
   plan: PlanData | undefined;
   index: DatasetIndex | undefined;
 
-  undoStack: Patch[][];
-  redoStack: Patch[][];
-  /** Патчи, не ушедшие в репозиторий. */
-  pending: Patch[];
-  saving: boolean;
-  lastSavedAt: string | undefined;
+  session: DraftSession | undefined;
+  changes: DraftChange[];
+  /** Изменения, отменённые undo и доступные для redo. */
+  redoStack: DraftChange[][];
+  /** Батчи для undo: одно действие пользователя — один батч. */
+  undoStack: DraftChange[][];
+  /** Чужие открытые черновики на тот же период — информационный баннер. */
+  overlappingDrafts: readonly DraftSession[];
 
-  lock: PeriodLock | undefined;
-  lockConflict: PeriodLock | undefined;
+  publishing: boolean;
+  lastPublish: PublishResult | undefined;
+  conflicts: readonly PublishConflict[];
 
   load: (unitId: UnitId, range: DateRange) => Promise<void>;
+  startDraft: () => Promise<void>;
   setCell: (personId: PersonId, date: IsoDate, roleId: RoleId | null) => void;
   setCells: (cells: readonly CellRef[], roleId: RoleId | null) => void;
+  setMarker: (cells: readonly CellRef[], marker: 'OFF' | 'NOT_SCHEDULED') => void;
   setAbsence: (absence: Absence | null, previous?: Absence) => void;
-  /** Несколько отсутствий одним батчем — одна отмена вместо N. */
   setAbsences: (absences: readonly Absence[]) => void;
   setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => void;
   acknowledge: (issueKey: string, comment: string) => void;
   undo: () => void;
   redo: () => void;
-  save: () => Promise<void>;
-  acquireLock: () => Promise<LockResult | undefined>;
-  releaseLock: () => Promise<void>;
+  publish: () => Promise<PublishOutcome | undefined>;
+  discard: () => Promise<void>;
 }
 
 let assignmentSeq = 0;
+let seqCounter = 0;
 
 function newAssignmentId(): string {
   assignmentSeq += 1;
   return `as-local-${Date.now().toString(36)}-${assignmentSeq}`;
 }
 
+function nextSeq(): number {
+  seqCounter += 1;
+  return seqCounter;
+}
+
 function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
-  return { ...reference, ...plan };
+  return { ...reference, ...plan, history: [] };
 }
 
 export const useSchedule = create<ScheduleState>((set, get) => {
-  /**
-   * Применяет батч патчей: обновляет план, индекс, стеки undo/redo и очередь
-   * несохранённого. Пустые батчи игнорируются, иначе Ctrl+Z станет
-   * непредсказуемым.
-   */
-  function commit(patches: readonly Patch[], options: { readonly fromUndo?: boolean } = {}): void {
-    const meaningful = patches.filter((patch) => !isNoop(patch));
-    if (meaningful.length === 0) return;
-
-    const state = get();
-    const { reference, plan } = state;
-    if (!reference || !plan) return;
-
-    const nextPlan = applyPatches(plan, meaningful);
-    set({
-      plan: nextPlan,
-      index: buildIndex(datasetOf(reference, nextPlan)),
-      pending: [...state.pending, ...meaningful],
-      ...(options.fromUndo
-        ? {}
-        : { undoStack: [...state.undoStack, [...meaningful]], redoStack: [] }),
-    });
+  /** Пересобирает `plan` и индекс из опубликованного плюс черновик. */
+  function recompute(
+    reference: ReferenceData,
+    published: PlanData,
+    changes: readonly DraftChange[],
+  ): { plan: PlanData; index: DatasetIndex } {
+    const plan = applyChanges(published, changes);
+    return { plan, index: buildIndex(datasetOf(reference, plan)) };
   }
 
   /**
-   * Начисления comp days пересчитываются сразу после правки: планировщик должен
-   * видеть последствие своего назначения в тот же момент, а не через неделю.
-   * Предложения, потерявшие назначение, снимаются молча; подтверждённые — нет.
+   * Применяет батч изменений: обновляет черновик, стеки и производные данные.
+   * Пустые батчи игнорируются, иначе Ctrl+Z станет непредсказуемым.
    */
-  function compDayPatches(plan: PlanData, reference: ReferenceData, range: DateRange): Patch[] {
+  function commit(
+    incoming: readonly DraftChange[],
+    options: { readonly fromHistory?: boolean } = {},
+  ): void {
+    const meaningful = incoming.filter((change) => !isNoop(change));
+    if (meaningful.length === 0) return;
+
+    const state = get();
+    const { reference, published } = state;
+    if (!reference || !published) return;
+
+    const changes = [...state.changes, ...meaningful];
+    const { plan, index } = recompute(reference, published, changes);
+
+    set({
+      changes,
+      plan,
+      index,
+      ...(options.fromHistory
+        ? {}
+        : { undoStack: [...state.undoStack, [...meaningful]], redoStack: [] }),
+    });
+
+    const sessionId = state.session?.id;
+    if (sessionId) void scheduleRepository.appendChanges(sessionId, meaningful);
+  }
+
+  /**
+   * Начисления comp days пересчитываются сразу после правки: планировщик
+   * должен видеть последствие назначения в тот же момент, а не через неделю.
+   */
+  function compDayChanges(
+    plan: PlanData,
+    reference: ReferenceData,
+    range: DateRange,
+    scopeAssignmentIds: ReadonlySet<string>,
+  ): DraftChange[] {
     const index = buildIndex(datasetOf(reference, plan));
     const result = proposeCompDays({
       range,
       assignments: plan.assignments,
+      absences: plan.absences,
       existing: plan.compDays,
       index,
+      scopeAssignmentIds,
     });
 
-    const patches: Patch[] = result.added.map((entry) => ({
-      kind: 'SET_COMP_DAY',
-      before: null,
-      after: entry,
-    }));
-
+    const changes: DraftChange[] = result.added.map((entry) =>
+      compDayChange(null, entry, nextSeq(), new Date().toISOString()),
+    );
+    // Предложение, потерявшее назначение, снимается молча; подтверждённое —
+    // требует решения планировщика и остаётся.
     for (const orphan of result.orphaned) {
       if (orphan.status !== 'PROPOSED') continue;
-      patches.push({ kind: 'SET_COMP_DAY', before: orphan, after: null });
+      changes.push(compDayChange(orphan, null, nextSeq(), new Date().toISOString()));
     }
-
-    return patches;
+    return changes;
   }
 
-  function cellPatches(cells: readonly CellRef[], roleId: RoleId | null): Patch[] {
-    const { plan, index, reference, currentUserId } = get();
-    if (!plan || !index || !reference) return [];
+  /** Строит изменения ячеек, отбрасывая невозможные. */
+  function cellChanges(
+    cells: readonly CellRef[],
+    content: Assignment['content'] | null,
+  ): DraftChange[] {
+    const { plan, index, currentUserId } = get();
+    if (!plan || !index) return [];
 
     const existing = new Map<string, Assignment>();
     for (const assignment of plan.assignments) {
-      existing.set(`${assignment.personId}|${assignment.date}`, assignment);
+      existing.set(cellKey(assignment.personId, assignment.date), assignment);
     }
 
-    const patches: Patch[] = [];
-    for (const cell of cells) {
-      const before = existing.get(`${cell.personId}|${cell.date}`) ?? null;
+    const now = new Date().toISOString();
+    const changes: DraftChange[] = [];
 
-      if (roleId === null) {
+    for (const cell of cells) {
+      const before = existing.get(cellKey(cell.personId, cell.date)) ?? null;
+
+      if (content === null) {
         if (!before) continue;
-        patches.push({ kind: 'SET_CELL', ...cell, before, after: null });
+        changes.push(assignmentChange(before, null, nextSeq(), now));
         continue;
       }
 
-      // Роль всегда берётся из единицы человека: чужая роль в ячейку не попадёт.
       const person = index.people.get(cell.personId);
-      const role = index.roles.get(roleId);
-      if (!person || !role || role.unitId !== person.unitId) continue;
-      if (before?.roleId === roleId) continue;
+      if (!person) continue;
+
+      if (content.kind === 'ROLE') {
+        // Роль всегда берётся из региона человека: чужая не попадёт.
+        const role = index.roles.get(content.roleId);
+        if (!role || role.regionId !== person.regionId) continue;
+        if (before?.content.kind === 'ROLE' && before.content.roleId === content.roleId) continue;
+      } else if (before?.content.kind === 'MARKER' && before.content.marker === content.marker) {
+        continue;
+      }
 
       const after: Assignment = {
         id: before?.id ?? newAssignmentId(),
         personId: cell.personId,
-        roleId,
         date: cell.date,
+        regionId: person.regionId,
+        content,
+        isWeekend: before?.isWeekend ?? false,
         source: 'MANUAL',
-        createdBy: currentUserId ?? 'unknown',
-        createdAt: new Date().toISOString(),
+        version: before?.version ?? 0,
+        createdBy: before?.createdBy ?? currentUserId ?? 'unknown',
+        createdAt: before?.createdAt ?? now,
+        updatedBy: currentUserId ?? 'unknown',
+        updatedAt: now,
       };
-      patches.push({ kind: 'SET_CELL', ...cell, before, after });
+      changes.push(assignmentChange(before, after, nextSeq(), now));
     }
 
-    return patches;
+    return changes;
   }
 
-  function commitCells(cells: readonly CellRef[], roleId: RoleId | null): void {
-    const patches = cellPatches(cells, roleId);
-    if (patches.length === 0) return;
+  function commitCells(
+    cells: readonly CellRef[],
+    content: Assignment['content'] | null,
+  ): void {
+    const changes = cellChanges(cells, content);
+    if (changes.length === 0) return;
 
     const state = get();
     const { reference, plan, range } = state;
     if (!reference || !plan || !range) return;
 
-    const afterCells = applyPatches(plan, patches);
-    const batch = [...patches, ...compDayPatches(afterCells, reference, range)];
-    commit(batch);
+    // Начисления считаются только за то, что тронула эта правка.
+    const touched = new Set<string>();
+    for (const change of changes) {
+      if (change.targetType === 'ASSIGNMENT' && change.after) touched.add(change.after.id);
+    }
+
+    const afterCells = applyChanges(plan, changes);
+    commit([...changes, ...compDayChanges(afterCells, reference, range, touched)]);
   }
 
   return {
@@ -197,145 +265,202 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     range: undefined,
     currentUserId: undefined,
     reference: undefined,
+    published: undefined,
     plan: undefined,
     index: undefined,
+    session: undefined,
+    changes: [],
     undoStack: [],
     redoStack: [],
-    pending: [],
-    saving: false,
-    lastSavedAt: undefined,
-    lock: undefined,
-    lockConflict: undefined,
+    overlappingDrafts: [],
+    publishing: false,
+    lastPublish: undefined,
+    conflicts: [],
 
     async load(unitId, range) {
       set({ status: 'loading', error: undefined });
       try {
-        const [reference, plan] = await Promise.all([
+        const [reference, published] = await Promise.all([
           scheduleRepository.loadReference(),
-          scheduleRepository.loadPlan(unitId, range),
+          scheduleRepository.loadPublished(unitId, range),
         ]);
-        const unit = reference.units.find((u) => u.id === unitId);
+
+        // Пока нет аутентификации: первый включённый человек единицы.
+        const currentUserId =
+          reference.people.find((p) => p.unitId === unitId && p.orgCategory === 'MANAGEMENT')?.id ??
+          reference.people.find((p) => p.unitId === unitId)?.id;
+
+        const { plan, index } = recompute(reference, published, []);
         set({
           status: 'ready',
           unitId,
           range,
           reference,
+          published,
           plan,
-          index: buildIndex(datasetOf(reference, plan)),
-          currentUserId: unit?.plannerPersonIds[0],
+          index,
+          currentUserId,
+          session: undefined,
+          changes: [],
           undoStack: [],
           redoStack: [],
-          pending: [],
-          lock: await scheduleRepository.getLock(unitId, range),
-          lockConflict: undefined,
+          overlappingDrafts: [],
+          conflicts: [],
         });
-
-        // Начисления за уже существующие назначения — при первой загрузке
-        // их в фикстурах нет.
-        const patches = compDayPatches(plan, reference, range);
-        if (patches.length > 0) {
-          const nextPlan = applyPatches(plan, patches);
-          set({ plan: nextPlan, index: buildIndex(datasetOf(reference, nextPlan)) });
-        }
       } catch (error) {
         set({ status: 'error', error: error instanceof Error ? error.message : String(error) });
       }
     },
 
+    async startDraft() {
+      const { unitId, range, currentUserId, session } = get();
+      if (!unitId || !range || !currentUserId || session) return;
+      const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId);
+      const overlapping = await scheduleRepository.listOverlappingDrafts(
+        unitId,
+        range,
+        currentUserId,
+      );
+      set({ session: bundle.session, changes: [...bundle.changes], overlappingDrafts: overlapping });
+    },
+
     setCell(personId, date, roleId) {
-      commitCells([{ personId, date }], roleId);
+      commitCells([{ personId, date }], roleId === null ? null : { kind: 'ROLE', roleId });
     },
 
     setCells(cells, roleId) {
-      commitCells(cells, roleId);
+      commitCells(cells, roleId === null ? null : { kind: 'ROLE', roleId });
+    },
+
+    setMarker(cells, marker) {
+      commitCells(cells, { kind: 'MARKER', marker });
     },
 
     setAbsence(absence, previous) {
-      commit([{ kind: 'SET_ABSENCE', before: previous ?? null, after: absence }]);
+      commit([absenceChange(previous ?? null, absence, nextSeq(), new Date().toISOString())]);
     },
 
     setAbsences(absences) {
-      commit(absences.map((absence) => ({ kind: 'SET_ABSENCE', before: null, after: absence })));
+      const now = new Date().toISOString();
+      commit(absences.map((absence) => absenceChange(null, absence, nextSeq(), now)));
     },
 
     setCompDay(entry, previous) {
-      commit([{ kind: 'SET_COMP_DAY', before: previous ?? null, after: entry }]);
+      commit([compDayChange(previous ?? null, entry, nextSeq(), new Date().toISOString())]);
     },
 
     acknowledge(issueKey, comment) {
-      const { currentUserId, plan } = get();
-      if (!plan) return;
-      const before = plan.acknowledgements.find((ack) => ack.issueKey === issueKey) ?? null;
-      commit([
+      const { currentUserId, plan, reference, published } = get();
+      if (!plan || !reference || !published) return;
+      // Подтверждения не проходят через черновик: они относятся к оценке
+      // плана, а не к самому плану.
+      const acknowledgements = [
+        ...plan.acknowledgements.filter((ack) => ack.issueKey !== issueKey),
         {
-          kind: 'SET_ACK',
-          before,
-          after: {
-            issueKey,
-            comment,
-            byPersonId: currentUserId ?? 'unknown',
-            at: new Date().toISOString(),
-          },
+          issueKey,
+          comment,
+          byPersonId: currentUserId ?? 'unknown',
+          at: new Date().toISOString(),
         },
-      ]);
+      ];
+      const nextPlan = { ...plan, acknowledgements };
+      set({
+        plan: nextPlan,
+        published: { ...published, acknowledgements },
+        index: buildIndex(datasetOf(reference, nextPlan)),
+      });
     },
 
     undo() {
       const state = get();
       const batch = state.undoStack.at(-1);
-      if (!batch) return;
-      set({ undoStack: state.undoStack.slice(0, -1), redoStack: [...state.redoStack, batch] });
-      commit(invertAll(batch), { fromUndo: true });
+      if (!batch || !state.reference || !state.published) return;
+
+      const drop = new Set(batch.map((change) => change.id));
+      const changes = state.changes.filter((change) => !drop.has(change.id));
+      const { plan, index } = recompute(state.reference, state.published, changes);
+
+      set({
+        changes,
+        plan,
+        index,
+        undoStack: state.undoStack.slice(0, -1),
+        redoStack: [...state.redoStack, batch],
+      });
+
+      const sessionId = state.session?.id;
+      if (sessionId) void scheduleRepository.removeChanges(sessionId, [...drop]);
     },
 
     redo() {
       const state = get();
       const batch = state.redoStack.at(-1);
       if (!batch) return;
-      set({ redoStack: state.redoStack.slice(0, -1), undoStack: [...state.undoStack, batch] });
-      commit(batch, { fromUndo: true });
+      set({ redoStack: state.redoStack.slice(0, -1) });
+      commit(batch, { fromHistory: true });
+      set({ undoStack: [...get().undoStack, batch] });
     },
 
-    async save() {
-      const { unitId, range, pending, reference } = get();
-      if (!unitId || !range || !reference || pending.length === 0) return;
-      set({ saving: true });
+    async publish() {
+      const { session, unitId, range } = get();
+      if (!session || !unitId || !range) return undefined;
+      set({ publishing: true, conflicts: [] });
       try {
-        const plan = await scheduleRepository.savePatches(unitId, range, pending);
+        const outcome = await scheduleRepository.publishDraft(session.id);
+        if (!outcome.ok) {
+          // Черновик сохраняется целиком: провал публикации ничего не теряет.
+          set({ publishing: false, conflicts: outcome.conflicts });
+          return outcome;
+        }
+        const published = await scheduleRepository.loadPublished(unitId, range);
+        const { reference } = get();
+        if (!reference) return outcome;
+        const { plan, index } = recompute(reference, published, []);
         set({
+          publishing: false,
+          published,
           plan,
-          index: buildIndex(datasetOf(reference, plan)),
-          pending: [],
-          saving: false,
-          lastSavedAt: new Date().toISOString(),
+          index,
+          session: undefined,
+          changes: [],
+          undoStack: [],
+          redoStack: [],
+          lastPublish: outcome.result,
         });
+        return outcome;
       } catch (error) {
         set({
-          saving: false,
+          publishing: false,
           error: error instanceof Error ? error.message : String(error),
         });
+        return undefined;
       }
     },
 
-    async acquireLock() {
-      const { unitId, range, currentUserId } = get();
-      if (!unitId || !range || !currentUserId) return undefined;
-      const result = await scheduleRepository.acquireLock(unitId, range, currentUserId);
-      if (result.ok) set({ lock: result.lock, lockConflict: undefined });
-      else set({ lockConflict: result.heldBy });
-      return result;
-    },
-
-    async releaseLock() {
-      const { unitId, range, currentUserId } = get();
-      if (!unitId || !range || !currentUserId) return;
-      await scheduleRepository.releaseLock(unitId, range, currentUserId);
-      set({ lock: undefined });
+    async discard() {
+      const state = get();
+      if (state.session) await scheduleRepository.discardDraft(state.session.id);
+      if (!state.reference || !state.published) return;
+      const { plan, index } = recompute(state.reference, state.published, []);
+      set({
+        session: undefined,
+        changes: [],
+        undoStack: [],
+        redoStack: [],
+        conflicts: [],
+        plan,
+        index,
+      });
     },
   };
 });
 
 /** Есть ли несохранённые правки. */
-export function hasUnsavedChanges(state: ScheduleState): boolean {
-  return state.pending.length > 0;
+export function hasDraftChanges(state: ScheduleState): boolean {
+  return state.changes.length > 0;
+}
+
+/** Идёт ли редактирование. */
+export function isEditing(state: ScheduleState): boolean {
+  return state.session !== undefined;
 }

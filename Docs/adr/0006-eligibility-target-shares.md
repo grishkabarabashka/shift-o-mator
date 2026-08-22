@@ -1,17 +1,25 @@
-# ADR-0006. Eligibility хранит целевые доли, а не булевы флаги
+# ADR-0006. Eligibility holds target shares, not booleans
 
-**Статус:** принято
+**Status:** accepted, with candidate ordering clarified
 
-## Контекст
+> **Clarification.** Target share is the **fairness metric** — what People and
+> Analytics display, and what "this person is skewed" means. Candidate **ordering** for
+> Suggest and auto-generation uses the prototype's proven sequence: eligibility →
+> availability → fewest assignments of that role in the trailing 90 days → recency →
+> personal targets such as `maxWeekendsPerQuarter`. Both figures appear in the
+> suggestion list so the ranking can be argued with.
+> See [06-generation.md](../06-generation.md).
 
-Простейшая модель — «умеет / не умеет». Она не описывает реальный случай: этому человеку
-нужно давать роль shift lead чаще остальных, а вот этому — изредка, для поддержания
-навыка. С булевыми флагами такие правила уходят в исключения в коде генератора или
-в голову планировщика.
+## Context
 
-## Решение
+The simplest model is "can / can't." It doesn't describe a real case: this person
+should get the shift-lead role more often than others, while that one should get it
+occasionally, just to keep the skill fresh. With boolean flags, rules like this end up
+as special cases in the generator's code or stuck in a planner's head.
 
-`RoleEligibility` хранит желаемое распределение:
+## Decision
+
+`RoleEligibility` stores a desired distribution:
 
 ```
 { roleId: SL,    targetShare: 0.4, minPerWeek: 2, maxPerWeek: 6 }
@@ -19,16 +27,17 @@
 { roleId: CAVA,  targetShare: 0.4 }
 ```
 
-## Следствия
+## Consequences
 
-- Справедливость считается не как равенство, а как **отклонение фактической доли от
-  целевой**. Человек с целью 0.4 по shift lead и фактом 0.15 — перекос, даже если по
-  абсолютным числам он в середине команды.
-- Аналитика показывает бары с отметкой цели, а не таблицу чисел.
-- Отсутствие роли в списке эквивалентно «не умеет» — булев случай выражается как частный.
-- Суммы долей по человеку не обязаны давать 1: это веса, а не вероятности.
+- Fairness is computed not as equality, but as the **deviation of actual share from
+  target share**. A person targeted at 0.4 for shift lead who's actually at 0.15 is
+  skewed, even if their absolute numbers put them in the middle of the team.
+- Analytics show bars with a target marker, not a table of numbers.
+- A missing role in the list is equivalent to "can't" — the boolean case is a special
+  instance of this one.
+- A person's shares don't have to sum to 1: they're weights, not probabilities.
 
-## Альтернативы
+## Alternatives considered
 
-- **Булев флаг плюс отдельная таблица «предпочтений».** То же самое, только размазано по
-  двум местам.
+- **A boolean flag plus a separate "preferences" table.** The same thing, just spread
+  across two places.

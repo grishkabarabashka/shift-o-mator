@@ -1,32 +1,43 @@
-# ADR-0008. События — это правила покрытия с датой, а не отдельная сущность
+# ADR-0008. Events are dated coverage rules, not a separate entity
 
-**Статус:** принято
+**Status:** accepted — amended by
+[ADR-0016](0016-day-configuration-groups.md). An event is now a `DayConfiguration` with
+a `date` and a `label` rather than a `CoverageRule` with `appliesTo: DATE`. The
+principle is unchanged: an event is configuration on a date, not a new entity.
 
-## Контекст
+> **Deferred.** The owner confirmed how events actually work: for a DR test or
+> month-end close the planners simply know the event is happening and staff up. Distinct
+> minimums per event are a custom case and are **not built now**. The `date` variant
+> stays in the `DayConfiguration` type — the shape is right — but there is no UI, no
+> fixture and no engine branch for it until a real event needs one.
 
-DR-тест, закрытие месяца, крупный релиз требуют усиленного покрытия в конкретный день.
-Естественный порыв — завести сущность «мероприятие» с участниками и требованиями.
+## Context
 
-## Решение
+A DR test, a month-end close, a major release all require heavier coverage on a
+specific day. The natural instinct is to build an "event" entity with participants and
+requirements.
 
-`CoverageRule` имеет поле `appliesTo: WEEKDAY | WEEKEND | HOLIDAY | DATE`. Для `DATE`
-задаются `date` и `label` («DR test», «Month end»). Правила на конкретную дату
-перекрывают общие.
+## Decision
 
-Событие описывается как набор таких правил.
+`CoverageRule` has an `appliesTo: WEEKDAY | WEEKEND | HOLIDAY | DATE` field. For
+`DATE`, `date` and `label` are set ("DR test", "Month end"). Rules for a specific date
+override the general ones.
 
-## Следствия
+An event is described as a set of such rules.
 
-- Валидатор и генератор не знают ни о каких событиях — они видят только правила покрытия.
-  Одна ветка кода вместо двух.
-- Метка правила показывается в полосе покрытия и в объяснении генератора: понятно,
-  почему в этот день требования выше.
-- Разрешение конфликтов: правило с `DATE` имеет приоритет над `HOLIDAY`, оно —
-  над `WEEKEND`, оно — над `WEEKDAY`.
-- Событие, требующее конкретных людей, а не конкретного покрытия, этой моделью не
-  выражается. Такой случай пока не встречался; если появится — понадобится новый ADR.
+## Consequences
 
-## Альтернативы
+- The validator and the generator know nothing about events — they only see coverage
+  rules. One code path instead of two.
+- The rule's label shows up in the coverage strip and in the generator's
+  explanations: it's clear why requirements are higher that day.
+- Conflict resolution: a `DATE` rule outranks `HOLIDAY`, which outranks `WEEKEND`,
+  which outranks `WEEKDAY`.
+- An event that needs specific people, not just specific coverage numbers, isn't
+  expressible in this model. That case hasn't come up yet; if it does, it needs a new
+  ADR.
 
-- **Сущность Event с собственными требованиями.** Второй механизм ограничений, который
-  придётся учитывать в валидаторе, генераторе и во всех отчётах.
+## Alternatives considered
+
+- **An `Event` entity with its own requirements.** A second constraint mechanism that
+  the validator, the generator, and every report would have to account for.

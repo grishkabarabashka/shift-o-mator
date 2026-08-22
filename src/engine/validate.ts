@@ -1,15 +1,20 @@
 /**
- * Валидация плана. Три уровня серьёзности, которые нельзя смешивать (ADR-0009):
+ * Валидация плана — ADR-0009.
  *
- * - BLOCKING — публикация невозможна;
- * - WARNING  — требует осознанного подтверждения с комментарием;
- * - INFO     — подсветка без блокировки.
+ * Три уровня, которые нельзя смешивать:
+ *   BLOCKING — публикация невозможна;
+ *   WARNING  — требует осознанного подтверждения с комментарием;
+ *   INFO     — подсветка без блокировки.
  *
- * Функция чистая: текущая дата передаётся параметром `asOf`, иначе тесты
- * зависели бы от дня запуска.
+ * Внутри BLOCKING различаются две категории, и в интерфейсе они не сливаются:
+ *   GAP      — не сделана работа: чинится назначением человека;
+ *   CONFLICT — записаны невозможные данные: чинится снятием назначения.
+ *
+ * Функция чистая: текущая дата приходит параметром `asOf`.
  */
 
 import type { DatasetIndex } from '../domain/lookup.ts';
+import { cellKey } from '../domain/lookup.ts';
 import type {
   Absence,
   AbsenceCapacityRule,
@@ -20,14 +25,23 @@ import type {
   DateRange,
   IsoDate,
   Issue,
+  IssueCategory,
   IssueCode,
   IssueLevel,
   Location,
   Person,
-  UnitId,
+  RegionId,
   UtcInterval,
 } from '../domain/types.ts';
-import { compDayBlocksAssignment, effectiveCompDayDate } from '../domain/types.ts';
+import {
+  assignmentRoleId,
+  compDayBlocksAssignment,
+  compDayIsOutstanding,
+  effectiveCompDayDate,
+  isWorkingAssignment,
+} from '../domain/types.ts';
+import { compDayAge } from './compDays.ts';
+import { resolveDayConfiguration } from './dayConfig.ts';
 import {
   addDays,
   countWorkdays,
@@ -40,7 +54,7 @@ import {
 } from './dates.ts';
 
 export interface ValidateParams {
-  readonly unitId: UnitId;
+  readonly regionId: RegionId;
   readonly range: DateRange;
   readonly assignments: readonly Assignment[];
   readonly absences: readonly Absence[];
@@ -48,12 +62,13 @@ export interface ValidateParams {
   readonly coverageCells: readonly CoverageCell[];
   readonly absenceCapacityRules: readonly AbsenceCapacityRule[];
   readonly index: DatasetIndex;
-  /** Дата отсчёта для «истекающих» отгулов. */
+  /** Дата отсчёта для возраста отгулов. */
   readonly asOf: IsoDate;
 }
 
 interface IssueDraft {
   readonly level: IssueLevel;
+  readonly category: IssueCategory;
   readonly code: IssueCode;
   readonly message: string;
   readonly date?: IsoDate;
@@ -61,14 +76,15 @@ interface IssueDraft {
   readonly roleId?: string;
 }
 
-function makeIssue(unitId: UnitId, draft: IssueDraft): Issue {
+function makeIssue(regionId: RegionId, draft: IssueDraft): Issue {
   const key = [draft.code, draft.date ?? '', draft.personId ?? '', draft.roleId ?? ''].join('|');
   return {
     key,
     level: draft.level,
+    category: draft.category,
     code: draft.code,
     message: draft.message,
-    unitId,
+    regionId,
     ...(draft.date !== undefined ? { date: draft.date } : {}),
     ...(draft.personId !== undefined ? { personId: draft.personId } : {}),
     ...(draft.roleId !== undefined ? { roleId: draft.roleId } : {}),
@@ -86,11 +102,11 @@ export function validate(params: ValidateParams): Issue[] {
     ...checkWeekendLoad(params),
     ...checkAbsenceCapacity(params),
     ...checkTargetShares(params),
-    ...checkExpiringCompDays(params),
+    ...checkCompDays(params),
   ];
 
   return drafts
-    .map((draft) => makeIssue(params.unitId, draft))
+    .map((draft) => makeIssue(params.regionId, draft))
     .sort((a, b) => {
       const byLevel = LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level];
       if (byLevel !== 0) return byLevel;
@@ -98,21 +114,28 @@ export function validate(params: ValidateParams): Issue[] {
     });
 }
 
-/** Подтверждено ли нарушение. Подтверждения хранятся вместе с планом. */
 export function acknowledgedKeys(acks: readonly Acknowledgement[]): Set<string> {
   return new Set(acks.map((ack) => ack.issueKey));
 }
 
-/** Можно ли публиковать: нет ни одного BLOCKING. */
-export function canPublish(issues: readonly Issue[]): boolean {
-  return !issues.some((issue) => issue.level === 'BLOCKING');
+/** Можно ли публиковать: нет BLOCKING и все WARNING подтверждены. */
+export function canPublish(
+  issues: readonly Issue[],
+  acknowledged: ReadonlySet<string>,
+): boolean {
+  return !issues.some(
+    (issue) =>
+      issue.level === 'BLOCKING' ||
+      (issue.level === 'WARNING' && !acknowledged.has(issue.key)),
+  );
 }
 
 export interface IssueSummary {
   readonly blocking: number;
+  readonly gaps: number;
+  readonly conflicts: number;
   readonly warning: number;
   readonly info: number;
-  /** Предупреждения без подтверждения. */
   readonly unacknowledgedWarnings: number;
 }
 
@@ -121,18 +144,25 @@ export function summarizeIssues(
   acknowledged: ReadonlySet<string>,
 ): IssueSummary {
   let blocking = 0;
+  let gaps = 0;
+  let conflicts = 0;
   let warning = 0;
   let info = 0;
   let unacknowledgedWarnings = 0;
+
   for (const issue of issues) {
-    if (issue.level === 'BLOCKING') blocking += 1;
-    else if (issue.level === 'INFO') info += 1;
-    else {
+    if (issue.level === 'BLOCKING') {
+      blocking += 1;
+      if (issue.category === 'GAP') gaps += 1;
+      if (issue.category === 'CONFLICT') conflicts += 1;
+    } else if (issue.level === 'INFO') {
+      info += 1;
+    } else {
       warning += 1;
       if (!acknowledged.has(issue.key)) unacknowledgedWarnings += 1;
     }
   }
-  return { blocking, warning, info, unacknowledgedWarnings };
+  return { blocking, gaps, conflicts, warning, info, unacknowledgedWarnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,31 +172,37 @@ export function summarizeIssues(
 function checkCoverage({ coverageCells, index }: ValidateParams): IssueDraft[] {
   const drafts: IssueDraft[] = [];
   for (const cell of coverageCells) {
-    const role = index.roles.get(cell.roleId);
-    const code = role?.code ?? cell.roleId;
+    const code = index.roles.get(cell.roleId)?.code ?? cell.roleId;
     const label = cell.ruleLabel ? ` (${cell.ruleLabel})` : '';
 
-    if (cell.level === 'BELOW_MIN') {
+    if (cell.level === 'GAP') {
       drafts.push({
         level: 'BLOCKING',
-        code: 'COVERAGE_BELOW_MIN',
-        message: `${code}${label}: назначено ${cell.actual} при минимуме ${cell.min}`,
+        category: 'GAP',
+        code: 'COVERAGE_GAP',
+        message: `${code}${label}: ${cell.actual} assigned, minimum is ${cell.min}`,
         date: cell.date,
         roleId: cell.roleId,
       });
-    } else if (cell.level === 'BELOW_TARGET' && cell.target !== undefined) {
+    } else if (cell.level === 'THIN') {
+      // INFO, не WARNING: работа впритык — норма, а не отклонение. Большинство
+      // дней закрыто ровно по минимуму, и требовать письменного обоснования на
+      // каждый такой день значит сделать публикацию невозможной. Сигнал ценен
+      // как цвет в полосе покрытия, а не как блокер.
       drafts.push({
-        level: 'WARNING',
-        code: 'COVERAGE_BELOW_TARGET',
-        message: `${code}${label}: назначено ${cell.actual} при цели ${cell.target}`,
+        level: 'INFO',
+        category: 'GAP',
+        code: 'COVERAGE_THIN',
+        message: `${code}${label}: ${cell.actual} assigned, exactly at the minimum — no slack`,
         date: cell.date,
         roleId: cell.roleId,
       });
-    } else if (cell.level === 'OVER_MAX' && cell.max !== undefined) {
+    } else if (cell.level === 'OVER' && cell.max !== undefined) {
       drafts.push({
         level: 'WARNING',
+        category: 'POLICY',
         code: 'COVERAGE_OVER_MAX',
-        message: `${code}${label}: назначено ${cell.actual} при максимуме ${cell.max}`,
+        message: `${code}${label}: ${cell.actual} assigned, maximum is ${cell.max}`,
         date: cell.date,
         roleId: cell.roleId,
       });
@@ -179,16 +215,16 @@ function checkCoverage({ coverageCells, index }: ValidateParams): IssueDraft[] {
 // Назначения
 // ---------------------------------------------------------------------------
 
-function unitAssignments(params: ValidateParams): Assignment[] {
-  const { assignments, index, unitId } = params;
+function regionAssignments(params: ValidateParams): Assignment[] {
+  const { assignments, index, regionId } = params;
   return assignments.filter((assignment) => {
     const person = index.people.get(assignment.personId);
-    return person !== undefined && person.unitId === unitId;
+    return person !== undefined && person.regionId === regionId;
   });
 }
 
 function checkAssignments(params: ValidateParams): IssueDraft[] {
-  const { range, absences, compDays, index } = params;
+  const { range, absences, compDays, index, regionId } = params;
   const drafts: IssueDraft[] = [];
 
   const absencesByPerson = new Map<string, Absence[]>();
@@ -201,33 +237,53 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
   const blockingCompDays = new Map<string, CompDayEntry>();
   for (const entry of compDays) {
     if (!compDayBlocksAssignment(entry)) continue;
-    blockingCompDays.set(`${entry.personId}|${effectiveCompDayDate(entry)}`, entry);
+    const date = effectiveCompDayDate(entry);
+    if (date !== undefined) blockingCompDays.set(cellKey(entry.personId, date), entry);
   }
 
-  const seenCell = new Map<string, Assignment>();
+  const seenCell = new Set<string>();
 
-  for (const assignment of unitAssignments(params)) {
+  for (const assignment of regionAssignments(params)) {
     if (!rangeContains(range, assignment.date)) continue;
     const person = index.people.get(assignment.personId);
     if (!person) continue;
-    const role = index.roles.get(assignment.roleId);
+
+    const key = cellKey(person.id, assignment.date);
+    if (seenCell.has(key)) {
+      drafts.push({
+        level: 'BLOCKING',
+        category: 'CONFLICT',
+        code: 'DOUBLE_ASSIGNMENT',
+        message: `${person.displayName}: more than one assignment on the same day`,
+        date: assignment.date,
+        personId: person.id,
+      });
+    }
+    seenCell.add(key);
+
+    if (!isWorkingAssignment(assignment)) continue;
+
+    const roleId = assignmentRoleId(assignment);
+    const role = roleId !== undefined ? index.roles.get(roleId) : undefined;
 
     if (!role) {
       drafts.push({
         level: 'BLOCKING',
-        code: 'ROLE_OUTSIDE_UNIT',
-        message: `Роль ${assignment.roleId} не существует`,
+        category: 'CONFLICT',
+        code: 'ROLE_OUTSIDE_REGION',
+        message: `Role ${roleId ?? '?'} does not exist`,
         date: assignment.date,
         personId: person.id,
       });
       continue;
     }
 
-    if (role.unitId !== person.unitId) {
+    if (role.regionId !== person.regionId) {
       drafts.push({
         level: 'BLOCKING',
-        code: 'ROLE_OUTSIDE_UNIT',
-        message: `${person.displayName}: роль ${role.code} принадлежит другой единице`,
+        category: 'CONFLICT',
+        code: 'ROLE_OUTSIDE_REGION',
+        message: `${person.displayName}: role ${role.code} belongs to another region`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
@@ -235,26 +291,27 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
     } else if (!person.eligibility.some((e) => e.roleId === role.id)) {
       drafts.push({
         level: 'BLOCKING',
+        category: 'CONFLICT',
         code: 'ROLE_NOT_ELIGIBLE',
-        message: `${person.displayName}: роль ${role.code} недоступна`,
-        date: assignment.date,
-        personId: person.id,
-        roleId: role.id,
-      });
-    }
-
-    const cellKey = `${person.id}|${assignment.date}`;
-    if (seenCell.has(cellKey)) {
-      drafts.push({
-        level: 'BLOCKING',
-        code: 'DOUBLE_ASSIGNMENT',
-        message: `${person.displayName}: две смены в один день`,
+        message: `${person.displayName}: role ${role.code} is not eligible`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
       });
     } else {
-      seenCell.set(cellKey, assignment);
+      const config = resolveDayConfiguration(regionId, assignment.date, index);
+      const inConfig = config?.roleRequirements.some((r) => r.roleId === role.id) ?? false;
+      if (!inConfig) {
+        drafts.push({
+          level: 'WARNING',
+          category: 'POLICY',
+          code: 'ROLE_NOT_IN_DAY_CONFIG',
+          message: `${person.displayName}: role ${role.code} is not part of this day's configuration`,
+          date: assignment.date,
+          personId: person.id,
+          roleId: role.id,
+        });
+      }
     }
 
     const absence = (absencesByPerson.get(person.id) ?? []).find(
@@ -263,19 +320,21 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
     if (absence) {
       drafts.push({
         level: 'BLOCKING',
+        category: 'CONFLICT',
         code: 'ASSIGNED_DURING_ABSENCE',
-        message: `${person.displayName}: назначение во время отсутствия (${absenceLabel(absence.type)})`,
+        message: `${person.displayName}: assigned during ${absenceLabel(absence.type)}`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
       });
     }
 
-    if (blockingCompDays.has(cellKey)) {
+    if (blockingCompDays.has(key)) {
       drafts.push({
         level: 'BLOCKING',
+        category: 'CONFLICT',
         code: 'ASSIGNED_DURING_COMP_DAY',
-        message: `${person.displayName}: назначение на подтверждённый отгул`,
+        message: `${person.displayName}: assigned on a confirmed comp day`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
@@ -285,8 +344,9 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
     if (!person.availableWeekdays.includes(weekdayOf(assignment.date))) {
       drafts.push({
         level: 'WARNING',
+        category: 'POLICY',
         code: 'UNAVAILABLE_WEEKDAY',
-        message: `${person.displayName}: день недели вне доступности`,
+        message: `${person.displayName}: weekday outside availability`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
@@ -296,8 +356,9 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
     if (person.preferences?.avoidsWeekdays?.includes(weekdayOf(assignment.date))) {
       drafts.push({
         level: 'INFO',
+        category: 'POLICY',
         code: 'PREFERENCE_VIOLATED',
-        message: `${person.displayName}: день, которого человек предпочитает избегать`,
+        message: `${person.displayName}: a day this person prefers to avoid`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
@@ -311,15 +372,11 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
 function absenceLabel(type: Absence['type']): string {
   switch (type) {
     case 'VACATION':
-      return 'отпуск';
-    case 'COMP_DAY':
-      return 'отгул';
-    case 'TRAINING':
-      return 'обучение';
+      return 'vacation';
     case 'SICK':
-      return 'больничный';
+      return 'sick leave';
     case 'OTHER':
-      return 'прочее';
+      return 'an absence';
   }
 }
 
@@ -335,12 +392,16 @@ interface DatedInterval {
 function intervalsByPerson(params: ValidateParams): Map<string, DatedInterval[]> {
   const { index } = params;
   const result = new Map<string, DatedInterval[]>();
-  for (const assignment of unitAssignments(params)) {
-    const role = index.roles.get(assignment.roleId);
+  for (const assignment of regionAssignments(params)) {
+    const roleId = assignmentRoleId(assignment);
+    if (roleId === undefined) continue;
+    const role = index.roles.get(roleId);
     if (!role) continue;
     let interval: UtcInterval;
     try {
-      interval = shiftInterval(role, assignment.date, assignment.timeOverride);
+      const override =
+        assignment.content.kind === 'ROLE' ? assignment.content.timeOverride : undefined;
+      interval = shiftInterval(role, assignment.date, override);
     } catch {
       continue;
     }
@@ -371,8 +432,9 @@ function checkRest(params: ValidateParams): IssueDraft[] {
       if (rest >= person.constraints.minRestHours) continue;
       drafts.push({
         level: 'WARNING',
+        category: 'POLICY',
         code: 'MIN_REST_VIOLATED',
-        message: `${person.displayName}: отдых ${rest.toFixed(1)} ч при минимуме ${person.constraints.minRestHours} ч`,
+        message: `${person.displayName}: ${rest.toFixed(1)}h rest, minimum is ${person.constraints.minRestHours}h`,
         date: current.date,
         personId,
       });
@@ -387,7 +449,8 @@ function checkConsecutiveDays(params: ValidateParams): IssueDraft[] {
   const drafts: IssueDraft[] = [];
 
   const datesByPerson = new Map<string, Set<IsoDate>>();
-  for (const assignment of unitAssignments(params)) {
+  for (const assignment of regionAssignments(params)) {
+    if (!isWorkingAssignment(assignment)) continue;
     const bucket = datesByPerson.get(assignment.personId);
     if (bucket) bucket.add(assignment.date);
     else datesByPerson.set(assignment.personId, new Set([assignment.date]));
@@ -408,8 +471,9 @@ function checkConsecutiveDays(params: ValidateParams): IssueDraft[] {
         if (rangeContains(range, previous)) {
           drafts.push({
             level: 'WARNING',
+            category: 'POLICY',
             code: 'CONSECUTIVE_DAYS_EXCEEDED',
-            message: `${person.displayName}: ${runLength} дней подряд при лимите ${limit} (с ${runStart})`,
+            message: `${person.displayName}: ${runLength} consecutive days, limit is ${limit} (since ${runStart})`,
             date: previous,
             personId,
           });
@@ -437,14 +501,15 @@ function checkConsecutiveDays(params: ValidateParams): IssueDraft[] {
 // Нагрузка по выходным
 // ---------------------------------------------------------------------------
 
-const WEEKEND_WINDOW_DAYS = 28;
+const QUARTER_WINDOW_DAYS = 91;
 
 function checkWeekendLoad(params: ValidateParams): IssueDraft[] {
   const { index, range } = params;
   const drafts: IssueDraft[] = [];
 
   const datesByPerson = new Map<string, IsoDate[]>();
-  for (const assignment of unitAssignments(params)) {
+  for (const assignment of regionAssignments(params)) {
+    if (!isWorkingAssignment(assignment)) continue;
     const bucket = datesByPerson.get(assignment.personId);
     if (bucket) bucket.push(assignment.date);
     else datesByPerson.set(assignment.personId, [assignment.date]);
@@ -452,7 +517,7 @@ function checkWeekendLoad(params: ValidateParams): IssueDraft[] {
 
   for (const [personId, dates] of datesByPerson) {
     const person = index.people.get(personId);
-    const limit = person?.constraints.maxWeekendDaysPer4Weeks;
+    const limit = person?.constraints.maxWeekendsPerQuarter;
     if (!person || limit === undefined) continue;
     const location = index.locations.get(person.locationId);
     if (!location) continue;
@@ -460,13 +525,14 @@ function checkWeekendLoad(params: ValidateParams): IssueDraft[] {
     const weekendDates = dates.filter((date) => isWeekendIn(date, location)).sort();
     for (const date of weekendDates) {
       if (!rangeContains(range, date)) continue;
-      const windowStart = addDays(date, -(WEEKEND_WINDOW_DAYS - 1));
+      const windowStart = addDays(date, -(QUARTER_WINDOW_DAYS - 1));
       const inWindow = weekendDates.filter((d) => d >= windowStart && d <= date).length;
       if (inWindow > limit) {
         drafts.push({
           level: 'WARNING',
+          category: 'FAIRNESS',
           code: 'WEEKEND_LOAD_EXCEEDED',
-          message: `${person.displayName}: ${inWindow} выходных за 4 недели при лимите ${limit}`,
+          message: `${person.displayName}: ${inWindow} weekend days this quarter, target is ${limit}`,
           date,
           personId,
         });
@@ -483,19 +549,19 @@ function checkWeekendLoad(params: ValidateParams): IssueDraft[] {
 
 interface AbsenceSpan {
   readonly personId: string;
-  readonly type: Absence['type'];
+  readonly type: Absence['type'] | 'COMP_DAY';
   readonly from: IsoDate;
   readonly to: IsoDate;
   readonly workdays: number;
 }
 
 function absenceSpans(params: ValidateParams): AbsenceSpan[] {
-  const { absences, compDays, index, unitId } = params;
+  const { absences, compDays, index, regionId } = params;
   const spans: AbsenceSpan[] = [];
 
   const locationOf = (personId: string): Location | undefined => {
     const person = index.people.get(personId);
-    if (!person || person.unitId !== unitId) return undefined;
+    if (!person || person.regionId !== regionId) return undefined;
     return index.locations.get(person.locationId);
   };
 
@@ -517,6 +583,7 @@ function absenceSpans(params: ValidateParams): AbsenceSpan[] {
     const location = locationOf(entry.personId);
     if (!location) continue;
     const date = effectiveCompDayDate(entry);
+    if (date === undefined) continue;
     spans.push({ personId: entry.personId, type: 'COMP_DAY', from: date, to: date, workdays: 1 });
   }
 
@@ -524,14 +591,13 @@ function absenceSpans(params: ValidateParams): AbsenceSpan[] {
 }
 
 function checkAbsenceCapacity(params: ValidateParams): IssueDraft[] {
-  const { absenceCapacityRules, index, range, unitId } = params;
+  const { absenceCapacityRules, index, range, regionId } = params;
   const drafts: IssueDraft[] = [];
 
-  const rules = absenceCapacityRules.filter((rule) => rule.unitId === unitId);
+  const rules = absenceCapacityRules.filter((rule) => rule.regionId === regionId);
   if (rules.length === 0) return drafts;
 
   const spans = absenceSpans(params);
-  const peopleById = index.people;
 
   for (const date of eachDate(range)) {
     const active = spans.filter((span) => date >= span.from && date <= span.to);
@@ -539,12 +605,16 @@ function checkAbsenceCapacity(params: ValidateParams): IssueDraft[] {
 
     for (const rule of rules) {
       const matching = active.filter((span) => {
-        if (!rule.countsTypes.includes(span.type)) return false;
+        if (span.type === 'COMP_DAY') {
+          if (!rule.countsCompDays) return false;
+        } else if (!rule.countsTypes.includes(span.type)) {
+          return false;
+        }
         const isLong = span.workdays >= rule.longThresholdWorkdays;
         if (rule.durationBucket === 'LONG' && !isLong) return false;
         if (rule.durationBucket === 'SHORT' && isLong) return false;
-        if (rule.scope.kind === 'UNIT') return true;
-        const person: Person | undefined = peopleById.get(span.personId);
+        if (rule.scope.kind === 'REGION') return true;
+        const person: Person | undefined = index.people.get(span.personId);
         const roleId = rule.scope.roleId;
         return person?.eligibility.some((e) => e.roleId === roleId) ?? false;
       });
@@ -552,15 +622,16 @@ function checkAbsenceCapacity(params: ValidateParams): IssueDraft[] {
       if (matching.length <= rule.maxConcurrent) continue;
 
       const scopeLabel =
-        rule.scope.kind === 'UNIT'
-          ? 'по единице'
-          : `в пуле ${index.roles.get(rule.scope.roleId)?.code ?? rule.scope.roleId}`;
-      const bucketLabel = rule.durationBucket === 'LONG' ? 'длительных' : 'коротких';
+        rule.scope.kind === 'REGION'
+          ? 'region-wide'
+          : `in the ${index.roles.get(rule.scope.roleId)?.code ?? rule.scope.roleId} pool`;
+      const bucketLabel = rule.durationBucket === 'LONG' ? 'long' : 'short';
 
       drafts.push({
         level: 'WARNING',
+        category: 'POLICY',
         code: 'ABSENCE_CAPACITY_EXCEEDED',
-        message: `${matching.length} ${bucketLabel} отсутствий ${scopeLabel} при лимите ${rule.maxConcurrent}`,
+        message: `${matching.length} ${bucketLabel} absences ${scopeLabel}, limit is ${rule.maxConcurrent}`,
         date,
         ...(rule.scope.kind === 'ROLE_POOL' ? { roleId: rule.scope.roleId } : {}),
       });
@@ -585,14 +656,16 @@ function checkTargetShares(params: ValidateParams): IssueDraft[] {
   const byPerson = new Map<string, Map<string, number>>();
   const totals = new Map<string, number>();
 
-  for (const assignment of unitAssignments(params)) {
+  for (const assignment of regionAssignments(params)) {
     if (!rangeContains(range, assignment.date)) continue;
+    const roleId = assignmentRoleId(assignment);
+    if (roleId === undefined) continue;
     let roleCounts = byPerson.get(assignment.personId);
     if (!roleCounts) {
       roleCounts = new Map<string, number>();
       byPerson.set(assignment.personId, roleCounts);
     }
-    roleCounts.set(assignment.roleId, (roleCounts.get(assignment.roleId) ?? 0) + 1);
+    roleCounts.set(roleId, (roleCounts.get(roleId) ?? 0) + 1);
     totals.set(assignment.personId, (totals.get(assignment.personId) ?? 0) + 1);
   }
 
@@ -603,13 +676,13 @@ function checkTargetShares(params: ValidateParams): IssueDraft[] {
 
     for (const eligibility of person.eligibility) {
       const actual = (roleCounts.get(eligibility.roleId) ?? 0) / total;
-      const deviation = actual - eligibility.targetShare;
-      if (Math.abs(deviation) <= SHARE_TOLERANCE) continue;
+      if (Math.abs(actual - eligibility.targetShare) <= SHARE_TOLERANCE) continue;
       const role = index.roles.get(eligibility.roleId);
       drafts.push({
         level: 'INFO',
+        category: 'FAIRNESS',
         code: 'TARGET_SHARE_DEVIATION',
-        message: `${person.displayName}: ${role?.code ?? eligibility.roleId} — факт ${(actual * 100).toFixed(0)}% при цели ${(eligibility.targetShare * 100).toFixed(0)}%`,
+        message: `${person.displayName}: ${role?.code ?? eligibility.roleId} — actual ${(actual * 100).toFixed(0)}% vs target ${(eligibility.targetShare * 100).toFixed(0)}%`,
         personId,
         roleId: eligibility.roleId,
       });
@@ -620,26 +693,43 @@ function checkTargetShares(params: ValidateParams): IssueDraft[] {
 }
 
 // ---------------------------------------------------------------------------
-// Истекающие отгулы
+// Отгулы
 // ---------------------------------------------------------------------------
 
-const EXPIRY_HORIZON_WEEKS = 4;
-
-function checkExpiringCompDays(params: ValidateParams): IssueDraft[] {
-  const { compDays, index, unitId, asOf } = params;
-  const horizon = addDays(asOf, EXPIRY_HORIZON_WEEKS * 7);
+function checkCompDays(params: ValidateParams): IssueDraft[] {
+  const { compDays, index, regionId, asOf } = params;
   const drafts: IssueDraft[] = [];
 
   for (const entry of compDays) {
-    if (entry.status !== 'PROPOSED' && entry.status !== 'SCHEDULED') continue;
-    if (entry.expiresOn > horizon) continue;
     const person = index.people.get(entry.personId);
-    if (!person || person.unitId !== unitId) continue;
+    if (!person || person.regionId !== regionId) continue;
+    const region = index.regions.get(person.regionId);
+    if (!region) continue;
+
+    if (entry.status === 'PENDING_APPROVAL') {
+      drafts.push({
+        level: 'WARNING',
+        category: 'POLICY',
+        code: 'COMP_DAY_PENDING_APPROVAL',
+        message: `${person.displayName}: comp day for ${entry.earnedForDate} has no valid slot and needs approval`,
+        date: entry.earnedForDate,
+        personId: entry.personId,
+      });
+      continue;
+    }
+
+    if (!compDayIsOutstanding(entry)) continue;
+    const age = compDayAge(entry, asOf);
+    if (age <= region.compOffPolicy.agingThresholdDays) continue;
+
     drafts.push({
       level: 'INFO',
-      code: 'COMP_DAY_EXPIRING',
-      message: `${person.displayName}: отгул за ${entry.earnedForDate} сгорает ${entry.expiresOn}`,
-      date: effectiveCompDayDate(entry),
+      category: 'POLICY',
+      code: 'COMP_DAY_AGING',
+      message: `${person.displayName}: comp day earned ${entry.earnedForDate} has been outstanding ${age} days`,
+      ...(effectiveCompDayDate(entry) !== undefined
+        ? { date: effectiveCompDayDate(entry) as IsoDate }
+        : {}),
       personId: entry.personId,
     });
   }

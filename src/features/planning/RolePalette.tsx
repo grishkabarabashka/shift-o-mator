@@ -1,6 +1,7 @@
 /**
  * Палитра ролей единицы. Выбранная роль включает paint-режим: дальше её
- * достаточно протянуть мышью по ячейкам.
+ * достаточно протянуть мышью по ячейкам. Основной путь назначения — контекстное
+ * меню ячейки (GridCell); палитра — быстрый путь для массовой раскраски.
  *
  * Время роли подписано прямо на чипе — это и есть ответ на главную проблему
  * текущего Excel: код смены больше не нужно помнить (ADR-0001).
@@ -37,26 +38,33 @@ export function RolePalette({ roles, referenceDate }: Props) {
   const displayZone = useUi((s) => s.displayZone);
 
   return (
-    <div className="palette" role="toolbar" aria-label="Роли">
+    <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Roles">
       {roles.map((role) => (
         <button
           key={role.id}
           type="button"
-          className="palette__chip"
+          className="role-chip"
           data-active={role.id === activeRoleId}
           onClick={() => setActiveRole(role.id === activeRoleId ? undefined : role.id)}
           title={`${role.label}: ${role.start}–${role.end} ${role.timeZone}`}
         >
-          <span className="palette__swatch" style={{ background: role.color }} />
-          {role.code}
-          <span className="palette__key">{windowLabel(role, referenceDate, displayZone)}</span>
-          {role.hotkey ? <span className="palette__key">[{role.hotkey}]</span> : null}
+          <span
+            aria-hidden
+            className="h-3 w-3 shrink-0 rounded-[3px]"
+            style={{ background: role.color }}
+          />
+          <span className="font-mono font-bold">{role.code}</span>
+          <span className="font-mono text-[10.5px] text-faint">
+            {windowLabel(role, referenceDate, displayZone)}
+          </span>
+          {role.hotkey ? <kbd className="kbd">{role.hotkey}</kbd> : null}
         </button>
       ))}
-      <span className="palette__hint">
+
+      <span className="ml-1 text-[11.5px] text-faint">
         {activeRoleId
-          ? 'Протяните мышью по ячейкам · Esc снимает выбор'
-          : 'Выберите роль для paint-режима или нажимайте её букву на клавиатуре'}
+          ? 'Drag across cells to paint · Esc clears the selection'
+          : 'Right-click any cell for its options'}
       </span>
     </div>
   );

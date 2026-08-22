@@ -8,13 +8,17 @@
 import type {
   Absence,
   Assignment,
+  AssignmentContent,
   CompDayEntry,
-  CoverageRule,
+  CompOffPolicy,
+  DayConfiguration,
   Holiday,
   Location,
   Person,
   PlanningUnit,
+  Region,
   ScheduleDataset,
+  ShiftDefinition,
   ShiftRole,
   Weekday,
 } from './types.ts';
@@ -37,25 +41,47 @@ export const puneLocation: Location = {
   weekendDays: WEEKEND,
 };
 
+export const testCompOffPolicy: CompOffPolicy = {
+  windowBeforeDays: 14,
+  windowAfterDays: 14,
+  excludedWeekdays: [1, 5],
+  agingThresholdDays: 14,
+  requiresApprovalWhenNoSlot: true,
+};
+
+export const testRegion: Region = {
+  id: 'R1',
+  name: 'Test region',
+  primaryTimeZone: 'America/New_York',
+  primaryLocationId: nyLocation.id,
+  locationIds: [nyLocation.id, puneLocation.id],
+  compOffPolicy: testCompOffPolicy,
+};
+
 export const testUnit: PlanningUnit = {
   id: 'unit-1',
   name: 'Test unit',
-  plannerPersonIds: ['p-planner'],
-  compDayPolicy: {
-    rules: [
-      { workedOn: 'SATURDAY', defaultOffsetDays: -2 },
-      { workedOn: 'SUNDAY', defaultOffsetDays: 2 },
-      { workedOn: 'HOLIDAY', defaultOffsetDays: 3 },
-    ],
-    expiryWeeks: 12,
-  },
-  coverageCalendarLocationId: nyLocation.id,
+  kind: 'REGION',
+  regionId: testRegion.id,
+  groupBy: 'LOCATION',
+};
+
+export const testShift: ShiftDefinition = {
+  id: 'sh-1',
+  regionId: testRegion.id,
+  code: 'TEST',
+  name: 'Test shift',
+  timeZone: 'America/New_York',
+  start: '09:00',
+  end: '17:00',
+  crossesMidnight: false,
+  breakMinutes: 60,
 };
 
 export const leadRole: ShiftRole = {
-  id: 'r-sl',
-  unitId: testUnit.id,
-  code: 'SL',
+  id: 'r-lead',
+  regionId: testRegion.id,
+  code: 'Lead',
   label: 'Shift lead',
   color: '#3f6fb5',
   hotkey: 'l',
@@ -63,14 +89,15 @@ export const leadRole: ShiftRole = {
   start: '07:00',
   end: '15:00',
   crossesMidnight: false,
-  editableTime: false,
+  breakMinutes: 60,
   countsAsCoverage: true,
+  editableTime: false,
 };
 
 export const nightRole: ShiftRole = {
   id: 'r-night',
-  unitId: testUnit.id,
-  code: 'NIGHT',
+  regionId: testRegion.id,
+  code: 'Night',
   label: 'Night cover',
   color: '#5c4a7d',
   hotkey: 'n',
@@ -78,19 +105,38 @@ export const nightRole: ShiftRole = {
   start: '22:00',
   end: '06:00',
   crossesMidnight: true,
-  editableTime: false,
+  breakMinutes: 0,
   countsAsCoverage: true,
+  editableTime: false,
 };
+
+/** Будни Пн–Пт, обе роли без требований — тест добавляет свои. */
+export function makeDayConfig(
+  overrides: Partial<DayConfiguration> & Pick<DayConfiguration, 'id' | 'key'>,
+): DayConfiguration {
+  return {
+    regionId: testRegion.id,
+    weekdays: overrides.key === 'weekend' ? [6, 7] : [1, 2, 3, 4, 5],
+    effectiveFrom: '2020-01-01',
+    roleRequirements: [],
+    ...overrides,
+  };
+}
 
 export function makePerson(overrides: Partial<Person> & Pick<Person, 'id'>): Person {
   return {
     displayName: overrides.id,
-    employeeId: overrides.id,
+    initials: overrides.id.slice(0, 2).toUpperCase(),
+    regionId: testRegion.id,
     unitId: testUnit.id,
     locationId: nyLocation.id,
-    isPlannerOnly: false,
+    defaultShiftId: testShift.id,
+    orgCategory: 'SUPPORT',
+    isActive: true,
+    isIncluded: true,
     eligibility: [{ roleId: leadRole.id, targetShare: 1 }],
     availableWeekdays: [1, 2, 3, 4, 5, 6, 7],
+    weekendEligible: true,
     constraints: { minRestHours: 11, maxConsecutiveDays: 6 },
     calendarToken: `tok-${overrides.id}`,
     ...overrides,
@@ -101,17 +147,24 @@ let assignmentSeq = 0;
 
 export function makeAssignment(
   personId: string,
-  roleId: string,
+  roleIdOrContent: string | AssignmentContent,
   date: string,
   overrides: Partial<Assignment> = {},
 ): Assignment {
   assignmentSeq += 1;
+  const content: AssignmentContent =
+    typeof roleIdOrContent === 'string'
+      ? { kind: 'ROLE', roleId: roleIdOrContent }
+      : roleIdOrContent;
   return {
     id: `as-${assignmentSeq}`,
     personId,
-    roleId,
     date,
+    regionId: testRegion.id,
+    content,
+    isWeekend: false,
     source: 'MANUAL',
+    version: 1,
     createdBy: 'p-planner',
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -121,10 +174,12 @@ export function makeAssignment(
 export interface DatasetOverrides {
   readonly locations?: readonly Location[];
   readonly holidays?: readonly Holiday[];
+  readonly regions?: readonly Region[];
   readonly units?: readonly PlanningUnit[];
+  readonly shifts?: readonly ShiftDefinition[];
   readonly roles?: readonly ShiftRole[];
+  readonly dayConfigurations?: readonly DayConfiguration[];
   readonly people?: readonly Person[];
-  readonly coverageRules?: readonly CoverageRule[];
   readonly assignments?: readonly Assignment[];
   readonly absences?: readonly Absence[];
   readonly compDays?: readonly CompDayEntry[];
@@ -134,14 +189,17 @@ export function makeDataset(overrides: DatasetOverrides = {}): ScheduleDataset {
   return {
     locations: overrides.locations ?? [nyLocation, puneLocation],
     holidays: overrides.holidays ?? [],
+    regions: overrides.regions ?? [testRegion],
     units: overrides.units ?? [testUnit],
+    shifts: overrides.shifts ?? [testShift],
     roles: overrides.roles ?? [leadRole, nightRole],
+    dayConfigurations: overrides.dayConfigurations ?? [],
     people: overrides.people ?? [makePerson({ id: 'p-1' })],
-    coverageRules: overrides.coverageRules ?? [],
     absenceCapacityRules: [],
     assignments: overrides.assignments ?? [],
     absences: overrides.absences ?? [],
     compDays: overrides.compDays ?? [],
     acknowledgements: [],
+    history: [],
   };
 }

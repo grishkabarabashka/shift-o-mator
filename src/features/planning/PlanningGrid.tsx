@@ -1,47 +1,69 @@
 /**
  * Сетка планирования: строки — люди, колонки — дни.
  *
- * Написана руками намеренно (ADR-0014): нужны range selection, paint-режим,
- * буфер обмена и полный контроль над клавиатурой — то есть ровно то, чего нет
- * в AG Grid Community.
+ * Написана руками намеренно (ADR-0014): нужны выделение прямоугольником,
+ * paint-режим, буфер обмена и полный контроль над клавиатурой.
  *
- * Клавиатура:
+ * Три пути назначения, от очевидного к быстрому:
+ *
+ *   правый клик       пикер с ролями **этого дня** для **этого человека**
+ *   палитра + клик    раскраска протаскиванием
+ *   хоткей роли       на всё выделение
+ *
+ * Дополнительно:
  *   стрелки            перемещение, с Shift — расширение выделения
  *   Home / End         начало и конец строки
- *   буква роли         поставить роль во всё выделение
  *   Delete / Backspace очистить
  *   Ctrl+C / Ctrl+V    копировать и вставить диапазон
  *   Ctrl+Z / Ctrl+Y    отмена и повтор
+ *
+ * Производительность: контекстное меню одно на всю сетку, а `PersonRow`
+ * мемоизирован по примитивам выделения. Передавать сюда объект `bounds` нельзя —
+ * он меняет идентичность на каждое движение мыши и обнуляет мемоизацию.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { compDayBlocksAssignment } from '../../domain/types.ts';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import type { IsoDate, PersonId, RoleId, ShiftRole } from '../../domain/types.ts';
+import { isBlocked } from '../../engine/cellValue.ts';
 import { useSchedule, type CellRef } from '../../store/useSchedule.ts';
 import { selectionBounds, useUi } from '../../store/useUi.ts';
-import { cellKey, type GridRow, type PlanningView } from './usePlanningView.ts';
+import { AssignmentPicker, type PickerTarget } from './AssignmentPicker.tsx';
+import { GridCell } from './GridCell.tsx';
+import { cellKey, type DayColumn, type GridRow, type PlanningView } from './usePlanningView.ts';
 
 interface Props {
   readonly view: PlanningView;
+  /**
+   * Скроллер сетки наружу: за ним по горизонтали следует полоса покрытия.
+   * Держать её в этом же контейнере не вышло — ограничить её высоту, не сломав
+   * прилипание, там невозможно, а без ограничения шестнадцать ролевых строк
+   * вытесняют сам ростер.
+   */
+  readonly scrollerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export function PlanningGrid({ view }: Props) {
+export function PlanningGrid({ view, scrollerRef }: Props) {
   const { rows, columns } = view;
   const setCells = useSchedule((s) => s.setCells);
+  const setMarker = useSchedule((s) => s.setMarker);
+  const startDraft = useSchedule((s) => s.startDraft);
   const undo = useSchedule((s) => s.undo);
   const redo = useSchedule((s) => s.redo);
 
   const selection = useUi((s) => s.selection);
+  const highlightDate = useUi((s) => s.highlightDate);
   const select = useUi((s) => s.select);
   const clearSelection = useUi((s) => s.clearSelection);
   const activeRoleId = useUi((s) => s.activeRoleId);
   const clipboard = useUi((s) => s.clipboard);
   const setClipboard = useUi((s) => s.setClipboard);
+  const openAbsenceCreate = useUi((s) => s.openAbsenceCreate);
   const openAbsenceEdit = useUi((s) => s.openAbsenceEdit);
   const openCompDayDialog = useUi((s) => s.openCompDayDialog);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [painting, setPainting] = useState(false);
+  const [picker, setPicker] = useState<PickerTarget>();
 
   const personRows = useMemo(
     () => rows.filter((row): row is Extract<GridRow, { kind: 'person' }> => row.kind === 'person'),
@@ -62,7 +84,6 @@ export function PlanningGrid({ view }: Props) {
     [selection, rowIndexOf, columnIndexOf],
   );
 
-  /** Ячейки текущего выделения. */
   const selectedCells = useMemo<CellRef[]>(() => {
     if (!bounds) return [];
     const cells: CellRef[] = [];
@@ -78,19 +99,32 @@ export function PlanningGrid({ view }: Props) {
   }, [bounds, personRows, columns]);
 
   /**
-   * Роль ставится только тем, кому она доступна, и только в свободный день:
-   * не в отпуск и не на подтверждённый отгул (`PROPOSED` ещё не блокирует —
-   * это предложение системы, а не решение планировщика).
+   * Любая правка сама открывает черновик.
+   *
+   * Спека прототипа требовала сначала нажать Edit, и это ровно та стена, о
+   * которую бьётся новый пользователь: он кликает по ячейке, ничего не
+   * происходит, и понять почему неоткуда. Режим остаётся — он виден по бейджу
+   * Draft и панели действий, — но входить в него вручную больше не нужно.
+   */
+  const withDraft = useCallback(
+    async (apply: () => void) => {
+      if (!useSchedule.getState().session) await startDraft();
+      apply();
+    },
+    [startDraft],
+  );
+
+  /**
+   * Роль ставится только тем, кому она доступна **в этот день**, и только в
+   * свободный день: не в отпуск и не на подтверждённый отгул. `PROPOSED` не
+   * мешает — это предложение системы, а не решение планировщика.
    */
   const assignableCells = useCallback(
     (cells: readonly CellRef[], roleId: RoleId | null): CellRef[] =>
       cells.filter((cell) => {
-        const key = cellKey(cell.personId, cell.date);
-        if (view.absenceByCell.has(key)) return false;
-        const compDay = view.compDayByCell.get(key);
-        if (compDay && compDayBlocksAssignment(compDay)) return false;
+        if (isBlocked(view.cellAt(cell.personId, cell.date))) return false;
         if (roleId === null) return true;
-        return view.rolesFor(cell.personId).some((role) => role.id === roleId);
+        return view.rolesFor(cell.personId, cell.date).some((role) => role.id === roleId);
       }),
     [view],
   );
@@ -98,13 +132,21 @@ export function PlanningGrid({ view }: Props) {
   const applyRole = useCallback(
     (cells: readonly CellRef[], roleId: RoleId | null) => {
       const allowed = assignableCells(cells, roleId);
-      if (allowed.length > 0) setCells(allowed, roleId);
+      if (allowed.length > 0) void withDraft(() => setCells(allowed, roleId));
     },
-    [assignableCells, setCells],
+    [assignableCells, setCells, withDraft],
+  );
+
+  const applyMarker = useCallback(
+    (cells: readonly CellRef[], marker: 'OFF' | 'NOT_SCHEDULED') => {
+      const allowed = cells.filter((cell) => !isBlocked(view.cellAt(cell.personId, cell.date)));
+      if (allowed.length > 0) void withDraft(() => setMarker(allowed, marker));
+    },
+    [view, setMarker, withDraft],
   );
 
   // -------------------------------------------------------------------------
-  // Мышь: выделение и paint-режим
+  // Мышь
   // -------------------------------------------------------------------------
 
   useEffect(() => {
@@ -114,33 +156,73 @@ export function PlanningGrid({ view }: Props) {
     return () => window.removeEventListener('mouseup', stop);
   }, [painting]);
 
-  const onCellMouseDown = (cell: CellRef, shiftKey: boolean) => {
-    select(cell, shiftKey);
+  /** Ячейка под курсором по DOM: один обработчик на сетку вместо 2480. */
+  const cellAtEvent = useCallback((event: React.MouseEvent): CellRef | undefined => {
+    const node = (event.target as HTMLElement).closest<HTMLElement>('[data-cell]');
+    const personId = node?.dataset['person'];
+    const date = node?.dataset['date'];
+    return personId && date ? { personId, date } : undefined;
+  }, []);
+
+  const onMouseDown = (event: React.MouseEvent) => {
+    // Правая кнопка не должна ни рисовать, ни сбрасывать выделение: её работа —
+    // открыть пикер, что делает отдельный обработчик contextmenu.
+    if (event.button !== 0) return;
+    const cell = cellAtEvent(event);
+    if (!cell) return;
+    event.preventDefault();
+    select(cell, event.shiftKey);
     setPainting(true);
-    if (activeRoleId && !shiftKey) applyRole([cell], activeRoleId);
+    if (activeRoleId && !event.shiftKey) applyRole([cell], activeRoleId);
     wrapRef.current?.focus();
   };
 
-  const onCellMouseEnter = (cell: CellRef) => {
+  const onMouseOver = (event: React.MouseEvent) => {
     if (!painting) return;
+    const cell = cellAtEvent(event);
+    if (!cell) return;
     select(cell, true);
     if (activeRoleId) applyRole([cell], activeRoleId);
   };
 
-  /** Двойной клик редактирует то, что стоит в ячейке: сначала отсутствие, иначе отгул. */
-  const onCellDoubleClick = useCallback(
-    (cell: CellRef) => {
-      const key = cellKey(cell.personId, cell.date);
-      const absence = view.absenceByCell.get(key);
-      if (absence) {
-        openAbsenceEdit(absence);
-        return;
-      }
-      const compDay = view.compDayByCell.get(key);
-      if (compDay) openCompDayDialog(compDay);
-    },
-    [view, openAbsenceEdit, openCompDayDialog],
-  );
+  const onContextMenu = (event: React.MouseEvent) => {
+    const cell = cellAtEvent(event);
+    if (!cell) return;
+    event.preventDefault();
+
+    // Клик внутри выделения работает по всему выделению; мимо — переносит его.
+    const inSelection = selectedCells.some(
+      (selected) => selected.personId === cell.personId && selected.date === cell.date,
+    );
+    if (!inSelection) select(cell, false);
+
+    const person = personRows.find((row) => row.person.id === cell.personId)?.person;
+    const value = view.cellAt(cell.personId, cell.date);
+    const status = value.kind === 'STATUS' ? value.status : undefined;
+
+    setPicker({
+      personId: cell.personId,
+      personName: person?.displayName ?? cell.personId,
+      date: cell.date,
+      value,
+      roles: view.rolesFor(cell.personId, cell.date),
+      locked:
+        status === 'VACATION' || status === 'SICK' || status === 'OTHER' || status === 'COMP_OFF',
+      x: event.clientX,
+      y: event.clientY,
+      affected: inSelection ? selectedCells.length : 1,
+    });
+  };
+
+  const closePicker = useCallback(() => setPicker(undefined), []);
+
+  /** Пункты пикера действуют на выделение, если клик был внутри него. */
+  const pickerCells = useCallback((): CellRef[] => {
+    if (!picker) return [];
+    return picker.affected > 1
+      ? selectedCells
+      : [{ personId: picker.personId, date: picker.date }];
+  }, [picker, selectedCells]);
 
   // -------------------------------------------------------------------------
   // Клавиатура
@@ -168,14 +250,13 @@ export function PlanningGrid({ view }: Props) {
       const line: (RoleId | null)[] = [];
       for (let col = bounds.left; col <= bounds.right; col += 1) {
         const date = columns[col]?.date;
-        const assignment =
-          person && date ? view.assignmentByCell.get(cellKey(person.id, date)) : undefined;
-        line.push(assignment?.roleId ?? null);
+        const value = person && date ? view.cellAt(person.id, date) : undefined;
+        line.push(value?.kind === 'ROLE' ? value.roleId : null);
       }
       grid.push(line);
     }
     setClipboard(grid);
-  }, [bounds, personRows, columns, view.assignmentByCell, setClipboard]);
+  }, [bounds, personRows, columns, view, setClipboard]);
 
   /** Вставка тайлится от левого верхнего угла выделения. */
   const pasteClipboard = useCallback(() => {
@@ -202,38 +283,32 @@ export function PlanningGrid({ view }: Props) {
 
   const roleByHotkey = useMemo(() => {
     const map = new Map<string, ShiftRole>();
-    for (const role of view.roles) {
-      if (role.hotkey) map.set(role.hotkey.toLowerCase(), role);
+    for (const role of view.coverageRoles) {
+      if (role.hotkey && !map.has(role.hotkey.toLowerCase())) {
+        map.set(role.hotkey.toLowerCase(), role);
+      }
     }
     return map;
-  }, [view.roles]);
+  }, [view.coverageRoles]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const { key, shiftKey, ctrlKey, metaKey } = event;
-    const modifier = ctrlKey || metaKey;
 
-    if (modifier) {
+    if (ctrlKey || metaKey) {
       const lower = key.toLowerCase();
       if (lower === 'z') {
         event.preventDefault();
         if (shiftKey) redo();
         else undo();
-        return;
-      }
-      if (lower === 'y') {
+      } else if (lower === 'y') {
         event.preventDefault();
         redo();
-        return;
-      }
-      if (lower === 'c') {
+      } else if (lower === 'c') {
         event.preventDefault();
         copySelection();
-        return;
-      }
-      if (lower === 'v') {
+      } else if (lower === 'v') {
         event.preventDefault();
         pasteClipboard();
-        return;
       }
       return;
     }
@@ -241,38 +316,30 @@ export function PlanningGrid({ view }: Props) {
     switch (key) {
       case 'ArrowUp':
         event.preventDefault();
-        moveFocus(-1, 0, shiftKey);
-        return;
+        return moveFocus(-1, 0, shiftKey);
       case 'ArrowDown':
         event.preventDefault();
-        moveFocus(1, 0, shiftKey);
-        return;
+        return moveFocus(1, 0, shiftKey);
       case 'ArrowLeft':
         event.preventDefault();
-        moveFocus(0, -1, shiftKey);
-        return;
+        return moveFocus(0, -1, shiftKey);
       case 'ArrowRight':
       case 'Tab':
         event.preventDefault();
-        moveFocus(0, 1, shiftKey && key === 'ArrowRight');
-        return;
+        return moveFocus(0, 1, shiftKey && key === 'ArrowRight');
       case 'Home':
         event.preventDefault();
-        moveFocus(0, -columns.length, shiftKey);
-        return;
+        return moveFocus(0, -columns.length, shiftKey);
       case 'End':
         event.preventDefault();
-        moveFocus(0, columns.length, shiftKey);
-        return;
+        return moveFocus(0, columns.length, shiftKey);
       case 'Delete':
       case 'Backspace':
         event.preventDefault();
-        applyRole(selectedCells, null);
-        return;
+        return applyRole(selectedCells, null);
       case 'Escape':
         event.preventDefault();
-        clearSelection();
-        return;
+        return clearSelection();
       default:
         break;
     }
@@ -284,67 +351,150 @@ export function PlanningGrid({ view }: Props) {
     }
   };
 
-  // Держим фокус видимым при навигации клавиатурой.
   useEffect(() => {
-    wrapRef.current?.querySelector('[data-focused="true"]')?.scrollIntoView({
+    wrapRef.current?.querySelector('[data-focused]')?.scrollIntoView({
       block: 'nearest',
       inline: 'nearest',
     });
   }, [selection.focus]);
 
-  const template = `var(--name-width) repeat(${columns.length}, var(--cell-width))`;
+  // Приход из дашборда по дыре: у неё есть только дата, поэтому прокручиваем
+  // к колонке, а не к ячейке.
+  useEffect(() => {
+    if (!highlightDate) return;
+    wrapRef.current
+      ?.querySelector(`.sheet__head[data-date="${highlightDate}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [highlightDate]);
+
+  const template = `var(--name-w) repeat(${columns.length}, var(--cell-w))`;
 
   return (
     <div
       className="grid-wrap"
-      ref={wrapRef}
+      ref={(node) => {
+        wrapRef.current = node;
+        if (scrollerRef) scrollerRef.current = node;
+      }}
       tabIndex={0}
       role="grid"
-      aria-label="Сетка планирования"
+      aria-label="Planning grid"
       onKeyDown={onKeyDown}
+      onMouseDown={onMouseDown}
+      onMouseOver={onMouseOver}
+      onContextMenu={onContextMenu}
     >
-      <div className="grid" style={{ gridTemplateColumns: template }}>
-        <div className="grid__corner">Человек</div>
+      <div className="sheet" style={{ gridTemplateColumns: template }}>
+        <div className="sheet__corner">Team member</div>
         {columns.map((column) => (
-          <div
+          <ColumnHead
             key={column.date}
-            className="grid__head"
-            data-nonworking={column.isNonWorking}
-            title={column.holidayName ?? column.date}
-          >
-            <span>{column.dayLabel}</span>
-            <span>{column.weekdayLabel}</span>
-          </div>
+            column={column}
+            highlighted={column.date === highlightDate}
+          />
         ))}
 
         {rows.map((row) =>
           row.kind === 'group' ? (
-            <GroupRow key={row.key} label={row.label} span={columns.length} />
+            <GroupRow key={row.key} label={row.label} count={row.count} span={columns.length} />
           ) : (
             <PersonRow
               key={row.key}
               row={row}
               view={view}
               columns={columns}
-              bounds={bounds}
               rowIndex={rowIndexOf(row.person.id)}
-              focus={selection.focus}
-              onMouseDownCell={onCellMouseDown}
-              onMouseEnterCell={onCellMouseEnter}
-              onDoubleClickCell={onCellDoubleClick}
+              selTop={bounds?.top ?? -1}
+              selBottom={bounds?.bottom ?? -1}
+              selLeft={bounds?.left ?? -1}
+              selRight={bounds?.right ?? -1}
+              focusDate={
+                selection.focus?.personId === row.person.id ? selection.focus.date : undefined
+              }
             />
           ),
         )}
       </div>
+
+      {picker ? (
+        <AssignmentPicker
+          target={picker}
+          onClose={closePicker}
+          onPickRole={(roleId) => applyRole(pickerCells(), roleId)}
+          onPickMarker={(marker) => applyMarker(pickerCells(), marker)}
+          onAbsence={() => {
+            const existing = picker.value.kind === 'STATUS' ? picker.value.absenceId : undefined;
+            const absence = existing ? view.absenceById(existing) : undefined;
+            if (absence) openAbsenceEdit(absence);
+            else {
+              openAbsenceCreate(
+                pickerCells().map((cell) => ({
+                  personId: cell.personId,
+                  from: cell.date,
+                  to: cell.date,
+                })),
+              );
+            }
+          }}
+          onCompDay={
+            compDayIdOf(picker) === undefined
+              ? undefined
+              : () => {
+                  const entry = view.compDayById(compDayIdOf(picker) ?? '');
+                  if (entry) openCompDayDialog(entry);
+                }
+          }
+        />
+      ) : null}
     </div>
   );
 }
 
-function GroupRow({ label, span }: { label: string; span: number }) {
+function compDayIdOf(picker: PickerTarget): string | undefined {
+  const { value } = picker;
+  if (value.kind === 'STATUS') return value.compDayId;
+  return value.proposedCompDay;
+}
+
+function ColumnHead({
+  column,
+  highlighted,
+}: {
+  readonly column: DayColumn;
+  readonly highlighted: boolean;
+}) {
+  return (
+    <div
+      className="sheet__head"
+      data-date={column.date}
+      data-highlight={highlighted || undefined}
+      data-nonworking={column.isNonWorking || undefined}
+      data-holiday={column.holidayName !== undefined || undefined}
+      data-today={column.isToday || undefined}
+      title={column.holidayName ? `${column.date} · ${column.holidayName}` : column.date}
+    >
+      <span className="sheet__head-wd">{column.weekdayLabel}</span>
+      <span className="sheet__head-num">{column.dayLabel}</span>
+    </div>
+  );
+}
+
+function GroupRow({
+  label,
+  count,
+  span,
+}: {
+  readonly label: string;
+  readonly count: number;
+  readonly span: number;
+}) {
   return (
     <>
-      <div className="grid__group">{label}</div>
-      <div className="grid__group-fill" style={{ gridColumn: `span ${span}` }} />
+      <div className="sheet__group">
+        <span className="truncate">{label}</span>
+        <span className="sheet__group-count">{count}</span>
+      </div>
+      <div className="sheet__group-fill" style={{ gridColumn: `span ${span}` }} />
     </>
   );
 }
@@ -352,106 +502,57 @@ function GroupRow({ label, span }: { label: string; span: number }) {
 interface PersonRowProps {
   readonly row: Extract<GridRow, { kind: 'person' }>;
   readonly view: PlanningView;
-  readonly columns: PlanningView['columns'];
-  readonly bounds: { top: number; bottom: number; left: number; right: number } | undefined;
+  readonly columns: readonly DayColumn[];
   readonly rowIndex: number;
-  readonly focus: CellRef | undefined;
-  readonly onMouseDownCell: (cell: CellRef, shiftKey: boolean) => void;
-  readonly onMouseEnterCell: (cell: CellRef) => void;
-  readonly onDoubleClickCell: (cell: CellRef) => void;
+  readonly selTop: number;
+  readonly selBottom: number;
+  readonly selLeft: number;
+  readonly selRight: number;
+  readonly focusDate: IsoDate | undefined;
 }
 
-function PersonRow({
+const PersonRow = memo(function PersonRow({
   row,
   view,
   columns,
-  bounds,
   rowIndex,
-  focus,
-  onMouseDownCell,
-  onMouseEnterCell,
-  onDoubleClickCell,
+  selTop,
+  selBottom,
+  selLeft,
+  selRight,
+  focusDate,
 }: PersonRowProps) {
   const { person, location } = row;
-  const inRowSelection = bounds !== undefined && rowIndex >= bounds.top && rowIndex <= bounds.bottom;
+  const rowSelected = rowIndex >= selTop && rowIndex <= selBottom;
 
   return (
     <>
-      <div className="grid__name" title={`${person.displayName} · ${location.name}`}>
-        {person.displayName}
-        <span className="grid__name-zone">{shortZone(location.timeZone)}</span>
+      <div className="sheet__name" title={`${person.displayName} · ${location.name}`}>
+        <span className="truncate">{person.displayName}</span>
+        <span className="sheet__name-meta">{location.name}</span>
       </div>
       {columns.map((column, columnIndex) => {
         const key = cellKey(person.id, column.date);
-        const assignment = view.assignmentByCell.get(key);
-        const role = assignment ? view.roles.find((r) => r.id === assignment.roleId) : undefined;
-        const absence = view.absenceByCell.get(key);
-        const compDay = view.compDayByCell.get(key);
-        const blockedByCompDay = compDay ? compDayBlocksAssignment(compDay) : false;
-        const issues = view.issuesByCell.get(key) ?? [];
-        const worstLevel = issues.some((i) => i.level === 'BLOCKING')
-          ? 'BLOCKING'
-          : issues.some((i) => i.level === 'WARNING')
-            ? 'WARNING'
-            : undefined;
-
-        const selected =
-          inRowSelection &&
-          bounds !== undefined &&
-          columnIndex >= bounds.left &&
-          columnIndex <= bounds.right;
-        const focused = focus?.personId === person.id && focus.date === column.date;
-
-        // Подсказка через нативный `title`, а не Radix Tooltip: 80 × 31 живых
-        // тултипов кладут прокрутку сетки.
+        const value = view.cellAt(person.id, column.date);
         return (
-          <div
+          <GridCell
             key={key}
-            className="grid__cell"
-            role="gridcell"
-            data-person={person.id}
-            data-date={column.date}
-            title={cellTooltip(role, absence?.type, compDay?.status, issues.map((i) => i.message))}
-            data-nonworking={view.nonWorkingByCell.has(key)}
-            data-absent={absence !== undefined || blockedByCompDay}
-            data-selected={selected}
-            data-focused={focused}
-            data-issue={worstLevel}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              onMouseDownCell({ personId: person.id, date: column.date }, event.shiftKey);
-            }}
-            onMouseEnter={() => onMouseEnterCell({ personId: person.id, date: column.date })}
-            onDoubleClick={() => onDoubleClickCell({ personId: person.id, date: column.date })}
-          >
-            {role ? (
-              <span className="grid__chip" style={{ background: role.color }}>
-                {role.code}
-              </span>
-            ) : compDay ? (
-              <span className="grid__comp-day">CD</span>
-            ) : null}
-          </div>
+            personId={person.id}
+            personName={person.displayName}
+            date={column.date}
+            value={value}
+            role={value.kind === 'ROLE' ? view.roleById(value.roleId) : undefined}
+            issues={view.issuesByCell.get(key) ?? EMPTY_ISSUES}
+            nonWorking={view.projection.nonWorkingByCell.has(key)}
+            today={column.isToday}
+            selected={rowSelected && columnIndex >= selLeft && columnIndex <= selRight}
+            focused={focusDate === column.date}
+          />
         );
       })}
     </>
   );
-}
+});
 
-function cellTooltip(
-  role: ShiftRole | undefined,
-  absenceType: string | undefined,
-  compDayStatus: string | undefined,
-  messages: readonly string[],
-): string | undefined {
-  const parts: string[] = [];
-  if (role) parts.push(`${role.code} ${role.start}–${role.end} (${shortZone(role.timeZone)})`);
-  if (absenceType) parts.push(`отсутствие: ${absenceType}`);
-  if (compDayStatus) parts.push(`отгул: ${compDayStatus}`);
-  parts.push(...messages);
-  return parts.length > 0 ? parts.join('\n') : undefined;
-}
-
-function shortZone(zone: string): string {
-  return zone.split('/').at(-1)?.replace(/_/g, ' ') ?? zone;
-}
+/** Общая пустая ссылка: иначе каждая ячейка без нарушений ломала бы memo. */
+const EMPTY_ISSUES: readonly never[] = [];

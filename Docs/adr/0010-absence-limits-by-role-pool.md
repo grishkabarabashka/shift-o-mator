@@ -1,19 +1,19 @@
-# ADR-0010. Лимиты отсутствий задаются и по единице, и по пулу ролей
+# ADR-0010. Absence limits apply both unit-wide and per role pool
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-Правило «не более трёх в длинном отпуске, не более четырёх в коротком» держится в
-головах; люди сами смотрят, кто уже в отпуске. Летом это регулярно приводит к тому, что
-смены закрываются в последний момент перестановками.
+The rule "no more than three on long leave, no more than four on short leave" lives
+in people's heads; everyone checks who's already out. Every summer this regularly
+leads to last-minute scrambling to cover shifts.
 
-Но счётчик отсутствующих по единице не ловит главный случай.
+But an overall count of absent people by unit misses the main case.
 
-## Решение
+## Decision
 
-`AbsenceCapacityRule` имеет `scope: UNIT | ROLE_POOL(roleId)` и `durationBucket:
-SHORT | LONG` с порогом в рабочих днях.
+`AbsenceCapacityRule` has `scope: UNIT | ROLE_POOL(roleId)` and
+`durationBucket: SHORT | LONG` with a threshold in workdays.
 
 ```
 AbsenceCapacityRule {
@@ -26,18 +26,18 @@ AbsenceCapacityRule {
 }
 ```
 
-## Следствия
+## Consequences
 
-- Три человека в отпуске — не проблема. Трое из четырёх, кто умеет быть shift lead, —
-  проблема, и обычная система отпусков её не увидит никогда. Это правило даёт самую
-  большую практическую отдачу.
-- Проверка работает не при планировании смен, а раньше — при согласовании отпусков,
-  и живёт на экране absence overview второй лентой.
-- Человек попадает во все пулы, роли которых есть в его eligibility, — счётчики
-  пересекаются, и это правильно.
-- Нарушение лимита — уровень `WARNING`: реальность иногда требует его нарушить.
+- Three people on vacation isn't a problem. Three out of the four people who can be
+  shift lead is a problem, and a regular leave system will never catch it. This rule
+  gives the biggest practical payoff.
+- The check runs not at shift-planning time but earlier — when a vacation is
+  approved — and lives on the absence overview screen as a second ribbon.
+- A person counts toward every pool whose role is in their eligibility — the counters
+  overlap, and that's correct.
+- Exceeding the limit is a `WARNING`: reality sometimes requires breaking it.
 
-## Альтернативы
+## Alternatives considered
 
-- **Только лимит по единице.** Не видит вымывания редких навыков — то есть именно того,
-  что ломает планирование летом.
+- **A unit-wide limit only.** Doesn't see a scarce skill being drained — exactly what
+  breaks planning every summer.

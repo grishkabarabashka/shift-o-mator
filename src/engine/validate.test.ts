@@ -1,35 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { buildIndex } from '../domain/lookup.ts';
-import type {
-  Absence,
-  AbsenceCapacityRule,
-  CompDayEntry,
-  CoverageRule,
-  Issue,
-  IssueCode,
-} from '../domain/types.ts';
 import {
   leadRole,
   makeAssignment,
   makeDataset,
+  makeDayConfig,
   makePerson,
   nightRole,
-  testUnit,
+  testRegion,
   type DatasetOverrides,
 } from '../domain/testkit.ts';
+import type {
+  Absence,
+  AbsenceCapacityRule,
+  CompDayEntry,
+  DayConfiguration,
+  Issue,
+  IssueCode,
+} from '../domain/types.ts';
 import { computeCoverage } from './coverage.ts';
 import { acknowledgedKeys, canPublish, summarizeIssues, validate } from './validate.ts';
 
 const RANGE = { from: '2026-09-07', to: '2026-09-13' } as const;
 
-const leadWeekdayRule: CoverageRule = {
-  id: 'cr-weekday',
-  unitId: testUnit.id,
-  roleId: leadRole.id,
-  appliesTo: 'WEEKDAY',
-  min: 1,
-  target: 2,
-};
+const weekday: DayConfiguration = makeDayConfig({
+  id: 'dc-weekday',
+  key: 'weekday',
+  weekdays: [1, 2, 3, 4, 5],
+  roleRequirements: [
+    { roleId: leadRole.id, min: 1, max: 2, isDefault: true },
+    { roleId: nightRole.id, min: 0, max: 1, isDefault: true },
+  ],
+});
 
 interface Scenario extends DatasetOverrides {
   readonly absenceCapacityRules?: readonly AbsenceCapacityRule[];
@@ -37,17 +39,16 @@ interface Scenario extends DatasetOverrides {
 }
 
 function issuesFor(scenario: Scenario): Issue[] {
-  const data = makeDataset(scenario);
+  const data = makeDataset({ dayConfigurations: [weekday], ...scenario });
   const index = buildIndex(data);
   const coverageCells = computeCoverage({
-    unitId: testUnit.id,
+    regionId: testRegion.id,
     range: RANGE,
     assignments: data.assignments,
-    coverageRules: data.coverageRules,
     index,
   });
   return validate({
-    unitId: testUnit.id,
+    regionId: testRegion.id,
     range: RANGE,
     assignments: data.assignments,
     absences: data.absences,
@@ -67,14 +68,20 @@ function firstOf(issues: readonly Issue[], code: IssueCode): Issue | undefined {
   return issues.find((issue) => issue.code === code);
 }
 
-describe('BLOCKING', () => {
-  it('незакрытый минимум покрытия', () => {
-    const issues = issuesFor({ coverageRules: [leadWeekdayRule] });
-    const issue = firstOf(issues, 'COVERAGE_BELOW_MIN');
-    expect(issue?.level).toBe('BLOCKING');
-    expect(canPublish(issues)).toBe(false);
-  });
+/** Пять будних дней подряд, чтобы минимум был закрыт и не мешал. */
+const FILLED_WEEK = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11'];
 
+describe('BLOCKING — дыры', () => {
+  it('незакрытый минимум покрытия', () => {
+    const issues = issuesFor({});
+    const issue = firstOf(issues, 'COVERAGE_GAP');
+    expect(issue?.level).toBe('BLOCKING');
+    expect(issue?.category).toBe('GAP');
+    expect(canPublish(issues, new Set())).toBe(false);
+  });
+});
+
+describe('BLOCKING — конфликты', () => {
   it('назначение во время отпуска', () => {
     const absence: Absence = {
       id: 'abs-1',
@@ -90,8 +97,8 @@ describe('BLOCKING', () => {
     });
     const issue = firstOf(issues, 'ASSIGNED_DURING_ABSENCE');
     expect(issue?.level).toBe('BLOCKING');
+    expect(issue?.category).toBe('CONFLICT');
     expect(issue?.date).toBe('2026-09-09');
-    expect(issue?.personId).toBe('p-1');
   });
 
   it('назначение на подтверждённый отгул', () => {
@@ -101,10 +108,8 @@ describe('BLOCKING', () => {
       earnedForAssignmentId: 'as-x',
       earnedForDate: '2026-09-05',
       trigger: 'SATURDAY',
-      proposedDate: '2026-09-03',
       actualDate: '2026-09-09',
       status: 'SCHEDULED',
-      expiresOn: '2026-11-28',
     };
     const issues = issuesFor({
       assignments: [makeAssignment('p-1', leadRole.id, '2026-09-09')],
@@ -122,7 +127,6 @@ describe('BLOCKING', () => {
       trigger: 'SATURDAY',
       proposedDate: '2026-09-09',
       status: 'PROPOSED',
-      expiresOn: '2026-11-28',
     };
     const issues = issuesFor({
       assignments: [makeAssignment('p-1', leadRole.id, '2026-09-09')],
@@ -131,45 +135,48 @@ describe('BLOCKING', () => {
     expect(codes(issues)).not.toContain('ASSIGNED_DURING_COMP_DAY');
   });
 
-  it('две смены в один день', () => {
-    const issues = issuesFor({
-      people: [makePerson({ id: 'p-1', eligibility: [
-        { roleId: leadRole.id, targetShare: 0.5 },
-        { roleId: nightRole.id, targetShare: 0.5 },
-      ] })],
-      assignments: [
-        makeAssignment('p-1', leadRole.id, '2026-09-09'),
-        makeAssignment('p-1', nightRole.id, '2026-09-09'),
-      ],
-    });
-    expect(codes(issues)).toContain('DOUBLE_ASSIGNMENT');
-  });
-
   it('роль вне eligibility человека', () => {
     const issues = issuesFor({
       assignments: [makeAssignment('p-1', nightRole.id, '2026-09-09')],
     });
     const issue = firstOf(issues, 'ROLE_NOT_ELIGIBLE');
     expect(issue?.level).toBe('BLOCKING');
-    expect(issue?.roleId).toBe(nightRole.id);
+    expect(issue?.category).toBe('CONFLICT');
+  });
+
+  it('два назначения в один день', () => {
+    const person = makePerson({
+      id: 'p-1',
+      eligibility: [
+        { roleId: leadRole.id, targetShare: 0.5 },
+        { roleId: nightRole.id, targetShare: 0.5 },
+      ],
+    });
+    const issues = issuesFor({
+      people: [person],
+      assignments: [
+        makeAssignment('p-1', leadRole.id, '2026-09-09'),
+        makeAssignment('p-1', nightRole.id, '2026-09-09'),
+      ],
+    });
+    const issue = firstOf(issues, 'DOUBLE_ASSIGNMENT');
+    expect(issue?.level).toBe('BLOCKING');
+    expect(issue?.category).toBe('CONFLICT');
   });
 });
 
 describe('WARNING', () => {
-  it('недобор до цели покрытия', () => {
+  it('перебор максимума', () => {
+    const people = [
+      makePerson({ id: 'p-1' }),
+      makePerson({ id: 'p-2' }),
+      makePerson({ id: 'p-3' }),
+    ];
     const issues = issuesFor({
-      coverageRules: [leadWeekdayRule],
-      assignments: [
-        makeAssignment('p-1', leadRole.id, '2026-09-07'),
-        makeAssignment('p-1', leadRole.id, '2026-09-08'),
-        makeAssignment('p-1', leadRole.id, '2026-09-09'),
-        makeAssignment('p-1', leadRole.id, '2026-09-10'),
-        makeAssignment('p-1', leadRole.id, '2026-09-11'),
-      ],
+      people,
+      assignments: people.map((p) => makeAssignment(p.id, leadRole.id, '2026-09-09')),
     });
-    const issue = firstOf(issues, 'COVERAGE_BELOW_TARGET');
-    expect(issue?.level).toBe('WARNING');
-    expect(codes(issues)).not.toContain('COVERAGE_BELOW_MIN');
+    expect(firstOf(issues, 'COVERAGE_OVER_MAX')?.level).toBe('WARNING');
   });
 
   it('нехватка отдыха между ночной и дневной сменой', () => {
@@ -193,22 +200,22 @@ describe('WARNING', () => {
   });
 
   it('перебор дней подряд', () => {
-    const person = makePerson({ id: 'p-1', constraints: { minRestHours: 8, maxConsecutiveDays: 3 } });
+    const person = makePerson({
+      id: 'p-1',
+      constraints: { minRestHours: 8, maxConsecutiveDays: 3 },
+    });
     const issues = issuesFor({
       people: [person],
-      assignments: [
-        makeAssignment('p-1', leadRole.id, '2026-09-07'),
-        makeAssignment('p-1', leadRole.id, '2026-09-08'),
-        makeAssignment('p-1', leadRole.id, '2026-09-09'),
-        makeAssignment('p-1', leadRole.id, '2026-09-10'),
-      ],
+      assignments: FILLED_WEEK.slice(0, 4).map((date) =>
+        makeAssignment('p-1', leadRole.id, date),
+      ),
     });
     const issue = firstOf(issues, 'CONSECUTIVE_DAYS_EXCEEDED');
     expect(issue?.level).toBe('WARNING');
-    expect(issue?.message).toContain('4 дней подряд');
+    expect(issue?.message).toContain('4 consecutive days');
   });
 
-  it('день недели вне доступности человека', () => {
+  it('день недели вне доступности', () => {
     const person = makePerson({ id: 'p-1', availableWeekdays: [1, 2, 3, 4, 5] });
     const issues = issuesFor({
       people: [person],
@@ -217,16 +224,39 @@ describe('WARNING', () => {
     expect(codes(issues)).toContain('UNAVAILABLE_WEEKDAY');
   });
 
-  it('лимит по пулу роли ловит то, чего не видит счётчик по единице', () => {
-    // Четыре человека в единице, двое из них умеют SL. Оба уходят в длинный
-    // отпуск: по единице лимит 3 не превышен, по пулу SL — превышен. ADR-0010.
-    const leads = [
+  it('роль вне конфигурации этого дня', () => {
+    // Выходных в конфигурации нет вовсе — суббота роли не предполагает.
+    const person = makePerson({ id: 'p-1' });
+    const issues = issuesFor({
+      people: [person],
+      assignments: [makeAssignment('p-1', leadRole.id, '2026-09-12')],
+    });
+    expect(codes(issues)).toContain('ROLE_NOT_IN_DAY_CONFIG');
+  });
+
+  it('отгул без свободного дня требует решения', () => {
+    const pending: CompDayEntry = {
+      id: 'cd-p',
+      personId: 'p-1',
+      earnedForAssignmentId: 'as-x',
+      earnedForDate: '2026-09-05',
+      trigger: 'SATURDAY',
+      status: 'PENDING_APPROVAL',
+    };
+    const issue = firstOf(issuesFor({ compDays: [pending] }), 'COMP_DAY_PENDING_APPROVAL');
+    expect(issue?.level).toBe('WARNING');
+  });
+
+  it('лимит по пулу роли ловит то, чего не видит счётчик по региону', () => {
+    // Четверо в регионе, двое умеют Lead. Оба в длинном отпуске: по региону
+    // лимит 3 не превышен, по пулу Lead — превышен. ADR-0010.
+    const people = [
       makePerson({ id: 'p-lead-1' }),
       makePerson({ id: 'p-lead-2' }),
       makePerson({ id: 'p-other-1', eligibility: [{ roleId: nightRole.id, targetShare: 1 }] }),
       makePerson({ id: 'p-other-2', eligibility: [{ roleId: nightRole.id, targetShare: 1 }] }),
     ];
-    const longVacation = (personId: string, id: string): Absence => ({
+    const longLeave = (personId: string, id: string): Absence => ({
       id,
       personId,
       type: 'VACATION',
@@ -237,28 +267,30 @@ describe('WARNING', () => {
 
     const rules: AbsenceCapacityRule[] = [
       {
-        id: 'acr-unit',
-        unitId: testUnit.id,
-        scope: { kind: 'UNIT' },
+        id: 'acr-region',
+        regionId: testRegion.id,
+        scope: { kind: 'REGION' },
         durationBucket: 'LONG',
         longThresholdWorkdays: 5,
         maxConcurrent: 3,
-        countsTypes: ['VACATION', 'COMP_DAY', 'TRAINING'],
+        countsTypes: ['VACATION', 'SICK', 'OTHER'],
+        countsCompDays: true,
       },
       {
         id: 'acr-pool',
-        unitId: testUnit.id,
+        regionId: testRegion.id,
         scope: { kind: 'ROLE_POOL', roleId: leadRole.id },
         durationBucket: 'LONG',
         longThresholdWorkdays: 5,
         maxConcurrent: 1,
-        countsTypes: ['VACATION', 'COMP_DAY', 'TRAINING'],
+        countsTypes: ['VACATION', 'SICK', 'OTHER'],
+        countsCompDays: true,
       },
     ];
 
     const issues = issuesFor({
-      people: leads,
-      absences: [longVacation('p-lead-1', 'abs-1'), longVacation('p-lead-2', 'abs-2')],
+      people,
+      absences: [longLeave('p-lead-1', 'abs-1'), longLeave('p-lead-2', 'abs-2')],
       absenceCapacityRules: rules,
     });
 
@@ -271,15 +303,16 @@ describe('WARNING', () => {
     const rules: AbsenceCapacityRule[] = [
       {
         id: 'acr-pool',
-        unitId: testUnit.id,
+        regionId: testRegion.id,
         scope: { kind: 'ROLE_POOL', roleId: leadRole.id },
         durationBucket: 'LONG',
         longThresholdWorkdays: 5,
         maxConcurrent: 1,
         countsTypes: ['VACATION'],
+        countsCompDays: false,
       },
     ];
-    const shortVacation = (personId: string, id: string): Absence => ({
+    const shortLeave = (personId: string, id: string): Absence => ({
       id,
       personId,
       type: 'VACATION',
@@ -289,7 +322,7 @@ describe('WARNING', () => {
     });
     const issues = issuesFor({
       people: [makePerson({ id: 'p-1' }), makePerson({ id: 'p-2' })],
-      absences: [shortVacation('p-1', 'abs-1'), shortVacation('p-2', 'abs-2')],
+      absences: [shortLeave('p-1', 'abs-1'), shortLeave('p-2', 'abs-2')],
       absenceCapacityRules: rules,
     });
     expect(codes(issues)).not.toContain('ABSENCE_CAPACITY_EXCEEDED');
@@ -297,6 +330,19 @@ describe('WARNING', () => {
 });
 
 describe('INFO', () => {
+  it('покрытие впритык — сигнал, а не блокер', () => {
+    // Работа ровно по минимуму — норма этого ростера, а не отклонение.
+    // Если бы это был WARNING, публикация требовала бы сотню обоснований.
+    const issues = issuesFor({
+      assignments: FILLED_WEEK.map((date) => makeAssignment('p-1', leadRole.id, date)),
+    });
+    const issue = firstOf(issues, 'COVERAGE_THIN');
+    expect(issue?.level).toBe('INFO');
+    expect(codes(issues)).not.toContain('COVERAGE_GAP');
+    // И публикацию это не блокирует.
+    expect(canPublish(issues, new Set())).toBe(true);
+  });
+
   it('отклонение от целевой доли роли', () => {
     const person = makePerson({
       id: 'p-1',
@@ -307,22 +353,12 @@ describe('INFO', () => {
     });
     const issues = issuesFor({
       people: [person],
-      assignments: [
-        makeAssignment('p-1', leadRole.id, '2026-09-07'),
-        makeAssignment('p-1', leadRole.id, '2026-09-08'),
-        makeAssignment('p-1', leadRole.id, '2026-09-09'),
-        makeAssignment('p-1', leadRole.id, '2026-09-10'),
-        makeAssignment('p-1', leadRole.id, '2026-09-11'),
-      ],
+      assignments: FILLED_WEEK.map((date) => makeAssignment('p-1', leadRole.id, date)),
     });
     const deviations = issues.filter((i) => i.code === 'TARGET_SHARE_DEVIATION');
-    expect(deviations.every((i) => i.level === 'INFO')).toBe(true);
-    // Перекос виден с обеих сторон: SL сверх цели, NIGHT — недобор.
+    expect(deviations.every((i) => i.level === 'INFO' && i.category === 'FAIRNESS')).toBe(true);
     expect(deviations.find((i) => i.roleId === leadRole.id)?.message).toContain(
-      'факт 100% при цели 30%',
-    );
-    expect(deviations.find((i) => i.roleId === nightRole.id)?.message).toContain(
-      'факт 0% при цели 70%',
+      'actual 100% vs target 30%',
     );
   });
 
@@ -341,64 +377,107 @@ describe('INFO', () => {
     expect(codes(issues)).not.toContain('TARGET_SHARE_DEVIATION');
   });
 
-  it('истекающий отгул', () => {
-    const compDay: CompDayEntry = {
+  it('отгул, висящий дольше порога', () => {
+    const old: CompDayEntry = {
       id: 'cd-1',
       personId: 'p-1',
       earnedForAssignmentId: 'as-x',
       earnedForDate: '2026-06-06',
       trigger: 'SATURDAY',
-      proposedDate: '2026-06-04',
+      proposedDate: '2026-06-09',
       status: 'PROPOSED',
-      expiresOn: '2026-09-20',
     };
-    const issues = issuesFor({ compDays: [compDay], asOf: '2026-09-07' });
-    expect(firstOf(issues, 'COMP_DAY_EXPIRING')?.level).toBe('INFO');
+    const issue = firstOf(issuesFor({ compDays: [old], asOf: '2026-09-07' }), 'COMP_DAY_AGING');
+    expect(issue?.level).toBe('INFO');
+    expect(issue?.message).toContain('outstanding');
+  });
+
+  it('свежий отгул не подсвечивается', () => {
+    const fresh: CompDayEntry = {
+      id: 'cd-2',
+      personId: 'p-1',
+      earnedForAssignmentId: 'as-y',
+      earnedForDate: '2026-09-05',
+      trigger: 'SATURDAY',
+      proposedDate: '2026-09-09',
+      status: 'PROPOSED',
+    };
+    expect(codes(issuesFor({ compDays: [fresh], asOf: '2026-09-07' }))).not.toContain(
+      'COMP_DAY_AGING',
+    );
+  });
+
+  it('отгулянное не стареет', () => {
+    const taken: CompDayEntry = {
+      id: 'cd-3',
+      personId: 'p-1',
+      earnedForAssignmentId: 'as-z',
+      earnedForDate: '2026-06-06',
+      trigger: 'SATURDAY',
+      actualDate: '2026-06-09',
+      status: 'TAKEN',
+    };
+    expect(codes(issuesFor({ compDays: [taken], asOf: '2026-09-07' }))).not.toContain(
+      'COMP_DAY_AGING',
+    );
   });
 });
 
-describe('сводка и подтверждения', () => {
+describe('сводка, публикация и подтверждения', () => {
   it('сортирует нарушения по уровню', () => {
     const issues = issuesFor({
-      coverageRules: [leadWeekdayRule],
       assignments: [makeAssignment('p-1', nightRole.id, '2026-09-09')],
     });
     expect(issues[0]?.level).toBe('BLOCKING');
   });
 
   it('ключ нарушения стабилен между пересчётами', () => {
-    const scenario: Scenario = { coverageRules: [leadWeekdayRule] };
+    const scenario: Scenario = {};
     expect(issuesFor(scenario).map((i) => i.key)).toEqual(issuesFor(scenario).map((i) => i.key));
   });
 
-  it('подтверждение снимает предупреждение со счётчика', () => {
+  it('сводка разделяет дыры и конфликты', () => {
     const issues = issuesFor({
-      coverageRules: [leadWeekdayRule],
+      assignments: [makeAssignment('p-1', nightRole.id, '2026-09-09')],
+    });
+    const summary = summarizeIssues(issues, new Set());
+    expect(summary.gaps).toBeGreaterThan(0);
+    expect(summary.conflicts).toBeGreaterThan(0);
+    expect(summary.blocking).toBe(summary.gaps + summary.conflicts);
+  });
+
+  it('публикация требует подтверждения всех предупреждений', () => {
+    // Перебор максимума — настоящее предупреждение: три человека на роли
+    // с max 2, при этом минимум закрыт и блокеров нет.
+    const people = [
+      makePerson({ id: 'p-1' }),
+      makePerson({ id: 'p-2' }),
+      makePerson({ id: 'p-3' }),
+    ];
+    const issues = issuesFor({
+      people,
       assignments: [
-        makeAssignment('p-1', leadRole.id, '2026-09-07'),
-        makeAssignment('p-1', leadRole.id, '2026-09-08'),
-        makeAssignment('p-1', leadRole.id, '2026-09-09'),
-        makeAssignment('p-1', leadRole.id, '2026-09-10'),
-        makeAssignment('p-1', leadRole.id, '2026-09-11'),
+        ...people.map((p) => makeAssignment(p.id, leadRole.id, '2026-09-09')),
+        ...FILLED_WEEK.filter((d) => d !== '2026-09-09').map((date) =>
+          makeAssignment('p-1', leadRole.id, date),
+        ),
       ],
     });
-    const warning = issues.find((issue) => issue.level === 'WARNING');
-    expect(warning).toBeDefined();
+    expect(issues.some((i) => i.level === 'BLOCKING')).toBe(false);
+    expect(issues.some((i) => i.level === 'WARNING')).toBe(true);
+    expect(canPublish(issues, new Set())).toBe(false);
 
-    const before = summarizeIssues(issues, new Set());
-    const after = summarizeIssues(
-      issues,
-      acknowledgedKeys([
-        {
-          issueKey: warning?.key ?? '',
-          comment: 'закрываем силами дежурного',
+    const acks = acknowledgedKeys(
+      issues
+        .filter((i) => i.level === 'WARNING')
+        .map((i) => ({
+          issueKey: i.key,
+          comment: 'covered by the on-call engineer',
           byPersonId: 'p-planner',
           at: '2026-09-07T10:00:00Z',
-        },
-      ]),
+        })),
     );
-
-    expect(after.warning).toBe(before.warning);
-    expect(after.unacknowledgedWarnings).toBe(before.unacknowledgedWarnings - 1);
+    expect(canPublish(issues, acks)).toBe(true);
+    expect(summarizeIssues(issues, acks).unacknowledgedWarnings).toBe(0);
   });
 });

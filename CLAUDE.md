@@ -1,106 +1,151 @@
-# shift-o-mator — контекст проекта
+# shift-o-mator — project context
 
-Инструмент планирования смен для глобальной команды application support (~80 человек,
-4 единицы планирования). Заменяет ручное планирование в общем Excel-файле.
+A shift-planning tool for a global application support team (~80 people, 3 regions:
+AMER, EMEA, APAC). Replaces manual planning in a shared Excel file.
 
-## Что уже сделано
+## Read this first
 
-Закрыты этапы 1–6 плана работ — замкнутый цикл ручного планирования. Всё работает
-на фикстурах, бэкенда нет.
+`SHIFT-O-MATOR-desc-anonymized.md` at the repo root is the sanitized specification of
+an **earlier corporate implementation of this same product**. It is the authority on
+operational reality: real role codes, real coverage minimums, real status vocabulary,
+the draft/publish model. When this design and that document disagree, that document
+wins unless there is an ADR explaining why not.
 
-- `Docs/` — дизайн-документ по разделам, `Docs/adr/` — 14 принятых решений
-- `src/domain/types.ts` — доменная модель целиком (согласована, менять только осознанно)
-- `src/domain/fixtures.ts` — тестовые данные: 4 юнита, роли со временем, ~80 человек,
-  требования покрытия, лимиты отсутствий, праздники, частично заполненный август 2026
-- `src/domain/patch.ts` — правки списком патчей, основа undo/redo
-- `src/engine/` — `dates`, `coverage`, `compDays`, `validate`: чистые функции с тестами
-- `src/data/` — `ScheduleRepository` и реализация in-memory с персистом в IndexedDB
-- `src/store/useSchedule.ts` — Zustand, патчи, undo/redo, блокировка периода
-- `src/store/useUi.ts` — выделение, буфер обмена, черновики диалогов
-- `src/features/planning/` — сетка с клавиатурой, paint-режимом и буфером обмена
-- `src/features/coverage/` — полоса покрытия под сеткой
-- `src/features/issues/` — панель нарушений с подтверждением предупреждений
-- `src/features/absences/` — ручной ввод отсутствий от выделения, правка/удаление
-  по двойному клику
-- `src/features/compdays/` — подтверждение и перенос отгула, отметка отгуленным
+`Docs/` was rewritten against it. Several early decisions were reversed — see
+ADR-0015…0019.
 
-Реальных данных пока нет. Все времена ролей, коды и цифры покрытия в фикстурах —
-предположения, помеченные комментарием `ASSUMPTION`.
+## State of the code
 
-Проверка: `npm run typecheck`, `npm run test:run`, `npm run build`.
+Code and design agree. Roadmap stages 1–12 are built; 13–16 (suggest/auto-populate,
+absence import, export, backend) are not, and Settings is read-only pending
+effective-dated editing.
 
-## Ключевые решения (не пересматривать без обсуждения)
+Layout:
 
-1. **Роль несёт своё время.** Окно роли задано в фиксированной таймзоне роли
-   (`ShiftRole.timeZone` + `start`/`end`). Человек из Пуны, закрывающий AMER-смену,
-   работает по нью-йоркскому окну. Привязки «по месту человека» в модели нет.
+- `domain/` — types, fixtures with the **real** role codes, draft changes, lookup index
+- `engine/` — pure: `dates`, `period` (zoom and range arithmetic), `dayConfig`,
+  `cellValue` (cell precedence), `coverage`, `compDays`, `validate`, `timeline`
+- `data/memoryRepository.ts` — published/draft split, sessions, version conflicts
+- `store/` — `useSchedule` (data + draft), `useUi` (selection, period, dialogs)
+- `features/` — `planning`, `coverage`, `issues`, `absences`, `compdays`, `shell`
+- `pages/` — Dashboard, Schedule, Timeline, People, Settings; routed in `App.tsx`
+- `ui/` — `theme.css` (tokens, Tailwind, component classes), `grid.css`, `primitives.tsx`
 
-2. **Локация отвечает только за календарь** выходных и праздников и за отображение
-   графика человеку в его времени. Ко времени смены отношения не имеет.
+Two traps worth knowing before touching the UI:
 
-3. **Planning unit — это не география.** AMER включает Нью-Йорк, Чикаго и Пуну.
-   Service transition — отдельный юнит с людьми из всех регионов и ролями
-   ST_AMER / ST_EMEA / ST_APAC.
+- **Class names collide with Tailwind utilities.** `grid` and `table` are utilities;
+  the planning grid root is `.sheet` and data tables are `.rows` for that reason
+  (ADR-0022). Check any new component class against the utility namespace.
+- **The planning grid is performance-sensitive.** ~2500 cells. `GridCell` is memoized
+  on primitives, and there is exactly **one** context menu for the whole grid
+  (`AssignmentPicker`). Do not put a Radix root, a tooltip or a new object prop inside
+  a cell.
 
-4. **Роли принадлежат юниту.** Глобального справочника ролей нет: `AMER/SL` и `EMEA/SL` —
-   разные сущности с разным временем.
+`Docs/13-roadmap.md` has the stage table.
 
-5. **Нет отдельной сущности "паттерн работы".** Участие в ротации определяется набором
-   доступных ролей и днями доступности. Менеджеры: `isPlannerOnly = true`.
+**UI text and documentation are English.** Only the conversation with the user and
+in-code comments stay Russian — see the user's global CLAUDE.md.
 
-6. **Comp day — начисление с балансом.** Работа в выходной или праздник по календарю
-   локации человека порождает `CompDayEntry` со статусом PROPOSED и датой из
-   `CompDayPolicy` (суббота: -2 дня, воскресенье: +2, праздник: +3). Планировщик
-   подтверждает или переносит. Comp day блокирует назначение, как отпуск.
+Verify with: `npm run typecheck`, `npm run test:run`, `npm run build`.
 
-7. **Три уровня валидации.** BLOCKING (не закрыт `min` покрытия) блокирует публикацию.
-   WARNING (ниже `target`, превышен лимит отсутствий, перебор выходных) требует
-   осознанного подтверждения с комментарием. INFO (предпочтения, справедливость).
+## Key decisions (don't revisit without a new ADR)
 
-8. **Лимиты отсутствий по пулу ролей важнее общих.** «Не более 1 из тех, кто может SL»
-   ловит то, чего не видит счётчик отсутствующих по юниту.
+1. **A role carries its own time**, in the role's fixed timezone. `Crew` is
+   09:00–18:00 America/Chicago, which renders as 10:00–19:00 in New York — one absolute
+   window. Separately, **a `ShiftDefinition` is the person's contracted window**
+   (Pune EMEA shift 13:00–21:30 IST). Coverage and timelines use role time; People and
+   roster context use shift time. (ADR-0001, ADR-0018)
 
-9. **Блокировка периода** — check-out на пару (unit, период) с таймаутом.
-   Real-time совместного редактирования не делаем.
+2. **A location is responsible only for** the calendar of weekends and holidays and for
+   display timezone. Nothing to do with role timing. (ADR-0002)
 
-10. **`ScheduleRepository` — единственная граница данных.** В MVP реализация in-memory
-    с персистом в IndexedDB и импортом/экспортом JSON. Позже — .NET API в AKS.
-    Все методы асинхронные с самого начала.
+3. **Region and planning unit are two orthogonal axes.** Region = which rules apply
+   (AMER includes New York, Chicago, Hartford, Pune). Planning unit = whose screen —
+   either a region's roster or a cross-region team such as Service Transition. A person
+   has both. A unit is a **default filter, not a boundary**; coverage is always computed
+   per region. **No regional scoping of write access** — everyone can plan anywhere, and
+   the control is a complete audit trail. (ADR-0020, supersedes ADR-0019)
 
-## Технические решения
+4. **Roles belong to a region.** No global catalog; matching codes across regions are
+   coincidental. (ADR-0004)
 
-- React + Vite + TypeScript (strict), Zustand для черновика графика, Luxon для дат
-- Никаких тяжёлых UI-фреймворков. Headless-подход: поведение своё, оформление
-  заменяемо на корпоративную библиотеку компонентов при переносе в периметр
-- Timeline пишется руками (d3-scale для шкалы, div-бары), Gantt-библиотеки не берём
-- Грид: сначала собственная реализация. AG Grid Community не содержит range selection,
-  fill handle и clipboard — то есть именно тех функций, ради которых он нужен
-- Правки в сторе — списком патчей (`Patch`), отсюда undo/redo
-- Одна библиотека дат на весь проект. Смешение с нативным Date даст ошибки на DST
+5. **Day configurations carry role sets, not just minimums.** AMER Mon–Thu runs `Lead`
+   and `Crew`; Friday runs `Lead-E`, `Crew-E`, `Crew-L` — different roles. An event
+   (DR test) is a dated day configuration. (ADR-0016, ADR-0008)
 
-## Порядок сборки
+6. **No work-pattern entity**; `defaultRoleId` and `availableWeekdays` are person
+   fields read only by auto-populate. Managers are `orgCategory = MANAGEMENT` with
+   `isIncluded = false`. (ADR-0005)
 
-1. Движок (чистые функции, покрыть тестами):
-   `engine/dates.ts` — рабочие дни, выходные по локации, праздники
-   `engine/coverage.ts` — расчёт `CoverageCell[]` за период
-   `engine/compDays.ts` — начисление по политике
-   `engine/validate.ts` — `Issue[]` трёх уровней
-2. `data/memoryRepository.ts` — реализация `ScheduleRepository` на фикстурах
-3. `store/useSchedule.ts` — Zustand, патчи, undo/redo, блокировка периода
-4. Экран планирования: грид (строки — люди, колонки — дни), клавиатура, paint-режим
-5. Полоса покрытия под гридом — роль × день, фактическое/минимум, подсветка дыр.
-   Это точка, в которой продукт становится полезнее Excel
-6. Экран Absence overview: квартал, полосы отпусков, лента заполненности против лимитов
-7. Timeline: swim lanes по юнитам, бары смен, вертикальная линия текущего времени,
-   зоны overlap, pin-to-now
-8. Импорт отпусков из Excel: вставка из буфера, маппинг колонок, diff-предпросмотр
-9. Генератор: сначала все `min`, потом `target`, потом справедливость.
-   Каждое назначение должно уметь объяснить себя
-10. Экспорт: XLSX, ICS
+7. **Eligibility holds target shares.** Target share is the fairness *metric*;
+   candidate *ordering* is eligibility → availability → fewest in 90 days → recency →
+   personal targets. (ADR-0006)
 
-## Открытые вопросы к владельцу
+8. **A comp day is an accrual with a balance**, placed by a **search window**
+   (`windowBefore`/`windowAfter`, excluded weekdays — Mon and Fri by default,
+   earliest free eligible date), not a fixed offset. No valid slot →
+   `PENDING_APPROVAL`, never dropped. Saturday and Sunday earn separately.
+   **Comp days never expire** — a configurable `agingThresholdDays` flags anything
+   outstanding too long: manager alert plus a standing notice for the person.
+   (ADR-0007)
 
-- Реальные коды ролей и их времена по каждому юниту
-- Существует ли SL_L (shift lead late) — добавлен по аналогии с batch late
-- Реальные минимумы покрытия, особенно по CAVA
-- Смещение comp day за работу в праздник
+9. **Absence is a range; the grid cell is a projection.** Leave lives as
+   `Absence{from,to}` with type `VACATION | SICK | OTHER`; roster decisions live as
+   `Assignment` markers `OFF` / `NOT_SCHEDULED`; `0` ≠ blank. One pure function
+   resolves precedence into a `CellValue`. **`Training` is not an absence** — in-hours
+   training is the `Cover` role and counts toward coverage. (ADR-0017)
+
+10. **Exactly one assignment per (person, date).** No split shifts, no parallel duty;
+    on-call is an ordinary role code occupying the day. Hard constraint.
+
+11. **Three validation levels**, with gap and conflict as separate categories inside
+    BLOCKING, and `THIN` as a distinct coverage state. Soft rules never block; they
+    require an acknowledgement with a comment. (ADR-0009)
+
+12. **Absence limits apply per region and per role pool.** Three of four possible leads
+    being out is invisible to a headcount counter. Not present in the prototype — it is
+    the owner's rule; 3 long / 4 short region-wide are confirmed defaults. (ADR-0010)
+
+13. **Optimistic drafts, not locking.** `DraftSession` + ordered `DraftChange`;
+    concurrent drafts allowed with an informational banner; atomic publish; version
+    conflict → compare/refresh/reapply. A failed publish **never** clears the draft.
+    Published data is what viewers see. (ADR-0015, supersedes ADR-0011)
+
+14. **Configuration is effective-dated.** Raising a minimum today must not make last
+    March fail. Coverage resolves the configuration version effective on the date being
+    evaluated. Colors and labels are not versioned. (ADR-0021)
+
+15. **`ScheduleRepository` is the single data boundary**, every method async from day
+    one. (ADR-0012)
+
+16. **Headless UI** (Radix + own styles) so the shell can be swapped for the corporate
+    component library. (ADR-0013)
+
+17. **Grid and timeline are hand-built.** The prototype chose AG Grid, then needed
+    `@dnd-kit` separately for drag interactions that never shipped. Its dimensions are
+    adopted: 185px person column, 62px date columns, 26px rows. (ADR-0014)
+
+## Technical decisions
+
+- React + Vite + TypeScript (strict), react-router, Zustand for the draft, Luxon for
+  dates, Radix for behavior, Tailwind v4 for tokens and layout (ADR-0022), Vitest
+- Target backend: .NET + EF Core + SQL Server + Entra on AKS. MVP has none: in-memory
+  repository over fixtures, persisted to IndexedDB
+- Layering is strictly downward: `features → store → engine → domain`. Engines are
+  pure, take the current instant as a parameter, and never touch storage
+- One date library. Mixing in the native `Date` across eight locations produces DST bugs
+- Cell interaction: right-click opens a picker with **only the roles in that day's
+  configuration that this person is eligible for**, plus Non-working and Clear. The
+  role palette and hotkeys are the fast path for painting ranges. **Any edit opens the
+  draft by itself** — there is no Edit mode to enter (ADR-0023)
+- The visible period is one piece of state (`useUi.range`) driven three ways — zoom
+  buttons, day strip, year scrubber — and all the arithmetic lives in `engine/period.ts`
+
+## Open questions
+
+**All eight are closed** — five by the prototype spec, three by the owner. See
+`Docs/14-open-questions.md` for the record, so they are not reopened by accident.
+
+Remaining `ASSUMPTION` values in fixtures (chosen, not confirmed, cheap to change):
+`agingThresholdDays` = 14, role-pool absence limits = 1, comp-off search window, role
+colors and hotkeys.

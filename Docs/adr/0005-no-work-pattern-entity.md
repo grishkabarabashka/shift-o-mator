@@ -1,33 +1,45 @@
-# ADR-0005. Отдельной сущности «рабочий паттерн» нет
+# ADR-0005. There is no separate "work pattern" entity
 
-**Статус:** принято
+**Status:** accepted, with fields named
 
-## Контекст
+> **Clarification.** The real roster does carry a default pattern, but as **person
+> fields**, not a separate entity: `defaultRoleId` (the ordinary-day default, the
+> workbook's "Default Entry") and `availableWeekdays` (its "Default Week"). Only
+> auto-populate reads them, and they never override an explicit assignment — so the
+> decision below stands, with the fields made explicit.
+>
+> The `isPlannerOnly` flag mentioned below is replaced by
+> `orgCategory = MANAGEMENT` plus `isIncluded = false`
+> ([ADR-0019](0019-service-transition-as-category.md)).
 
-Системы планирования смен обычно заводят сущность вида «график работы» или «шаблон
-недели» и привязывают её к человеку. Это порождает второй источник истины: паттерн говорит
-одно, назначения — другое, и надо решать, кто прав.
+## Context
 
-## Решение
+Shift-planning systems usually have an entity like "work schedule" or "weekly
+template" tied to a person. That creates a second source of truth: the pattern says
+one thing, the assignments say another, and now there's a question of which one wins.
 
-Участие человека в ротации полностью определяется двумя вещами: набором доступных ролей
-(`eligibility`) и днями доступности (`availableWeekdays`).
+## Decision
 
-- инженер service transition: единственная доступная роль `ST_EMEA`, дни Пн–Пт.
-  В ротацию поддержки физически не попадёт;
-- менеджер: пустой набор ролей плюс `isPlannerOnly` — в сетке не появляется;
-- обычный инженер: несколько ролей с целевыми долями.
+A person's participation in the rotation is determined entirely by two things: the
+set of available roles (`eligibility`) and available weekdays
+(`availableWeekdays`).
 
-## Следствия
+- a service transition engineer: a single available role, `ST_EMEA`, weekdays
+  Mon–Fri. They physically cannot land in the support rotation;
+- a manager: an empty role set plus `isPlannerOnly` — never appears in the grid;
+- a regular engineer: several roles with target shares.
 
-- Ноль расхождений между «как должно быть по паттерну» и «как назначено».
-- Генератор работает с одним источником ограничений.
-- Повторяющиеся раскладки (например, «эта неделя как предыдущая») достигаются
-  копированием диапазона в сетке, а не отдельной сущностью.
-- Если позже потребуются настоящие ротационные шаблоны, они добавятся как источник
-  назначений (`Assignment.source = PATTERN`), а не как параллельная модель.
+## Consequences
 
-## Альтернативы
+- Zero discrepancy between "how it should be per the pattern" and "how it's actually
+  assigned."
+- The generator works against a single source of constraints.
+- Repeating layouts ("this week like the last one") are achieved by copying a range in
+  the grid, not by a separate entity.
+- If real rotation templates are needed later, they'll be added as an assignment
+  source (`Assignment.source = PATTERN`), not as a parallel model.
 
-- **Сущность WorkPattern с расписанием.** Второй источник истины и постоянные вопросы
-  приоритета.
+## Alternatives considered
+
+- **A `WorkPattern` entity with its own schedule.** A second source of truth and
+  constant priority questions.

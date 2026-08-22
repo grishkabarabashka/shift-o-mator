@@ -1,40 +1,41 @@
-# ADR-0014. Timeline и сетка пишутся самостоятельно
+# ADR-0014. Timeline and grid are built in-house
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-Два самых заметных компонента продукта — timeline смен и сетка планирования. Для обоих
-существуют готовые библиотеки.
+The two most visible components of the product are the shift timeline and the
+planning grid. Off-the-shelf libraries exist for both.
 
-## Решение
+## Decision
 
-Оба пишутся руками.
+Both are hand-built.
 
-**Сетка.** AG Grid Community не содержит range selection, fill handle и операций
-с буфером — то есть именно тех функций, ради которых его берут. При 80 строках и ~30
-колонках собственная реализация выигрывает: полный контроль над клавиатурой и
-paint-режимом, отсутствие лицензии, примерно 500–800 строк кода.
+**Grid.** AG Grid Community doesn't include range selection, fill handle, or clipboard
+operations — exactly the features it gets picked for. At 80 rows and ~30 columns, a
+custom implementation wins: full control over keyboard and paint mode, no license,
+roughly 500–800 lines of code.
 
-**Timeline.** Gantt-библиотеки тяжёлые, навязывают свою модель данных и плохо поддаются
-перекраске под корпоративный стиль. Реализация: одна функция шкалы (`d3-scale`,
-`scaleTime`) как единственный источник преобразования time → px, бары — абсолютно
-спозиционированные `div` (чтобы работали компонентные стили корпоративной библиотеки),
-SVG только для сетки и заливок overlap.
+**Timeline.** Gantt libraries are heavy, impose their own data model, and resist
+recoloring to a corporate style. Implementation: one scale function (`d3-scale`,
+`scaleTime`) as the single source of truth for time → px conversion, bars as
+absolutely positioned `div`s (so corporate component styles still apply), SVG only for
+the grid and overlap fills.
 
-## Следствия
+## Consequences
 
-- Клавиатурное поведение сетки определяется задачей, а не тем, что умеет библиотека.
-- Виртуализация не нужна: 80 строк × ~30 колонок рендерятся целиком
-  (см. [08-architecture.md](../08-architecture.md), раздел о масштабе).
-- Единственный источник преобразования time → px исключает рассинхрон шкалы и баров.
-- Плата: доступность и краевые случаи выделения пишутся самостоятельно и требуют тестов.
-- Окончательное подтверждение по сетке — после просмотра реального Excel: станет видно,
-  какие операции над диапазонами действительно нужны.
+- The grid's keyboard behavior is shaped by the task, not by what a library happens to
+  support.
+- No virtualization needed: 80 rows × ~30 columns render in full (see
+  [12-architecture.md](../12-architecture.md), scale section).
+- A single source of truth for time → px conversion rules out drift between the scale
+  and the bars.
+- Cost: accessibility and selection edge cases are hand-built and need tests.
+- Final confirmation on the grid comes after seeing a real spreadsheet export — that's
+  what'll show which range operations actually matter.
 
-## Альтернативы
+## Alternatives considered
 
-- **AG Grid Enterprise.** Лицензия ради функций, которые здесь занимают несколько сотен
-  строк.
-- **Готовый Gantt (dhtmlx, frappe, vis-timeline).** Своя модель данных, тяжёлый вес,
-  дорогая перекраска под корпоративный стиль.
+- **AG Grid Enterprise.** A license for features that fit in a few hundred lines here.
+- **An off-the-shelf Gantt (dhtmlx, frappe, vis-timeline).** Its own data model,
+  heavy weight, expensive to recolor to a corporate style.

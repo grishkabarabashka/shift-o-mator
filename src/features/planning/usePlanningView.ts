@@ -3,84 +3,143 @@
  *
  * Всё, что нужно сетке, полосе покрытия и панели нарушений, считается здесь
  * одним проходом и мемоизируется. Компоненты остаются тупыми.
+ *
+ * Два масштаба намеренно разделены (ADR-0020): **строки** берутся из единицы
+ * планирования, **покрытие** — из региона. Дыра по роли чужой единицы должна
+ * быть видна и починена без ухода с экрана.
  */
 
 import { useMemo } from 'react';
+import { cellKey, type DatasetIndex } from '../../domain/lookup.ts';
 import type {
   Absence,
-  Assignment,
+  CellValue,
   CompDayEntry,
   CoverageCell,
+  DayConfiguration,
   IsoDate,
   Issue,
   Location,
   Person,
   PersonId,
+  Region,
+  RegionId,
+  RoleId,
   ShiftRole,
 } from '../../domain/types.ts';
-import { effectiveCompDayDate } from '../../domain/types.ts';
+import type { CellProjection } from '../../engine/cellValue.ts';
+import { projectCells } from '../../engine/cellValue.ts';
 import { computeCoverage, indexCoverage, summarizeCoverage } from '../../engine/coverage.ts';
-import { eachDate, isNonWorkingDayIn, holidayNameIn } from '../../engine/dates.ts';
+import { resolveDayConfiguration } from '../../engine/dayConfig.ts';
+import { eachDate, holidayNameIn, isNonWorkingDayIn } from '../../engine/dates.ts';
 import { acknowledgedKeys, summarizeIssues, validate } from '../../engine/validate.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
+import { useUi } from '../../store/useUi.ts';
 
 /** Строка сетки: либо заголовок группы, либо человек. */
 export type GridRow =
-  | { readonly kind: 'group'; readonly key: string; readonly label: string }
-  | { readonly kind: 'person'; readonly key: string; readonly person: Person; readonly location: Location };
+  | { readonly kind: 'group'; readonly key: string; readonly label: string; readonly count: number }
+  | {
+      readonly kind: 'person';
+      readonly key: string;
+      readonly person: Person;
+      readonly location: Location;
+      readonly region: Region;
+    };
 
 export interface DayColumn {
   readonly date: IsoDate;
   readonly weekdayLabel: string;
   readonly dayLabel: string;
-  /** Нерабочий по календарю референсной локации единицы. */
+  /** Нерабочий по календарю первичной локации региона. */
   readonly isNonWorking: boolean;
+  readonly isToday: boolean;
   readonly holidayName: string | undefined;
+  readonly configKey: DayConfiguration['key'] | undefined;
 }
 
 export interface PlanningView {
   readonly ready: boolean;
   readonly rows: readonly GridRow[];
   readonly columns: readonly DayColumn[];
-  readonly roles: readonly ShiftRole[];
-  readonly assignmentByCell: ReadonlyMap<string, Assignment>;
-  readonly absenceByCell: ReadonlyMap<string, Absence>;
-  readonly compDayByCell: ReadonlyMap<string, CompDayEntry>;
-  readonly nonWorkingByCell: ReadonlySet<string>;
+  /** Регионы, попадающие в текущий вид. Обычно один. */
+  readonly regionIds: readonly RegionId[];
+  readonly projection: CellProjection;
   readonly coverageCells: readonly CoverageCell[];
   readonly coverageByCell: ReadonlyMap<string, CoverageCell>;
   readonly coverageSummary: ReturnType<typeof summarizeCoverage>;
+  readonly coverageRoles: readonly ShiftRole[];
   readonly issues: readonly Issue[];
   readonly issuesByCell: ReadonlyMap<string, readonly Issue[]>;
   readonly acknowledged: ReadonlySet<string>;
   readonly issueSummary: ReturnType<typeof summarizeIssues>;
-  readonly rolesFor: (personId: PersonId) => readonly ShiftRole[];
+  readonly cellAt: (personId: PersonId, date: IsoDate) => CellValue;
+  /** Роли, доступные человеку в этот день: конфигурация дня ∩ eligibility. */
+  readonly rolesFor: (personId: PersonId, date: IsoDate) => readonly ShiftRole[];
+  readonly roleById: (roleId: RoleId) => ShiftRole | undefined;
+  readonly absenceById: (id: string) => Absence | undefined;
+  readonly compDayById: (id: string) => CompDayEntry | undefined;
 }
 
-const WEEKDAY_LABELS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export function cellKey(personId: PersonId, date: IsoDate): string {
-  return `${personId}|${date}`;
-}
+const EMPTY_PROJECTION: CellProjection = { byCell: new Map(), nonWorkingByCell: new Set() };
 
 const EMPTY_VIEW: PlanningView = {
   ready: false,
   rows: [],
   columns: [],
-  roles: [],
-  assignmentByCell: new Map(),
-  absenceByCell: new Map(),
-  compDayByCell: new Map(),
-  nonWorkingByCell: new Set(),
+  regionIds: [],
+  projection: EMPTY_PROJECTION,
   coverageCells: [],
   coverageByCell: new Map(),
-  coverageSummary: { belowMin: 0, belowTarget: 0, overMax: 0, total: 0 },
+  coverageSummary: { gaps: 0, thin: 0, over: 0, total: 0 },
+  coverageRoles: [],
   issues: [],
   issuesByCell: new Map(),
   acknowledged: new Set(),
-  issueSummary: { blocking: 0, warning: 0, info: 0, unacknowledgedWarnings: 0 },
+  issueSummary: {
+    blocking: 0,
+    gaps: 0,
+    conflicts: 0,
+    warning: 0,
+    info: 0,
+    unacknowledgedWarnings: 0,
+  },
+  cellAt: () => ({ kind: 'EMPTY' }),
   rolesFor: () => [],
+  roleById: () => undefined,
+  absenceById: () => undefined,
+  compDayById: () => undefined,
 };
+
+export { cellKey };
+
+/** Люди, попадающие в строки: единица либо весь регион, если включён режим. */
+function selectPeople(
+  unitId: string,
+  wholeRegion: boolean,
+  index: DatasetIndex,
+): Person[] {
+  const unitPeople = (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded);
+  if (!wholeRegion) return unitPeople;
+
+  const regionIds = new Set(unitPeople.map((p) => p.regionId));
+  return [...index.people.values()].filter(
+    (p) => p.isIncluded && regionIds.has(p.regionId),
+  );
+}
+
+function groupKeyOf(person: Person, groupBy: string, index: DatasetIndex): string {
+  switch (groupBy) {
+    case 'REGION':
+      return index.regions.get(person.regionId)?.name ?? person.regionId;
+    case 'ORG_CATEGORY':
+      return person.orgCategory.replace('_', ' ');
+    default:
+      return index.locations.get(person.locationId)?.name ?? person.locationId;
+  }
+}
 
 export function usePlanningView(asOf: IsoDate): PlanningView {
   const unitId = useSchedule((s) => s.unitId);
@@ -88,111 +147,112 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
   const reference = useSchedule((s) => s.reference);
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
+  const wholeRegion = useUi((s) => s.wholeRegion);
 
   return useMemo<PlanningView>(() => {
     if (!unitId || !range || !reference || !plan || !index) return EMPTY_VIEW;
-
     const unit = index.units.get(unitId);
     if (!unit) return EMPTY_VIEW;
 
     const dates = eachDate(range);
-    const roles = index.rolesByUnit.get(unitId) ?? [];
-    const rolesById = index.roles;
-
-    // --- Колонки -----------------------------------------------------------
-    const coverageLocation = index.locations.get(unit.coverageCalendarLocationId);
-    const columns: DayColumn[] = dates.map((date) => {
-      const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-      const isoWeekday = weekday === 0 ? 7 : weekday;
-      return {
-        date,
-        weekdayLabel: WEEKDAY_LABELS[isoWeekday - 1] ?? '',
-        dayLabel: date.slice(8),
-        isNonWorking: coverageLocation
-          ? isNonWorkingDayIn(date, coverageLocation, index)
-          : false,
-        holidayName: coverageLocation ? holidayNameIn(date, coverageLocation, index) : undefined,
-      };
-    });
+    const people = selectPeople(unitId, wholeRegion, index);
+    const regionIds = [...new Set(people.map((p) => p.regionId))].sort();
 
     // --- Строки ------------------------------------------------------------
-    const unitPeople = (index.peopleByUnit.get(unitId) ?? []).filter((p) => !p.isPlannerOnly);
-    const byLocation = new Map<string, Person[]>();
-    for (const person of unitPeople) {
-      const bucket = byLocation.get(person.locationId);
+    const byGroup = new Map<string, Person[]>();
+    for (const person of people) {
+      const key = groupKeyOf(person, unit.groupBy, index);
+      const bucket = byGroup.get(key);
       if (bucket) bucket.push(person);
-      else byLocation.set(person.locationId, [person]);
+      else byGroup.set(key, [person]);
     }
 
     const rows: GridRow[] = [];
-    const locationOrder = [...byLocation.keys()].sort((a, b) =>
-      (index.locations.get(a)?.name ?? a).localeCompare(index.locations.get(b)?.name ?? b),
-    );
-    for (const locationId of locationOrder) {
-      const location = index.locations.get(locationId);
-      if (!location) continue;
-      rows.push({ kind: 'group', key: `g-${locationId}`, label: location.name });
-      const members = [...(byLocation.get(locationId) ?? [])].sort((a, b) =>
+    for (const groupLabel of [...byGroup.keys()].sort()) {
+      const members = [...(byGroup.get(groupLabel) ?? [])].sort((a, b) =>
         a.displayName.localeCompare(b.displayName),
       );
+      rows.push({
+        kind: 'group',
+        key: `g-${groupLabel}`,
+        label: groupLabel,
+        count: members.length,
+      });
       for (const person of members) {
-        rows.push({ kind: 'person', key: person.id, person, location });
+        const location = index.locations.get(person.locationId);
+        const region = index.regions.get(person.regionId);
+        if (!location || !region) continue;
+        rows.push({ kind: 'person', key: person.id, person, location, region });
       }
     }
 
-    // --- Ячейки ------------------------------------------------------------
-    const assignmentByCell = new Map<string, Assignment>();
-    for (const assignment of plan.assignments) {
-      assignmentByCell.set(cellKey(assignment.personId, assignment.date), assignment);
-    }
+    // --- Колонки -----------------------------------------------------------
+    // Тип дня берётся из первого региона в виде: при одном регионе это точно,
+    // при нескольких заголовок всё равно показывает только выходные.
+    const headerRegionId = regionIds[0];
+    const headerRegion = headerRegionId ? index.regions.get(headerRegionId) : undefined;
+    const headerLocation = headerRegion
+      ? index.locations.get(headerRegion.primaryLocationId)
+      : undefined;
 
-    const absenceByCell = new Map<string, Absence>();
-    for (const absence of plan.absences) {
-      for (const date of eachDate({ from: absence.from, to: absence.to })) {
-        if (date < range.from || date > range.to) continue;
-        absenceByCell.set(cellKey(absence.personId, date), absence);
-      }
-    }
-
-    const compDayByCell = new Map<string, CompDayEntry>();
-    for (const entry of plan.compDays) {
-      const date = effectiveCompDayDate(entry);
-      if (date < range.from || date > range.to) continue;
-      compDayByCell.set(cellKey(entry.personId, date), entry);
-    }
-
-    // Нерабочий день считается по календарю локации человека — от этого
-    // зависит начисление отгула, и в сетке это должно быть видно.
-    const nonWorkingByCell = new Set<string>();
-    for (const row of rows) {
-      if (row.kind !== 'person') continue;
-      for (const date of dates) {
-        if (isNonWorkingDayIn(date, row.location, index)) {
-          nonWorkingByCell.add(cellKey(row.person.id, date));
-        }
-      }
-    }
-
-    // --- Покрытие и нарушения ---------------------------------------------
-    const coverageCells = computeCoverage({
-      unitId,
-      range,
-      assignments: plan.assignments,
-      coverageRules: reference.coverageRules,
-      index,
+    const columns: DayColumn[] = dates.map((date) => {
+      const isoWeekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+      const config = headerRegionId
+        ? resolveDayConfiguration(headerRegionId, date, index)
+        : undefined;
+      return {
+        date,
+        weekdayLabel: WEEKDAY_LABELS[isoWeekday === 0 ? 6 : isoWeekday - 1] ?? '',
+        dayLabel: date.slice(8),
+        isNonWorking: headerLocation ? isNonWorkingDayIn(date, headerLocation, index) : false,
+        isToday: date === asOf,
+        holidayName: headerLocation ? holidayNameIn(date, headerLocation, index) : undefined,
+        configKey: config?.key,
+      };
     });
 
-    const issues = validate({
-      unitId,
+    // --- Проекция ячеек ----------------------------------------------------
+    const projection = projectCells({
       range,
-      assignments: plan.assignments,
       absences: plan.absences,
       compDays: plan.compDays,
-      coverageCells,
-      absenceCapacityRules: reference.absenceCapacityRules,
       index,
-      asOf,
     });
+
+    // --- Покрытие: по региону, а не по единице -----------------------------
+    const coverageCells: CoverageCell[] = [];
+    for (const regionId of regionIds) {
+      coverageCells.push(
+        ...computeCoverage({ regionId, range, assignments: plan.assignments, index }),
+      );
+    }
+
+    const coverageRoles: ShiftRole[] = [];
+    const seenRole = new Set<RoleId>();
+    for (const cell of coverageCells) {
+      if (seenRole.has(cell.roleId)) continue;
+      seenRole.add(cell.roleId);
+      const role = index.roles.get(cell.roleId);
+      if (role) coverageRoles.push(role);
+    }
+
+    // --- Нарушения ---------------------------------------------------------
+    const issues: Issue[] = [];
+    for (const regionId of regionIds) {
+      issues.push(
+        ...validate({
+          regionId,
+          range,
+          assignments: plan.assignments,
+          absences: plan.absences,
+          compDays: plan.compDays,
+          coverageCells: coverageCells.filter((c) => c.regionId === regionId),
+          absenceCapacityRules: reference.absenceCapacityRules,
+          index,
+          asOf,
+        }),
+      );
+    }
 
     const issuesByCell = new Map<string, Issue[]>();
     for (const issue of issues) {
@@ -205,11 +265,16 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
 
     const acknowledged = acknowledgedKeys(plan.acknowledgements);
 
-    const rolesFor = (personId: PersonId): readonly ShiftRole[] => {
+    // --- Доступные роли ----------------------------------------------------
+    const rolesFor = (personId: PersonId, date: IsoDate): readonly ShiftRole[] => {
       const person = index.people.get(personId);
       if (!person) return [];
-      return person.eligibility
-        .map((e) => rolesById.get(e.roleId))
+      const config = resolveDayConfiguration(person.regionId, date, index);
+      if (!config) return [];
+      const eligible = new Set(person.eligibility.map((e) => e.roleId));
+      return config.roleRequirements
+        .filter((requirement) => eligible.has(requirement.roleId))
+        .map((requirement) => index.roles.get(requirement.roleId))
         .filter((role): role is ShiftRole => role !== undefined);
     };
 
@@ -217,19 +282,22 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       ready: true,
       rows,
       columns,
-      roles,
-      assignmentByCell,
-      absenceByCell,
-      compDayByCell,
-      nonWorkingByCell,
+      regionIds,
+      projection,
       coverageCells,
       coverageByCell: indexCoverage(coverageCells),
       coverageSummary: summarizeCoverage(coverageCells),
+      coverageRoles,
       issues,
       issuesByCell,
       acknowledged,
       issueSummary: summarizeIssues(issues, acknowledged),
+      cellAt: (personId, date) =>
+        projection.byCell.get(cellKey(personId, date)) ?? { kind: 'EMPTY' },
       rolesFor,
+      roleById: (roleId) => index.roles.get(roleId),
+      absenceById: (id) => plan.absences.find((absence) => absence.id === id),
+      compDayById: (id) => plan.compDays.find((entry) => entry.id === id),
     };
-  }, [unitId, range, reference, plan, index, asOf]);
+  }, [unitId, range, reference, plan, index, asOf, wholeRegion]);
 }

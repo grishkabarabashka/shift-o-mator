@@ -1,31 +1,51 @@
 /**
  * @vitest-environment jsdom
  *
- * Дымовой тест экрана планирования: сетка рисуется, клавиатура ставит роль,
- * полоса покрытия пересчитывается, Ctrl+Z возвращает.
+ * Дымовые тесты оболочки и экрана планирования.
+ *
+ * Проверяются контракты, а не разметка: сетка строится из единицы, правка сама
+ * открывает черновик и не трогает опубликованные данные, пикер предлагает
+ * только роли этого дня, покрытие и нарушения пересчитываются, публикация
+ * блокируется дырами.
  */
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App.tsx';
-import { effectiveCompDayDate } from './domain/types.ts';
+import { scheduleRepository } from './data/memoryRepository.ts';
+import { DEFAULT_UNIT } from './domain/fixtures.ts';
 import { useSchedule } from './store/useSchedule.ts';
-import { useUi } from './store/useUi.ts';
+import { TODAY, useUi } from './store/useUi.ts';
+import { rangeFor } from './engine/period.ts';
+
+beforeEach(async () => {
+  await scheduleRepository.reset();
+  window.history.pushState({}, '', '/');
+});
 
 afterEach(() => {
   useUi.setState({
     selection: { anchor: undefined, focus: undefined },
+    highlightDate: undefined,
     activeRoleId: undefined,
     clipboard: undefined,
     issueFilter: 'ALL',
+    wholeRegion: false,
     absenceDraft: undefined,
     compDayDraft: undefined,
+    unitId: DEFAULT_UNIT,
+    zoom: 'month',
+    anchor: TODAY,
+    range: rangeFor('month', TODAY),
+    custom: false,
   });
 });
 
-async function renderApp() {
+/** Приложение открывается на дашборде — планирование за одной вкладкой. */
+async function renderSchedule() {
   const utils = render(<App />);
-  await screen.findByRole('grid', {}, { timeout: 5000 });
+  fireEvent.click(await screen.findByRole('link', { name: 'Schedule' }, { timeout: 10000 }));
+  await screen.findByRole('grid', {}, { timeout: 10000 });
   return utils;
 }
 
@@ -37,238 +57,337 @@ function cellAt(personId: string, date: string): HTMLElement {
   const cell = grid().querySelector<HTMLElement>(
     `[data-person="${personId}"][data-date="${date}"]`,
   );
-  if (!cell) throw new Error(`Ячейка ${personId}/${date} не найдена`);
+  if (!cell) throw new Error(`Cell ${personId}/${date} not found`);
   return cell;
 }
 
-/** Человек единицы, умеющий CAVA, и его свободный день. */
-function freeCavaCell(): { personId: string; date: string; roleId: string } {
+/** Человек единицы, умеющий Cover, и его свободный будний день. */
+function freeCoverCell(): { personId: string; date: string; roleId: string } {
   const state = useSchedule.getState();
-  const role = state.reference?.roles.find((r) => r.unitId === 'unit-amer' && r.code === 'CAVA');
+  const role = state.reference?.roles.find((r) => r.regionId === 'AMER' && r.code === 'Cover');
   const person = state.reference?.people.find(
-    (p) => p.unitId === 'unit-amer' && !p.isPlannerOnly && p.eligibility.some((e) => e.roleId === role?.id),
+    (p) =>
+      p.unitId === DEFAULT_UNIT &&
+      p.isIncluded &&
+      p.eligibility.some((e) => e.roleId === role?.id),
   );
-  if (!role || !person) throw new Error('В фикстурах нет подходящего человека');
+  if (!role || !person) throw new Error('No suitable person in fixtures');
 
   for (let day = 1; day <= 31; day += 1) {
     const date = `2026-08-${String(day).padStart(2, '0')}`;
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
     const busy = state.plan?.assignments.some((a) => a.personId === person.id && a.date === date);
     const absent = state.plan?.absences.some(
       (a) => a.personId === person.id && date >= a.from && date <= a.to,
     );
     if (!busy && !absent) return { personId: person.id, date, roleId: role.id };
   }
-  throw new Error('У человека нет свободных дней');
+  throw new Error('Person has no free weekday');
 }
 
-/** Человек единицы, свободный (без назначения и без отсутствия) все три дня. */
-function personWithFreeRange(dates: readonly string[]): string {
-  const state = useSchedule.getState();
-  const people = state.reference?.people.filter((p) => p.unitId === 'unit-amer' && !p.isPlannerOnly) ?? [];
-
-  for (const person of people) {
-    const busy = dates.some(
-      (date) =>
-        state.plan?.assignments.some((a) => a.personId === person.id && a.date === date) ||
-        state.plan?.absences.some((a) => a.personId === person.id && date >= a.from && date <= a.to),
-    );
-    if (!busy) return person.id;
-  }
-  throw new Error('Нет человека со свободным диапазоном');
+function cellRoleId(personId: string, date: string): string | undefined {
+  const assignment = useSchedule
+    .getState()
+    .plan?.assignments.find((a) => a.personId === personId && a.date === date);
+  return assignment?.content.kind === 'ROLE' ? assignment.content.roleId : undefined;
 }
 
-describe('экран планирования', () => {
+describe('оболочка', () => {
+  it('открывается на дашборде и даёт перейти во все разделы', async () => {
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+
+    for (const name of ['Schedule', 'Timeline', 'People', 'Settings']) {
+      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('таймлайн строит дорожки регионов на выбранный период', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Timeline' }, { timeout: 10000 }));
+    expect(
+      await screen.findByRole('heading', { name: 'Coverage timeline' }),
+    ).toBeInTheDocument();
+  });
+
+  it('People считает нагрузку и долг по отгулам', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'People' }, { timeout: 10000 }));
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('Weekends')).toBeInTheDocument();
+    expect(within(table).getByText('Comp owed')).toBeInTheDocument();
+  });
+
+  it('Settings показывает реальные коды ролей региона', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Roles' }));
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('Batch-E')).toBeInTheDocument();
+  });
+});
+
+describe('выбор периода', () => {
+  it('масштаб меняет число колонок', async () => {
+    await renderSchedule();
+    const monthColumns = grid().querySelectorAll('.sheet__head').length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Week' }));
+    await waitFor(() => {
+      expect(grid().querySelectorAll('.sheet__head').length).toBe(7);
+    });
+    expect(monthColumns).toBeGreaterThan(7);
+  });
+
+  it('шаг вперёд и Today возвращают период с сегодняшним днём', async () => {
+    await renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: 'Next period' }));
+    await waitFor(() => {
+      expect(useUi.getState().range.from > TODAY).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+    await waitFor(() => {
+      const { range } = useUi.getState();
+      expect(range.from <= TODAY && TODAY <= range.to).toBe(true);
+    });
+  });
+
+  it('на трёх месяцах сетка становится тепловой картой только на чтение', async () => {
+    await renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '3 Months' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('grid')).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: /Switch to Month to edit/ })).toBeInTheDocument();
+  });
+});
+
+describe('сетка', () => {
   it('рисует людей единицы и дни месяца', async () => {
-    await renderApp();
+    await renderSchedule();
     const cells = grid().querySelectorAll('[role="gridcell"]');
     const people = useSchedule
       .getState()
-      .reference?.people.filter((p) => p.unitId === 'unit-amer' && !p.isPlannerOnly);
+      .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isIncluded);
 
     expect(people?.length).toBeGreaterThan(0);
     expect(cells.length).toBe((people?.length ?? 0) * 31);
   });
 
-  it('показывает окно роли прямо на палитре', async () => {
-    await renderApp();
-    const palette = screen.getByRole('toolbar', { name: 'Роли' });
-    expect(within(palette).getByText('SL')).toBeInTheDocument();
-    expect(within(palette).getByText('07:00–15:00')).toBeInTheDocument();
+  it('группирует по локации, как задано в единице', async () => {
+    await renderSchedule();
+    const headers = [...grid().querySelectorAll('.sheet__group')].map((el) =>
+      el.textContent?.replace(/\d+/g, '').trim(),
+    );
+    expect(headers).toContain('Chicago');
+    expect(headers).toContain('New York');
+    expect(headers).toContain('Pune');
   });
 
-  it('ставит роль с клавиатуры и возвращает по Ctrl+Z', async () => {
-    await renderApp();
-    const { personId, date, roleId } = freeCavaCell();
+  it('показывает реальные коды ролей и их окна на палитре', async () => {
+    await renderSchedule();
+    const palette = screen.getByRole('toolbar', { name: 'Roles' });
+    expect(within(palette).getByText('Lead')).toBeInTheDocument();
+    expect(within(palette).getByText('Batch-E')).toBeInTheDocument();
+  });
+
+  it('переключатель показывает весь регион, а не только единицу', async () => {
+    await renderSchedule();
+    const unitCells = grid().querySelectorAll('[role="gridcell"]').length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Whole region' }));
+    await waitFor(() => {
+      expect(grid().querySelectorAll('[role="gridcell"]').length).toBeGreaterThan(unitCells);
+    });
+  });
+});
+
+describe('черновик', () => {
+  it('правка сама открывает черновик — режим Edit искать не нужно', async () => {
+    await renderSchedule();
+    const { personId, date, roleId } = freeCoverCell();
+    expect(useSchedule.getState().session).toBeUndefined();
 
     fireEvent.mouseDown(cellAt(personId, date));
-    fireEvent.keyDown(grid(), { key: 'c' });
+    fireEvent.keyDown(grid(), { key: 'o' });
+
+    await waitFor(() => {
+      expect(cellRoleId(personId, date)).toBe(roleId);
+    });
+    expect(useSchedule.getState().session).toBeDefined();
+  });
+
+  it('правка в черновике не трогает опубликованные данные', async () => {
+    await renderSchedule();
+    const { personId, date, roleId } = freeCoverCell();
+    const publishedBefore = useSchedule.getState().published?.assignments.length;
+
+    fireEvent.mouseDown(cellAt(personId, date));
+    fireEvent.keyDown(grid(), { key: 'o' });
+
+    await waitFor(() => {
+      expect(cellRoleId(personId, date)).toBe(roleId);
+    });
+    expect(useSchedule.getState().published?.assignments.length).toBe(publishedBefore);
+  });
+
+  it('Ctrl+Z возвращает правку', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
+
+    fireEvent.mouseDown(cellAt(personId, date));
+    fireEvent.keyDown(grid(), { key: 'o' });
+    await waitFor(() => {
+      expect(cellRoleId(personId, date)).toBeDefined();
+    });
+
+    fireEvent.keyDown(grid(), { key: 'z', ctrlKey: true });
+    await waitFor(() => {
+      expect(cellRoleId(personId, date)).toBeUndefined();
+    });
+  });
+});
+
+describe('пикер назначения', () => {
+  it('открывается правым кликом и в режиме чтения', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
+    expect(useSchedule.getState().session).toBeUndefined();
+
+    fireEvent.contextMenu(cellAt(personId, date));
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+  });
+
+  it('предлагает только роли конфигурации этого дня', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
+
+    fireEvent.contextMenu(cellAt(personId, date));
+    const menu = await screen.findByRole('menu');
+
+    // Пятничные роли в понедельник–четверг не предлагаются, и наоборот.
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (weekday === 5) expect(within(menu).queryByText('Lead')).toBeNull();
+    else expect(within(menu).queryByText('Lead-E')).toBeNull();
+  });
+
+  it('никогда не предлагает роли другого региона', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
+
+    fireEvent.contextMenu(cellAt(personId, date));
+    const menu = await screen.findByRole('menu');
+    // `M` — роль APAC.
+    expect(within(menu).queryByText('M')).toBeNull();
+  });
+
+  it('ставит роль из меню', async () => {
+    await renderSchedule();
+    const { personId, date, roleId } = freeCoverCell();
+
+    fireEvent.contextMenu(cellAt(personId, date));
+    const menu = await screen.findByRole('menu');
+    fireEvent.click(within(menu).getByText('Cover'));
+
+    await waitFor(() => {
+      expect(cellRoleId(personId, date)).toBe(roleId);
+    });
+  });
+
+  it('ставит маркер `0`, отличный от пустой ячейки', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
+
+    fireEvent.contextMenu(cellAt(personId, date));
+    const menu = await screen.findByRole('menu');
+    fireEvent.click(within(menu).getByText('0 — not scheduled'));
 
     await waitFor(() => {
       const assignment = useSchedule
         .getState()
         .plan?.assignments.find((a) => a.personId === personId && a.date === date);
-      expect(assignment?.roleId).toBe(roleId);
-    });
-    expect(cellAt(personId, date).textContent).toContain('CAVA');
-
-    fireEvent.keyDown(grid(), { key: 'z', ctrlKey: true });
-    await waitFor(() => {
-      expect(cellAt(personId, date).textContent).not.toContain('CAVA');
+      expect(assignment?.content).toEqual({ kind: 'MARKER', marker: 'NOT_SCHEDULED' });
     });
   });
+});
 
-  it('красит диапазон одним движением с Shift', async () => {
-    await renderApp();
-    const { personId, roleId } = freeCavaCell();
-    const dates = ['2026-08-24', '2026-08-25', '2026-08-26'];
-
-    fireEvent.mouseDown(cellAt(personId, dates[0] as string));
-    fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
-    fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
-    fireEvent.keyDown(grid(), { key: 'c' });
-
-    await waitFor(() => {
-      const assigned = useSchedule
-        .getState()
-        .plan?.assignments.filter(
-          (a) => a.personId === personId && dates.includes(a.date) && a.roleId === roleId,
-        );
-      expect(assigned).toHaveLength(3);
-    });
-  });
-
-  it('не ставит роль в день отсутствия', async () => {
-    await renderApp();
-    const state = useSchedule.getState();
-    const absence = state.plan?.absences[0];
-    expect(absence).toBeDefined();
-    if (!absence) return;
-
-    const cell = cellAt(absence.personId, absence.from);
-    fireEvent.mouseDown(cell);
-    fireEvent.keyDown(grid(), { key: 'c' });
-
-    const assignment = useSchedule
-      .getState()
-      .plan?.assignments.find((a) => a.personId === absence.personId && a.date === absence.from);
-    expect(assignment).toBeUndefined();
-  });
-
+describe('покрытие и нарушения', () => {
   it('полоса покрытия показывает факт против минимума', async () => {
-    await renderApp();
-    const strip = screen.getByRole('region', { name: 'Покрытие' });
+    await renderSchedule();
+    const strip = screen.getByRole('group', { name: 'Coverage' });
     const cells = within(strip).getAllByRole('button');
     expect(cells.length).toBeGreaterThan(0);
     expect(cells.some((cell) => /^\d+\/\d+$/.test(cell.textContent ?? ''))).toBe(true);
-    expect(cells.some((cell) => cell.dataset.level === 'BELOW_MIN')).toBe(true);
   });
 
-  it('панель нарушений заполнена и фильтруется', async () => {
-    await renderApp();
-    const panel = screen.getByRole('complementary', { name: 'Нарушения' });
-    expect(within(panel).getAllByRole('button', { name: /./ }).length).toBeGreaterThan(4);
-
-    fireEvent.click(within(panel).getByText('Блокеры'));
-    await waitFor(() => {
-      expect(within(panel).getAllByText('BLK').length).toBeGreaterThan(0);
-    });
-    expect(within(panel).queryByText('INF')).toBeNull();
-  });
-});
-
-describe('отсутствия', () => {
-  it('создаёт отсутствие через выделение и диалог', async () => {
-    await renderApp();
-    const dates = ['2026-08-24', '2026-08-25', '2026-08-26'];
-    const personId = personWithFreeRange(dates);
-
-    fireEvent.mouseDown(cellAt(personId, dates[0] as string));
-    fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
-    fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
-
-    fireEvent.click(screen.getByRole('button', { name: /Отсутствие/ }));
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
-
-    await waitFor(() => {
-      const absence = useSchedule
-        .getState()
-        .plan?.absences.find(
-          (a) => a.personId === personId && a.from === dates[0] && a.to === dates[2],
-        );
-      expect(absence).toBeDefined();
-      expect(absence?.type).toBe('VACATION');
-      expect(absence?.source).toBe('MANUAL');
-    });
-
-    expect(cellAt(personId, dates[1] as string).dataset.absent).toBe('true');
+  it('различает дыру и покрытие впритык', async () => {
+    await renderSchedule();
+    const strip = screen.getByRole('group', { name: 'Coverage' });
+    const levels = new Set(
+      within(strip)
+        .getAllByRole('button')
+        .map((cell) => cell.dataset.level),
+    );
+    expect(levels.has('GAP')).toBe(true);
+    expect(levels.has('THIN')).toBe(true);
   });
 
-  it('не предлагает отсутствие без выделения', async () => {
-    await renderApp();
-    expect(screen.getByRole('button', { name: /Отсутствие/ })).toBeDisabled();
+  it('панель нарушений разводит дыры и конфликты', async () => {
+    await renderSchedule();
+    const panel = screen.getByRole('complementary', { name: 'Issues' });
+    expect(within(panel).getByRole('button', { name: /Gaps/ })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /Conflicts/ })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /Warnings/ })).toBeInTheDocument();
   });
 
-  it('правит и удаляет отсутствие через двойной клик', async () => {
-    await renderApp();
-    const absence = useSchedule.getState().plan?.absences[0];
-    expect(absence).toBeDefined();
-    if (!absence) return;
+  it('дашборд ведёт из дыры в нужную ячейку сетки', async () => {
+    render(<App />);
+    const fix = await screen.findAllByText('Fix →', {}, { timeout: 10000 });
+    fireEvent.click(fix[0]!);
 
-    fireEvent.doubleClick(cellAt(absence.personId, absence.from));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(new RegExp(absence.from))).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить' }));
-
-    await waitFor(() => {
-      const stillThere = useSchedule.getState().plan?.absences.some((a) => a.id === absence.id);
-      expect(stillThere).toBe(false);
-    });
+    await screen.findByRole('grid', {}, { timeout: 10000 });
+    // У дыры нет человека — переход ведёт в колонку дня, а не в чужую строку.
+    expect(useUi.getState().highlightDate).toBeDefined();
   });
 });
 
-/** Отгул, чья эффективная дата видна в текущей открытой сетке (август). */
-function proposedCompDayInAugust() {
-  const entry = useSchedule
-    .getState()
-    .plan?.compDays.find((e) => {
-      if (e.status !== 'PROPOSED') return false;
-      const date = effectiveCompDayDate(e);
-      return date >= '2026-08-01' && date <= '2026-08-31';
-    });
-  if (!entry) throw new Error('Нет предложенного отгула в августе');
-  return entry;
-}
+describe('публикация', () => {
+  it('review показывает diff и блокируется дырами', async () => {
+    await renderSchedule();
+    const { personId, date, roleId } = freeCoverCell();
 
-describe('отгулы', () => {
-  it('подтверждает предложенный отгул через диалог', async () => {
-    await renderApp();
-    const entry = proposedCompDayInAugust();
-    const date = effectiveCompDayDate(entry);
-
-    fireEvent.doubleClick(cellAt(entry.personId, date));
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }));
-
+    fireEvent.mouseDown(cellAt(personId, date));
+    fireEvent.keyDown(grid(), { key: 'o' });
     await waitFor(() => {
-      const updated = useSchedule.getState().plan?.compDays.find((e) => e.id === entry.id);
-      expect(updated?.status).toBe('SCHEDULED');
-      expect(updated?.actualDate).toBe(date);
+      expect(cellRoleId(personId, date)).toBe(roleId);
     });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Review & publish/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/created/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Publish' })).toBeDisabled();
+    expect(within(dialog).getByText(/Publication is blocked/)).toBeInTheDocument();
   });
 
-  it('подтверждённый отгул после этого блокирует назначение в сетке', async () => {
-    await renderApp();
-    const entry = proposedCompDayInAugust();
-    const date = effectiveCompDayDate(entry);
+  it('черновик переживает закрытие review', async () => {
+    await renderSchedule();
+    const { personId, date } = freeCoverCell();
 
-    fireEvent.doubleClick(cellAt(entry.personId, date));
+    fireEvent.mouseDown(cellAt(personId, date));
+    fireEvent.keyDown(grid(), { key: 'o' });
+    await waitFor(() => {
+      expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Review & publish/ }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
 
     await waitFor(() => {
-      expect(cellAt(entry.personId, date).dataset.absent).toBe('true');
+      expect(screen.queryByRole('dialog')).toBeNull();
     });
+    expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
   });
 });

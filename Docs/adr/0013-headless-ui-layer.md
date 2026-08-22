@@ -1,36 +1,37 @@
-# ADR-0013. Headless UI-слой ради дешёвой замены оболочки
+# ADR-0013. A headless UI layer for a cheap shell swap later
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-MVP собирается вне периметра, прод — на корпоративной библиотеке компонентов (React).
-Значит, критерий выбора UI-библиотеки не красота, а стоимость последующей замены оболочки.
+The MVP is built outside the corporate perimeter; production runs on the corporate
+component library (React). So the criterion for choosing a UI library isn't looks —
+it's the cost of swapping the shell later.
 
-## Решение
+## Decision
 
-Radix UI primitives плюс собственные стили. Radix даёт поведение, доступность,
-фокус-менеджмент; внешний вид полностью свой. При переезде меняется слой представления,
-логика остаётся.
+Radix UI primitives plus custom styling. Radix provides behavior, accessibility, and
+focus management; the look is entirely custom. When the product moves, only the
+presentation layer changes — the logic stays.
 
-Дизайн-направление: плотная операционная консоль, а не дашборд. Нейтральная холодная
-база, один акцент на активном состоянии, моноширинный шрифт для кодов ролей и времени,
-нулевая декоративность. Красный и янтарный не используются нигде, кроме нарушений
-покрытия, — чтобы дыры в графике были видны боковым зрением.
+Design direction: a dense operational console, not a dashboard. A neutral cool base,
+a single accent for active state, a monospace font for role codes and times, zero
+decoration. Red and amber are reserved for coverage violations, nowhere else — so gaps
+in the schedule catch the eye peripherally.
 
-## Следствия
+## Consequences
 
-- Собственные примитивы живут в `src/ui/` тонкой обёрткой над Radix — точка замены
-  ровно одна.
-- Цветовые токены задаются переменными CSS: подмена палитры на корпоративную не требует
-  правки компонентов.
-- Красный и янтарный зарезервированы за покрытием. Ошибки форм и прочие состояния
-  используют другие средства.
-- Плата: часть визуальных состояний придётся написать руками.
+- Custom primitives live in `src/ui/` as a thin wrapper around Radix — there's exactly
+  one place to swap.
+- Color tokens are CSS variables: swapping in a corporate palette doesn't require
+  touching components.
+- Red and amber are reserved for coverage. Form errors and other states use different
+  cues.
+- Cost: some visual states have to be built by hand.
 
-## Альтернативы
+## Alternatives considered
 
-- **Material UI, Ant Design.** Навязывают собственную визуальную систему и модель тем;
-  переезд с них означает переписывание.
-- **Чистый HTML без Radix.** Придётся самостоятельно писать фокус-ловушки, роли ARIA
-  и клавиатурную навигацию меню — это ровно то, что Radix уже сделал.
+- **Material UI, Ant Design.** Impose their own visual system and theming model;
+  moving off them means a rewrite.
+- **Plain HTML with no Radix.** Would mean hand-building focus traps, ARIA roles, and
+  menu keyboard navigation — exactly what Radix already does.

@@ -7,47 +7,76 @@
  *
  * Все методы асинхронные с самого начала, даже когда данные локальные. Иначе
  * при появлении сети всплывут все места, где код рассчитывал на синхронность.
+ *
+ * Опубликованные назначения **не пишутся напрямую** (ADR-0015): всё проходит
+ * через черновик и публикацию.
  */
 
-import type { Patch } from '../domain/patch.ts';
+import type { DraftChange } from '../domain/types.ts';
 import type {
+  AssignmentHistoryEntry,
   DateRange,
-  PeriodLock,
+  DraftSession,
+  DraftSessionId,
   PersonId,
   PlanData,
+  PublishConflict,
+  PublishResult,
   ReferenceData,
   ScheduleDataset,
   UnitId,
 } from '../domain/types.ts';
 
-/** Результат попытки взять период в работу. */
-export type LockResult =
-  | { readonly ok: true; readonly lock: PeriodLock }
-  | { readonly ok: false; readonly heldBy: PeriodLock };
+/** Результат публикации: успех или список расхождений. */
+export type PublishOutcome =
+  | { readonly ok: true; readonly result: PublishResult }
+  | { readonly ok: false; readonly conflicts: readonly PublishConflict[] };
+
+/** Черновик со своими изменениями. */
+export interface DraftBundle {
+  readonly session: DraftSession;
+  readonly changes: readonly DraftChange[];
+}
 
 export interface ScheduleRepository {
-  /** Справочная часть: локации, роли, люди, правила. */
+  /** Справочная часть: регионы, единицы, локации, смены, роли, конфигурации, люди. */
   loadReference(): Promise<ReferenceData>;
 
-  /** Планируемая часть за период. Загружается целиком: масштаб позволяет. */
-  loadPlan(unitId: UnitId, range: DateRange): Promise<PlanData>;
-
   /**
-   * Сохранение батчем. Возвращает состояние после применения — на случай, если
-   * сервер что-то досчитал (например, начисления comp days).
+   * Опубликованный план за период. Ограничен регионами, которые видны в
+   * единице: покрытие считается по региону, поэтому нужны все его люди.
    */
-  savePatches(unitId: UnitId, range: DateRange, patches: readonly Patch[]): Promise<PlanData>;
+  loadPublished(unitId: UnitId, range: DateRange): Promise<PlanData>;
 
-  getLock(unitId: UnitId, range: DateRange): Promise<PeriodLock | undefined>;
-  acquireLock(unitId: UnitId, range: DateRange, byPersonId: PersonId): Promise<LockResult>;
-  releaseLock(unitId: UnitId, range: DateRange, byPersonId: PersonId): Promise<void>;
+  // -- Черновики ------------------------------------------------------------
+
+  /** Возвращает уже открытый черновик редактора или создаёт новый. */
+  openDraft(unitId: UnitId, range: DateRange, editorId: PersonId): Promise<DraftBundle>;
+  getDraft(sessionId: DraftSessionId): Promise<DraftBundle | undefined>;
+  appendChanges(sessionId: DraftSessionId, changes: readonly DraftChange[]): Promise<DraftBundle>;
+  /** Убирает изменения из черновика — используется undo. */
+  removeChanges(sessionId: DraftSessionId, changeIds: readonly string[]): Promise<DraftBundle>;
+  /** Атомарно применяет черновик к опубликованным данным. */
+  publishDraft(sessionId: DraftSessionId): Promise<PublishOutcome>;
+  /** Сессия сохраняется для аудита, а не удаляется. */
+  discardDraft(sessionId: DraftSessionId): Promise<void>;
+  /**
+   * Чужие открытые черновики, пересекающиеся с периодом. Нужны для
+   * информационного баннера — не для блокировки.
+   */
+  listOverlappingDrafts(
+    unitId: UnitId,
+    range: DateRange,
+    excludeEditorId: PersonId,
+  ): Promise<readonly DraftSession[]>;
+
+  // -- Аудит и перенос ------------------------------------------------------
+
+  history(range: DateRange): Promise<readonly AssignmentHistoryEntry[]>;
 
   /** Полное состояние в JSON — для отладки и переноса данных из MVP. */
   exportJson(): Promise<string>;
   importJson(json: string): Promise<void>;
-  /** Вернуться к фикстурам. */
   reset(): Promise<void>;
-
-  /** Снимок целиком. Нужен экспорту и тестам, в проде уйдёт. */
   snapshot(): Promise<ScheduleDataset>;
 }

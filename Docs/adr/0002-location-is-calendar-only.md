@@ -1,35 +1,37 @@
-# ADR-0002. Локация отвечает только за календарь и отображение
+# ADR-0002. A location is responsible only for the calendar and display
 
-**Статус:** принято
+**Status:** accepted
 
-## Контекст
+## Context
 
-Естественный первый порыв — привязать время смены к географии человека. Он ломается сразу:
-люди из Пуны закрывают смены Америк, а инженеры service transition раскиданы по всем
-регионам.
+The natural first instinct is to tie shift time to a person's geography. It breaks
+immediately: people in Pune cover Americas shifts, and service transition engineers
+are scattered across every region.
 
-## Решение
+## Decision
 
-`Location` отвечает ровно за две вещи:
+`Location` is responsible for exactly two things:
 
-1. календарь выходных и государственных праздников — какой день считается для человека
-   нерабочим;
-2. таймзону для отображения графика этому человеку в его времени.
+1. the calendar of weekends and public holidays — which day counts as a day off for a
+   given person;
+2. the timezone used to display that person's schedule to them.
 
-Ко времени смены локация отношения не имеет.
+A location has nothing to do with shift time.
 
-Правило одной фразой: **роль задаёт, когда работать; локация задаёт, когда работа
-считается выпавшей на выходной.**
+One-sentence rule: **the role defines when to work; the location defines when that
+work counts as falling on a day off.**
 
-## Следствия
+## Consequences
 
-- Comp day начисляется по календарю локации человека, а не по дате смены в таймзоне роли.
-  Расхождение на сутки здесь возможно и является корректным поведением.
-- Швейцарские праздники не блокируют лондонца.
-- Дни недели, считающиеся выходными, — атрибут локации, а не глобальная константа.
-- Переключатель таймзоны отображения (своя / региона / UTC) всегда виден в шапке.
+- A comp day is accrued based on the person's **location** calendar, not the
+  assignment date in the role's timezone. A one-day mismatch here is possible and is
+  correct behavior.
+- Swiss holidays don't block a Londoner.
+- Which weekdays count as weekend is a location attribute, not a global constant.
+- The display-timezone switcher (own / region / UTC) is always visible in the header.
 
-## Альтернативы
+## Alternatives considered
 
-- **Локация задаёт время смены.** Разваливается на первом же кросс-региональном случае.
-- **Праздники глобальным справочником.** Даёт ложные блокировки и ложные comp days.
+- **Location determines shift time.** Falls apart on the first cross-regional case.
+- **Holidays as a global lookup table.** Produces false blocks and false comp-day
+  accruals.
