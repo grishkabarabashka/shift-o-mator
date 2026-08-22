@@ -12,32 +12,38 @@ earlier period-locking decision.
 ```
 Published assignments        the authoritative rota, visible to everyone
         ▲
-        │  Publish (atomic)
+        │  Publish (atomic transaction)
         │
-DraftSession { editor, region, from..to, OPEN }
-        └─ ordered DraftChange[]      create / update / delete
+DraftSession (server)  { editor, region, from..to, OPEN | PUBLISHED | DISCARDED }
+        └─ ordered DraftChange[]      create / update / delete (ASSIGNMENT, ABSENCE, COMP_DAY)
 ```
 
-A viewer never sees draft data. A planner sees published data overlaid with their own
-draft changes, visually distinguishable from published cells.
+A viewer never sees draft data — only what is published. A planner sees published
+data overlaid with their own draft changes, visually distinguishable from published
+cells. Draft sessions and their changes live server-side; the client downloads them
+via `GET /api/drafts/{id}` and applies changes via `POST /api/drafts/{id}/changes`.
 
 ## Lifecycle
 
-1. **Open.** The planner presses Edit. A session is created for (editor, region,
-   period), or the existing open session is returned. A `Draft` tag appears in the
-   global header.
-2. **Edit.** Every cell change appends a `DraftChange` carrying the full before and
-   after value. Coverage and validation recompute immediately against
-   published + draft.
-3. **Undo / redo.** Reverses changes in order. Because each change carries both
-   values, the inverse is free.
+1. **Open.** Any cell edit (right-click, Enter, or hotkey) sends `POST /api/drafts`
+   creating a session for (editor, region, period), or returns the existing open
+   session if one exists. A `Draft` tag appears in the global header. The draft is
+   persisted server-side.
+2. **Edit.** Every cell change appends a `DraftChange` via `POST /api/drafts/{id}/changes`
+   carrying the full before and after value. Coverage and validation recompute
+   immediately server-side and reflect against published + draft on the next query.
+3. **Undo / redo.** `DELETE /api/drafts/{id}/changes/{changeId}` reverses changes in
+   order. Because each change carries both values, the inverse is free.
 4. **Review.** Save opens the review overlay: counts of created / modified / removed,
    a scrollable diff of old → new, and an impact summary — gaps fixed, gaps created,
    conflicts, comp-offs generated or moved.
-5. **Publish.** The whole ordered set applies as one transaction. On success the draft
-   becomes `PUBLISHED`, history rows are appended, and affected published data reloads.
-6. **Discard.** The session becomes `DISCARDED` and is retained for audit rather than
-   deleted. Confirmation states how many changes will be reversed.
+5. **Publish.** `POST /api/drafts/{id}/publish` applies the whole ordered set as one
+   transaction. On success the draft becomes `PUBLISHED`, history rows are appended
+   server-side, and affected published data reloads. Returns `remainingGaps` and conflict
+   metadata if any.
+6. **Discard.** `POST /api/drafts/{id}/discard` marks the session `DISCARDED` and is
+   retained server-side for audit. Confirmation states how many changes will be
+   reversed.
 
 ## Concurrency
 
@@ -69,11 +75,11 @@ Silent overwrite is never acceptable.
 
 | Condition | Behavior |
 |---|---|
-| Unresolved `BLOCKING` issue | Publication refused. An Admin force action exists, must be explicit, and is audited. |
-| Unacknowledged `WARNING` | Publication allowed only after each warning is acknowledged with a comment. |
-| `INFO` | No effect on publication. |
-| Stale version | Conflict reconciliation flow; the draft is preserved. |
-| Publish fails for any reason | **The draft and every pending change survive.** Never clear a draft on failure. |
+| Unresolved `BLOCKING` issue | Publication refused. Gaps (filled < min) and corrupt data (double assignment, unknown role) block. An Admin force action exists, must be explicit, and is audited. |
+| Unacknowledged `WARNING` | Publication allowed only after each warning is acknowledged with a comment. Conflicts (role not eligible, assigned during absence/comp day) are `WARNING`, not blocking. |
+| `INFO` | No effect on publication. Thin coverage and preference violations are highlighted, never blocking. |
+| Stale version (rowversion conflict) | Conflict reconciliation flow; the draft is preserved. Client compares published value, offers refresh, reapply, or drop per change. |
+| Publish fails for any reason | **The draft and every pending change survive.** Never clear a draft on failure. Actionable error with retry. |
 
 ## What a draft can contain
 

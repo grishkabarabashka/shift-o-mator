@@ -1,58 +1,51 @@
-# Roadmap
+# Roadmap and Phase History
 
-## Where the code actually is
+## Current state: Phases 0–6 complete
 
-The first implementation pass built stages 1–6 of the previous plan against a model
-that has since been corrected. What survives, what changes and what is thrown away:
+The first Frontend-only MVP built roadmap stages 1–14 above an in-memory fixture layer.
+Phases 0–6 reworked the entire stack to move domain logic to a real backend and align
+the frontend to the specification of an earlier corporate implementation.
 
-| Built | Status after the redesign |
-|---|---|
-| `domain/types.ts` | **Rework.** Needs Region + PlanningUnit as separate axes, Shift, DayConfiguration with effective dating, the marker-vs-role split, draft entities, cell projection. |
-| `domain/fixtures.ts` | **Replace.** Invented `SL`/`BATCH`/`CAVA` codes; real codes and minimums are now known. |
-| `engine/dates.ts` | **Keep**, extend with handover and DST helpers. |
-| `engine/coverage.ts` | **Rework.** Needs day configurations and a `THIN` level. |
-| `engine/compDays.ts` | **Rework.** Window search instead of a fixed offset; no expiry, aging instead. |
-| `engine/validate.ts` | **Keep the shape**, split gap and conflict categories. |
-| `data/memoryRepository.ts` | **Rework.** Published/draft split, draft session methods. |
-| `store/useSchedule.ts` | **Rework.** Patches become draft changes with a session. |
-| Planning grid, coverage strip, issue panel | **Keep**, extend for grouping, zoom, markers, review. |
-| Shell, top bar, context menu | **Keep.** |
-| Period locking | **Delete.** Superseded by drafts (ADR-0015). |
+**Phases completed:**
 
-## Stages
+| Phase | Work | Completion |
+|---|---|---|
+| 0 | Initial rework planning and repository setup | foundation laid |
+| 1 | Merge Dashboard and Timeline into Overview (ADR-0025), update shell navigation | Overview at `/overview`, old routes redirect |
+| 2 | .NET backend structure: Domain/Application/Infrastructure/Api layers with seeded fixture data | backend runs with `dotnet run --project api/src/ShiftOMator.Api -- --seed-demo` |
+| 3 | Port coverage, validation, comp-day, candidate ranking engines to C# as the single implementation; add DraftService for server-side draft persistence | All domain logic now server-side; validation runs server-side on `POST /api/drafts/{id}/publish` |
+| 4 | Add stubbed-but-real auth scaffold: bearer token, role claims, `[Authorize]` attribute on endpoints | identity available via `GET /api/auth/me`, endpoints gated by role |
+| 5 | HTTP cutover: HttpScheduleRepository replaces in-memory store, all CRUD over REST; TanStack Query for server state, Zustand only for UI state and draft metadata; OpenAPI type generation | Frontend talks entirely to backend over `/api/*` endpoints; `npm run api:schema:check` validates type generation |
+| 6 | Settings page with Admin surface for reference data; read-only pending effective-dated configuration editing (ADR-0021) | Settings at `/settings`, all mutations gated by Admin role |
 
-| # | Stage | Result | State |
+**Remaining stages (original roadmap 15–16, not yet scheduled):**
+
+- **Export** — XLSX, CSV, ICS, print with timezone stamping — client-side or backend supported
+- **Effective-dated configuration editing** — Settings UI for changing minimums, roles, etc. with past-data protection
+
+## Original Frontend-MVP roadmap (stages 1–14, superseded by phases 0–6)
+
+These stages built the layout and interaction patterns that remain. They are no longer
+the implementation timeline but the feature checklist.
+
+| # | Stage | Feature | Status |
 |---|---|---|---|
-| 1 | Corrected model and real fixtures | domain types, real roles/minimums/statuses, day configurations | done |
-| 2 | Engine rework | coverage with day configs and thin, comp-off windows, cell projection, validation split | done |
-| 3 | Draft sessions in the repository and store | published/draft split, changes, undo, review data | done |
-| 4 | Schedule grid against the new model | grouping by category, markers, statuses, picker sections | done |
-| 5 | **Coverage: aggregate row + per-role strip** | **the point where this beats the spreadsheet** | done |
-| 6 | Review and publish | diff, impact summary, atomic publish, conflict reconciliation | done |
-| 7 | Absences and comp days | range entry, window-based accrual, balance | done |
-| 8 | Overview | summary, attention list, continuous horizontal timeline, jump-to-gap | done — merged with 11 (ADR-0025) |
-| 9 | People | table, KPIs, fairness, comp-off tiles, role-mix and preference editor | done |
-| 10 | Settings | regions, shifts, day configurations, roles, holidays | **read-only**; editing waits on effective-dated versioning (ADR-0021) |
-| 11 | Timeline and day drill-down | now marker, handover bands, hourly headcount, role sub-lanes, per-person day view | done — timeline lives inside Overview |
-| 12 | Zoom levels and long-range heatmap | day/2d/week/2w/month + 3/6-month read-only | done |
-| 13 | Suggest and auto-populate | ranked candidates, locked cells, explanations | done |
-| 14 | Absence import | paste, mapping, diff, impact, batches | done |
-| 15 | Export | XLSX, CSV, ICS, print | open |
-| 16 | Backend | .NET, EF Core, Entra, AKS, real concurrency | open |
+| 1–3 | Model rework + draft lifecycle | Corrected domain model, real roles/minimums, draft sessions with changes, undo/redo | ✅ Completed in Phase 1–3 |
+| 4 | Schedule grid | Grouping by location/region/category, role chips, markers, eligible-role picker | ✅ In production |
+| 5 | Coverage strip | Aggregate row + per-role detail (the point it beats Excel) | ✅ In production |
+| 6 | Review and publish | Diff, impact summary, conflict reconciliation, atomic publish | ✅ In production |
+| 7 | Absences and comp days | Range entry, window-based accrual, balance, import | ✅ In production |
+| 8 | Overview | Summary stats, gap alerts, timeline — merged with 11 | ✅ In production (merged, Phase 1) |
+| 9 | People | Roster table, KPIs, fairness, role-mix, preference editor | ✅ In production |
+| 10 | Settings | Admin surface for reference data | ✅ Read-only in production |
+| 11 | Timeline and day drill-down | Continuous timeline in Overview, per-person day view | ✅ In production (merged, Phase 1) |
+| 12 | Zoom levels | Day/week/month and 3/6-month read-only heatmap | ✅ In production |
+| 13 | Suggest and auto-populate | Ranked candidates, locked cells, explanations | ✅ In production |
+| 14 | Absence import | Paste, mapping, diff, impact, batch rollback | ✅ In production |
 
-Stage 5 remains the point at which the product is more useful than Excel. Stage 13
-stays late deliberately: fairness computed over an empty history is noise.
+## Key decisions preserving the frontend MVP design
 
-Two decisions were taken during stages 8–12 and are recorded rather than folded in
-silently: [ADR-0022](adr/0022-tailwind-for-tokens-and-layout.md) on the styling layer
-and [ADR-0023](adr/0023-editing-arms-itself.md) on removing the explicit Edit mode.
-
-## Sequencing notes
-
-- Stages 1–3 are a single continuous rework; the app will not build in between. Do them
-  as one branch.
-- Stage 6 depends on 3. Do not build review UI against the patch model.
-- Stage 8 (Dashboard) is the landing page most users will ever see, and it needs only
-  published data plus the coverage engine — it can be built as soon as stage 2 lands.
-- Stage 16 is the only stage that requires decisions outside this repository (Entra app
-  registration, cluster, database).
+- [ADR-0014](adr/0014-own-grid-and-timeline.md): Hand-built grid and timeline, not AG Grid
+- [ADR-0022](adr/0022-tailwind-for-tokens-and-layout.md): Tailwind v4 for tokens and layout
+- [ADR-0023](adr/0023-editing-arms-itself.md): Any cell edit opens a draft, no explicit Edit mode
+- [ADR-0025](adr/0025-overview-replaces-dashboard-and-timeline.md): Dashboard and Timeline merged into Overview

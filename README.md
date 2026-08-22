@@ -1,38 +1,79 @@
 # shift-o-mator
 
-Shift planning and visualization for a global application support team.
+Shift planning and visualization for a global application support team (~80 people,
+3 regions: AMER, EMEA, APAC). Replaces manual planning in a shared Excel file.
 
-Replaces manual planning in a shared Excel file: stores role time in the system,
-checks coverage continuously, tracks comp days and workload fairness.
+**Features:**
+- Continuous coverage checks per region and role
+- Draft sessions with concurrent editing and conflict reconciliation
+- Comp day accrual and window-based placement
+- Absence import from leave systems
+- Candidate ranking for fairness and rotation
+- Admin surface for configuration (read-only pending effective-dated versioning)
+- Audit trail of every published change
 
-## Documentation
+**Architecture:**
+- Frontend (React 19 + Vite + Zustand) talks entirely over REST to a .NET backend
+- Backend owns all domain logic: coverage, validation, candidate ranking
+- SQL Server persistence with EF Core; demo seed data included
+- Stubbed auth (development) / Entra ID (production)
 
-[Docs/](Docs/README.md) — sections and accepted decisions.
+See [Docs/](Docs/) for design decisions and architecture.
 
-## Status
+## Running locally
 
-MVP, no backend. Data is in-memory fixtures persisted to IndexedDB.
+### Prerequisites
 
-The design was revised against the specification of an earlier corporate
-implementation (`SHIFT-O-MATOR-desc-anonymized.md`). The running code predates that
-revision: it implements a manual planning grid, a coverage strip and an issues panel
-against a model that has since been corrected. See
-[the roadmap](Docs/13-roadmap.md) for what survives the rework and what changes.
+- **Frontend:** Node.js 22+, npm
+- **Backend:** .NET 10 SDK, SQL Server LocalDB
 
-## Running it
+### Frontend setup
 
-```
+```bash
 npm install
 npm run dev
 ```
 
-## Scripts
+Open http://localhost:5173. The frontend will proxy API calls to `http://localhost:5000`.
+
+### Backend setup (from `api/` directory)
+
+Ensure SQL Server LocalDB is installed (`MSSQLLocalDB` instance).
+
+```bash
+# Install Entity Framework CLI tool (one time)
+dotnet tool install --global dotnet-ef
+
+# Build and run the backend with demo seed data
+dotnet run --project src/ShiftOMator.Api -- --seed-demo
+```
+
+Server listens on http://localhost:5000. Navigate to `/swagger.json` for the OpenAPI
+schema.
+
+### Verify both halves
+
+```bash
+# Frontend (from root)
+npm run typecheck
+npm run test:run
+npm run build
+npm run api:schema:check
+
+# Backend (from api/)
+dotnet build
+dotnet test
+```
+
+## Scripts (frontend root)
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Vite dev server |
+| `npm run dev` | Vite dev server on http://localhost:5173 |
 | `npm run build` | typecheck and production build |
-| `npm run preview` | preview the build |
+| `npm run preview` | preview the built bundle |
 | `npm test` | Vitest in watch mode |
-| `npm run test:run` | Vitest, single run |
+| `npm run test:run` | Vitest, single run (CI) |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run api:schema` | Regenerate OpenAPI types from backend schema |
+| `npm run api:schema:check` | Fail build if types drift from schema (CI) |

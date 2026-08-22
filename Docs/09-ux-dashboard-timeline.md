@@ -1,84 +1,79 @@
-# Dashboard, Timeline and day drill-down
+# Overview — the operational dashboard and timeline merged
 
-## Dashboard — the operational overview
+## The operational overview
 
 **User question:** "Are we covered now and over the selected period, and where must I
 act?"
 
 This is the landing page. Most users never go further.
 
+Overview combines three layers of decreasing urgency into one screen:
+
+1. **Summary statistics** — period metrics at a glance.
+2. **Attention Required** — actionable gaps and conflicts, with jump-to-grid links.
+3. **Continuous timeline** — one or more days of shift blocks and coverage, one section
+   per visible region.
+
 ### Summary card
 
-`Dashboard` plus today's long-form date, then one horizontal card:
+Period start and end dates in long form, then one horizontal card showing:
 
 | Statistic | Meaning |
 |---|---|
 | On Shift | Filled assignments today across visible regions |
-| Regions | Regions currently included |
+| Regions | Regions currently included in the view |
 | Gaps | Current unmet requirements. Red when nonzero, green when zero. |
 | Handovers | Unique visible handover definitions |
 | Gap Days (Week) | Days in the current Mon–Sun week containing any gap |
-| People | People included under the current unit and Only Me filters |
+| People | People in scope (filter by planning unit narrows the roster, never the requirements) |
 
-Gaps and coverage are computed **per region**, whatever unit is selected — a unit
-filter narrows the roster, never the requirements.
+Gaps and coverage are computed **per region**, whatever unit is selected. A unit
+filter narrows the people listed, never the coverage requirements.
 
 ### Attention Required
 
-Appears only when there is something to act on; it is never an empty box.
+Appears only when there is something to act on; never an empty box.
 
-Each **gap** line: `GAP` badge, region, long role name, role code, required count,
-filled count, and the number of eligible suggestions. Each **conflict** line: a
-separate `CONFLICT` badge and a description.
+Each **gap** line shows: `GAP` badge, region, long role name, role code, required
+count, filled count, and eligible suggestion count. Each **conflict** line shows:
+`CONFLICT` badge and a description.
 
-Gaps and conflicts are different problems — missing work versus invalid data — and are
-listed separately.
+Gaps and conflicts are separate problems — missing work versus invalid data —
+listed separately and with separate badges.
 
 **Clicking a gap opens Schedule at the same region and date with the missing role
-highlighted.** Without that jump the list is decoration.
+highlighted.** This link is the entire point; the list alone is decoration.
 
-### Coverage Timeline card
+### Timeline card
 
-Shows the active display timezone, the date-range widget, and one collapsible card per
-visible region.
+One **continuous timeline** showing the active display timezone, date-range controls,
+and shift blocks positioned by UTC-converted role windows across the visible period.
 
-A **collapsed** region card is not empty: it shows the region name, `filled/required`,
-and a 24-hour minibar — APAC blue, EMEA green, AMER red — with a red now marker
-crossing it and a red left edge when the region has a gap. That is what makes
-collapsing useful rather than merely quieter.
-
-Expanding shows multi-day shift timelines for the selected range. Dashboard rendering
-is capped at 14 days regardless of the chosen zoom; beyond that the information stops
-being readable and Schedule is the right tool.
-
-## Timeline — the wall-monitor view
-
-A standalone route. The screen a team leaves open on a second monitor.
-
-- Selected date and display-timezone label.
-- A 0–24 hour axis, or a multi-day axis.
-- One section per region, one track per role.
-- Horizontal shift blocks positioned by local-to-display conversion, each carrying the
-  role code and assigned count.
-- **Dashed blocks where a required role is unfilled** — the gap is a shape on the
-  timeline, not a number elsewhere.
+- One collapsible region card per visible region.
+- A **collapsed** region shows: region name, `filled/required`, and a 24-hour minibar
+  (APAC blue, EMEA green, AMER red) with a red now marker crossing it and a red left
+  edge if the region has a gap. Collapsing is useful, not just quieter.
+- **Expanding** shows multi-day shift timelines for the selected range.
+- Horizontal shift blocks positioned by local-to-display conversion, each carrying
+  role code and assigned person count.
+- **Dashed blocks where a required role is unfilled** — the gap is a visual shape,
+  not a number buried in a row.
 - Pale amber vertical handover bands with labels.
 - A vertical red **NOW** marker, updated every minute.
-- **Pin to now** — keeps the marker centered and auto-scrolls. Switch it on and forget
-  it; this is the whole point of the view.
-- An optional bottom headcount strip.
+- **Pin to now** — centers the marker and auto-scrolls; switch on and forget it.
+  This is the entire point of the view.
 - Hover or click a block for the assigned people.
 - A persistent "who is on now" summary.
 
-Zones where regional coverage overlaps are filled, computed on UTC intervals.
+Rendering is capped at 14 days regardless of zoom; beyond that the information stops
+being readable and Schedule is the right tool.
 
 Built by hand from CSS grid and absolutely positioned blocks, with one scale function
 as the single source of time → px ([ADR-0014](adr/0014-own-grid-and-timeline.md)). No
 charting library, no Gantt component.
 
-Timeline needs no dedicated backend: it composes published assignments, region/shift/
-handover configuration and coverage snapshots on the client. Add an aggregation
-endpoint only if measurement proves client composition is too slow.
+The timeline composes published assignments, region/shift/handover configuration and
+coverage snapshots on the client; no dedicated backend aggregation needed.
 
 ## Day drill-down
 

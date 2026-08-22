@@ -33,8 +33,8 @@ Three levels, which must not be blended
 
 | Level | Examples | Behavior |
 |---|---|---|
-| **BLOCKING** | coverage below `min`; person assigned during an absence; person assigned on a confirmed comp day; double booking; role not in the person's eligibility; role from another region | Publication is impossible. |
-| **WARNING** | `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; consecutive-day limit exceeded; weekend load over target; comp day with no valid slot | Requires a deliberate acknowledgement with a comment before publication. |
+| **BLOCKING** | Coverage below `min` (gap); double assignment; role from another region; unknown role | Publication is impossible. These are model violations, not policy. |
+| **WARNING / CONFLICT** | Role not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Requires a deliberate acknowledgement with a comment before publication. Conflicts are decisions, not invalid data — a person may work during their leave, and an eligible override is recorded. |
 | **INFO** | `THIN` coverage; preference violated; deviation from target role share; comp day aging past the threshold; role outside the day configuration | Highlighted, never blocking. |
 
 > **`THIN` is INFO, not WARNING.** Running at exactly the minimum is the normal
@@ -92,8 +92,9 @@ jumps to the exact grid cell.
 6. Friday uses the Friday configuration, not the Monday–Thursday one.
 7. Holiday applicability follows the person's location, not the region.
 8. Draft edits are never visible as published data before publication.
-9. Publication with unresolved conflicts is blocked; an Admin force is explicit and
-   audited.
+9. Publication with unresolved gaps or corrupt data is blocked. Conflicts (role not
+   eligible, assigned during absence, assigned during comp day) require acknowledgement
+   but do not block. An Admin force on a gap is explicit and audited.
 10. A stale version produces a compare/refresh flow, never a silent overwrite.
 11. Every comp day generated from weekend work keeps its link to the earning
     assignment.

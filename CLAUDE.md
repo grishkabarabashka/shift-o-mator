@@ -3,36 +3,39 @@
 A shift-planning tool for a global application support team (~80 people, 3 regions:
 AMER, EMEA, APAC). Replaces manual planning in a shared Excel file.
 
-## Read this first
-
-`SHIFT-O-MATOR-desc-anonymized.md` at the repo root is the sanitized specification of
-an **earlier corporate implementation of this same product**. It is the authority on
-operational reality: real role codes, real coverage minimums, real status vocabulary,
-the draft/publish model. When this design and that document disagree, that document
-wins unless there is an ADR explaining why not.
-
-`Docs/` was rewritten against it. Several early decisions were reversed — see
-ADR-0015…0019.
 
 ## State of the code
 
-Code and design agree. Roadmap stages 1–14 are built; 15–16 (export, backend) are
-not, and Settings is read-only pending effective-dated editing.
+Phases 0–6 complete the HTTP cutover: the backend is built and tested, domain logic
+lives server-side, and the frontend talks entirely over REST. Code and design agree.
 
-Layout:
+**Frontend** (`src/`):
 
-- `domain/` — types, fixtures with the **real** role codes, draft changes, lookup index
-- `engine/` — pure: `dates`, `period` (zoom and range arithmetic), `dayConfig`,
-  `cellValue` (cell precedence), `coverage`, `compDays`, `validate`, `timeline`
-  (per-day and per-range, aggregate and per-person),
-  `candidates` (ranking; shared by Suggest and auto-populate), `autoPopulate`,
-  `absenceImport` (parse → map → match → diff → impact → batch)
-- `data/memoryRepository.ts` — published/draft split, sessions, version conflicts
-- `store/` — `useSchedule` (data + draft), `useUi` (selection, period, dialogs)
-- `features/` — `planning`, `coverage`, `issues`, `absences`, `compdays`, `shell`
-- `pages/` — Overview (dashboard + timeline in one), Schedule, day drill-down,
-  People, Settings; routed in `App.tsx`
-- `ui/` — `theme.css` (tokens, Tailwind, component classes), `grid.css`, `primitives.tsx`
+- `domain/` — types only (no fixtures; seeded on backend)
+- `engine/` — client-side utilities: `dates` (parsing, formatting), `period` (zoom and
+  range arithmetic), `timeline` (layout and rendering), `cellValue` (projection logic)
+- `data/` — `ScheduleRepository` interface and `HttpScheduleRepository` (REST client)
+- `store/` — `useSchedule` (draft metadata), `useUi` (selection, range, dialogs)
+- `api/` — TanStack Query hooks, OpenAPI-generated types (`schema.d.ts`)
+- `features/` — `planning` (grid), `coverage` (strip), `issues` (panel), `absences`,
+  `compdays`, `shell` (navigation and context), `settings` (admin UI)
+- `pages/` — `OverviewPage`, `SchedulePage`, `DayDrilldownPage`, `PeoplePage`,
+  `SettingsPage`; routed in `App.tsx`
+- `ui/` — Radix UI wrappers, `theme.css` (Tailwind tokens), shared styles
+- `auth/` — `AuthProvider`, stub identity for development
+
+**Backend** (`api/src/`):
+
+- `ShiftOMator.Domain` — entities and enums (mirrors `frontend/domain/types.ts`)
+- `ShiftOMator.Application` — engines (coverage, validation, ranking, comp days,
+  auto-populate), services (drafts), helpers
+- `ShiftOMator.Infrastructure` — EF Core `ScheduleDbContext`, migrations, seeding
+- `ShiftOMator.Api` — minimal APIs, DTOs, auth scaffold, OpenAPI emission
+
+**Tests:**
+
+- Frontend: `src/**/*.test.ts` (Vitest)
+- Backend: `api/tests/**/*.cs` (xUnit)
 
 Two traps worth knowing before touching the UI:
 
@@ -44,12 +47,24 @@ Two traps worth knowing before touching the UI:
   (`AssignmentPicker`). Do not put a Radix root, a tooltip or a new object prop inside
   a cell.
 
-`Docs/13-roadmap.md` has the stage table.
+**UI text and documentation are English.** In-code comments follow this rule:
+C# XML documentation on the backend is always English; existing TypeScript is left
+alone rather than churned for language consistency — the codebase has Russian and
+English mixed, and unifying it is out of scope.
 
-**UI text and documentation are English.** Only the conversation with the user and
-in-code comments stay Russian — see the user's global CLAUDE.md.
+**Verify with:**
 
-Verify with: `npm run typecheck`, `npm run test:run`, `npm run build`.
+```bash
+# Frontend
+npm run typecheck
+npm run test:run
+npm run build
+npm run api:schema:check      # type generation has not drifted
+
+# Backend (from api/ directory)
+dotnet build
+dotnet test
+```
 
 ## Key decisions (don't revisit without a new ADR)
 
@@ -133,12 +148,14 @@ Verify with: `npm run typecheck`, `npm run test:run`, `npm run build`.
 
 ## Technical decisions
 
-- React + Vite + TypeScript (strict), react-router, Zustand for the draft, Luxon for
-  dates, Radix for behavior, Tailwind v4 for tokens and layout (ADR-0022), Vitest
-- Target backend: .NET + EF Core + SQL Server + Entra on AKS. MVP has none: in-memory
-  repository over fixtures, persisted to IndexedDB
-- Layering is strictly downward: `features → store → engine → domain`. Engines are
-  pure, take the current instant as a parameter, and never touch storage
+- Frontend: React 19 + Vite + TypeScript (strict), react-router, TanStack Query for
+  server state, Zustand for draft/UI state, Luxon for dates, Radix for behavior,
+  Tailwind v4 for tokens and layout (ADR-0022), Vitest
+- Backend: .NET 10 + EF Core 10 + SQL Server (LocalDB in dev) + stubbed auth
+  (Entra ID in production); xUnit tests; OpenAPI schema with generated types
+- Frontend layering is strictly downward: `features → store → api → data → engine → domain`.
+  Backend layering: `Api → Application → Infrastructure → Domain`. Domain logic
+  executes server-side only
 - One date library. Mixing in the native `Date` across eight locations produces DST bugs
 - Cell interaction: right-click opens a picker with **only the roles in that day's
   configuration that this person is eligible for**, plus Non-working and Clear. The

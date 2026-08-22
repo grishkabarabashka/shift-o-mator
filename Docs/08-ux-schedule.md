@@ -13,13 +13,13 @@ selected window can be dragged.
 
 Below it, a right-aligned action row:
 
-| Mode | Actions |
+| State | Actions |
 |---|---|
-| Read | Export, **Edit** |
-| Draft | Generate, Undo, Redo, Cancel, **Review & Publish (N)** |
+| Published | Export, then any cell edit opens a draft |
+| Draft active | Generate, Undo, Redo, Cancel, **Review & Publish (N)** |
 
 `N` is the pending change count. The global header shows the `✏️ Draft` tag while a
-session is open.
+session is open. No separate Edit mode — any cell change opens a draft immediately.
 
 ## Zoom levels
 
@@ -110,7 +110,8 @@ Clicking any coverage cell moves the grid selection to that date.
 
 ## Editing
 
-Read mode: clicking a cell selects, never mutates. **Edit** opens a draft session.
+Clicking a cell selects it. Any mutating action — right-click, Enter, or a hotkey to
+paint a range — opens a draft session automatically. No separate Edit mode.
 
 ### Assignment picker
 

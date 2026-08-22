@@ -4,110 +4,121 @@
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Frontend | React + Vite + TypeScript (strict) | the target environment has a corporate React component library |
-| Client state | Zustand, small domain stores | no single monolithic store; edits as patches give undo/redo |
-| Server state | TanStack Query, separate from client state | mixing "data from the server" with "my unsaved edits" is the top source of bugs in editors |
-| Dates | Luxon | one date library for the whole project |
-| Time scale | d3-scale | the scale only, not a Gantt component |
-| UI primitives | Radix UI | behavior and accessibility without an imposed look |
-| Tests | Vitest | the engine is covered from day one |
-| Backend (target) | .NET, deployed to AKS | organizational standard |
-| Storage (target) | SQL Server, EF Core code-first | `rowversion` for optimistic concurrency |
-| Identity (target) | Entra ID, JWT bearer | group claims → app roles. **No region scoping** (ADR-0020) |
-| Solver | backend | a JS local search would be slow and non-portable |
+| **Frontend** | React 19 + Vite + TypeScript (strict) | target environment has a corporate React component library |
+| Client state | Zustand (draft/UI only) | TanStack Query owns server state; Zustand holds draft session metadata and UI ephemera |
+| Server state | TanStack Query v5 | separates "data from the server" from "unsaved edits", prevents the top source of editor bugs |
+| Dates | Luxon | one date library to avoid DST bugs across frontend and backend |
+| UI primitives | Radix UI + Tailwind v4 | behavior and accessibility without imposed look; CSS variables drop in a corporate palette |
+| Tests | Vitest (frontend), xUnit (backend) | engines covered on both; parity test proves frontend and backend implementations match |
+| **Backend** | .NET 10 + EF Core 10 | organizational standard; minimal APIs, code-first schema |
+| Storage | SQL Server (LocalDB for dev) | `rowversion` for optimistic concurrency; EF Core migrations |
+| Identity | Stubbed (Phase 4) | bearer token with role claims; production deploys Entra ID. No region scoping (ADR-0020). |
+| Solver | Backend (C#) | candidate ranker runs server-side for fairness and history; not portable to frontend |
 
-The MVP runs with no backend: an in-memory repository over fixtures, persisted to
-IndexedDB, with JSON import/export.
+**Phases 0–6 completed the HTTP cutover:** frontend now makes REST calls to a real
+backend over `/api/*` endpoints; domain logic is the single server implementation in C#;
+published and draft data both live server-side.
 
-## Layering
+## Frontend layering
 
 ```
-features/          screens and their components
+features/          screens and components
     ↓
-store/             Zustand: draft session, patches, undo/redo, UI state
+store/             Zustand: draft session metadata, UI state (range, unit, selection)
     ↓
-engine/            pure functions — no I/O, no clock, no storage
+api/               TanStack Query hooks and OpenAPI-generated types
     ↓
-domain/            types and fixtures
+data/              HttpScheduleRepository, speaks to /api/* endpoints
+    ↓
+engine/            client-side utilities: date math, timeline layout, cell display logic
+    ↓
+domain/            types and types only — fixtures are backend-only now
 ```
 
-Dependencies run strictly downward. `engine` knows only `domain`; `domain` knows
-nothing. Every engine function takes the current instant as a parameter.
+Frontend does not compute coverage, validation, or candidate ranking — those are
+server responsibilities. The `engine/` directory now contains only layout and display
+logic, not domain logic.
 
-### Engines
+## Backend layering
 
-| Engine | Signature |
-|---|---|
-| `coverage` | assignments + the day configuration **effective on that date** + holidays → snapshot |
-| `rotation` | date + role + people + history + preferences → ordered candidates |
-| `compOff` | earning assignment + policy + existing schedule → date or approval flag |
-| `autoPopulate` | region + range + locked IDs → draft changes |
-| `validate` | period + state + snapshot → `Issue[]` |
-| `cellValue` | assignments + absences + comp days + holidays → per-cell projection |
+```
+ShiftOMator.Api                    minimal APIs, DTOs, auth, OpenAPI document
+    ↓
+ShiftOMator.Application            domain services and engines
+    ├─ CoverageCalculator           coverage snapshots per region/date
+    ├─ Validator                    issues and validation rules
+    ├─ CandidateRanker              eligible person ranking for Suggest and auto-populate
+    ├─ CompDayService               accrual window search and balance computation
+    ├─ AutoPopulateService          range generator using CandidateRanker
+    ├─ DraftService                 session lifecycle, change batching
+    └─ DateHelpers, DayConfigurationResolver, others
+    ↓
+ShiftOMator.Infrastructure         EF Core DbContext, migrations, seeding
+    └─ ScheduleDbContext            all entities, configured for LocalDB or SQL Server
+    ↓
+ShiftOMator.Domain                 entities and enums — mirrors frontend's domain/types.ts
+```
 
-The client and server coverage engines must produce identical results for shared
-fixtures. That parity is a test, not an aspiration.
+Domain logic is implemented once, on the server, in C#. No client-side shadow
+implementation. Coverage and validation run server-side in `CoverageCalculator` and
+`Validator`; results are cached briefly and reflected immediately on draft changes
+via optional `draftId` parameter to `GET /api/schedule`.
 
 ## Data boundary
 
-`ScheduleRepository` is the single point of access
-([ADR-0012](adr/0012-schedule-repository-boundary.md)). No component and no engine
-touches storage directly.
+`ScheduleRepository` is the single point of access from the frontend
+([ADR-0012](adr/0012-schedule-repository-boundary.md)). The implementation is now
+`HttpScheduleRepository`, every method async and making REST calls.
 
-**Every method is async from day one**, even against local data — otherwise every place
-that implicitly assumed synchronicity surfaces later, all at once.
+The backend exposes the same logical interface over HTTP; see "Target API shape" below.
 
-```
-loadReference()                             regions, locations, shifts, roles,
-                                            day configs, people, holidays, handovers
-loadPublished(regionId, range)              published assignments, absences, comp days
-openDraft(regionId, range, editorId)        returns existing open session or creates one
-appendDraftChange(sessionId, change)
-removeDraftChange(sessionId, changeId)
-publishDraft(sessionId)                     → created/updated/deleted/compOffs/gaps
-                                              or a conflict result
-discardDraft(sessionId)
-listOpenDrafts(regionId, range)             for the informational banner
-suggest(date, roleId)                       ranked candidates
-autoPopulate(regionId, range, lockedIds)
-exportJson() / importJson() / reset()
+```javascript
+// Frontend ScheduleRepository interface (HttpScheduleRepository)
+loadReference()                                 GET /api/reference
+loadPublished(unitId, range, draftId?)          GET /api/schedule
+openDraft(regionId, range)                      POST /api/drafts (200 existing | 201 new)
+appendDraftChange(sessionId, change)            POST /api/drafts/{id}/changes
+removeDraftChange(sessionId, changeId)          DELETE /api/drafts/{id}/changes/{changeId}
+publishDraft(sessionId)                         POST /api/drafts/{id}/publish
+discardDraft(sessionId)                         POST /api/drafts/{id}/discard
+listOpenDrafts(regionId, range)                 GET /api/drafts?regionId=...&overlapping=...
+suggest(date, roleId)                           GET /api/coverage/suggest?date=...&roleId=...
+autoPopulate(regionId, range, lockedIds)        POST /api/auto-populate (rate-limited)
 ```
 
-The generator sits behind the same interface: a greedy client implementation in the
-MVP to validate the preview and explanation UX, a solver on the backend later.
+## API surface (implemented, Phase 2–6)
 
-## Target API shape
+Base path `/api`, OpenAPI document at `/swagger.json`. RFC 7807 `ProblemDetails` for
+errors. All responses validated via OpenAPI type generation (`npm run api:schema:check`).
 
-When the backend lands, the repository maps onto it directly. Base path `/api`,
-RFC 7807 `ProblemDetails` for every error.
-
-| Route | Operations |
-|---|---|
-| `/auth/me` | current identity, app role, region scope |
-| `/people` | list, get, create, update, update eligibility, deactivate |
-| `/regions` | list, get, update metadata, shifts, day configs, handovers |
-| `/schedule` | read published range; **no direct write** |
-| `/drafts` | open (200 existing / 201 new), get, list mine, add/remove change, publish, discard |
-| `/coverage` | snapshot, range, gaps, `now`, `suggest` |
-| `/auto-populate` | POST, ≤92 days, rate-limited |
-| `/holidays` | list by year and location, create, update, delete |
-| `/admin/role-mappings` | identity group → Viewer/Planner/Admin. No region scope. |
-| `/units` | planning units: list, create, update |
-| `/history` | append-only audit of published changes |
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/auth/me` | GET | Current identity (stub in dev, Entra in production) |
+| `/reference` | GET | Regions, locations, shifts, roles, day configs, people, holidays |
+| `/schedule` | GET | Published assignments, absences, comp days for a range; optional `draftId` overlays |
+| `/drafts` | POST | Create or return existing open session for (editor, region, range) |
+| `/drafts/{id}` | GET | Fetch a draft session and its changes |
+| `/drafts` | GET | List open drafts overlapping a range (for concurrency banner) |
+| `/drafts/{id}/changes` | POST | Add a `DraftChange` (ASSIGNMENT, ABSENCE, or COMP_DAY) |
+| `/drafts/{id}/changes/{changeId}` | DELETE | Remove a draft change (undo) |
+| `/drafts/{id}/publish` | POST | Atomic publish: applies changes, runs validation server-side, returns created/updated/deleted and `remainingGaps` |
+| `/drafts/{id}/discard` | POST | Mark session discarded, audit retention |
+| `/coverage/snapshot` | GET | Per-region coverage snapshot for a date or range |
+| `/coverage/suggest` | GET | Ranked candidates for a role on a date |
+| `/auto-populate` | POST | Generate assignments for a range; rate-limited 5/min per user |
+| `/people/{id}` | PUT | Update person eligibility and preferences |
+| `/admin/*` | *various* | Gated by Admin role: regions, roles, day configs, shifts, locations, absence limits, people |
+| `/history` | GET | Append-only audit log of published changes |
 
 Rules:
 
-- **published assignments are never written directly** — every mutation goes through a
-  draft and a publish;
-- publish revalidates against current state in one serializable transaction and returns
-  created / updated / deleted / generated comp-offs / remaining gaps;
-- a stale `rowversion` returns 409 and the client enters reconciliation;
-- validation failures return 400 with `errors: { field: string[] }`;
-- health liveness always returns 200; readiness returns 200 only when the database is
-  reachable.
-
-Generate TypeScript types from the OpenAPI document in CI and fail the build when they
-drift.
+- **Published assignments are immutable** — all mutations go through drafts and publish.
+- Publish revalidates against current `rowversion`; a stale change returns 409 with a
+  conflict result (published vs. draft comparison for client reconciliation).
+- Server validation runs on `POST /api/drafts/{id}/publish` and returns `issues` and
+  `remainingGaps` in the publish result.
+- A failed publish preserves the draft and every change — never discards on error.
+- Bearer token auth with role claims; `[Authorize]` gates endpoints; no region scoping.
 
 ## Visual layer
 
@@ -142,28 +153,51 @@ Performance targets worth keeping: a 13-week coverage query under 200 ms p95; co
 and schedule endpoints under 250 ms p95; `/coverage/now` cached for at most 30 seconds;
 auto-populate limited to 5 requests per minute per user, publish to 10.
 
-## Directory structure
+## Frontend directory structure
 
 ```
 src/
-  domain/     types, fixtures, patch model — depends only on luxon
-  engine/     coverage, rotation, compOff, autoPopulate, validate, cellValue, dates
-  data/       ScheduleRepository and implementations
-  store/      schedule draft, UI state
-  features/   dashboard, schedule, people, settings, timeline, shell
-  ui/         Radix wrappers, tokens, shared styles
+  domain/                types only (no fixtures — seeded on backend)
+  engine/                dates, period math, timeline layout, cellValue projection
+  data/                  ScheduleRepository interface and HttpScheduleRepository
+  store/                 Zustand: useSchedule (draft metadata), useUi (selection, range)
+  api/                   TanStack Query hooks, OpenAPI-generated schema
+  features/              planning grid, coverage strip, timeline, people, shell, settings
+  ui/                    Radix UI wrappers, theme tokens, shared styles
+  auth/                  AuthProvider, stub identity
+  pages/                 routed screens: Overview, Schedule, People, Settings, DayDrilldown
+api/
+  src/
+    ShiftOMator.Domain/              entities, enums — mirrors frontend domain/types.ts
+    ShiftOMator.Application/         engines and services
+    ShiftOMator.Infrastructure/      EF Core DbContext, migrations, seed data
+    ShiftOMator.Api/                 minimal APIs, DTOs, auth, OpenAPI emission
+  tests/
+    ShiftOMator.Application.Tests/   xUnit, parity with frontend Vitest
+    ShiftOMator.Api.Tests/           WebApplicationFactory integration tests
 ```
 
 ## Testing
 
-- Engines are the primary unit-test target: complete coverage, single and multiple
-  gaps, over-coverage, duplicate person/date, ineligible role, invalid comp day.
-- Rotation: eligibility, absence, 90-day fairness, recency, weekend targets.
-- Comp days: before/after windows, excluded weekdays, occupied dates, separate
-  Saturday/Sunday earnings, pending approval.
-- Auto-populate: defaults, rotating roles, weekends, holidays, locked cells, 92-day
-  rejection.
-- Draft lifecycle: undo, cancel, review, failed publish retains the draft, conflict
+**Backend (xUnit):** engines are the primary unit-test target with complete coverage.
+
+- Coverage: single and multiple gaps, over-coverage, thin state, role counts.
+- Validation: blocking gaps, warnings/conflicts that don't block, acknowledgements.
+- CandidateRanker: eligibility, absences, 90-day fairness, recency, weekend targets.
+- CompDayService: before/after windows, excluded weekdays, occupied dates, separate
+  Saturday/Sunday earnings, pending approval, aging.
+- AutoPopulateService: defaults, rotating roles, weekends, holidays, locked cells,
+  92-day rejection, rate limiting.
+- DraftService: session lifecycle, change ordering, undo, publish atomicity,
+  version conflicts.
+- Seeding: shared fixture data loads correctly via EF Core.
+
+**Frontend (Vitest):** integration and interaction tests.
+
+- Draft lifecycle: undo, cancel, review, failed publish retains the draft, version
   reconciliation.
-- UI: page states, keyboard operation, filter persistence across navigation.
-- Shared fixtures execute against both the client and server coverage engines.
+- Page states, keyboard operation, filter and selection persistence.
+- Grid interaction: cell selection, picker, drag/drop, hotkeys.
+
+**Parity test:** backend and frontend share fixture data via JSON export; both
+implementations compute identical coverage results — a proof, not an aspiration.
