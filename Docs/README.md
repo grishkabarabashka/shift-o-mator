@@ -68,3 +68,8 @@ that supersedes or amends it, not a quiet edit.
 | [0021](adr/0021-effective-dated-configuration.md) | Configuration is effective-dated | accepted |
 | [0022](adr/0022-tailwind-for-tokens-and-layout.md) | Tailwind for tokens and layout; Radix keeps behavior | accepted |
 | [0023](adr/0023-editing-arms-itself.md) | Editing arms itself; no Edit mode to enter | accepted |
+| [0024](adr/0024-conflicts-do-not-block.md) | A conflict is acknowledged, not blocked | accepted |
+| [0025](adr/0025-overview-replaces-dashboard-and-timeline.md) | One Overview screen; all units by default | accepted |
+| [0026](adr/0026-suggest-and-auto-populate.md) | Suggest and auto-populate share one candidate ranker | accepted |
+| [0027](adr/0027-overview-reuses-day-detail.md) | Overview's timeline reuses the day-detail view; date strip gets click-click | amends 0025 |
+| [0028](adr/0028-absence-import.md) | Absence import: one diff engine, one batch | accepted |

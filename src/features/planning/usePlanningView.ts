@@ -27,6 +27,7 @@ import type {
   RoleId,
   ShiftRole,
 } from '../../domain/types.ts';
+import { ALL_UNITS } from '../../domain/types.ts';
 import type { CellProjection } from '../../engine/cellValue.ts';
 import { projectCells } from '../../engine/cellValue.ts';
 import { computeCoverage, indexCoverage, summarizeCoverage } from '../../engine/coverage.ts';
@@ -76,6 +77,12 @@ export interface PlanningView {
   readonly cellAt: (personId: PersonId, date: IsoDate) => CellValue;
   /** Роли, доступные человеку в этот день: конфигурация дня ∩ eligibility. */
   readonly rolesFor: (personId: PersonId, date: IsoDate) => readonly ShiftRole[];
+  /**
+   * Остальные роли региона человека — путь для осознанного отступления от
+   * правила (ADR-0024). Держатся отдельным списком, потому что основной
+   * список пикера ценен именно тем, что короткий.
+   */
+  readonly otherRolesFor: (personId: PersonId, date: IsoDate) => readonly ShiftRole[];
   readonly roleById: (roleId: RoleId) => ShiftRole | undefined;
   readonly absenceById: (id: string) => Absence | undefined;
   readonly compDayById: (id: string) => CompDayEntry | undefined;
@@ -108,6 +115,7 @@ const EMPTY_VIEW: PlanningView = {
   },
   cellAt: () => ({ kind: 'EMPTY' }),
   rolesFor: () => [],
+  otherRolesFor: () => [],
   roleById: () => undefined,
   absenceById: () => undefined,
   compDayById: () => undefined,
@@ -121,6 +129,11 @@ function selectPeople(
   wholeRegion: boolean,
   index: DatasetIndex,
 ): Person[] {
+  // `ALL` — не единица, а её отсутствие: фильтра нет (ADR-0020).
+  if (unitId === ALL_UNITS) {
+    return [...index.people.values()].filter((p) => p.isIncluded);
+  }
+
   const unitPeople = (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded);
   if (!wholeRegion) return unitPeople;
 
@@ -152,7 +165,12 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
   return useMemo<PlanningView>(() => {
     if (!unitId || !range || !reference || !plan || !index) return EMPTY_VIEW;
     const unit = index.units.get(unitId);
-    if (!unit) return EMPTY_VIEW;
+    if (!unit && unitId !== ALL_UNITS) return EMPTY_VIEW;
+
+    // Без фильтра по единице группировка идёт по региону: со всеми тремя
+    // регионами сразу список локаций плоским становится нечитаем, а регион —
+    // это то, по чему считается покрытие.
+    const groupBy = unit?.groupBy ?? 'REGION';
 
     const dates = eachDate(range);
     const people = selectPeople(unitId, wholeRegion, index);
@@ -161,7 +179,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
     // --- Строки ------------------------------------------------------------
     const byGroup = new Map<string, Person[]>();
     for (const person of people) {
-      const key = groupKeyOf(person, unit.groupBy, index);
+      const key = groupKeyOf(person, groupBy, index);
       const bucket = byGroup.get(key);
       if (bucket) bucket.push(person);
       else byGroup.set(key, [person]);
@@ -278,6 +296,16 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
         .filter((role): role is ShiftRole => role !== undefined);
     };
 
+    /** Всё остальное, что вообще существует в регионе человека. */
+    const otherRolesFor = (personId: PersonId, date: IsoDate): readonly ShiftRole[] => {
+      const person = index.people.get(personId);
+      if (!person) return [];
+      const shown = new Set(rolesFor(personId, date).map((role) => role.id));
+      return (index.rolesByRegion.get(person.regionId) ?? []).filter(
+        (role) => !shown.has(role.id) && role.countsAsCoverage,
+      );
+    };
+
     return {
       ready: true,
       rows,
@@ -295,6 +323,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       cellAt: (personId, date) =>
         projection.byCell.get(cellKey(personId, date)) ?? { kind: 'EMPTY' },
       rolesFor,
+      otherRolesFor,
       roleById: (roleId) => index.roles.get(roleId),
       absenceById: (id) => plan.absences.find((absence) => absence.id === id),
       compDayById: (id) => plan.compDays.find((entry) => entry.id === id),

@@ -16,7 +16,7 @@ import type {
   PersonId,
   RoleId,
 } from '../domain/types.ts';
-import { DEFAULT_UNIT } from '../domain/fixtures.ts';
+import { ALL_UNITS } from '../domain/types.ts';
 import { toIsoDate, parseDate } from '../engine/dates.ts';
 import { rangeFor, stepAnchor, type ZoomId } from '../engine/period.ts';
 import type { CellRef } from './useSchedule.ts';
@@ -87,6 +87,14 @@ export interface UiState {
   clipboard: (RoleId | null)[][] | undefined;
   absenceDraft: AbsenceDraft | undefined;
   compDayDraft: CompDayEntry | undefined;
+  /**
+   * Назначения, закреплённые от автогенерации.
+   *
+   * Сессионное состояние, не часть плана: замок — рабочая пометка «это уже
+   * решено, не трогай», а не факт расписания, который стоит публиковать или
+   * держать в истории.
+   */
+  lockedAssignmentIds: ReadonlySet<string>;
 
   setDisplayZone: (zone: DisplayZone) => void;
   setUnit: (unitId: string) => void;
@@ -108,11 +116,12 @@ export interface UiState {
   closeAbsenceDialog: () => void;
   openCompDayDialog: (entry: CompDayEntry) => void;
   closeCompDayDialog: () => void;
+  toggleLock: (assignmentId: string) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
   displayZone: 'role',
-  unitId: DEFAULT_UNIT,
+  unitId: ALL_UNITS,
   zoom: 'month',
   anchor: TODAY,
   range: rangeFor('month', TODAY),
@@ -125,6 +134,7 @@ export const useUi = create<UiState>((set, get) => ({
   clipboard: undefined,
   absenceDraft: undefined,
   compDayDraft: undefined,
+  lockedAssignmentIds: new Set(),
 
   setDisplayZone: (displayZone) => set({ displayZone }),
   setUnit: (unitId) => set({ unitId }),
@@ -183,6 +193,13 @@ export const useUi = create<UiState>((set, get) => ({
   closeAbsenceDialog: () => set({ absenceDraft: undefined }),
   openCompDayDialog: (entry) => set({ compDayDraft: entry }),
   closeCompDayDialog: () => set({ compDayDraft: undefined }),
+
+  toggleLock: (assignmentId) => {
+    const next = new Set(get().lockedAssignmentIds);
+    if (next.has(assignmentId)) next.delete(assignmentId);
+    else next.add(assignmentId);
+    set({ lockedAssignmentIds: next });
+  },
 }));
 
 /** Прямоугольник выделения в координатах (индекс строки, индекс колонки). */

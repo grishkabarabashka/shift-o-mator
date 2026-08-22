@@ -15,11 +15,11 @@ import { TODAY, useUi } from './store/useUi.ts';
 import { useNow } from './ui/useNow.ts';
 import { AppShell } from './features/shell/AppShell.tsx';
 import { usePlanningView } from './features/planning/usePlanningView.ts';
-import { DashboardPage } from './pages/DashboardPage.tsx';
+import { DayDrilldownPage } from './pages/DayDrilldownPage.tsx';
+import { OverviewPage } from './pages/OverviewPage.tsx';
 import { PeoplePage } from './pages/PeoplePage.tsx';
 import { SchedulePage } from './pages/SchedulePage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
-import { TimelinePage } from './pages/TimelinePage.tsx';
 
 export function App() {
   const unitId = useUi((s) => s.unitId);
@@ -46,13 +46,16 @@ export function App() {
             <Placeholder title="Loading…" body="Reading the published plan." />
           ) : (
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage view={view} now={now} />} />
+              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/overview" element={<OverviewPage view={view} now={now} />} />
               <Route path="/schedule" element={<SchedulePage view={view} asOf={TODAY} />} />
-              <Route path="/timeline" element={<TimelinePage view={view} now={now} />} />
+              <Route path="/schedule/day/:date" element={<DayDrilldownPage view={view} now={now} />} />
               <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* Дашборд и таймлайн слились в Overview — старые ссылки живут. */}
+              <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
+              <Route path="/timeline" element={<Navigate to="/overview" replace />} />
+              <Route path="*" element={<Navigate to="/overview" replace />} />
             </Routes>
           )}
         </AppShell>

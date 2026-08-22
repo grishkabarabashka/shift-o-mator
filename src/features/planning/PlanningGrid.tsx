@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
+import { Link } from 'react-router';
 import type { IsoDate, PersonId, RoleId, ShiftRole } from '../../domain/types.ts';
 import { isBlocked } from '../../engine/cellValue.ts';
 import { useSchedule, type CellRef } from '../../store/useSchedule.ts';
@@ -60,6 +61,8 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   const openAbsenceCreate = useUi((s) => s.openAbsenceCreate);
   const openAbsenceEdit = useUi((s) => s.openAbsenceEdit);
   const openCompDayDialog = useUi((s) => s.openCompDayDialog);
+  const lockedAssignmentIds = useUi((s) => s.lockedAssignmentIds);
+  const toggleLock = useUi((s) => s.toggleLock);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [painting, setPainting] = useState(false);
@@ -115,34 +118,34 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   );
 
   /**
-   * Роль ставится только тем, кому она доступна **в этот день**, и только в
-   * свободный день: не в отпуск и не на подтверждённый отгул. `PROPOSED` не
-   * мешает — это предложение системы, а не решение планировщика.
+   * Правка проходит всегда (ADR-0024).
+   *
+   * Раньше здесь отбрасывались ячейки, закрытые отпуском или подтверждённым
+   * отгулом. Отбрасывались молча — планировщик кликал, и не происходило
+   * ничего: тот же дефект, что и с выключенным правым кликом. При этом сама
+   * ситуация «человек вышел в свой отпуск» встречается в жизни постоянно.
+   * Теперь назначение записывается, валидатор поднимает CONFLICT, ячейка
+   * краснеет, а публикация требует подтверждения с комментарием.
+   *
+   * Единственный оставшийся фильтр — раскраска протаскиванием: массово
+   * заливать роль поверх чужих отпусков никто не собирался, это была бы не
+   * правка, а промах мыши на двадцать ячеек.
    */
-  const assignableCells = useCallback(
-    (cells: readonly CellRef[], roleId: RoleId | null): CellRef[] =>
-      cells.filter((cell) => {
-        if (isBlocked(view.cellAt(cell.personId, cell.date))) return false;
-        if (roleId === null) return true;
-        return view.rolesFor(cell.personId, cell.date).some((role) => role.id === roleId);
-      }),
-    [view],
-  );
-
   const applyRole = useCallback(
-    (cells: readonly CellRef[], roleId: RoleId | null) => {
-      const allowed = assignableCells(cells, roleId);
+    (cells: readonly CellRef[], roleId: RoleId | null, respectBlocks = false) => {
+      const allowed = respectBlocks
+        ? cells.filter((cell) => !isBlocked(view.cellAt(cell.personId, cell.date)))
+        : cells;
       if (allowed.length > 0) void withDraft(() => setCells(allowed, roleId));
     },
-    [assignableCells, setCells, withDraft],
+    [view, setCells, withDraft],
   );
 
   const applyMarker = useCallback(
     (cells: readonly CellRef[], marker: 'OFF' | 'NOT_SCHEDULED') => {
-      const allowed = cells.filter((cell) => !isBlocked(view.cellAt(cell.personId, cell.date)));
-      if (allowed.length > 0) void withDraft(() => setMarker(allowed, marker));
+      if (cells.length > 0) void withDraft(() => setMarker(cells, marker));
     },
-    [view, setMarker, withDraft],
+    [setMarker, withDraft],
   );
 
   // -------------------------------------------------------------------------
@@ -173,7 +176,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     event.preventDefault();
     select(cell, event.shiftKey);
     setPainting(true);
-    if (activeRoleId && !event.shiftKey) applyRole([cell], activeRoleId);
+    if (activeRoleId && !event.shiftKey) applyRole([cell], activeRoleId, true);
     wrapRef.current?.focus();
   };
 
@@ -182,7 +185,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     const cell = cellAtEvent(event);
     if (!cell) return;
     select(cell, true);
-    if (activeRoleId) applyRole([cell], activeRoleId);
+    if (activeRoleId) applyRole([cell], activeRoleId, true);
   };
 
   const onContextMenu = (event: React.MouseEvent) => {
@@ -199,6 +202,18 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     const person = personRows.find((row) => row.person.id === cell.personId)?.person;
     const value = view.cellAt(cell.personId, cell.date);
     const status = value.kind === 'STATUS' ? value.status : undefined;
+    const lockReason =
+      status === 'VACATION'
+        ? 'On leave'
+        : status === 'SICK'
+          ? 'Off sick'
+          : status === 'OTHER'
+            ? 'Absent'
+            : status === 'COMP_OFF'
+              ? 'On a confirmed comp day'
+              : undefined;
+
+    const assignmentId = value.kind === 'ROLE' ? value.assignmentId : undefined;
 
     setPicker({
       personId: cell.personId,
@@ -206,8 +221,11 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
       date: cell.date,
       value,
       roles: view.rolesFor(cell.personId, cell.date),
-      locked:
-        status === 'VACATION' || status === 'SICK' || status === 'OTHER' || status === 'COMP_OFF',
+      otherRoles: view.otherRolesFor(cell.personId, cell.date),
+      locked: lockReason !== undefined,
+      lockReason,
+      assignmentId,
+      generationLocked: assignmentId !== undefined && lockedAssignmentIds.has(assignmentId),
       x: event.clientX,
       y: event.clientY,
       affected: inSelection ? selectedCells.length : 1,
@@ -411,6 +429,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
               focusDate={
                 selection.focus?.personId === row.person.id ? selection.focus.date : undefined
               }
+              lockedAssignmentIds={lockedAssignmentIds}
             />
           ),
         )}
@@ -444,6 +463,9 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
                   if (entry) openCompDayDialog(entry);
                 }
           }
+          onToggleLock={
+            picker.assignmentId ? () => toggleLock(picker.assignmentId!) : undefined
+          }
         />
       ) : null}
     </div>
@@ -474,7 +496,15 @@ function ColumnHead({
       title={column.holidayName ? `${column.date} · ${column.holidayName}` : column.date}
     >
       <span className="sheet__head-wd">{column.weekdayLabel}</span>
-      <span className="sheet__head-num">{column.dayLabel}</span>
+      {/* Вход в day drill-down (спека §4.5: «entered from a date header»).
+          Не data-cell — делегирующий обработчик мыши на грид его не тронет. */}
+      <Link
+        to={`/schedule/day/${column.date}`}
+        className="sheet__head-num sheet__head-num--link"
+        title="Open the hourly view for this day"
+      >
+        {column.dayLabel}
+      </Link>
     </div>
   );
 }
@@ -509,6 +539,7 @@ interface PersonRowProps {
   readonly selLeft: number;
   readonly selRight: number;
   readonly focusDate: IsoDate | undefined;
+  readonly lockedAssignmentIds: ReadonlySet<string>;
 }
 
 const PersonRow = memo(function PersonRow({
@@ -521,6 +552,7 @@ const PersonRow = memo(function PersonRow({
   selLeft,
   selRight,
   focusDate,
+  lockedAssignmentIds,
 }: PersonRowProps) {
   const { person, location } = row;
   const rowSelected = rowIndex >= selTop && rowIndex <= selBottom;
@@ -547,6 +579,7 @@ const PersonRow = memo(function PersonRow({
             today={column.isToday}
             selected={rowSelected && columnIndex >= selLeft && columnIndex <= selRight}
             focused={focusDate === column.date}
+            generationLocked={value.kind === 'ROLE' && lockedAssignmentIds.has(value.assignmentId)}
           />
         );
       })}

@@ -18,6 +18,7 @@ import type {
   DateRange,
   DraftSession,
   DraftSessionId,
+  Person,
   PersonId,
   PlanData,
   PublishConflict,
@@ -47,6 +48,16 @@ export interface ScheduleRepository {
    * единице: покрытие считается по региону, поэтому нужны все его люди.
    */
   loadPublished(unitId: UnitId, range: DateRange): Promise<PlanData>;
+
+  /**
+   * Профиль человека: eligibility с целевыми долями, доступные дни, пожелания.
+   *
+   * Идёт **мимо черновика** намеренно. Черновик — про план на период
+   * (ADR-0015); «Priya берёт треть Batch-L» — это не правка расписания, а
+   * настройка, которую читает автогенерация. Пропустив её через публикацию,
+   * мы связали бы изменение профиля с выпуском конкретного месяца.
+   */
+  savePerson(person: Person): Promise<Person>;
 
   // -- Черновики ------------------------------------------------------------
 

@@ -30,13 +30,13 @@ that has since been corrected. What survives, what changes and what is thrown aw
 | 5 | **Coverage: aggregate row + per-role strip** | **the point where this beats the spreadsheet** | done |
 | 6 | Review and publish | diff, impact summary, atomic publish, conflict reconciliation | done |
 | 7 | Absences and comp days | range entry, window-based accrual, balance | done |
-| 8 | Dashboard | summary, attention list, region minibars, jump-to-gap | done |
-| 9 | People | table, KPIs, fairness, comp-off tiles, role mix | done |
+| 8 | Overview | summary, attention list, continuous horizontal timeline, jump-to-gap | done — merged with 11 (ADR-0025) |
+| 9 | People | table, KPIs, fairness, comp-off tiles, role-mix and preference editor | done |
 | 10 | Settings | regions, shifts, day configurations, roles, holidays | **read-only**; editing waits on effective-dated versioning (ADR-0021) |
-| 11 | Timeline and day drill-down | now marker, handover bands, hourly headcount, role sub-lanes | timeline done; day drill-down open |
+| 11 | Timeline and day drill-down | now marker, handover bands, hourly headcount, role sub-lanes, per-person day view | done — timeline lives inside Overview |
 | 12 | Zoom levels and long-range heatmap | day/2d/week/2w/month + 3/6-month read-only | done |
-| 13 | Suggest and auto-populate | ranked candidates, locked cells, explanations | open |
-| 14 | Absence import | paste, mapping, diff, impact, batches | open |
+| 13 | Suggest and auto-populate | ranked candidates, locked cells, explanations | done |
+| 14 | Absence import | paste, mapping, diff, impact, batches | done |
 | 15 | Export | XLSX, CSV, ICS, print | open |
 | 16 | Backend | .NET, EF Core, Entra, AKS, real concurrency | open |
 

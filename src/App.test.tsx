@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App.tsx';
 import { scheduleRepository } from './data/memoryRepository.ts';
 import { DEFAULT_UNIT } from './domain/fixtures.ts';
+import { ALL_UNITS } from './domain/types.ts';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
 import { rangeFor } from './engine/period.ts';
@@ -33,7 +34,10 @@ afterEach(() => {
     wholeRegion: false,
     absenceDraft: undefined,
     compDayDraft: undefined,
-    unitId: DEFAULT_UNIT,
+    // Дефолт приложения — «все единицы» (ADR-0020): сбрасываемся в него, а
+    // не в конкретный регион, иначе тесты проверяют не то состояние, которое
+    // видит пользователь при открытии.
+    unitId: ALL_UNITS,
     zoom: 'month',
     anchor: TODAY,
     range: rangeFor('month', TODAY),
@@ -41,8 +45,12 @@ afterEach(() => {
   });
 });
 
-/** Приложение открывается на дашборде — планирование за одной вкладкой. */
-async function renderSchedule() {
+/**
+ * Приложение открывается на Overview — планирование за одной вкладкой.
+ * Единица задаётся до рендера: сетка грузится под неё одним проходом.
+ */
+async function renderSchedule(unitId: string = DEFAULT_UNIT) {
+  useUi.setState({ unitId });
   const utils = render(<App />);
   fireEvent.click(await screen.findByRole('link', { name: 'Schedule' }, { timeout: 10000 }));
   await screen.findByRole('grid', {}, { timeout: 10000 });
@@ -94,21 +102,27 @@ function cellRoleId(personId: string, date: string): string | undefined {
 }
 
 describe('оболочка', () => {
-  it('открывается на дашборде и даёт перейти во все разделы', async () => {
+  it('открывается на Overview и даёт перейти во все разделы', async () => {
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 }),
+    ).toBeInTheDocument();
 
-    for (const name of ['Schedule', 'Timeline', 'People', 'Settings']) {
+    for (const name of ['Overview', 'Schedule', 'People', 'Settings']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
+    // Дашборд и таймлайн больше не отдельные вкладки.
+    expect(screen.queryByRole('link', { name: 'Timeline' })).toBeNull();
   });
 
-  it('таймлайн строит дорожки регионов на выбранный период', async () => {
+  it('Overview показывает все регионы сразу, без выбора единицы', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole('link', { name: 'Timeline' }, { timeout: 10000 }));
-    expect(
-      await screen.findByRole('heading', { name: 'Coverage timeline' }),
-    ).toBeInTheDocument();
+    await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 });
+
+    // ALL по умолчанию: в ленте должны быть дорожки всех трёх регионов.
+    for (const region of ['Americas', 'EMEA', 'APAC']) {
+      expect(screen.getAllByText(region).length).toBeGreaterThan(0);
+    }
   });
 
   it('People считает нагрузку и долг по отгулам', async () => {

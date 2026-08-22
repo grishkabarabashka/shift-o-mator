@@ -81,7 +81,12 @@ describe('BLOCKING — дыры', () => {
   });
 });
 
-describe('BLOCKING — конфликты', () => {
+/**
+ * Конфликты не блокируют публикацию (ADR-0024) — они требуют подтверждения с
+ * комментарием. Блокирующими остались только записи, которые не могут быть
+ * верны ни при каком решении планировщика.
+ */
+describe('конфликты — подтверждаемые, не блокирующие', () => {
   it('назначение во время отпуска', () => {
     const absence: Absence = {
       id: 'abs-1',
@@ -96,9 +101,13 @@ describe('BLOCKING — конфликты', () => {
       absences: [absence],
     });
     const issue = firstOf(issues, 'ASSIGNED_DURING_ABSENCE');
-    expect(issue?.level).toBe('BLOCKING');
+    expect(issue?.level).toBe('WARNING');
     expect(issue?.category).toBe('CONFLICT');
     expect(issue?.date).toBe('2026-09-09');
+
+    // Не блокирует, но и не проходит молча: нужен комментарий.
+    expect(canPublish(issues, new Set())).toBe(false);
+    expect(canPublish([issue!], new Set([issue!.key]))).toBe(true);
   });
 
   it('назначение на подтверждённый отгул', () => {
@@ -140,8 +149,28 @@ describe('BLOCKING — конфликты', () => {
       assignments: [makeAssignment('p-1', nightRole.id, '2026-09-09')],
     });
     const issue = firstOf(issues, 'ROLE_NOT_ELIGIBLE');
-    expect(issue?.level).toBe('BLOCKING');
+    expect(issue?.level).toBe('WARNING');
     expect(issue?.category).toBe('CONFLICT');
+  });
+
+  it('два назначения в один день остаются блокирующими', () => {
+    // Это не решение планировщика, а невозможная запись: ровно одно
+    // назначение на (человек, дата) — жёсткое ограничение модели.
+    const person = makePerson({
+      id: 'p-1',
+      eligibility: [
+        { roleId: leadRole.id, targetShare: 0.5 },
+        { roleId: nightRole.id, targetShare: 0.5 },
+      ],
+    });
+    const issues = issuesFor({
+      people: [person],
+      assignments: [
+        makeAssignment('p-1', leadRole.id, '2026-09-09'),
+        { ...makeAssignment('p-1', nightRole.id, '2026-09-09'), id: 'as-dup' },
+      ],
+    });
+    expect(firstOf(issues, 'DOUBLE_ASSIGNMENT')?.level).toBe('BLOCKING');
   });
 
   it('два назначения в один день', () => {
@@ -443,7 +472,9 @@ describe('сводка, публикация и подтверждения', () 
     const summary = summarizeIssues(issues, new Set());
     expect(summary.gaps).toBeGreaterThan(0);
     expect(summary.conflicts).toBeGreaterThan(0);
-    expect(summary.blocking).toBe(summary.gaps + summary.conflicts);
+    // Конфликт считается по категории независимо от уровня (ADR-0024), и в
+    // blocking он больше не входит — там остались только дыры.
+    expect(summary.blocking).toBe(summary.gaps);
   });
 
   it('публикация требует подтверждения всех предупреждений', () => {

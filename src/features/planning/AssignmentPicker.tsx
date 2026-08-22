@@ -24,8 +24,20 @@ export interface PickerTarget {
   readonly date: IsoDate;
   readonly value: CellValue;
   readonly roles: readonly ShiftRole[];
-  /** Ячейка закрыта отпуском или подтверждённым отгулом — роль ставить нельзя. */
+  /** Роли региона вне конфигурации дня или eligibility — путь для отступления. */
+  readonly otherRoles: readonly ShiftRole[];
+  /**
+   * Ячейка закрыта отпуском или подтверждённым отгулом.
+   *
+   * Раньше это выключало пункты меню. Больше нет (ADR-0024): назначение
+   * записывается, а конфликт подсвечивается и подтверждается. Флаг остался,
+   * чтобы **предупредить заранее** — отказ без объяснения был хуже.
+   */
   readonly locked: boolean;
+  readonly lockReason: string | undefined;
+  /** Id назначения, которое можно закрепить от автогенерации — только если оно есть. */
+  readonly assignmentId: string | undefined;
+  readonly generationLocked: boolean;
   readonly x: number;
   readonly y: number;
   /** Сколько ячеек получит выбранное значение. >1 — правый клик по выделению. */
@@ -39,6 +51,7 @@ interface Props {
   readonly onPickMarker: (marker: 'OFF' | 'NOT_SCHEDULED') => void;
   readonly onAbsence: () => void;
   readonly onCompDay: (() => void) | undefined;
+  readonly onToggleLock: (() => void) | undefined;
 }
 
 const MARGIN = 8;
@@ -50,9 +63,11 @@ export function AssignmentPicker({
   onPickMarker,
   onAbsence,
   onCompDay,
+  onToggleLock,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: target.x, top: target.y });
+  const [showOther, setShowOther] = useState(false);
 
   // Переворот у края экрана считается после монтирования: до измерения
   // настоящей высоты списка ролей любая оценка была бы враньём.
@@ -122,6 +137,12 @@ export function AssignmentPicker({
         </div>
       ) : null}
 
+      {target.locked ? (
+        <div className="mx-1.5 mb-1 rounded-md bg-warn-soft px-2 py-1.5 text-[11px] text-warn">
+          {target.lockReason} — assigning is allowed and will be flagged as a conflict.
+        </div>
+      ) : null}
+
       <div className="menu-sep" />
       <div className="menu-label">Roles</div>
 
@@ -131,26 +152,38 @@ export function AssignmentPicker({
         </div>
       ) : (
         target.roles.map((role) => (
-          <button
-            key={role.id}
-            type="button"
-            className="menu-item"
-            role="menuitem"
-            disabled={target.locked}
-            onClick={run(() => onPickRole(role.id))}
-          >
-            <span
-              aria-hidden
-              className="h-3.5 w-3.5 shrink-0 rounded-[4px]"
-              style={{ background: role.color }}
-            />
-            <span className="font-mono text-[12.5px] font-semibold">{role.code}</span>
-            <span className="ml-auto shrink-0 font-mono text-[11px] text-faint">
-              {role.start}–{role.end}
-            </span>
-          </button>
+          <RoleItem key={role.id} role={role} onPick={run(() => onPickRole(role.id))} />
         ))
       )}
+
+      {target.otherRoles.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="menu-item text-faint"
+            aria-expanded={showOther}
+            onClick={() => setShowOther(!showOther)}
+          >
+            <span aria-hidden className="text-[8px]">
+              {showOther ? '▼' : '▶'}
+            </span>
+            <span className="text-[11.5px]">
+              Other roles in this region ({target.otherRoles.length})
+            </span>
+          </button>
+          {showOther ? (
+            <>
+              <div className="px-2.5 pb-1 text-[10.5px] text-warn">
+                Outside this day&rsquo;s configuration or their eligibility. Recorded as a
+                conflict needing a comment.
+              </div>
+              {target.otherRoles.map((role) => (
+                <RoleItem key={role.id} role={role} onPick={run(() => onPickRole(role.id))} />
+              ))}
+            </>
+          ) : null}
+        </>
+      ) : null}
 
       <div className="menu-sep" />
       <div className="menu-label">Non-working</div>
@@ -173,6 +206,11 @@ export function AssignmentPicker({
           Manage comp day…
         </button>
       ) : null}
+      {onToggleLock ? (
+        <button type="button" className="menu-item" role="menuitem" onClick={run(onToggleLock)}>
+          {target.generationLocked ? 'Unlock — let auto-populate replace it' : 'Lock from auto-populate'}
+        </button>
+      ) : null}
 
       <div className="menu-sep" />
       <button
@@ -186,5 +224,21 @@ export function AssignmentPicker({
       </button>
     </div>,
     document.body,
+  );
+}
+
+function RoleItem({ role, onPick }: { readonly role: ShiftRole; readonly onPick: () => void }) {
+  return (
+    <button type="button" className="menu-item" role="menuitem" onClick={onPick}>
+      <span
+        aria-hidden
+        className="h-3.5 w-3.5 shrink-0 rounded-[4px]"
+        style={{ background: role.color }}
+      />
+      <span className="font-mono text-[12.5px] font-semibold">{role.code}</span>
+      <span className="ml-auto shrink-0 font-mono text-[11px] text-faint">
+        {role.start}–{role.end}
+      </span>
+    </button>
   );
 }

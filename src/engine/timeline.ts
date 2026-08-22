@@ -96,6 +96,44 @@ export interface TimelineInput {
   readonly index: DatasetIndex;
 }
 
+/**
+ * One bar per assigned person, or one dashed bar for an unfilled requirement.
+ *
+ * The aggregate `TimelineBlock` above answers "is this role covered" — it
+ * collapses everyone into a count. The day drill-down answers "who,
+ * specifically" (prototype spec §4.5: "expands one day and shows each
+ * assigned person as a bar"), so each assignment gets its own row instead of
+ * being folded into `people.length`.
+ */
+export interface DayDetailBar {
+  readonly key: string;
+  readonly kind: 'assigned' | 'gap';
+  readonly personId: PersonId | undefined;
+  readonly personName: string | undefined;
+  readonly roleId: RoleId;
+  readonly code: string;
+  readonly color: string;
+  readonly interval: UtcInterval;
+  readonly row: number;
+}
+
+export interface DayDetailLane {
+  readonly regionId: RegionId;
+  readonly regionName: string;
+  readonly bars: readonly DayDetailBar[];
+  readonly span: UtcInterval | undefined;
+  readonly rowCount: number;
+  readonly gaps: number;
+}
+
+export interface DayDetail {
+  readonly date: IsoDate;
+  readonly axis: UtcInterval;
+  readonly lanes: readonly DayDetailLane[];
+  readonly handovers: readonly Handover[];
+  readonly headcountByHour: readonly number[];
+}
+
 const HOUR_MS = 3_600_000;
 
 export function buildTimelineDay({
@@ -185,22 +223,145 @@ export function buildTimelineDay({
     axis,
     lanes,
     handovers: handoversOf(lanes),
-    headcountByHour: headcountOf(lanes, axis),
+    headcountByHour: headcountOf(
+      lanes.flatMap((lane) =>
+        lane.blocks.filter((block) => !block.empty).map((block) => ({
+          interval: block.interval,
+          weight: block.people.length,
+        })),
+      ),
+      axis,
+    ),
   };
 }
 
 /**
- * Жадная раскладка по подстрокам: блок занимает первую строку, где он ни с чем
- * не пересекается. Блоки должны прийти отсортированными по началу — тогда
- * результат минимален по числу строк для интервального графа.
+ * Person-level day detail: one bar per assignment plus one dashed bar per
+ * unfilled requirement. Same region-window and handover math as
+ * `buildTimelineDay` — only the bar granularity differs, so the two share
+ * `axisFor`/`handoversOf`/`headcountOf` rather than each computing its own.
  */
-function packRows(blocks: readonly Omit<TimelineBlock, 'row'>[]): TimelineBlock[] {
+export function buildDayDetail({
+  date,
+  regionIds,
+  assignments,
+  coverageCells,
+  index,
+}: TimelineInput): DayDetail {
+  const onDate = assignments.filter((assignment) => assignment.date === date);
+
+  const coverageByRole = new Map<string, CoverageCell>();
+  for (const cell of coverageCells) {
+    if (cell.date === date) coverageByRole.set(`${cell.regionId}|${cell.roleId}`, cell);
+  }
+
+  const lanes: DayDetailLane[] = [];
+
+  for (const regionId of regionIds) {
+    const region = index.regions.get(regionId);
+    const config = resolveDayConfiguration(regionId, date, index);
+    if (!region || !config) continue;
+
+    const raw: Omit<DayDetailBar, 'row'>[] = [];
+
+    for (const requirement of config.roleRequirements) {
+      const role = index.roles.get(requirement.roleId);
+      if (!role || !role.countsAsCoverage) continue;
+
+      const assignedHere = onDate.filter(
+        (assignment) => assignment.content.kind === 'ROLE' && assignment.content.roleId === role.id,
+      );
+      const coverage = coverageByRole.get(`${regionId}|${role.id}`);
+      const min = coverage?.min ?? requirement.min;
+
+      if (assignedHere.length === 0) {
+        if (min === 0) continue; // not required today — not a gap, just absent from the lane
+        try {
+          raw.push({
+            key: `gap-${role.id}`,
+            kind: 'gap',
+            personId: undefined,
+            personName: undefined,
+            roleId: role.id,
+            code: role.code,
+            color: role.color,
+            interval: shiftInterval(role, date),
+          });
+        } catch {
+          // Malformed role window — the validator's job, not the timeline's.
+        }
+        continue;
+      }
+
+      for (const assignment of assignedHere) {
+        if (assignment.content.kind !== 'ROLE') continue;
+        let interval: UtcInterval;
+        try {
+          interval = shiftInterval(role, date, assignment.content.timeOverride);
+        } catch {
+          continue;
+        }
+        const person = index.people.get(assignment.personId);
+        raw.push({
+          key: assignment.id,
+          kind: 'assigned',
+          personId: assignment.personId,
+          personName: person?.displayName ?? assignment.personId,
+          roleId: role.id,
+          code: role.code,
+          color: role.color,
+          interval,
+        });
+      }
+    }
+
+    raw.sort((a, b) => a.interval.start.localeCompare(b.interval.start));
+    const bars = packRows(raw);
+
+    lanes.push({
+      regionId,
+      regionName: region.name,
+      bars,
+      span: unionOf(bars.map((bar) => bar.interval)),
+      gaps: bars.filter((bar) => bar.kind === 'gap').length,
+      rowCount: bars.reduce((max, bar) => Math.max(max, bar.row + 1), 1),
+    });
+  }
+
+  lanes.sort((a, b) => (a.span?.start ?? '~').localeCompare(b.span?.start ?? '~'));
+  const axis = axisFor(lanes, date);
+
+  return {
+    date,
+    axis,
+    lanes,
+    handovers: handoversOf(lanes),
+    headcountByHour: headcountOf(
+      lanes.flatMap((lane) =>
+        lane.bars.filter((bar) => bar.kind === 'assigned').map((bar) => ({
+          interval: bar.interval,
+          weight: 1,
+        })),
+      ),
+      axis,
+    ),
+  };
+}
+
+/**
+ * Жадная раскладка по подстрокам: элемент занимает первую строку, где он ни с
+ * чем не пересекается. Вход должен прийти отсортированным по началу — тогда
+ * результат минимален по числу строк для интервального графа. Общая для
+ * ролевых блоков и персональных баров — обе раскладки решают одну и ту же
+ * геометрическую задачу.
+ */
+function packRows<T extends { interval: UtcInterval }>(items: readonly T[]): (T & { row: number })[] {
   const rowEnds: string[] = [];
-  return blocks.map((block) => {
-    let row = rowEnds.findIndex((end) => end <= block.interval.start);
+  return items.map((item) => {
+    let row = rowEnds.findIndex((end) => end <= item.interval.start);
     if (row === -1) row = rowEnds.length;
-    rowEnds[row] = block.interval.end;
-    return { ...block, row };
+    rowEnds[row] = item.interval.end;
+    return { ...item, row };
   });
 }
 
@@ -220,7 +381,7 @@ function unionOf(intervals: readonly UtcInterval[]): UtcInterval | undefined {
  * один регион, рисовался бы во всю ширину и выглядел бы как круглосуточное
  * покрытие.
  */
-function axisFor(lanes: readonly TimelineLane[], date: IsoDate): UtcInterval {
+function axisFor(lanes: readonly { span: UtcInterval | undefined }[], date: IsoDate): UtcInterval {
   const dayStart = DateTime.fromISO(`${date}T00:00:00`, { zone: 'utc' });
   const dayEnd = dayStart.plus({ days: 1 });
 
@@ -249,7 +410,9 @@ function ceilHour(instant: IsoInstant): IsoInstant {
  * передача, а совпадение краёв суток, и подписывать его «handover» значило бы
  * врать про процесс.
  */
-function handoversOf(lanes: readonly TimelineLane[]): Handover[] {
+function handoversOf(
+  lanes: readonly { regionId: RegionId; span: UtcInterval | undefined }[],
+): Handover[] {
   const handovers: Handover[] = [];
   for (let i = 0; i < lanes.length - 1; i += 1) {
     const a = lanes[i]?.span;
@@ -267,23 +430,329 @@ function handoversOf(lanes: readonly TimelineLane[]): Handover[] {
   return handovers;
 }
 
-/** Голов на смене в каждом часе оси. Считает людей, а не роли. */
-function headcountOf(lanes: readonly TimelineLane[], axis: UtcInterval): number[] {
+/** Голов на смене в каждом часе оси. Веса приходят от вызывающей стороны:
+ * блок несёт `people.length`, персональный бар — всегда 1. */
+function headcountOf(
+  items: readonly { interval: UtcInterval; weight: number }[],
+  axis: UtcInterval,
+): number[] {
   const start = Date.parse(axis.start);
   const hours = Math.max(1, Math.round((Date.parse(axis.end) - start) / HOUR_MS));
   const counts = new Array<number>(hours).fill(0);
 
-  for (const lane of lanes) {
-    for (const block of lane.blocks) {
-      if (block.people.length === 0) continue;
-      const from = Math.floor((Date.parse(block.interval.start) - start) / HOUR_MS);
-      const to = Math.ceil((Date.parse(block.interval.end) - start) / HOUR_MS);
-      for (let hour = Math.max(0, from); hour < Math.min(hours, to); hour += 1) {
-        counts[hour] = (counts[hour] ?? 0) + block.people.length;
-      }
+  for (const item of items) {
+    const from = Math.floor((Date.parse(item.interval.start) - start) / HOUR_MS);
+    const to = Math.ceil((Date.parse(item.interval.end) - start) / HOUR_MS);
+    for (let hour = Math.max(0, from); hour < Math.min(hours, to); hour += 1) {
+      counts[hour] = (counts[hour] ?? 0) + item.weight;
     }
   }
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// Непрерывный период: время по горизонтали, регионы друг под другом
+// ---------------------------------------------------------------------------
+
+/**
+ * Многодневный таймлайн с **одной** осью времени.
+ *
+ * Первая версия рисовала каждый день отдельным блоком со своей осью, один под
+ * другим. Это читается как отчёт, а не как лента: чтобы понять, что смена
+ * APAC в понедельник кончается ровно там, где начинается EMEA, приходилось
+ * сравнивать два процента в двух разных системах координат.
+ *
+ * Здесь одна непрерывная ось на весь период, дни — вертикальные линии на ней,
+ * а регионы стоят друг под другом. Тогда передача смены между регионами
+ * читается как стык, а не как совпадение чисел, и промотка вправо — это
+ * промотка времени.
+ */
+export interface RangeDay {
+  readonly date: IsoDate;
+  /** Доля начала дня на оси, 0…1. */
+  readonly left: number;
+  readonly width: number;
+}
+
+export interface TimelineRangeBlock extends TimelineBlock {
+  readonly date: IsoDate;
+}
+
+/** Сводка покрытия за день — то, что видно в свёрнутом заголовке региона. */
+export interface DayCoverage {
+  readonly date: IsoDate;
+  readonly filled: number;
+  readonly required: number;
+  readonly level: CoverageLevel;
+}
+
+export interface TimelineRangeLane {
+  readonly regionId: RegionId;
+  readonly regionName: string;
+  readonly blocks: readonly TimelineRangeBlock[];
+  readonly rowCount: number;
+  readonly gaps: number;
+  readonly daily: readonly DayCoverage[];
+}
+
+export interface DatedHandover extends Handover {
+  readonly date: IsoDate;
+}
+
+export interface TimelineRange {
+  readonly axis: UtcInterval;
+  readonly days: readonly RangeDay[];
+  readonly lanes: readonly TimelineRangeLane[];
+  readonly handovers: readonly DatedHandover[];
+  readonly headcountByHour: readonly number[];
+}
+
+export interface TimelineRangeInput {
+  readonly dates: readonly IsoDate[];
+  readonly regionIds: readonly RegionId[];
+  readonly assignments: readonly Assignment[];
+  readonly coverageCells: readonly CoverageCell[];
+  readonly index: DatasetIndex;
+}
+
+export function buildTimelineRange({
+  dates,
+  regionIds,
+  assignments,
+  coverageCells,
+  index,
+}: TimelineRangeInput): TimelineRange {
+  // Собирается из посуточной модели, а не параллельно ей: правила про окна
+  // ролей, дыры и передачи смены должны быть одни и те же, иначе таймлайн и
+  // drill-down начнут расходиться в частных случаях.
+  const days = dates.map((date) =>
+    buildTimelineDay({ date, regionIds, assignments, coverageCells, index }),
+  );
+
+  const axis = axisOverDays(days, dates);
+
+  const byRegion = new Map<RegionId, { name: string; blocks: TimelineRangeBlock[] }>();
+  const handovers: DatedHandover[] = [];
+
+  for (const day of days) {
+    for (const lane of day.lanes) {
+      const bucket = byRegion.get(lane.regionId) ?? { name: lane.regionName, blocks: [] };
+      for (const block of lane.blocks) {
+        // Пустая и не требуемая роль не занимает строку: иначе редко
+        // используемая роль раздувает дорожку на весь период ради пустоты.
+        if (block.empty && block.level !== 'GAP') continue;
+        bucket.blocks.push({ ...block, date: day.date });
+      }
+      byRegion.set(lane.regionId, bucket);
+    }
+    for (const handover of day.handovers) handovers.push({ ...handover, date: day.date });
+  }
+
+  const coverageByDayRegion = dailyCoverage(coverageCells, dates, regionIds);
+
+  const lanes: TimelineRangeLane[] = [...byRegion.entries()].map(([regionId, bucket]) => {
+    const sorted = [...bucket.blocks].sort((a, b) =>
+      a.interval.start.localeCompare(b.interval.start),
+    );
+    const packed = packRows(sorted);
+    return {
+      regionId,
+      regionName: bucket.name,
+      blocks: packed,
+      rowCount: packed.reduce((max, block) => Math.max(max, block.row + 1), 1),
+      gaps: packed.filter((block) => block.level === 'GAP').length,
+      daily: coverageByDayRegion.get(regionId) ?? [],
+    };
+  });
+
+  // Регионы упорядочены по началу первой смены за период — лента читается
+  // сверху вниз как «сутки следуют за солнцем».
+  lanes.sort((a, b) =>
+    (a.blocks[0]?.interval.start ?? '~').localeCompare(b.blocks[0]?.interval.start ?? '~'),
+  );
+
+  return {
+    axis,
+    days: dates.map((date) => dayGeometry(axis, date)),
+    lanes,
+    handovers,
+    headcountByHour: headcountOf(
+      lanes.flatMap((lane) =>
+        lane.blocks
+          .filter((block) => !block.empty)
+          .map((block) => ({ interval: block.interval, weight: block.people.length })),
+      ),
+      axis,
+    ),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Непрерывный период, персональные полосы: тот же день-детализация, но на
+// всю ширину периода вместо одних суток.
+// ---------------------------------------------------------------------------
+
+/**
+ * `buildDayDetail` для одного дня отвечает «кем именно закрыта роль» —
+ * каждое назначение своей полосой вместо счётчика. Дашборд раньше показывал
+ * период через `buildTimelineRange`, то есть агрегированными ролевыми
+ * блоками — тот вид, который и не нравился: в свёрнутом состоянии он не
+ * отличался от развёрнутого достаточно, а в развёрнутом всё равно прятал
+ * людей за числом. Разворачивая период этой функцией, лента дашборда
+ * получает ту же грамматику, что и день-детализация, просто на несколько
+ * дней сразу — те же полосы, те же дыры, те же передачи смены, одна ось.
+ */
+export interface DayDetailRangeBar extends DayDetailBar {
+  readonly date: IsoDate;
+}
+
+export interface DayDetailRangeLane {
+  readonly regionId: RegionId;
+  readonly regionName: string;
+  readonly bars: readonly DayDetailRangeBar[];
+  readonly rowCount: number;
+  readonly gaps: number;
+  readonly daily: readonly DayCoverage[];
+}
+
+export interface DayDetailRange {
+  readonly axis: UtcInterval;
+  readonly days: readonly RangeDay[];
+  readonly lanes: readonly DayDetailRangeLane[];
+  readonly handovers: readonly DatedHandover[];
+  readonly headcountByHour: readonly number[];
+}
+
+export function buildDayDetailRange({
+  dates,
+  regionIds,
+  assignments,
+  coverageCells,
+  index,
+}: TimelineRangeInput): DayDetailRange {
+  // Собирается из посуточной модели, как и `buildTimelineRange` — те же
+  // правила про окна ролей и дыры, никакой отдельной копии.
+  const days = dates.map((date) => buildDayDetail({ date, regionIds, assignments, coverageCells, index }));
+
+  const axis = axisOverDays(days, dates);
+
+  const byRegion = new Map<RegionId, { name: string; bars: DayDetailRangeBar[] }>();
+  const handovers: DatedHandover[] = [];
+
+  for (const day of days) {
+    for (const lane of day.lanes) {
+      const bucket = byRegion.get(lane.regionId) ?? { name: lane.regionName, bars: [] };
+      for (const bar of lane.bars) {
+        // `bar.key` is unique within one day only — a gap bar's key is
+        // `gap-${roleId}`, so the same unfilled role on two different days
+        // collided once bars from every day landed in the same list.
+        bucket.bars.push({ ...bar, date: day.date, key: `${day.date}-${bar.key}` });
+      }
+      byRegion.set(lane.regionId, bucket);
+    }
+    for (const handover of day.handovers) handovers.push({ ...handover, date: day.date });
+  }
+
+  const coverageByDayRegion = dailyCoverage(coverageCells, dates, regionIds);
+
+  const lanes: DayDetailRangeLane[] = [...byRegion.entries()].map(([regionId, bucket]) => {
+    const sorted = [...bucket.bars].sort((a, b) => a.interval.start.localeCompare(b.interval.start));
+    const packed = packRows(sorted);
+    return {
+      regionId,
+      regionName: bucket.name,
+      bars: packed,
+      rowCount: packed.reduce((max, bar) => Math.max(max, bar.row + 1), 1),
+      gaps: packed.filter((bar) => bar.kind === 'gap').length,
+      daily: coverageByDayRegion.get(regionId) ?? [],
+    };
+  });
+
+  // Тот же порядок, что у агрегированной ленты — по началу первой смены за
+  // период, иначе один и тот же регион прыгал бы местами между двумя видами.
+  lanes.sort((a, b) => (a.bars[0]?.interval.start ?? '~').localeCompare(b.bars[0]?.interval.start ?? '~'));
+
+  return {
+    axis,
+    days: dates.map((date) => dayGeometry(axis, date)),
+    lanes,
+    handovers,
+    headcountByHour: headcountOf(
+      lanes.flatMap((lane) =>
+        lane.bars.filter((bar) => bar.kind === 'assigned').map((bar) => ({ interval: bar.interval, weight: 1 })),
+      ),
+      axis,
+    ),
+  };
+}
+
+/**
+ * Ось выравнивается по границам суток UTC, даже если смена выходит за них.
+ * Иначе вертикальные линии дней разъезжаются с подписями, и вся сетка времени
+ * перестаёт быть сеткой.
+ */
+function axisOverDays(days: readonly { axis: UtcInterval }[], dates: readonly IsoDate[]): UtcInterval {
+  const first = dates[0];
+  const last = dates.at(-1);
+  if (!first || !last) {
+    const now = DateTime.utc().startOf('day');
+    return { start: now.toISO()!, end: now.plus({ days: 1 }).toISO()! };
+  }
+
+  let start = DateTime.fromISO(`${first}T00:00:00`, { zone: 'utc' });
+  let end = DateTime.fromISO(`${last}T00:00:00`, { zone: 'utc' }).plus({ days: 1 });
+
+  for (const day of days) {
+    const dayStart = DateTime.fromISO(day.axis.start, { zone: 'utc' });
+    const dayEnd = DateTime.fromISO(day.axis.end, { zone: 'utc' });
+    // Сравнивать надо сам момент, а округлять — уже результат. Округление
+    // перед сравнением съедало расширение: смена, кончающаяся в 10:00
+    // следующих суток, давала ту же полночь, что и граница периода, и ось
+    // обрезала её.
+    if (dayStart < start) start = dayStart.startOf('day');
+    if (dayEnd > end) end = ceilDay(dayEnd);
+  }
+
+  return { start: start.toISO()!, end: end.toISO()! };
+}
+
+function ceilDay(dt: DateTime): DateTime {
+  const floored = dt.startOf('day');
+  return floored.equals(dt) ? dt : floored.plus({ days: 1 });
+}
+
+function dayGeometry(axis: UtcInterval, date: IsoDate): RangeDay {
+  const start = `${date}T00:00:00.000Z`;
+  const end = DateTime.fromISO(start, { zone: 'utc' }).plus({ days: 1 }).toISO()!;
+  const left = positionOf(axis, start);
+  return { date, left, width: positionOf(axis, end) - left };
+}
+
+function dailyCoverage(
+  cells: readonly CoverageCell[],
+  dates: readonly IsoDate[],
+  regionIds: readonly RegionId[],
+): Map<RegionId, DayCoverage[]> {
+  const result = new Map<RegionId, DayCoverage[]>();
+
+  for (const regionId of regionIds) {
+    const perDay: DayCoverage[] = dates.map((date) => {
+      let filled = 0;
+      let required = 0;
+      let level: CoverageLevel = 'OK';
+
+      for (const cell of cells) {
+        if (cell.regionId !== regionId || cell.date !== date) continue;
+        filled += cell.actual;
+        required += cell.min;
+        if (cell.level === 'GAP') level = 'GAP';
+        else if (cell.level === 'THIN' && level !== 'GAP') level = 'THIN';
+      }
+      return { date, filled, required, level };
+    });
+    result.set(regionId, perDay);
+  }
+  return result;
 }
 
 /** Доля момента на оси, 0…1 — для абсолютного позиционирования блоков. */

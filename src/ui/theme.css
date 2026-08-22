@@ -307,7 +307,10 @@
     border-radius: 9px;
     background: var(--surface);
     box-shadow: 0 10px 30px -8px rgb(16 24 40 / 0.22);
-    z-index: 65;
+    /* Above `.dialog` (71): a Select opened from inside a Dialog portals to
+       body as a sibling, not a child, so it must outrank the dialog's own
+       overlay (70) by z-index alone or the overlay swallows every click. */
+    z-index: 75;
   }
   .select__item {
     padding: 6px 9px;
@@ -529,6 +532,17 @@
   /* Сегодня — контур, а не заливка: он должен читаться и внутри выделения. */
   .day-chip[data-today='true'] {
     border-color: var(--bad);
+  }
+  /* Нежелательный день в профиле: янтарь, а не синий — это не выбор, а отказ. */
+  .day-chip[data-warn='true'] {
+    background: var(--warn-soft);
+    color: var(--warn);
+    border-color: var(--warn);
+  }
+  /* Клик-клик: первый клик ждёт второй — контур поверх заливки выбора. */
+  .day-chip[data-anchor='true'] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
   }
 
   /* --- Шкала года --------------------------------------------------------- */

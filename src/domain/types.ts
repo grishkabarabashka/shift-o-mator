@@ -39,6 +39,17 @@ export const SUNDAY = 7 as const;
 export type LocationId = string;
 export type RegionId = string;
 export type UnitId = string;
+
+/**
+ * Псевдо-единица «все»: фильтра по единице нет.
+ *
+ * Единица планирования — фильтр по умолчанию, а не граница (ADR-0020), и
+ * дефолтом должно быть «вижу всех». Команда небольшая, а вопрос, ради которого
+ * люди открывают этот продукт, — «закрыты ли мы глобально»; ответ на него
+ * нельзя давать по одному региону за раз. Выбор конкретной единицы сужает
+ * список, а не открывает доступ.
+ */
+export const ALL_UNITS: UnitId = 'ALL';
 export type ShiftId = string;
 export type RoleId = string;
 export type PersonId = string;

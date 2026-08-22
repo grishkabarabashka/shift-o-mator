@@ -10,8 +10,11 @@
 
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
+import { ALL_UNITS } from '../../domain/types.ts';
+import { absenceFreshness } from '../../engine/absenceImport.ts';
+import { daysBetween, parseDate } from '../../engine/dates.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
-import { useUi, type DisplayZone } from '../../store/useUi.ts';
+import { TODAY, useUi, type DisplayZone } from '../../store/useUi.ts';
 import { Select, type SelectOption } from '../../ui/primitives.tsx';
 
 export interface NavItem {
@@ -20,9 +23,10 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard' },
+  // Дашборд и таймлайн — один экран: оба отвечали на вопрос «закрыты ли мы»,
+  // разделение стоило перехода и не давало ничего.
+  { to: '/overview', label: 'Overview' },
   { to: '/schedule', label: 'Schedule' },
-  { to: '/timeline', label: 'Timeline' },
   { to: '/people', label: 'People' },
   { to: '/settings', label: 'Settings' },
 ];
@@ -43,6 +47,9 @@ function ProductHeader() {
   const editing = useSchedule((s) => s.session !== undefined);
   const dirty = useSchedule(hasDraftChanges);
   const changeCount = useSchedule((s) => s.changes.length);
+  // Published, not draft: this is what every viewer is trusting right now,
+  // so it should not look freshly imported until the import is published.
+  const publishedAbsences = useSchedule((s) => s.published?.absences);
 
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);
@@ -77,25 +84,34 @@ function ProductHeader() {
       </div>
 
       <div className="ml-3 flex shrink-0 items-center gap-2">
+        {/* Единица — фильтр, а не граница (ADR-0020), поэтому «все» стоит
+            первым и является значением по умолчанию. */}
         <Select
           ariaLabel="Planning unit"
           value={unitId}
           onChange={setUnit}
-          options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+          options={[
+            { value: ALL_UNITS, label: 'All planning units' },
+            ...units.map((unit) => ({ value: unit.id, label: unit.name })),
+          ]}
         />
-        {/* Единица — фильтр по умолчанию, а не граница (ADR-0020). */}
-        <button
-          type="button"
-          className="btn btn--sm"
-          data-active={wholeRegion}
-          onClick={() => setWholeRegion(!wholeRegion)}
-          title="A planning unit is a default filter, not a boundary — show everyone in the region"
-        >
-          Whole region
-        </button>
+        {/* Со «всеми» этот переключатель — тавтология: скрываем. */}
+        {unitId === ALL_UNITS ? null : (
+          <button
+            type="button"
+            className="btn btn--sm"
+            data-active={wholeRegion}
+            onClick={() => setWholeRegion(!wholeRegion)}
+            title="Show everyone in this unit's region, including other units"
+          >
+            Whole region
+          </button>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        <AbsenceFreshness absences={publishedAbsences} />
+
         {editing ? (
           <span className={`pill ${dirty ? 'pill--warn' : 'pill--accent'}`}>
             Draft{dirty ? ` · ${changeCount}` : ''}
@@ -128,6 +144,30 @@ function ProductHeader() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * "Absences current as of 12 Aug (3 days ago)" (Docs/11) — without this,
+ * nobody knows in six months whether the leave data on screen is trustworthy.
+ * Hidden until the first import ever lands; a never-imported dataset isn't
+ * stale, it's just not wired to the leave system yet.
+ */
+function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeenInImportAt?: string }[] | undefined }) {
+  const at = absences ? absenceFreshness(absences) : undefined;
+  if (!at) return null;
+
+  const date = at.slice(0, 10);
+  const daysAgo = daysBetween(date, TODAY);
+  const relative = daysAgo <= 0 ? 'today' : daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`;
+
+  return (
+    <span
+      className="hidden text-[11px] text-faint lg:inline"
+      title="Most recent absence-import batch across published records"
+    >
+      Absences current as of {parseDate(date).toFormat('d LLL')} ({relative})
+    </span>
   );
 }
 

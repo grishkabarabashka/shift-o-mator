@@ -146,6 +146,12 @@ function DayStrip({
   const days = useMemo(() => stripDays(range), [range]);
   const [dragFrom, setDragFrom] = useState<IsoDate>();
   const [dragTo, setDragTo] = useState<IsoDate>();
+  // Клик-клик — второй способ задать диапазон, без перетаскивания: первый
+  // клик ставит якорь, второй (в том числе на ту же дату — это один день)
+  // применяет диапазон. Перетаскивание работает как раньше и распознаётся
+  // отдельно: оно завершается не там, где началось.
+  const [pendingAnchor, setPendingAnchor] = useState<IsoDate>();
+  const [hoverDate, setHoverDate] = useState<IsoDate>();
 
   useEffect(() => {
     if (!dragFrom) return;
@@ -157,12 +163,30 @@ function DayStrip({
     return () => window.removeEventListener('mouseup', finish);
   }, [dragFrom]);
 
+  // Диапазон сменился откуда-то ещё (зум, «Сегодня», шкала года, либо наш
+  // же коммит) — незавершённый клик-клик больше не про то, что на экране.
+  useEffect(() => {
+    setPendingAnchor(undefined);
+  }, [range.from, range.to]);
+
   // Пока тянут — показываем предполагаемое выделение, но не пишем в стор на
   // каждый пиксель: перезагрузка периода на каждое движение мыши убила бы UI.
-  const preview =
-    dragFrom && dragTo
+  const dragPreview =
+    dragFrom && dragTo && dragFrom !== dragTo
       ? { from: dragFrom < dragTo ? dragFrom : dragTo, to: dragFrom < dragTo ? dragTo : dragFrom }
       : undefined;
+
+  // Якорь уже стоит — наведение до второго клика показывает, каким станет
+  // диапазон, тем же способом: превью локально, коммит только на клик.
+  const anchorPreview =
+    !dragPreview && pendingAnchor && hoverDate
+      ? {
+          from: pendingAnchor < hoverDate ? pendingAnchor : hoverDate,
+          to: pendingAnchor < hoverDate ? hoverDate : pendingAnchor,
+        }
+      : undefined;
+
+  const preview = dragPreview ?? anchorPreview;
   const shown = preview ?? range;
 
   const commit = (from: IsoDate, to: IsoDate) => {
@@ -170,36 +194,59 @@ function DayStrip({
   };
 
   return (
-    <div className="mt-2.5 flex gap-[3px] overflow-x-auto pb-1" role="group" aria-label="Day strip">
-      {days.map((date) => {
-        const dt = parseDate(date);
-        const weekend = dt.weekday >= 6;
-        const selected = date >= shown.from && date <= shown.to;
-        return (
-          <button
-            key={date}
-            type="button"
-            className="day-chip"
-            data-selected={selected}
-            data-weekend={weekend}
-            data-today={date === TODAY}
-            title={dt.toFormat('cccc, d LLLL yyyy')}
-            onMouseDown={() => {
-              setDragFrom(date);
-              setDragTo(date);
-            }}
-            onMouseEnter={() => {
-              if (dragFrom) setDragTo(date);
-            }}
-            onMouseUp={() => {
-              if (dragFrom) commit(dragFrom, date);
-            }}
-          >
-            <span className="day-chip__wd">{dt.toFormat('ccccc')}</span>
-            <span className="day-chip__num">{dt.day}</span>
-          </button>
-        );
-      })}
+    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+      <div className="flex gap-[3px] overflow-x-auto pb-1" role="group" aria-label="Day strip">
+        {days.map((date) => {
+          const dt = parseDate(date);
+          const weekend = dt.weekday >= 6;
+          const selected = date >= shown.from && date <= shown.to;
+          return (
+            <button
+              key={date}
+              type="button"
+              className="day-chip"
+              data-selected={selected}
+              data-weekend={weekend}
+              data-today={date === TODAY}
+              data-anchor={pendingAnchor === date}
+              title={
+                pendingAnchor
+                  ? `Click to set the other end: ${dt.toFormat('cccc, d LLLL yyyy')}`
+                  : dt.toFormat('cccc, d LLLL yyyy')
+              }
+              onMouseDown={() => {
+                setDragFrom(date);
+                setDragTo(date);
+              }}
+              onMouseEnter={() => {
+                if (dragFrom) setDragTo(date);
+                setHoverDate(date);
+              }}
+              onMouseUp={() => {
+                if (!dragFrom) return;
+                if (date !== dragFrom) {
+                  // Мышь ушла с клетки, где началось нажатие, — перетаскивание.
+                  commit(dragFrom, date);
+                  return;
+                }
+                // Отпустили там же, где нажали — это клик, не перетаскивание.
+                // Первый клик ставит якорь; второй (та же дата — один день)
+                // закрывает диапазон.
+                if (pendingAnchor === undefined) setPendingAnchor(date);
+                else commit(pendingAnchor, date);
+              }}
+            >
+              <span className="day-chip__wd">{dt.toFormat('ccccc')}</span>
+              <span className="day-chip__num">{dt.day}</span>
+            </button>
+          );
+        })}
+      </div>
+      {pendingAnchor ? (
+        <span className="text-[11px] text-faint">
+          Click another date to set the range — the same date again for one day.
+        </span>
+      ) : null}
     </div>
   );
 }

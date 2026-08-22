@@ -29,13 +29,26 @@ type Bucket = 'GAP' | 'CONFLICT' | 'WARNING' | 'INFO';
 
 const BUCKETS: ReadonlyArray<{ id: Bucket; label: string; hint: string }> = [
   { id: 'GAP', label: 'Gaps', hint: 'Work nobody is doing. Blocks publication.' },
-  { id: 'CONFLICT', label: 'Conflicts', hint: 'Records that cannot be true. Blocks publication.' },
+  {
+    id: 'CONFLICT',
+    label: 'Conflicts',
+    hint: 'An assignment contradicts another record. Allowed with a comment.',
+  },
   { id: 'WARNING', label: 'Warnings', hint: 'Needs an acknowledgement with a comment.' },
   { id: 'INFO', label: 'Info', hint: 'Signals only. Never blocks.' },
 ];
 
+/**
+ * Категория решает раньше уровня.
+ *
+ * Конфликт перестал быть блокирующим (ADR-0024), но он по-прежнему чинится
+ * иначе, чем дыра: снять назначение, а не найти человека. Если раскладывать по
+ * уровню, конфликты растворятся среди прочих предупреждений, и разделение,
+ * ради которого ADR-0009 их развёл, пропадёт.
+ */
 function bucketOf(issue: Issue): Bucket {
-  if (issue.level === 'BLOCKING') return issue.category === 'CONFLICT' ? 'CONFLICT' : 'GAP';
+  if (issue.category === 'CONFLICT') return 'CONFLICT';
+  if (issue.level === 'BLOCKING') return 'GAP';
   return issue.level === 'WARNING' ? 'WARNING' : 'INFO';
 }
 
@@ -125,7 +138,9 @@ export function IssuePanel({ view }: Props) {
                               ) : null}
                               <span className="text-[12px] leading-snug">{issue.message}</span>
                             </span>
-                            {bucket.id === 'WARNING' ? (
+                            {/* По уровню, а не по корзине: конфликт лежит в
+                                своей корзине, но подтверждается так же. */}
+                            {issue.level === 'WARNING' ? (
                               <span
                                 className="mt-0.5 block text-[10.5px]"
                                 onClick={(event) => {

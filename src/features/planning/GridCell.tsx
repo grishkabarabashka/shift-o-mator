@@ -35,6 +35,7 @@ interface Props {
   readonly today: boolean;
   readonly selected: boolean;
   readonly focused: boolean;
+  readonly generationLocked: boolean;
 }
 
 function GridCellInner({
@@ -48,6 +49,7 @@ function GridCellInner({
   today,
   selected,
   focused,
+  generationLocked,
 }: Props) {
   const status = value.kind === 'STATUS' ? value.status : undefined;
   const conflict = value.kind === 'ROLE' ? value.conflict : undefined;
@@ -69,7 +71,7 @@ function GridCellInner({
       data-cell
       data-person={personId}
       data-date={date}
-      title={tooltipOf(personName, date, role, status, conflict, issues)}
+      title={tooltipOf(personName, date, role, status, conflict, issues, generationLocked)}
       data-nonworking={nonWorking || undefined}
       data-today={today || undefined}
       data-absent={locked || undefined}
@@ -80,6 +82,7 @@ function GridCellInner({
     >
       {value.kind === 'ROLE' && role ? (
         <span className="chip" style={{ background: role.color }}>
+          {generationLocked ? <span className="chip__lock" aria-hidden /> : null}
           {role.code}
         </span>
       ) : status ? (
@@ -99,6 +102,7 @@ function tooltipOf(
   status: CellStatus | undefined,
   conflict: string | undefined,
   issues: readonly Issue[],
+  generationLocked: boolean,
 ): string {
   const parts: string[] = [`${personName} · ${date}`];
   if (role) {
@@ -108,6 +112,7 @@ function tooltipOf(
   if (status) parts.push(STATUS_LABEL[status]);
   if (conflict) parts.push(`Conflict: assigned over ${conflict.toLowerCase()}`);
   for (const issue of issues) parts.push(issue.message);
+  if (generationLocked) parts.push('Locked — auto-populate will not replace this');
   return parts.join('\n');
 }
 

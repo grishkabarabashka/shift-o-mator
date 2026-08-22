@@ -27,6 +27,7 @@ import type {
   DraftChange,
   DraftSession,
   IsoDate,
+  Person,
   PersonId,
   PlanData,
   PublishConflict,
@@ -36,6 +37,8 @@ import type {
   ScheduleDataset,
   UnitId,
 } from '../domain/types.ts';
+import { ALL_UNITS } from '../domain/types.ts';
+import type { AutoPopulateResult } from '../engine/autoPopulate.ts';
 import { proposeCompDays } from '../engine/compDays.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -83,6 +86,12 @@ export interface ScheduleState {
   setAbsences: (absences: readonly Absence[]) => void;
   setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => void;
   acknowledge: (issueKey: string, comment: string) => void;
+  /** Профиль человека — справочные данные, идут мимо черновика. */
+  savePerson: (person: Person) => Promise<void>;
+  /** Ставит результат превью auto-populate в черновик, открывая его при нужде. */
+  commitAutoPopulate: (result: AutoPopulateResult) => Promise<void>;
+  /** Ставит импорт отсутствий в черновик одним батчем — Undo откатывает его целиком. */
+  commitAbsenceImport: (changes: readonly DraftChange[]) => Promise<void>;
   undo: () => void;
   redo: () => void;
   publish: () => Promise<PublishOutcome | undefined>;
@@ -285,10 +294,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           scheduleRepository.loadPublished(unitId, range),
         ]);
 
-        // Пока нет аутентификации: первый включённый человек единицы.
+        // Пока нет аутентификации: первый включённый человек единицы. При
+        // `ALL` единицы нет — берём любого менеджера.
+        const inScope = (p: (typeof reference.people)[number]): boolean =>
+          unitId === ALL_UNITS || p.unitId === unitId;
         const currentUserId =
-          reference.people.find((p) => p.unitId === unitId && p.orgCategory === 'MANAGEMENT')?.id ??
-          reference.people.find((p) => p.unitId === unitId)?.id;
+          reference.people.find((p) => inScope(p) && p.orgCategory === 'MANAGEMENT')?.id ??
+          reference.people.find(inScope)?.id;
 
         const { plan, index } = recompute(reference, published, []);
         set({
@@ -347,6 +359,54 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
     setCompDay(entry, previous) {
       commit([compDayChange(previous ?? null, entry, nextSeq(), new Date().toISOString())]);
+    },
+
+    async savePerson(person) {
+      const saved = await scheduleRepository.savePerson(person);
+      const state = get();
+      if (!state.reference || !state.plan) return;
+
+      const reference: ReferenceData = {
+        ...state.reference,
+        people: state.reference.people.map((p) => (p.id === saved.id ? saved : p)),
+      };
+      // Индекс пересобирается: eligibility и целевые доли читают валидатор и
+      // подбор ролей, и они должны увидеть правку сразу.
+      set({ reference, index: buildIndex(datasetOf(reference, state.plan)) });
+    },
+
+    async commitAutoPopulate(result) {
+      if (result.changes.length === 0) return;
+      if (!get().session) await get().startDraft();
+
+      const now = new Date().toISOString();
+      // Пересчитываем seq заново: превью считалось чистой функцией со своим
+      // локальным счётчиком, а порядок в самом черновике задаёт store —
+      // иначе следующая правка мышью получила бы более ранний seq, чем
+      // сгенерированные до неё изменения, и undo пошёл бы не в том порядке.
+      const changes = result.changes.map((change) =>
+        change.targetType === 'ASSIGNMENT'
+          ? assignmentChange(null, change.after as Assignment, nextSeq(), now)
+          : compDayChange(null, change.after as CompDayEntry, nextSeq(), now),
+      );
+      commit(changes);
+    },
+
+    async commitAbsenceImport(changes) {
+      if (changes.length === 0) return;
+      if (!get().session) await get().startDraft();
+
+      const now = new Date().toISOString();
+      // Тот же приём, что у commitAutoPopulate: чужой seq из превью
+      // отбрасывается, стор нумерует заново своим счётчиком.
+      const resequenced = changes.map((change) =>
+        change.targetType === 'ABSENCE'
+          ? absenceChange(change.before, change.after, nextSeq(), now)
+          : change,
+      );
+      // Один вызов commit — один батч в undoStack: планировщик откатывает
+      // весь импорт одним Undo, не по записи.
+      commit(resequenced);
     },
 
     acknowledge(issueKey, comment) {

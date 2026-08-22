@@ -20,6 +20,7 @@ import type {
   DraftChange,
   DraftSession,
   DraftSessionId,
+  Person,
   PersonId,
   PlanData,
   PublishConflict,
@@ -27,6 +28,7 @@ import type {
   ScheduleDataset,
   UnitId,
 } from '../domain/types.ts';
+import { ALL_UNITS } from '../domain/types.ts';
 import { rangesOverlap } from '../engine/dates.ts';
 import type { DraftBundle, PublishOutcome, ScheduleRepository } from './repository.ts';
 
@@ -96,11 +98,26 @@ export class MemoryScheduleRepository implements ScheduleRepository {
     return clone(this.selectPlan(unitId, range));
   }
 
+  async savePerson(person: Person): Promise<Person> {
+    await this.ready();
+    if (!this.data.people.some((p) => p.id === person.id)) {
+      throw new Error(`Unknown person ${person.id}`);
+    }
+    this.data = {
+      ...this.data,
+      people: this.data.people.map((p) => (p.id === person.id ? clone(person) : p)),
+    };
+    await this.flush();
+    return clone(person);
+  }
+
   /**
    * Люди берутся по **региону**, а не по единице: покрытие считается по
    * региону, и дыра в чужой единице должна быть видна (ADR-0020).
    */
   private regionPeopleIds(unitId: UnitId): Set<PersonId> {
+    if (unitId === ALL_UNITS) return new Set(this.data.people.map((p) => p.id));
+
     const unit = this.data.units.find((u) => u.id === unitId);
     const regionIds = new Set<string>();
     if (unit?.kind === 'REGION' && unit.regionId) {

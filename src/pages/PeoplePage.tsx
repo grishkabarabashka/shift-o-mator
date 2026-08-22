@@ -11,10 +11,11 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { IsoDate, Person } from '../domain/types.ts';
+import type { IsoDate, Person, ShiftRole } from '../domain/types.ts';
 import { eachDate } from '../engine/dates.ts';
 import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
+import { PersonEditor } from '../features/people/PersonEditor.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 interface Props {
@@ -114,6 +115,7 @@ export function PeoplePage({ view, asOf }: Props) {
       (entry) =>
         entry.person.displayName.toLowerCase().includes(needle) ||
         entry.locationName.toLowerCase().includes(needle) ||
+        entry.regionName.toLowerCase().includes(needle) ||
         entry.roleMix.some((role) => role.code.toLowerCase().includes(needle)),
     );
   }, [stats, query]);
@@ -132,7 +134,7 @@ export function PeoplePage({ view, asOf }: Props) {
         <span className="pill">{filtered.length}</span>
         <input
           className="field ml-auto w-[260px]"
-          placeholder="Search name, location or role"
+          placeholder="Search name, region, location or role"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           aria-label="Search people"
@@ -145,6 +147,9 @@ export function PeoplePage({ view, asOf }: Props) {
             <thead>
               <tr>
                 <th>Name</th>
+                {/* Со всеми единицами сразу локации мало: Pune и Chicago в
+                    одном списке ничего не говорят о том, чьи это правила. */}
+                <th>Region</th>
                 <th>Location</th>
                 <th>Shift</th>
                 <th className="text-right">Worked</th>
@@ -163,6 +168,9 @@ export function PeoplePage({ view, asOf }: Props) {
                   className="cursor-pointer"
                 >
                   <td className="font-medium whitespace-nowrap">{entry.person.displayName}</td>
+                  <td className="whitespace-nowrap">
+                    <span className="pill">{entry.regionName}</span>
+                  </td>
                   <td className="whitespace-nowrap text-muted">{entry.locationName}</td>
                   <td className="font-mono text-[11.5px] whitespace-nowrap text-muted">
                     {entry.shiftLabel}
@@ -220,6 +228,7 @@ export function PeoplePage({ view, asOf }: Props) {
           <PersonPanel
             entry={selected}
             avgWeekends={avgWeekends}
+            regionRoles={index?.rolesByRegion.get(selected.person.regionId) ?? []}
             onClose={() => setSelectedId(undefined)}
           />
         ) : null}
@@ -228,20 +237,25 @@ export function PeoplePage({ view, asOf }: Props) {
   );
 }
 
+type Tab = 'Activity' | 'Profile';
+
 function PersonPanel({
   entry,
   avgWeekends,
+  regionRoles,
   onClose,
 }: {
   readonly entry: PersonStats;
   readonly avgWeekends: number;
+  readonly regionRoles: readonly ShiftRole[];
   readonly onClose: () => void;
 }) {
+  const [tab, setTab] = useState<Tab>('Activity');
   const total = entry.roleMix.reduce((sum, role) => sum + role.count, 0);
   const overloaded = entry.weekends > avgWeekends + 1;
 
   return (
-    <aside className="card flex w-[300px] shrink-0 flex-col overflow-y-auto">
+    <aside className="card flex w-[330px] shrink-0 flex-col overflow-y-auto">
       <header className="flex items-start gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <h2 className="truncate text-[15px] font-semibold">{entry.person.displayName}</h2>
@@ -254,6 +268,53 @@ function PersonPanel({
         </button>
       </header>
 
+      {/* Что было и что должно быть — разные вопросы: факт за период против
+          настройки, которую читает автогенерация. */}
+      <div className="border-b border-line px-4 py-2">
+        <div className="segmented w-full">
+          {(['Activity', 'Profile'] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              className="segmented__item flex-1"
+              data-active={tab === item}
+              onClick={() => setTab(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'Profile' ? (
+        <div className="p-4">
+          <PersonEditor person={entry.person} regionRoles={regionRoles} onClose={onClose} />
+        </div>
+      ) : (
+        <ActivityTab
+          entry={entry}
+          total={total}
+          overloaded={overloaded}
+          avgWeekends={avgWeekends}
+        />
+      )}
+    </aside>
+  );
+}
+
+function ActivityTab({
+  entry,
+  total,
+  overloaded,
+  avgWeekends,
+}: {
+  readonly entry: PersonStats;
+  readonly total: number;
+  readonly overloaded: boolean;
+  readonly avgWeekends: number;
+}) {
+  return (
+    <>
       <div className="grid grid-cols-3 divide-x divide-line border-b border-line">
         <Kpi label="Worked" value={entry.worked} />
         {overloaded ? (
@@ -314,7 +375,7 @@ function PersonPanel({
           {entry.person.eligibility.length === 1 ? '' : 's'} in {entry.regionName}
         </p>
       </section>
-    </aside>
+    </>
   );
 }
 

@@ -16,19 +16,22 @@ ADR-0015…0019.
 
 ## State of the code
 
-Code and design agree. Roadmap stages 1–12 are built; 13–16 (suggest/auto-populate,
-absence import, export, backend) are not, and Settings is read-only pending
-effective-dated editing.
+Code and design agree. Roadmap stages 1–14 are built; 15–16 (export, backend) are
+not, and Settings is read-only pending effective-dated editing.
 
 Layout:
 
 - `domain/` — types, fixtures with the **real** role codes, draft changes, lookup index
 - `engine/` — pure: `dates`, `period` (zoom and range arithmetic), `dayConfig`,
   `cellValue` (cell precedence), `coverage`, `compDays`, `validate`, `timeline`
+  (per-day and per-range, aggregate and per-person),
+  `candidates` (ranking; shared by Suggest and auto-populate), `autoPopulate`,
+  `absenceImport` (parse → map → match → diff → impact → batch)
 - `data/memoryRepository.ts` — published/draft split, sessions, version conflicts
 - `store/` — `useSchedule` (data + draft), `useUi` (selection, period, dialogs)
 - `features/` — `planning`, `coverage`, `issues`, `absences`, `compdays`, `shell`
-- `pages/` — Dashboard, Schedule, Timeline, People, Settings; routed in `App.tsx`
+- `pages/` — Overview (dashboard + timeline in one), Schedule, day drill-down,
+  People, Settings; routed in `App.tsx`
 - `ui/` — `theme.css` (tokens, Tailwind, component classes), `grid.css`, `primitives.tsx`
 
 Two traps worth knowing before touching the UI:
@@ -64,7 +67,8 @@ Verify with: `npm run typecheck`, `npm run test:run`, `npm run build`.
    either a region's roster or a cross-region team such as Service Transition. A person
    has both. A unit is a **default filter, not a boundary**; coverage is always computed
    per region. **No regional scoping of write access** — everyone can plan anywhere, and
-   the control is a complete audit trail. (ADR-0020, supersedes ADR-0019)
+   the control is a complete audit trail. **`ALL_UNITS` is the default everywhere**: the
+   question people open this for is global. (ADR-0020, ADR-0025)
 
 4. **Roles belong to a region.** No global catalog; matching codes across regions are
    coincidental. (ADR-0004)
@@ -98,9 +102,11 @@ Verify with: `npm run typecheck`, `npm run test:run`, `npm run build`.
 10. **Exactly one assignment per (person, date).** No split shifts, no parallel duty;
     on-call is an ordinary role code occupying the day. Hard constraint.
 
-11. **Three validation levels**, with gap and conflict as separate categories inside
-    BLOCKING, and `THIN` as a distinct coverage state. Soft rules never block; they
-    require an acknowledgement with a comment. (ADR-0009)
+11. **Three validation levels**, with gap and conflict as separate categories and
+    `THIN` as a distinct coverage state. Soft rules never block; they require an
+    acknowledgement with a comment. **A conflict does not block either** — coming in
+    during your own leave is a decision, not corrupt data. Only a double assignment
+    and an unknown/out-of-region role stay BLOCKING. (ADR-0009, ADR-0024)
 
 12. **Absence limits apply per region and per role pool.** Three of four possible leads
     being out is invisible to a headcount counter. Not present in the prototype — it is

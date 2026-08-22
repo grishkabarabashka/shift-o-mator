@@ -6,9 +6,17 @@
  *   WARNING  — требует осознанного подтверждения с комментарием;
  *   INFO     — подсветка без блокировки.
  *
- * Внутри BLOCKING различаются две категории, и в интерфейсе они не сливаются:
+ * Две категории, которые в интерфейсе не сливаются:
  *   GAP      — не сделана работа: чинится назначением человека;
- *   CONFLICT — записаны невозможные данные: чинится снятием назначения.
+ *   CONFLICT — назначение противоречит другой записи: чинится снятием либо
+ *              осознанным подтверждением.
+ *
+ * **Конфликт больше не блокирует** (ADR-0024). Человек, вышедший в свой
+ * отпуск, и роль, отданная не по eligibility в аврал, — это решения, которые
+ * принимают в реальности; система обязана их записать, подсветить и запомнить
+ * причину, а не отказаться сохранять. Блокирующими остались только те записи,
+ * которые не могут быть верны ни при каком решении: два назначения на один
+ * день и роль, которой нет либо которая принадлежит чужому региону.
  *
  * Функция чистая: текущая дата приходит параметром `asOf`.
  */
@@ -151,10 +159,13 @@ export function summarizeIssues(
   let unacknowledgedWarnings = 0;
 
   for (const issue of issues) {
+    // Категория считается независимо от уровня: конфликт остаётся конфликтом,
+    // даже когда он подтверждаемый, а не блокирующий (ADR-0024).
+    if (issue.category === 'CONFLICT') conflicts += 1;
+
     if (issue.level === 'BLOCKING') {
       blocking += 1;
       if (issue.category === 'GAP') gaps += 1;
-      if (issue.category === 'CONFLICT') conflicts += 1;
     } else if (issue.level === 'INFO') {
       info += 1;
     } else {
@@ -289,11 +300,13 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
         roleId: role.id,
       });
     } else if (!person.eligibility.some((e) => e.roleId === role.id)) {
+      // Не блокер: аврал закрывают тем, кто есть, и спека прямо допускает
+      // «authorized override ... recorded» — это и есть подтверждение.
       drafts.push({
-        level: 'BLOCKING',
+        level: 'WARNING',
         category: 'CONFLICT',
         code: 'ROLE_NOT_ELIGIBLE',
-        message: `${person.displayName}: role ${role.code} is not eligible`,
+        message: `${person.displayName}: role ${role.code} is outside their eligibility`,
         date: assignment.date,
         personId: person.id,
         roleId: role.id,
@@ -318,8 +331,10 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
       (a) => assignment.date >= a.from && assignment.date <= a.to,
     );
     if (absence) {
+      // Не блокер: человек выходит в свой отпуск, либо запись об отсутствии
+      // устарела. И то и другое разрешает планировщик, а не валидатор.
       drafts.push({
-        level: 'BLOCKING',
+        level: 'WARNING',
         category: 'CONFLICT',
         code: 'ASSIGNED_DURING_ABSENCE',
         message: `${person.displayName}: assigned during ${absenceLabel(absence.type)}`,
@@ -330,8 +345,10 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
     }
 
     if (blockingCompDays.has(key)) {
+      // Не блокер: отгул переносится. Запись остаётся видимой, чтобы долг не
+      // потерялся — comp day не сгорает (ADR-0007).
       drafts.push({
-        level: 'BLOCKING',
+        level: 'WARNING',
         category: 'CONFLICT',
         code: 'ASSIGNED_DURING_COMP_DAY',
         message: `${person.displayName}: assigned on a confirmed comp day`,

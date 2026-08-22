@@ -14,9 +14,11 @@ import { zoomSpec } from '../engine/period.ts';
 import { hasDraftChanges, useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import { AbsenceDialog } from '../features/absences/AbsenceDialog.tsx';
+import { AbsenceImportDialog } from '../features/absences/AbsenceImportDialog.tsx';
 import { CompDayDialog } from '../features/compdays/CompDayDialog.tsx';
 import { CoverageStrip } from '../features/coverage/CoverageStrip.tsx';
 import { IssuePanel } from '../features/issues/IssuePanel.tsx';
+import { AutoPopulateDialog } from '../features/planning/AutoPopulateDialog.tsx';
 import { HeatmapGrid } from '../features/planning/HeatmapGrid.tsx';
 import { PlanningGrid } from '../features/planning/PlanningGrid.tsx';
 import { ReviewDialog } from '../features/planning/ReviewDialog.tsx';
@@ -32,6 +34,8 @@ interface Props {
 
 export function SchedulePage({ view, asOf }: Props) {
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [autoPopulateOpen, setAutoPopulateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const gridScroller = useRef<HTMLDivElement>(null);
 
   const zoom = useUi((s) => s.zoom);
@@ -81,6 +85,26 @@ export function SchedulePage({ view, asOf }: Props) {
                 + Absence{absenceTargets.length > 1 ? ` (${absenceTargets.length})` : ''}
               </button>
             ) : null}
+
+            {detail && view.regionIds.length > 0 ? (
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => setAutoPopulateOpen(true)}
+                title="Fill defaults and rank candidates for what's left, as a preview"
+              >
+                Generate…
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              className="btn btn--sm"
+              onClick={() => setImportOpen(true)}
+              title="Paste or upload leave-system data: map columns, review the diff, apply as one batch"
+            >
+              Import absences…
+            </button>
 
             <div className="ml-auto flex items-center gap-2">
               {editing ? (
@@ -145,8 +169,14 @@ export function SchedulePage({ view, asOf }: Props) {
       </div>
 
       <AbsenceDialog />
+      <AbsenceImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <CompDayDialog asOf={asOf} />
       <ReviewDialog view={view} open={reviewOpen} onClose={() => setReviewOpen(false)} />
+      <AutoPopulateDialog
+        view={view}
+        open={autoPopulateOpen}
+        onClose={() => setAutoPopulateOpen(false)}
+      />
     </div>
   );
 }

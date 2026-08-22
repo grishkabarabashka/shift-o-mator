@@ -14,9 +14,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CoverageLevel, IsoDate } from '../../domain/types.ts';
+import type { CoverageLevel, IsoDate, PersonId, RoleId } from '../../domain/types.ts';
+import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 import type { PlanningView } from '../planning/usePlanningView.ts';
+import { SuggestPopover, type SuggestTarget } from './SuggestPopover.tsx';
 
 interface Props {
   readonly view: PlanningView;
@@ -34,8 +36,16 @@ interface DayTotal {
 
 export function CoverageStrip({ view, syncWith }: Props) {
   const focusDate = useUi((s) => s.focusDate);
+  const setCells = useSchedule((s) => s.setCells);
+  const startDraft = useSchedule((s) => s.startDraft);
   const [expanded, setExpanded] = useState(false);
+  const [suggestTarget, setSuggestTarget] = useState<SuggestTarget>();
   const scrollerRef = useRef<HTMLDivElement>(null);
+
+  const pickCandidate = async (personId: PersonId, roleId: RoleId, date: IsoDate) => {
+    if (!useSchedule.getState().session) await startDraft();
+    setCells([{ personId, date }], roleId);
+  };
 
   useEffect(() => {
     const source = syncWith.current;
@@ -108,6 +118,7 @@ export function CoverageStrip({ view, syncWith }: Props) {
                   code={role.code}
                   color={role.color}
                   onPick={focusDate}
+                  onSuggest={(target) => setSuggestTarget(target)}
                 />
               ))}
             </div>
@@ -144,6 +155,14 @@ export function CoverageStrip({ view, syncWith }: Props) {
           ))}
         </div>
       </div>
+
+      {suggestTarget ? (
+        <SuggestPopover
+          target={suggestTarget}
+          onClose={() => setSuggestTarget(undefined)}
+          onPick={(personId, roleId, date) => void pickCandidate(personId, roleId, date)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -154,12 +173,14 @@ function CoverageRow({
   code,
   color,
   onPick,
+  onSuggest,
 }: {
   readonly view: PlanningView;
   readonly roleId: string;
   readonly code: string;
   readonly color: string;
   readonly onPick: (date: string) => void;
+  readonly onSuggest: (target: SuggestTarget) => void;
 }) {
   return (
     <>
@@ -180,6 +201,7 @@ function CoverageRow({
           cell.level === 'THIN' ? 'Exactly at the minimum — one absence breaks it' : undefined,
           cell.level === 'GAP' ? 'Below the minimum — blocks publication' : undefined,
           cell.ruleLabel,
+          cell.level === 'GAP' ? 'Click for suggested candidates' : undefined,
         ]
           .filter(Boolean)
           .join('\n');
@@ -191,7 +213,21 @@ function CoverageRow({
             className="cover__cell"
             data-level={cell.level}
             title={title}
-            onClick={() => onPick(column.date)}
+            onClick={(event) => {
+              if (cell.level !== 'GAP') {
+                onPick(column.date);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              onSuggest({
+                roleId,
+                code,
+                regionId: cell.regionId,
+                date: column.date,
+                x: rect.left,
+                y: rect.bottom + 4,
+              });
+            }}
           >
             {cell.actual}/{cell.min}
           </button>
