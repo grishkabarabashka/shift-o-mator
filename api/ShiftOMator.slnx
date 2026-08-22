@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShiftOMator.Api/ShiftOMator.Api.csproj" />
+    <Project Path="src/ShiftOMator.Application/ShiftOMator.Application.csproj" />
+    <Project Path="src/ShiftOMator.Domain/ShiftOMator.Domain.csproj" />
+    <Project Path="src/ShiftOMator.Infrastructure/ShiftOMator.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShiftOMator.Api.Tests/ShiftOMator.Api.Tests.csproj" />
+    <Project Path="tests/ShiftOMator.Application.Tests/ShiftOMator.Application.Tests.csproj" />
+  </Folder>
+</Solution>

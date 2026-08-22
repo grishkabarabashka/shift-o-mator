@@ -1,0 +1,88 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using ShiftOMator.Api;
+using ShiftOMator.Api.Auth;
+using ShiftOMator.Domain;
+using ShiftOMator.Infrastructure;
+using ShiftOMator.Infrastructure.Seed;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+builder.Services.AddOpenApi();
+
+var connectionString = builder.Configuration.GetConnectionString("Schedule")
+    ?? throw new InvalidOperationException("Missing ConnectionStrings:Schedule");
+builder.Services.AddInfrastructure(connectionString);
+
+// Auth seam (Phase 4): Stub mode issues a fixed identity with no token validation, for
+// local dev/demo. Switching to a real IdP later (e.g. "EntraId") only adds a branch
+// here — every endpoint already enforces policies against ShiftOMator.Domain.AppRole.
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
+var authMode = builder.Configuration[$"{AuthOptions.SectionName}:Mode"] ?? "Stub";
+
+var authenticationBuilder = builder.Services.AddAuthentication(
+    authMode == "Stub" ? StubAuthenticationHandler.SchemeName : JwtBearerDefaults.AuthenticationScheme);
+
+if (authMode == "Stub")
+{
+    authenticationBuilder.AddScheme<StubAuthenticationSchemeOptions, StubAuthenticationHandler>(
+        StubAuthenticationHandler.SchemeName,
+        options => options.Role = builder.Configuration[$"{AuthOptions.SectionName}:StubRole"] ?? "Planner");
+}
+else
+{
+    // Real deployment target (ADR: stubbed auth with a real policy surface): bind
+    // Authority/Audience/etc. from Auth:Jwt once an Entra ID app registration exists.
+    authenticationBuilder.AddJwtBearer(options =>
+        builder.Configuration.GetSection($"{AuthOptions.SectionName}:Jwt").Bind(options));
+}
+
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MinimumRoleAuthorizationHandler>();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(AuthPolicies.ViewerOrAbove, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Viewer)))
+    .AddPolicy(AuthPolicies.PlannerOrAbove, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Planner)))
+    .AddPolicy(AuthPolicies.AdminOnly, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Admin)));
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
+app.MapGet("/health/ready", async (ScheduleDbContext db) =>
+    await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
+
+app.MapReferenceEndpoints();
+app.MapAuthEndpoints();
+app.MapScheduleEndpoints();
+app.MapDraftsEndpoints();
+app.MapSuggestEndpoints();
+app.MapAcknowledgementsEndpoints();
+app.MapHistoryEndpoints();
+
+// Справочные данные — всегда (защищено идемпотентной проверкой в FixtureSeeder).
+// Демо-план (назначения/отпуска/отгулы) — только по явному флагу: первый прод не
+// должен подниматься с выдуманными сменами.
+var includeDemoData = args.Contains("--seed-demo") || builder.Configuration.GetValue<bool>("Seed:IncludeDemoData");
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+    await db.Database.MigrateAsync();
+    await FixtureSeeder.SeedAsync(db, includeDemoData);
+}
+
+app.Run();
+
+/// <summary>Exposed for WebApplicationFactory in integration tests.</summary>
+public partial class Program;

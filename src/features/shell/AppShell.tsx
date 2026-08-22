@@ -9,6 +9,7 @@
 
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
+import { useAuth } from '../../auth/AuthProvider.tsx';
 import { ALL_UNITS } from '../../domain/types.ts';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
 import { daysBetween, parseDate } from '../../engine/dates.ts';
@@ -42,7 +43,6 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
 
 function ProductHeader() {
   const reference = useSchedule((s) => s.reference);
-  const currentUserId = useSchedule((s) => s.currentUserId);
   const editing = useSchedule((s) => s.session !== undefined);
   const dirty = useSchedule(hasDraftChanges);
   const changeCount = useSchedule((s) => s.changes.length);
@@ -55,8 +55,12 @@ function ProductHeader() {
   const displayZone = useUi((s) => s.displayZone);
   const setDisplayZone = useUi((s) => s.setDisplayZone);
 
+  // Stub identity for now (Phase 4 client seam) — see `auth/AuthProvider.tsx`. Not the
+  // same thing as `useSchedule`'s `currentUserId` (still "first manager in scope",
+  // Phase 5's problem to replace); this is who the badge says is signed in.
+  const identity = useAuth();
+
   const units = reference?.units ?? [];
-  const me = reference?.people.find((person) => person.id === currentUserId);
 
   const zoneOptions: SelectOption[] = [
     { value: 'role', label: 'Role time' },
@@ -117,14 +121,14 @@ function ProductHeader() {
 
         <div className="flex items-center gap-2.5">
           <div className="hidden text-right leading-tight sm:block">
-            <div className="text-[12.5px] font-semibold">{me?.displayName ?? 'Signed out'}</div>
-            <div className="text-[11px] text-faint">{roleLabel(me?.orgCategory)}</div>
+            <div className="text-[12.5px] font-semibold">{identity.displayName}</div>
+            <div className="text-[11px] text-faint">{identity.role}</div>
           </div>
           <span
             aria-hidden
             className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-[12px] font-bold text-accent"
           >
-            {initialsOf(me?.displayName)}
+            {initialsOf(identity.displayName)}
           </span>
         </div>
       </div>
@@ -178,17 +182,4 @@ function initialsOf(name: string | undefined): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
-}
-
-function roleLabel(category: string | undefined): string {
-  switch (category) {
-    case 'MANAGEMENT':
-      return 'Planner';
-    case 'SERVICE_TRANSITION':
-      return 'Service Transition';
-    case 'SUPPORT':
-      return 'Support';
-    default:
-      return '—';
-  }
 }

@@ -9,6 +9,7 @@
 
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { AuthProvider } from './auth/AuthProvider.tsx';
 import { TooltipProvider } from './ui/primitives.tsx';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
@@ -37,30 +38,32 @@ export function App() {
   }, [load, unitId, range]);
 
   return (
-    <TooltipProvider>
-      <BrowserRouter>
-        <AppShell>
-          {status === 'error' ? (
-            <Placeholder title="Could not load the schedule" body={error ?? 'Unknown error'} />
-          ) : !view.ready ? (
-            <Placeholder title="Loading…" body="Reading the published plan." />
-          ) : (
-            <Routes>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
-              <Route path="/overview" element={<OverviewPage view={view} now={now} />} />
-              <Route path="/schedule" element={<SchedulePage view={view} asOf={TODAY} />} />
-              <Route path="/schedule/day/:date" element={<DayDrilldownPage view={view} now={now} />} />
-              <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              {/* Дашборд и таймлайн слились в Overview — старые ссылки живут. */}
-              <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
-              <Route path="/timeline" element={<Navigate to="/overview" replace />} />
-              <Route path="*" element={<Navigate to="/overview" replace />} />
-            </Routes>
-          )}
-        </AppShell>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <BrowserRouter>
+          <AppShell>
+            {status === 'error' ? (
+              <Placeholder title="Could not load the schedule" body={error ?? 'Unknown error'} />
+            ) : !view.ready ? (
+              <Placeholder title="Loading…" body="Reading the published plan." />
+            ) : (
+              <Routes>
+                <Route path="/" element={<Navigate to="/overview" replace />} />
+                <Route path="/overview" element={<OverviewPage view={view} now={now} />} />
+                <Route path="/schedule" element={<SchedulePage view={view} asOf={TODAY} />} />
+                <Route path="/schedule/day/:date" element={<DayDrilldownPage view={view} now={now} />} />
+                <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                {/* Дашборд и таймлайн слились в Overview — старые ссылки живут. */}
+                <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
+                <Route path="/timeline" element={<Navigate to="/overview" replace />} />
+                <Route path="*" element={<Navigate to="/overview" replace />} />
+              </Routes>
+            )}
+          </AppShell>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   );
 }
 

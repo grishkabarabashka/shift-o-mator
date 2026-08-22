@@ -1,0 +1,4032 @@
+{
+  "AMER": {
+    "coverage": [
+      {
+        "date": "2026-08-01",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-01",
+        "roleId": "AMER:Secondary",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-01",
+        "roleId": "AMER:ST",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-02",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-02",
+        "roleId": "AMER:Secondary",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-02",
+        "roleId": "AMER:ST",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Batch-L",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "AMER:ST Amer",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Batch-E",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Lead-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Crew-E",
+        "actual": 1,
+        "min": 1,
+        "max": 3,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Crew-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Batch-L",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-08",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-08",
+        "roleId": "AMER:Secondary",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-08",
+        "roleId": "AMER:ST",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-09",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-09",
+        "roleId": "AMER:Secondary",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-09",
+        "roleId": "AMER:ST",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Lead",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Lead-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Crew-E",
+        "actual": 2,
+        "min": 1,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Crew-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-15",
+        "roleId": "AMER:Primary",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-15",
+        "roleId": "AMER:Secondary",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-15",
+        "roleId": "AMER:ST",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-16",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-16",
+        "roleId": "AMER:Secondary",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-16",
+        "roleId": "AMER:ST",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Lead",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Lead",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Lead-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Crew-E",
+        "actual": 2,
+        "min": 1,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Crew-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-22",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-22",
+        "roleId": "AMER:Secondary",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-22",
+        "roleId": "AMER:ST",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-23",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-23",
+        "roleId": "AMER:Secondary",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-23",
+        "roleId": "AMER:ST",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "AMER:ST Amer",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Batch-U",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Crew-BC",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:Cover",
+        "actual": 1,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "AMER:ST Amer",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Lead-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Crew-E",
+        "actual": 1,
+        "min": 1,
+        "max": 3,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Crew-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "AMER:ST Amer",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-29",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-29",
+        "roleId": "AMER:Secondary",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-29",
+        "roleId": "AMER:ST",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-30",
+        "roleId": "AMER:Primary",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-30",
+        "roleId": "AMER:Secondary",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-30",
+        "roleId": "AMER:ST",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Crew",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Crew-BC",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Batch-E",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Batch-L",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Batch-U",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:Cover",
+        "actual": 0,
+        "min": 0,
+        "max": 3,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "AMER:ST Amer",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      }
+    ],
+    "issueKeys": [
+      "COVERAGE_GAP|2026-08-03||AMER:Batch-L",
+      "COVERAGE_GAP|2026-08-04||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-06||AMER:Batch-E",
+      "COVERAGE_GAP|2026-08-07||AMER:Batch-L",
+      "COVERAGE_GAP|2026-08-13||AMER:Lead",
+      "COVERAGE_GAP|2026-08-15||AMER:Primary",
+      "COVERAGE_GAP|2026-08-19||AMER:Lead",
+      "COVERAGE_GAP|2026-08-20||AMER:Lead",
+      "COVERAGE_GAP|2026-08-25||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-27||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-31||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-01||AMER:Primary",
+      "COVERAGE_THIN|2026-08-02||AMER:Primary",
+      "COVERAGE_THIN|2026-08-03||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-03||AMER:Crew",
+      "COVERAGE_THIN|2026-08-03||AMER:Lead",
+      "COVERAGE_THIN|2026-08-03||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-04||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-04||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-04||AMER:Crew",
+      "COVERAGE_THIN|2026-08-04||AMER:Lead",
+      "COVERAGE_THIN|2026-08-05||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-05||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-05||AMER:Crew",
+      "COVERAGE_THIN|2026-08-05||AMER:Lead",
+      "COVERAGE_THIN|2026-08-05||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-06||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-06||AMER:Crew",
+      "COVERAGE_THIN|2026-08-06||AMER:Lead",
+      "COVERAGE_THIN|2026-08-06||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-07||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-07||AMER:Crew-E",
+      "COVERAGE_THIN|2026-08-07||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-07||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-07||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-08||AMER:Primary",
+      "COVERAGE_THIN|2026-08-09||AMER:Primary",
+      "COVERAGE_THIN|2026-08-10||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-10||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-10||AMER:Crew",
+      "COVERAGE_THIN|2026-08-10||AMER:Lead",
+      "COVERAGE_THIN|2026-08-10||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-11||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-11||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-11||AMER:Crew",
+      "COVERAGE_THIN|2026-08-11||AMER:Lead",
+      "COVERAGE_THIN|2026-08-11||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-12||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-12||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-12||AMER:Crew",
+      "COVERAGE_THIN|2026-08-12||AMER:Lead",
+      "COVERAGE_THIN|2026-08-12||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-13||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-13||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-13||AMER:Crew",
+      "COVERAGE_THIN|2026-08-13||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-14||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-14||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-14||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-14||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-14||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-16||AMER:Primary",
+      "COVERAGE_THIN|2026-08-17||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-17||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-17||AMER:Crew",
+      "COVERAGE_THIN|2026-08-17||AMER:Lead",
+      "COVERAGE_THIN|2026-08-17||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-18||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-18||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-18||AMER:Crew",
+      "COVERAGE_THIN|2026-08-18||AMER:Lead",
+      "COVERAGE_THIN|2026-08-18||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-19||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-19||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-19||AMER:Crew",
+      "COVERAGE_THIN|2026-08-19||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-20||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-20||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-20||AMER:Crew",
+      "COVERAGE_THIN|2026-08-20||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-21||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-21||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-21||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-21||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-21||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-22||AMER:Primary",
+      "COVERAGE_THIN|2026-08-23||AMER:Primary",
+      "COVERAGE_THIN|2026-08-24||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-24||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-24||AMER:Crew",
+      "COVERAGE_THIN|2026-08-24||AMER:Lead",
+      "COVERAGE_THIN|2026-08-24||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-25||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-25||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-25||AMER:Crew",
+      "COVERAGE_THIN|2026-08-25||AMER:Lead",
+      "COVERAGE_THIN|2026-08-26||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-26||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-26||AMER:Crew",
+      "COVERAGE_THIN|2026-08-26||AMER:Lead",
+      "COVERAGE_THIN|2026-08-26||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-27||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-27||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-27||AMER:Crew",
+      "COVERAGE_THIN|2026-08-27||AMER:Lead",
+      "COVERAGE_THIN|2026-08-28||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-28||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-28||AMER:Crew-E",
+      "COVERAGE_THIN|2026-08-28||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-28||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-28||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-29||AMER:Primary",
+      "COVERAGE_THIN|2026-08-30||AMER:Primary",
+      "COVERAGE_THIN|2026-08-31||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-31||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-31||AMER:Crew",
+      "COVERAGE_THIN|2026-08-31||AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-alison-kowalski|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-alison-kowalski|AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-anjali-kulkarni|AMER:Batch-L",
+      "TARGET_SHARE_DEVIATION||p-anjali-kulkarni|AMER:Crew",
+      "TARGET_SHARE_DEVIATION||p-david-simmons|AMER:Crew-E",
+      "TARGET_SHARE_DEVIATION||p-david-simmons|AMER:Lead-E",
+      "TARGET_SHARE_DEVIATION||p-gregory-ramirez|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-james-brooks|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-james-brooks|AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-karan-rao|AMER:Shadow",
+      "TARGET_SHARE_DEVIATION||p-michael-reed|AMER:Batch-E",
+      "TARGET_SHARE_DEVIATION||p-sarah-whitfield|AMER:Batch-U",
+      "TARGET_SHARE_DEVIATION||p-sneha-chauhan|AMER:Batch-U",
+      "TARGET_SHARE_DEVIATION||p-thomas-foley|AMER:Lead",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-09|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-15|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-16|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-curtis-aldridge|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-29|p-curtis-aldridge|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-29|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-30|p-karan-rao|"
+    ],
+    "issueCodeCounts": {
+      "COVERAGE_GAP": 11,
+      "COVERAGE_THIN": 106,
+      "TARGET_SHARE_DEVIATION": 14,
+      "WEEKEND_LOAD_EXCEEDED": 8
+    }
+  },
+  "EMEA": {
+    "coverage": [
+      {
+        "date": "2026-08-01",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-02",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:CH-Early",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 0,
+        "min": 1,
+        "max": 2,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-08",
+        "roleId": "EMEA:CH-OC",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-09",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:CH-Early",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-15",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-16",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:E",
+        "actual": 0,
+        "min": 1,
+        "max": null,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-22",
+        "roleId": "EMEA:CH-OC",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-23",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 2,
+        "min": 1,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:CH-Early",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:BM",
+        "actual": 0,
+        "min": 1,
+        "max": null,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:CH-Late",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:BM",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:MOD",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:Shift-Lead",
+        "actual": 1,
+        "min": 1,
+        "max": 2,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:BM",
+        "actual": 0,
+        "min": 1,
+        "max": null,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:BM-Lead",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:E",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:MOD",
+        "actual": 1,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:CH-Early",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:CH-SL",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:CH-Late",
+        "actual": 0,
+        "min": 0,
+        "max": 1,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "EMEA:ST EMEA",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-29",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-30",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "EMEA:CH-OC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      }
+    ],
+    "issueKeys": [
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-15||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-16||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-17||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-18||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-19||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-20||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-21||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-22||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-23||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-24||EMEA:Shift-Lead",
+      "COVERAGE_GAP|2026-08-03||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-06||EMEA:Shift-Lead",
+      "COVERAGE_GAP|2026-08-08||EMEA:CH-OC",
+      "COVERAGE_GAP|2026-08-12||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-18||EMEA:E",
+      "COVERAGE_GAP|2026-08-22||EMEA:CH-OC",
+      "COVERAGE_GAP|2026-08-24||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-25||EMEA:BM",
+      "COVERAGE_GAP|2026-08-28||EMEA:BM",
+      "COVERAGE_THIN|2026-08-01||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-02||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-03||EMEA:BM",
+      "COVERAGE_THIN|2026-08-03||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-03||EMEA:E",
+      "COVERAGE_THIN|2026-08-03||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-03||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-04||EMEA:BM",
+      "COVERAGE_THIN|2026-08-04||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-04||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-04||EMEA:E",
+      "COVERAGE_THIN|2026-08-04||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-05||EMEA:BM",
+      "COVERAGE_THIN|2026-08-05||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-05||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-05||EMEA:E",
+      "COVERAGE_THIN|2026-08-05||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-05||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-06||EMEA:BM",
+      "COVERAGE_THIN|2026-08-06||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-06||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-06||EMEA:E",
+      "COVERAGE_THIN|2026-08-06||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-07||EMEA:BM",
+      "COVERAGE_THIN|2026-08-07||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-07||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-07||EMEA:E",
+      "COVERAGE_THIN|2026-08-07||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-09||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-10||EMEA:BM",
+      "COVERAGE_THIN|2026-08-10||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-10||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-10||EMEA:E",
+      "COVERAGE_THIN|2026-08-10||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-10||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-11||EMEA:BM",
+      "COVERAGE_THIN|2026-08-11||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-11||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-11||EMEA:E",
+      "COVERAGE_THIN|2026-08-11||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-11||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-12||EMEA:BM",
+      "COVERAGE_THIN|2026-08-12||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-12||EMEA:E",
+      "COVERAGE_THIN|2026-08-12||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-12||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-13||EMEA:BM",
+      "COVERAGE_THIN|2026-08-13||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-13||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-13||EMEA:E",
+      "COVERAGE_THIN|2026-08-13||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-13||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-14||EMEA:BM",
+      "COVERAGE_THIN|2026-08-14||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-14||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-14||EMEA:E",
+      "COVERAGE_THIN|2026-08-14||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-14||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-15||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-16||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-17||EMEA:BM",
+      "COVERAGE_THIN|2026-08-17||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-17||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-17||EMEA:E",
+      "COVERAGE_THIN|2026-08-17||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-17||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-18||EMEA:BM",
+      "COVERAGE_THIN|2026-08-18||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-18||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-18||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-19||EMEA:BM",
+      "COVERAGE_THIN|2026-08-19||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-19||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-19||EMEA:E",
+      "COVERAGE_THIN|2026-08-19||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-20||EMEA:BM",
+      "COVERAGE_THIN|2026-08-20||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-20||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-20||EMEA:E",
+      "COVERAGE_THIN|2026-08-20||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-21||EMEA:BM",
+      "COVERAGE_THIN|2026-08-21||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-21||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-21||EMEA:E",
+      "COVERAGE_THIN|2026-08-21||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-23||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-24||EMEA:BM",
+      "COVERAGE_THIN|2026-08-24||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-24||EMEA:E",
+      "COVERAGE_THIN|2026-08-24||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-25||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-25||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-25||EMEA:E",
+      "COVERAGE_THIN|2026-08-25||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-25||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-26||EMEA:BM",
+      "COVERAGE_THIN|2026-08-26||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-26||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-26||EMEA:E",
+      "COVERAGE_THIN|2026-08-26||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-26||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-27||EMEA:BM",
+      "COVERAGE_THIN|2026-08-27||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-27||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-27||EMEA:E",
+      "COVERAGE_THIN|2026-08-27||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-27||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-28||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-28||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-28||EMEA:E",
+      "COVERAGE_THIN|2026-08-28||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-28||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-29||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-30||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-31||EMEA:CH-OC",
+      "MIN_REST_VIOLATED|2026-08-10|p-nadine-keller|",
+      "MIN_REST_VIOLATED|2026-08-16|p-elena-zimmermann|",
+      "MIN_REST_VIOLATED|2026-08-17|p-elena-zimmermann|",
+      "TARGET_SHARE_DEVIATION||p-adam-ashworth|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-adam-ashworth|EMEA:MOD",
+      "TARGET_SHARE_DEVIATION||p-anna-frei|EMEA:CH-Early",
+      "TARGET_SHARE_DEVIATION||p-anna-frei|EMEA:CH-SL",
+      "TARGET_SHARE_DEVIATION||p-charlotte-harding|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-hannah-reid|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-hannah-reid|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-meera-shetty|EMEA:BM",
+      "TARGET_SHARE_DEVIATION||p-meera-shetty|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-nikhil-joshi|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-nikhil-joshi|EMEA:MOD",
+      "TARGET_SHARE_DEVIATION||p-sophie-pemberton|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-sophie-pemberton|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-thomas-baumann|EMEA:CH-Early",
+      "TARGET_SHARE_DEVIATION||p-thomas-baumann|EMEA:CH-SL",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-elena-zimmermann|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-30|p-elena-zimmermann|"
+    ],
+    "issueCodeCounts": {
+      "ABSENCE_CAPACITY_EXCEEDED": 10,
+      "COVERAGE_GAP": 9,
+      "COVERAGE_THIN": 115,
+      "MIN_REST_VIOLATED": 3,
+      "TARGET_SHARE_DEVIATION": 15,
+      "WEEKEND_LOAD_EXCEEDED": 2
+    }
+  },
+  "APAC": {
+    "coverage": [
+      {
+        "date": "2026-08-01",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-02",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-03",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-04",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-05",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-06",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-07",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-08",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-09",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-10",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-11",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-12",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-13",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-14",
+        "roleId": "APAC:ST APAC",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-15",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-16",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-17",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-18",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-19",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-20",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-21",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-22",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-23",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-24",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-25",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-26",
+        "roleId": "APAC:ST APAC",
+        "actual": 0,
+        "min": 1,
+        "max": 1,
+        "level": "GAP"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "APAC:G",
+        "actual": 1,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-27",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-28",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-29",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-30",
+        "roleId": "APAC:MC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "APAC:M",
+        "actual": 1,
+        "min": 1,
+        "max": null,
+        "level": "THIN"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "APAC:G",
+        "actual": 0,
+        "min": 0,
+        "max": 2,
+        "level": "OK"
+      },
+      {
+        "date": "2026-08-31",
+        "roleId": "APAC:ST APAC",
+        "actual": 1,
+        "min": 1,
+        "max": 1,
+        "level": "THIN"
+      }
+    ],
+    "issueKeys": [
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-11||APAC:M",
+      "COVERAGE_GAP|2026-08-14||APAC:ST APAC",
+      "COVERAGE_GAP|2026-08-26||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-01||APAC:MC",
+      "COVERAGE_THIN|2026-08-02||APAC:MC",
+      "COVERAGE_THIN|2026-08-03||APAC:M",
+      "COVERAGE_THIN|2026-08-03||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-04||APAC:M",
+      "COVERAGE_THIN|2026-08-04||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-05||APAC:M",
+      "COVERAGE_THIN|2026-08-05||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-06||APAC:M",
+      "COVERAGE_THIN|2026-08-06||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-07||APAC:M",
+      "COVERAGE_THIN|2026-08-07||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-08||APAC:MC",
+      "COVERAGE_THIN|2026-08-09||APAC:MC",
+      "COVERAGE_THIN|2026-08-10||APAC:M",
+      "COVERAGE_THIN|2026-08-11||APAC:M",
+      "COVERAGE_THIN|2026-08-11||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-12||APAC:M",
+      "COVERAGE_THIN|2026-08-12||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-13||APAC:M",
+      "COVERAGE_THIN|2026-08-13||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-14||APAC:M",
+      "COVERAGE_THIN|2026-08-15||APAC:MC",
+      "COVERAGE_THIN|2026-08-16||APAC:MC",
+      "COVERAGE_THIN|2026-08-17||APAC:M",
+      "COVERAGE_THIN|2026-08-17||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-18||APAC:M",
+      "COVERAGE_THIN|2026-08-18||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-19||APAC:M",
+      "COVERAGE_THIN|2026-08-19||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-20||APAC:M",
+      "COVERAGE_THIN|2026-08-20||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-21||APAC:M",
+      "COVERAGE_THIN|2026-08-21||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-22||APAC:MC",
+      "COVERAGE_THIN|2026-08-23||APAC:MC",
+      "COVERAGE_THIN|2026-08-24||APAC:M",
+      "COVERAGE_THIN|2026-08-24||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-25||APAC:M",
+      "COVERAGE_THIN|2026-08-25||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-26||APAC:M",
+      "COVERAGE_THIN|2026-08-27||APAC:M",
+      "COVERAGE_THIN|2026-08-27||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-28||APAC:M",
+      "COVERAGE_THIN|2026-08-28||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-29||APAC:MC",
+      "COVERAGE_THIN|2026-08-30||APAC:MC",
+      "COVERAGE_THIN|2026-08-31||APAC:M",
+      "COVERAGE_THIN|2026-08-31||APAC:ST APAC"
+    ],
+    "issueCodeCounts": {
+      "ABSENCE_CAPACITY_EXCEEDED": 1,
+      "COVERAGE_GAP": 2,
+      "COVERAGE_THIN": 49
+    }
+  }
+}

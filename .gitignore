@@ -16,3 +16,9 @@ Thumbs.db
 /.idea/
 /.vscode/*
 !/.vscode/extensions.json
+
+# .NET backend — build output, not source. Unanchored on purpose: bin/obj recur
+# under every project (api/src/*/bin, api/tests/*/obj, ...).
+bin/
+obj/
+*.user
