@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
@@ -17,20 +19,13 @@ namespace ShiftOMator.Api.Admin;
 /// </summary>
 public static class UnitsAdminEndpoints
 {
-    public record CompOffPolicyRequest(
-        int WindowBeforeDays, int WindowAfterDays, List<IsoWeekday> ExcludedWeekdays,
-        int AgingThresholdDays, bool RequiresApprovalWhenNoSlot);
-
-    public record UnitRequest(
-        string Name, UnitKind Kind, GroupBy GroupBy, string PrimaryLocationId,
-        List<string> LocationIds, CompOffPolicyRequest CompOffPolicy);
-
     public static void MapUnitsAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/units").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.PlanningUnits.AsNoTracking().OrderBy(u => u.Id).ToListAsync(ct)));
+            Results.Ok(await db.PlanningUnits.AsNoTracking().OrderBy(u => u.Id).ToListAsync(ct)))
+            .Produces<IReadOnlyList<PlanningUnit>>();
 
         group.MapPost("/", async (UnitRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -50,7 +45,9 @@ public static class UnitsAdminEndpoints
             db.PlanningUnits.Add(unit);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/units/{unit.Id}", unit);
-        });
+        })
+        .Produces<PlanningUnit>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapPut("/{id}", async (string id, UnitRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -68,7 +65,10 @@ public static class UnitsAdminEndpoints
             unit.CompOffPolicy = ToCompOffPolicy(req.CompOffPolicy);
             await db.SaveChangesAsync(ct);
             return Results.Ok(unit);
-        });
+        })
+        .Produces<PlanningUnit>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -83,7 +83,10 @@ public static class UnitsAdminEndpoints
             db.PlanningUnits.Remove(unit);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
     }
 
     private static CompOffPolicy ToCompOffPolicy(CompOffPolicyRequest req) => new()

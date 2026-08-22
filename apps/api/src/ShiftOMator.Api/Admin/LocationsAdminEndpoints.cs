@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
@@ -9,20 +11,21 @@ namespace ShiftOMator.Api.Admin;
 /// nothing here is effective-dated.</summary>
 public static class LocationsAdminEndpoints
 {
-    public record LocationRequest(string Name, string Country, string TimeZone, string HolidayCalendarKey, List<IsoWeekday> WeekendDays);
-
     public static void MapLocationsAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/locations").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.Locations.AsNoTracking().OrderBy(l => l.Id).ToListAsync(ct)));
+            Results.Ok(await db.Locations.AsNoTracking().OrderBy(l => l.Id).ToListAsync(ct)))
+            .Produces<IReadOnlyList<Location>>();
 
         group.MapGet("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
             var location = await db.Locations.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct);
             return location is null ? AdminValidation.NotFound("location", id) : Results.Ok(location);
-        });
+        })
+        .Produces<Location>()
+        .Produces(StatusCodes.Status404NotFound);
 
         group.MapPost("/", async (LocationRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -41,7 +44,9 @@ public static class LocationsAdminEndpoints
             db.Locations.Add(location);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/locations/{location.Id}", location);
-        });
+        })
+        .Produces<Location>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapPut("/{id}", async (string id, LocationRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -58,7 +63,10 @@ public static class LocationsAdminEndpoints
             location.WeekendDays = req.WeekendDays;
             await db.SaveChangesAsync(ct);
             return Results.Ok(location);
-        });
+        })
+        .Produces<Location>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -76,7 +84,10 @@ public static class LocationsAdminEndpoints
             db.Locations.Remove(location);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
     }
 
     private static AdminValidation Validate(LocationRequest req)

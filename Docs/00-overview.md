@@ -7,13 +7,13 @@ organization (~80 people across APAC, EMEA and AMER). It replaces several spread
 views with one model:
 
 - a people-by-day schedule;
-- role requirements and coverage health;
+- shift requirements and coverage health;
 - weekend and specialist rotations;
 - live regional coverage across time zones;
 - weekend-work-to-comp-off links;
 - public-holiday staffing;
 - eligibility, availability and fairness statistics;
-- configurable roles, shifts, timings, colors and handovers;
+- configurable shifts, timings, colors and day configurations;
 - planner drafts and controlled publication;
 - a traceable history of schedule changes.
 
@@ -33,7 +33,7 @@ against unit requirements, and turned into coverage information.
 - **The simultaneous-absence limit isn't enforced.** Every summer this produces
   last-minute scrambling.
 - **There's no operational view.** "Who's the lead in APAC right now and when is the
-  EMEA overlap" needs the file, the date, the role window and timezone math.
+  EMEA overlap" needs the file, the date, the shift window and timezone math.
 - **There's no fairness data.** Who worked more weekends is a matter of feeling.
 - **There's no draft.** Editing the shared file *is* editing the published rota.
 
@@ -60,9 +60,9 @@ incident alerting.
 
 | User | What they need | Product behavior |
 |---|---|---|
-| **Viewer** | Understand coverage, find personal duties | Reads published data, filters to Only Me, changes display timezone, browses Overview / Schedule / People. Cannot alter the published plan. |
+| **Viewer** | Understand coverage, find personal duties | Reads published data, changes display timezone, browses Overview / Schedule / People. Cannot alter the published plan. |
 | **Planner** | Build and maintain a valid rota | Opens a draft, assigns eligible shifts, marks non-working states, checks gaps, undoes, generates suggestions, reviews and publishes — **in any planning unit**. |
-| **Administrator** | Maintain the scheduling model | Everything a planner can, plus people, eligibility, shifts, day configurations, shift requirements, colors, holidays, comp-off rules and handovers. May force-publish, explicitly and audited. |
+| **Administrator** | Maintain the scheduling model | Everything a planner can, plus people, eligibility, shifts, day configurations, shift requirements, colors, holidays and comp-off policy. May force-publish, explicitly and audited. |
 
 **There is no unit scoping of write access**
 ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). The team is small and nobody edits
@@ -99,11 +99,13 @@ development convenience and must not ship to ordinary users.
 are spelled out in [12-architecture.md](12-architecture.md): the whole quarter loads
 into the browser at once, there's no server-side pagination, and no virtualization.
 
-## Relationship to the earlier prototype
+## History
 
-A previous corporate implementation of this product exists and is described in
-`SHIFT-O-MATOR-desc-anonymized.md` at the repository root. That document is the
-**authority on operational reality**: real role codes, real coverage minimums, real
-status vocabulary, and the draft/publish model. Where this design once disagreed with
-it, the decisions were revisited — see [adr/](adr/) and in particular ADR-0015 through
-ADR-0019, which supersede or amend earlier decisions.
+An earlier corporate implementation of this product informed the original design —
+real role codes, coverage minimums, status vocabulary, and the draft/publish model all
+trace back to it. That prototype's own spec document is gone from the repository
+(Phase 0); the decision record now lives entirely in [adr/](adr/), which is the
+authority on why the model looks the way it does, including every place the design
+later diverged from that starting point (ADR-0015 onward, and especially
+ADR-0032–0034 for the Phase 8 model change: Region deleted, one absolute-time Shift
+entity, zero minimums legal).

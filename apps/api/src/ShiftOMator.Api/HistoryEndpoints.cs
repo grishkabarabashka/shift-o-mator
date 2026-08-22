@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
 namespace ShiftOMator.Api;
@@ -20,6 +21,7 @@ public static class HistoryEndpoints
             return Results.Ok(entries);
         })
         .WithName("GetHistory")
+        .Produces<IReadOnlyList<AssignmentHistoryEntry>>()
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
     }
 }

@@ -1,3 +1,5 @@
+using ShiftOMator.Api.Contracts.Shared;
+
 namespace ShiftOMator.Api.Admin;
 
 /// <summary>
@@ -52,13 +54,13 @@ public sealed class AdminValidation
             : field;
 
     public IResult? ToBadRequestOrNull() =>
-        HasErrors ? Results.BadRequest(new { errors = _errors.ToDictionary(kv => kv.Key, kv => kv.Value.AsEnumerable()) }) : null;
+        HasErrors ? Results.BadRequest(new ValidationErrorResponse(_errors.ToDictionary(kv => kv.Key, kv => kv.Value.AsEnumerable()))) : null;
 
     public static IResult NotFound(string entity, string id) =>
-        Results.NotFound(new { code = $"{entity.ToUpperInvariant()}_NOT_FOUND", id });
+        Results.NotFound(new NotFoundResponse($"{entity.ToUpperInvariant()}_NOT_FOUND", id));
 
     /// <summary>A referenced-by-live-data conflict — e.g. deleting a location still used
     /// by a region or a person. 409, not 400: the request itself is well-formed.</summary>
     public static IResult Conflict(string code, string message) =>
-        Results.Conflict(new { code, message });
+        Results.Conflict(new ErrorResponse(code, message));
 }

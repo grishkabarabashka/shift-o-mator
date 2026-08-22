@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
@@ -14,18 +16,15 @@ namespace ShiftOMator.Api.Admin;
 /// </summary>
 public static class PeopleAdminEndpoints
 {
-    public record PersonRequest(
-        string DisplayName, string Initials, string? EmployeeId, string UnitId,
-        string LocationId, OrgCategory OrgCategory, bool IsActive, bool IsIncluded);
-
     public static void MapPeopleAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/people").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.People.AsNoTracking().Include(p => p.Eligibility).OrderBy(p => p.DisplayName).ToListAsync(ct)));
+            Results.Ok(await db.People.AsNoTracking().Include(p => p.Eligibility).OrderBy(p => p.DisplayName).ToListAsync(ct)))
+            .Produces<IReadOnlyList<Person>>();
 
-        group.MapPost("/", async (PersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -46,9 +45,11 @@ public static class PeopleAdminEndpoints
             db.People.Add(person);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/people/{person.Id}", person);
-        });
+        })
+        .Produces<Person>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, PersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -66,7 +67,10 @@ public static class PeopleAdminEndpoints
             person.IsIncluded = req.IsIncluded;
             await db.SaveChangesAsync(ct);
             return Results.Ok(person);
-        });
+        })
+        .Produces<Person>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -84,10 +88,13 @@ public static class PeopleAdminEndpoints
             db.People.Remove(person);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(PersonRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.DisplayName), req.DisplayName);

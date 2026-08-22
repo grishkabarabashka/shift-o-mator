@@ -70,8 +70,8 @@ Issue {
   code          machine-readable rule id, for grouping and suppression
   category      GAP | CONFLICT | FAIRNESS | POLICY
   message       human-readable
-  regionId
-  date?, personId?, roleId?      the anchor
+  unitId
+  date?, personId?, shiftId?      the anchor
   acknowledgement?
 }
 ```

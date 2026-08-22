@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
@@ -9,14 +11,13 @@ namespace ShiftOMator.Api.Admin;
 /// actually be edited/deleted through CRUD instead of matched by date+name.</summary>
 public static class HolidaysAdminEndpoints
 {
-    public record HolidayRequest(DateOnly Date, string Name, List<string> LocationIds, bool IsFullDay);
-
     public static void MapHolidaysAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/holidays").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.Holidays.AsNoTracking().OrderBy(h => h.Date).ToListAsync(ct)));
+            Results.Ok(await db.Holidays.AsNoTracking().OrderBy(h => h.Date).ToListAsync(ct)))
+            .Produces<IReadOnlyList<Holiday>>();
 
         group.MapPost("/", async (HolidayRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -34,7 +35,9 @@ public static class HolidaysAdminEndpoints
             db.Holidays.Add(holiday);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/holidays/{holiday.Id}", holiday);
-        });
+        })
+        .Produces<Holiday>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapPut("/{id}", async (string id, HolidayRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -50,7 +53,10 @@ public static class HolidaysAdminEndpoints
             holiday.IsFullDay = req.IsFullDay;
             await db.SaveChangesAsync(ct);
             return Results.Ok(holiday);
-        });
+        })
+        .Produces<Holiday>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -60,7 +66,9 @@ public static class HolidaysAdminEndpoints
             db.Holidays.Remove(holiday);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound);
     }
 
     private static AdminValidation Validate(HolidayRequest req)

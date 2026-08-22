@@ -37,7 +37,7 @@ public class AuthPolicyTests(ApiTestFactory factory) : IDisposable
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("p-planner", body.GetProperty("personId").GetString());
-        Assert.Equal("Planner", body.GetProperty("shift").GetString());
+        Assert.Equal("Planner", body.GetProperty("role").GetString());
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class AuthPolicyTests(ApiTestFactory factory) : IDisposable
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Viewer", body.GetProperty("shift").GetString());
+        Assert.Equal("Viewer", body.GetProperty("role").GetString());
     }
 
     [Fact]

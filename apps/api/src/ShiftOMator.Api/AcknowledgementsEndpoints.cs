@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Acknowledgements;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
@@ -12,8 +13,6 @@ namespace ShiftOMator.Api;
 /// </summary>
 public static class AcknowledgementsEndpoints
 {
-    public record AcknowledgeRequest(string IssueKey, string Comment, string ByPersonId);
-
     public static void MapAcknowledgementsEndpoints(this WebApplication app)
     {
         app.MapPost("/api/acknowledgements", async (AcknowledgeRequest req, ScheduleDbContext db, CancellationToken ct) =>
@@ -43,6 +42,7 @@ public static class AcknowledgementsEndpoints
             return Results.Ok(existing);
         })
         .WithName("Acknowledge")
+        .Produces<Acknowledgement>()
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
     }
 }

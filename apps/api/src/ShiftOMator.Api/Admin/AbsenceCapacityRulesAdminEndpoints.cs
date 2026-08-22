@@ -1,27 +1,25 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
 namespace ShiftOMator.Api.Admin;
 
-/// <summary>Per-region, per-shift-pool absence limits (ADR-0010, owner-confirmed
+/// <summary>Per-unit, per-shift-pool absence limits (ADR-0010, owner-confirmed
 /// defaults). Fully in-place — a limit is a setting, not a historical fact.</summary>
 public static class AbsenceCapacityRulesAdminEndpoints
 {
-    public record RuleRequest(
-        string UnitId, AbsenceCapacityScopeKind ScopeKind, string? ScopeShiftId,
-        AbsenceDurationBucket DurationBucket, int LongThresholdWorkdays, int MaxConcurrent,
-        List<AbsenceType> CountsTypes, bool CountsCompDays);
-
     public static void MapAbsenceCapacityRulesAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/absence-capacity-rules").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.AbsenceCapacityRules.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct)));
+            Results.Ok(await db.AbsenceCapacityRules.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct)))
+            .Produces<IReadOnlyList<AbsenceCapacityRule>>();
 
-        group.MapPost("/", async (RuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -41,9 +39,11 @@ public static class AbsenceCapacityRulesAdminEndpoints
             db.AbsenceCapacityRules.Add(rule);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/absence-capacity-rules/{rule.Id}", rule);
-        });
+        })
+        .Produces<AbsenceCapacityRule>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, RuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -61,7 +61,10 @@ public static class AbsenceCapacityRulesAdminEndpoints
             rule.CountsCompDays = req.CountsCompDays;
             await db.SaveChangesAsync(ct);
             return Results.Ok(rule);
-        });
+        })
+        .Produces<AbsenceCapacityRule>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -71,10 +74,12 @@ public static class AbsenceCapacityRulesAdminEndpoints
             db.AbsenceCapacityRules.Remove(rule);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(RuleRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.UnitId), req.UnitId);
@@ -86,7 +91,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
         {
             v.Require(nameof(req.ScopeShiftId), req.ScopeShiftId, "is required when scope is ShiftPool.");
             if (!string.IsNullOrWhiteSpace(req.ScopeShiftId) && !await db.Shifts.AnyAsync(r => r.Id == req.ScopeShiftId, ct))
-                v.Add(nameof(req.ScopeShiftId), $"Role {req.ScopeShiftId} does not exist.");
+                v.Add(nameof(req.ScopeShiftId), $"Shift {req.ScopeShiftId} does not exist.");
         }
         return v;
     }

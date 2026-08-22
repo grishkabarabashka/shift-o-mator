@@ -1,14 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Reference;
 using ShiftOMator.Infrastructure;
 
 namespace ShiftOMator.Api;
 
 /// <summary>
 /// Read-only reference data — the same payload shape `loadReference()` returns on the
-/// client today, so `HttpScheduleRepository` (Phase 5) is a drop-in. Full DTO/OpenAPI
-/// contract alignment is Phase 5's job; this is deliberately the plain entity shape so
-/// Phase 2 has something real to `curl` and to write integration tests against.
+/// client today, so `HttpScheduleRepository` (Phase 5) is a drop-in.
 /// </summary>
 public static class ReferenceEndpoints
 {
@@ -26,18 +25,17 @@ public static class ReferenceEndpoints
                 .ToListAsync();
             var people = await db.People.AsNoTracking().Include(p => p.Eligibility).ToListAsync();
 
-            return Results.Ok(new
-            {
+            return Results.Ok(new ReferenceResponse(
                 locations,
                 holidays,
                 units,
-                shifts = units.SelectMany(u => u.Shifts),
-                dayConfigurations = units.SelectMany(u => u.DayConfigurations),
+                units.SelectMany(u => u.Shifts),
+                units.SelectMany(u => u.DayConfigurations),
                 people,
-                absenceCapacityRules = units.SelectMany(u => u.AbsenceCapacityRules),
-            });
+                units.SelectMany(u => u.AbsenceCapacityRules)));
         })
         .WithName("GetReference")
+        .Produces<ReferenceResponse>()
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
     }
 }

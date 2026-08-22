@@ -1,4 +1,6 @@
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Shared;
+using ShiftOMator.Api.Contracts.Suggest;
 using ShiftOMator.Application;
 using ShiftOMator.Infrastructure;
 
@@ -11,12 +13,6 @@ namespace ShiftOMator.Api;
 /// </summary>
 public static class SuggestEndpoints
 {
-    public record SuggestRequest(string ShiftId, DateOnly Date, string UnitId, HashSet<string>? ExcludePersonIds);
-
-    public record AutoPopulateRequest(
-        string UnitId, DateOnly RangeFrom, DateOnly RangeTo,
-        HashSet<string>? LockedAssignmentIds, string ActorId);
-
     public static void MapSuggestEndpoints(this WebApplication app)
     {
         app.MapPost("/api/suggest", async (SuggestRequest req, ScheduleDbContext db, CancellationToken ct) =>
@@ -31,12 +27,13 @@ public static class SuggestEndpoints
             return Results.Ok(result);
         })
         .WithName("Suggest")
+        .Produces<CandidateRanker.CandidateResult>()
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
         app.MapPost("/api/auto-populate", async (AutoPopulateRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             if ((req.RangeTo.DayNumber - req.RangeFrom.DayNumber) > AutoPopulateService.MaxDays)
-                return Results.BadRequest(new { code = "RANGE_TOO_LONG", message = $"Auto-populate is limited to {AutoPopulateService.MaxDays} days." });
+                return Results.BadRequest(new ErrorResponse("RANGE_TOO_LONG", $"Auto-populate is limited to {AutoPopulateService.MaxDays} days."));
 
             var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
             var index = DatasetIndex.Build(dataset);
@@ -48,6 +45,8 @@ public static class SuggestEndpoints
             return Results.Ok(result);
         })
         .WithName("AutoPopulate")
+        .Produces<AutoPopulateService.Result>()
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
     }
 }

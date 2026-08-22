@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
 namespace ShiftOMator.Api.Admin;
 
 /// <summary>
-/// Shift: belongs to a region, carries its own fixed-timezone window (ADR-0004,
-/// ADR-0001). See the scope note on <c>DayConfigurationsAdminEndpoints</c> — edited
+/// Shift: belongs to a unit, carries its own fixed-timezone window (ADR-0032,
+/// ADR-0033). See the scope note on <c>DayConfigurationsAdminEndpoints</c> — edited
 /// in-place for the same reason (no resolver exists yet for shift time versions).
 /// Color/label/hotkey were always meant to be unversioned per CLAUDE.md point 14; the
 /// time-window fields ride along in the same in-place PUT as a documented scope
@@ -15,23 +17,21 @@ namespace ShiftOMator.Api.Admin;
 /// </summary>
 public static class ShiftsAdminEndpoints
 {
-    public record ShiftRequest(
-        string UnitId, string Code, string Label, string? Description, string Color, string? Hotkey,
-        string TimeZone, TimeOnly Start, TimeOnly End, bool CrossesMidnight, int BreakMinutes,
-        bool CountsAsCoverage, bool EditableTime);
-
     public static void MapShiftsAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/shifts").RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.Shifts.AsNoTracking().OrderBy(s => s.Id).ToListAsync(ct)));
+            Results.Ok(await db.Shifts.AsNoTracking().OrderBy(s => s.Id).ToListAsync(ct)))
+            .Produces<IReadOnlyList<Shift>>();
 
         group.MapGet("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
             var shift = await db.Shifts.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
             return shift is null ? AdminValidation.NotFound("shift", id) : Results.Ok(shift);
-        });
+        })
+        .Produces<Shift>()
+        .Produces(StatusCodes.Status404NotFound);
 
         group.MapPost("/", async (ShiftRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -64,7 +64,9 @@ public static class ShiftsAdminEndpoints
             db.Shifts.Add(shift);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/shifts/{shift.Id}", shift);
-        });
+        })
+        .Produces<Shift>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapPut("/{id}", async (string id, ShiftRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -89,7 +91,10 @@ public static class ShiftsAdminEndpoints
             shift.EditableTime = req.EditableTime;
             await db.SaveChangesAsync(ct);
             return Results.Ok(shift);
-        });
+        })
+        .Produces<Shift>()
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -104,7 +109,10 @@ public static class ShiftsAdminEndpoints
             db.Shifts.Remove(shift);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
     }
 
     private static async Task<AdminValidation> ValidateAsync(ShiftRequest req, ScheduleDbContext db, CancellationToken ct)

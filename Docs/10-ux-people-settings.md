@@ -21,7 +21,7 @@ detail panel right when a row is selected.
 | Eligible Shifts | Colored shift badges |
 | Weekend | Check or dash |
 
-Unit and Only Me filters apply. Search matches display name, location and eligible
+The unit filter applies. Search matches display name, location and eligible
 shift code. The footer reports visible versus total included people.
 
 ### Person panel

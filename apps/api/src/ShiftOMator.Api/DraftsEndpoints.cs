@@ -1,7 +1,8 @@
 using System.Data;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Drafts;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Application;
 using ShiftOMator.Application.Drafts;
 using ShiftOMator.Domain;
@@ -11,10 +12,6 @@ namespace ShiftOMator.Api;
 
 public static class DraftsEndpoints
 {
-    public record OpenDraftRequest(string EditorPersonId, string UnitId, DateOnly RangeFrom, DateOnly RangeTo);
-
-    public record AppendChangeRequest(DraftTargetType TargetType, DraftOp Op, string EntityId, JsonElement? After);
-
     public static void MapDraftsEndpoints(this WebApplication app)
     {
         app.MapPost("/api/drafts", async (OpenDraftRequest req, ScheduleDbContext db, CancellationToken ct) =>
@@ -25,6 +22,7 @@ public static class DraftsEndpoints
             return Results.Created($"/api/drafts/{session.Id}", session);
         })
         .WithName("OpenDraft")
+        .Produces<DraftSession>(StatusCodes.Status201Created)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
         // Overlapping, informational (Docs/03) — several concurrent drafts on the same
@@ -39,6 +37,7 @@ public static class DraftsEndpoints
             return Results.Ok(sessions);
         })
         .WithName("ListDrafts")
+        .Produces<IReadOnlyList<DraftSession>>()
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
 
         app.MapGet("/api/drafts/{id}/changes", async (string id, ScheduleDbContext db, CancellationToken ct) =>
@@ -49,6 +48,8 @@ public static class DraftsEndpoints
             return Results.Ok(session.Changes.OrderBy(c => c.Seq));
         })
         .WithName("ListDraftChanges")
+        .Produces<IReadOnlyList<DraftChange>>()
+        .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
 
         app.MapPost("/api/drafts/{id}/changes", async (string id, AppendChangeRequest req, ScheduleDbContext db, CancellationToken ct) =>
@@ -87,10 +88,13 @@ public static class DraftsEndpoints
             }
             catch (DraftDomainException ex)
             {
-                return Results.BadRequest(new { code = ex.Code, message = ex.Message });
+                return Results.BadRequest(new ErrorResponse(ex.Code, ex.Message));
             }
         })
         .WithName("AppendDraftChange")
+        .Produces<DraftChange>(StatusCodes.Status201Created)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
         app.MapDelete("/api/drafts/{id}/changes/{changeId}", async (string id, string changeId, ScheduleDbContext db, CancellationToken ct) =>
@@ -104,13 +108,16 @@ public static class DraftsEndpoints
             }
             catch (DraftDomainException ex)
             {
-                return Results.BadRequest(new { code = ex.Code, message = ex.Message });
+                return Results.BadRequest(new ErrorResponse(ex.Code, ex.Message));
             }
 
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         })
         .WithName("RemoveDraftChange")
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
         app.MapPost("/api/drafts/{id}/discard", async (string id, ScheduleDbContext db, CancellationToken ct) =>
@@ -124,18 +131,25 @@ public static class DraftsEndpoints
             }
             catch (DraftDomainException ex)
             {
-                return Results.BadRequest(new { code = ex.Code, message = ex.Message });
+                return Results.BadRequest(new ErrorResponse(ex.Code, ex.Message));
             }
 
             await db.SaveChangesAsync(ct);
             return Results.Ok(session);
         })
         .WithName("DiscardDraft")
+        .Produces<DraftSession>()
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
         app.MapPost("/api/drafts/{id}/publish", async (string id, ScheduleDbContext db, CancellationToken ct) =>
             await PublishAsync(id, db, ct))
         .WithName("PublishDraft")
+        .Produces<PublishDraftResponse>()
+        .Produces<PublishConflictResponse>(StatusCodes.Status409Conflict)
+        .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+        .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
     }
 
@@ -150,7 +164,7 @@ public static class DraftsEndpoints
         var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
         if (session is null) return Results.NotFound();
         if (session.Status != DraftStatus.Open)
-            return Results.Conflict(new { code = "DRAFT_NOT_OPEN", message = $"Draft {id} is {session.Status}, not open." });
+            return Results.Conflict(new ErrorResponse("DRAFT_NOT_OPEN", $"Draft {id} is {session.Status}, not open."));
 
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
@@ -164,7 +178,7 @@ public static class DraftsEndpoints
         if (!outcome.Success)
         {
             await transaction.RollbackAsync(ct);
-            return Results.Json(new { conflicts = outcome.Conflicts }, statusCode: StatusCodes.Status409Conflict);
+            return Results.Json(new PublishConflictResponse(outcome.Conflicts), statusCode: StatusCodes.Status409Conflict);
         }
 
         foreach (var change in session.Changes.OrderBy(c => c.Seq))
@@ -191,12 +205,7 @@ public static class DraftsEndpoints
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return Results.Ok(new
-        {
-            remainingGaps = outcome.RemainingGaps,
-            history = outcome.History,
-            generatedCompDays = outcome.GeneratedCompDays,
-        });
+        return Results.Ok(new PublishDraftResponse(outcome.RemainingGaps, outcome.History, outcome.GeneratedCompDays));
     }
 
     private static async Task ApplyAssignmentChange(

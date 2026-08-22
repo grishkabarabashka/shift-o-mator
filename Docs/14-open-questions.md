@@ -5,7 +5,9 @@ are not reopened by accident.
 
 ## Closed by the prototype specification
 
-`SHIFT-O-MATOR-desc-anonymized.md` answered five of them outright.
+The earlier prototype's own spec document — since removed from the repository
+(Phase 0); this page is the surviving record of what it settled — answered five of
+them outright.
 
 | Question | Answer |
 |---|---|

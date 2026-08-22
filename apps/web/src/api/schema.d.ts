@@ -299,7 +299,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Location"][];
+                    };
                 };
             };
         };
@@ -317,12 +319,23 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Location"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -355,6 +368,15 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["Location"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -379,6 +401,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["Location"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -395,8 +435,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -430,7 +484,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Holiday"][];
+                    };
                 };
             };
         };
@@ -448,12 +504,23 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Holiday"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -491,6 +558,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["Holiday"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -507,8 +592,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -542,7 +634,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PlanningUnit"][];
+                    };
                 };
             };
         };
@@ -560,12 +654,23 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PlanningUnit"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -603,6 +708,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["PlanningUnit"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -619,8 +742,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -654,7 +791,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["AbsenceCapacityRule"][];
+                    };
                 };
             };
         };
@@ -668,16 +807,27 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["RuleRequest"];
+                    "application/json": components["schemas"]["AbsenceCapacityRuleRequest"];
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["AbsenceCapacityRule"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -706,12 +856,30 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["RuleRequest"];
+                    "application/json": components["schemas"]["AbsenceCapacityRuleRequest"];
                 };
             };
             responses: {
                 /** @description OK */
                 200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AbsenceCapacityRule"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -731,8 +899,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -766,7 +941,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Shift"][];
+                    };
                 };
             };
         };
@@ -784,12 +961,23 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Shift"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -822,6 +1010,15 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["Shift"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -846,6 +1043,24 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["Shift"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
             };
@@ -862,8 +1077,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -897,7 +1126,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["DayConfiguration"][];
+                    };
                 };
             };
         };
@@ -911,16 +1142,27 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["NewVersionRequest"];
+                    "application/json": components["schemas"]["DayConfigurationNewVersionRequest"];
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["DayConfiguration"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -949,12 +1191,21 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["LabelRequest"];
+                    "application/json": components["schemas"]["DayConfigurationLabelRequest"];
                 };
             };
             responses: {
                 /** @description OK */
                 200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DayConfiguration"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -990,8 +1241,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1025,7 +1290,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Person"][];
+                    };
                 };
             };
         };
@@ -1039,16 +1306,27 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["PersonRequest"];
+                    "application/json": components["schemas"]["AdminPersonRequest"];
                 };
             };
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Created */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Person"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
                 };
             };
         };
@@ -1077,12 +1355,30 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["PersonRequest"];
+                    "application/json": components["schemas"]["AdminPersonRequest"];
                 };
             };
             responses: {
                 /** @description OK */
                 200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Person"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1102,8 +1398,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1120,16 +1430,78 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Absence: {
+            id: string;
+            personId: string;
+            type?: components["schemas"]["AbsenceType"];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            source?: components["schemas"]["AbsenceSource"];
+            importBatchId?: null | string;
+            /** Format: date-time */
+            lastSeenInImportAt?: null | string;
+            /** Format: date-time */
+            syncedToHrAt?: null | string;
+            note?: null | string;
+        };
+        AbsenceCapacityRule: {
+            id: string;
+            unitId: string;
+            scopeKind?: components["schemas"]["AbsenceCapacityScopeKind"];
+            scopeShiftId?: null | string;
+            durationBucket?: components["schemas"]["AbsenceDurationBucket"];
+            /** Format: int32 */
+            longThresholdWorkdays?: number | string;
+            /** Format: int32 */
+            maxConcurrent?: number | string;
+            countsTypes?: components["schemas"]["AbsenceType"][];
+            countsCompDays?: boolean;
+        };
+        AbsenceCapacityRuleRequest: {
+            unitId: string;
+            scopeKind: components["schemas"]["AbsenceCapacityScopeKind"];
+            scopeShiftId: null | string;
+            durationBucket: components["schemas"]["AbsenceDurationBucket"];
+            /** Format: int32 */
+            longThresholdWorkdays: number | string;
+            /** Format: int32 */
+            maxConcurrent: number | string;
+            countsTypes: components["schemas"]["AbsenceType"][];
+            countsCompDays: boolean;
+        };
         /** @enum {unknown} */
         AbsenceCapacityScopeKind: "unit" | "shiftPool";
         /** @enum {unknown} */
         AbsenceDurationBucket: "short" | "long";
         /** @enum {unknown} */
+        AbsenceSource: "import" | "manual";
+        /** @enum {unknown} */
         AbsenceType: "vacation" | "sick" | "other";
+        Acknowledgement: {
+            /** Format: int32 */
+            id?: number | string;
+            issueKey: string;
+            comment: string;
+            byPersonId: string;
+            /** Format: date-time */
+            at: string;
+        };
         AcknowledgeRequest: {
             issueKey: string;
             comment: string;
             byPersonId: string;
+        };
+        AdminPersonRequest: {
+            displayName: string;
+            initials: string;
+            employeeId: null | string;
+            unitId: string;
+            locationId: string;
+            orgCategory: components["schemas"]["OrgCategory"];
+            isActive: boolean;
+            isIncluded: boolean;
         };
         AppendChangeRequest: {
             targetType: components["schemas"]["DraftTargetType"];
@@ -1137,6 +1509,41 @@ export interface components {
             entityId: string;
             after: null | components["schemas"]["JsonElement"];
         };
+        Assignment: {
+            id: string;
+            personId: string;
+            /** Format: date */
+            date: string;
+            unitId: string;
+            contentKind?: components["schemas"]["AssignmentContentKind"];
+            shiftId?: null | string;
+            timeOverride?: null | components["schemas"]["TimeOverride"];
+            marker?: null | components["schemas"]["RosterMarker"];
+            isWeekend?: boolean;
+            note?: null | string;
+            source?: components["schemas"]["AssignmentSource"];
+            /** Format: int32 */
+            version?: number | string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            updatedBy?: null | string;
+            /** Format: date-time */
+            updatedAt?: null | string;
+        };
+        /** @enum {unknown} */
+        AssignmentContentKind: "shift" | "marker";
+        AssignmentHistoryEntry: {
+            id: string;
+            assignmentId: string;
+            action?: components["schemas"]["HistoryAction"];
+            snapshotJson?: null | string;
+            actorId: string;
+            /** Format: date-time */
+            at: string;
+        };
+        /** @enum {unknown} */
+        AssignmentSource: "manual" | "generated" | "imported";
         AutoPopulateRequest: {
             unitId: string;
             /** Format: date */
@@ -1145,6 +1552,52 @@ export interface components {
             rangeTo: string;
             lockedAssignmentIds: null | string[];
             actorId: string;
+        };
+        Candidate: {
+            personId: string;
+            name: string;
+            /** Format: int32 */
+            shiftCountLast90: number | string;
+            /** Format: int32 */
+            daysSinceLastHeld: null | number | string;
+            /** Format: int32 */
+            weekendLoad: number | string;
+            warnings: string[];
+        };
+        CandidateResult: {
+            available: components["schemas"]["Candidate"][];
+            excluded: components["schemas"]["ExcludedCandidate"][];
+            /** Format: double */
+            teamWeekendAverage: number | string;
+        };
+        CompDayEntry: {
+            id: string;
+            personId: string;
+            earnedForAssignmentId: string;
+            /** Format: date */
+            earnedForDate: string;
+            trigger?: components["schemas"]["CompDayTrigger"];
+            /** Format: date */
+            proposedDate?: null | string;
+            /** Format: date */
+            actualDate?: null | string;
+            status?: components["schemas"]["CompDayStatus"];
+            /** Format: date-time */
+            syncedToHrAt?: null | string;
+        };
+        /** @enum {unknown} */
+        CompDayStatus: "proposed" | "scheduled" | "taken" | "declined" | "pendingApproval";
+        /** @enum {unknown} */
+        CompDayTrigger: "saturday" | "sunday" | "holiday";
+        CompOffPolicy: {
+            /** Format: int32 */
+            windowBeforeDays?: number | string;
+            /** Format: int32 */
+            windowAfterDays?: number | string;
+            excludedWeekdays?: components["schemas"]["IsoWeekday"][];
+            /** Format: int32 */
+            agingThresholdDays?: number | string;
+            requiresApprovalWhenNoSlot?: boolean;
         };
         CompOffPolicyRequest: {
             /** Format: int32 */
@@ -1156,35 +1609,41 @@ export interface components {
             agingThresholdDays: number | string;
             requiresApprovalWhenNoSlot: boolean;
         };
-        /** @enum {unknown} */
-        DayConfigKey: "weekday" | "friday" | "weekend" | "holiday" | "date";
-        /** @enum {unknown} */
-        DraftOp: "create" | "update" | "delete";
-        /** @enum {unknown} */
-        DraftTargetType: "assignment" | "absence" | "compDay";
-        /** @enum {unknown} */
-        GroupBy: "location" | "region" | "orgCategory";
-        HolidayRequest: {
+        CoverageCell: {
             /** Format: date */
             date: string;
-            name: string;
-            locationIds: string[];
-            isFullDay: boolean;
+            unitId: string;
+            shiftId: string;
+            /** Format: int32 */
+            actual?: number | string;
+            /** Format: int32 */
+            min?: number | string;
+            /** Format: int32 */
+            max?: null | number | string;
+            level?: components["schemas"]["CoverageLevel"];
+            appliedKey?: components["schemas"]["DayConfigKey"];
+            ruleLabel?: null | string;
         };
         /** @enum {unknown} */
-        IsoWeekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
-        JsonElement: unknown;
-        LabelRequest: {
+        CoverageLevel: "gap" | "thin" | "ok" | "over";
+        /** @enum {unknown} */
+        DayConfigKey: "weekday" | "friday" | "weekend" | "holiday" | "date";
+        DayConfiguration: {
+            id: string;
+            unitId: string;
+            key?: components["schemas"]["DayConfigKey"];
+            weekdays?: components["schemas"]["IsoWeekday"][];
+            /** Format: date */
+            date?: null | string;
+            label?: null | string;
+            /** Format: date */
+            effectiveFrom: string;
+            shiftRequirements?: components["schemas"]["ShiftRequirement"][];
+        };
+        DayConfigurationLabelRequest: {
             label: null | string;
         };
-        LocationRequest: {
-            name: string;
-            country: string;
-            timeZone: string;
-            holidayCalendarKey: string;
-            weekendDays: components["schemas"]["IsoWeekday"][];
-        };
-        NewVersionRequest: {
+        DayConfigurationNewVersionRequest: {
             unitId: string;
             key: components["schemas"]["DayConfigKey"];
             weekdays: components["schemas"]["IsoWeekday"][];
@@ -1194,6 +1653,135 @@ export interface components {
             /** Format: date */
             effectiveFrom: string;
             shiftRequirements: components["schemas"]["ShiftRequirementRequest"][];
+        };
+        DayConfigurationSummary: {
+            /** Format: date */
+            date: string;
+            unitId: string;
+            dayConfigurationId: string;
+            key: components["schemas"]["DayConfigKey"];
+            label: null | string;
+        };
+        DraftChange: {
+            id: string;
+            draftSessionId: string;
+            /** Format: int32 */
+            seq?: number | string;
+            /** Format: date-time */
+            at: string;
+            targetType?: components["schemas"]["DraftTargetType"];
+            op?: components["schemas"]["DraftOp"];
+            beforeJson?: null | string;
+            afterJson?: null | string;
+        };
+        DraftNotFoundResponse: {
+            code: string;
+            draftId: string;
+        };
+        /** @enum {unknown} */
+        DraftOp: "create" | "update" | "delete";
+        DraftSession: {
+            id: string;
+            editorPersonId: string;
+            unitId: string;
+            /** Format: date */
+            rangeFrom: string;
+            /** Format: date */
+            rangeTo: string;
+            status?: components["schemas"]["DraftStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            changes?: components["schemas"]["DraftChange"][];
+        };
+        /** @enum {unknown} */
+        DraftStatus: "open" | "published" | "discarded";
+        /** @enum {unknown} */
+        DraftTargetType: "assignment" | "absence" | "compDay";
+        ErrorResponse: {
+            code: string;
+            message: string;
+        };
+        ExcludedCandidate: {
+            personId: string;
+            name: string;
+            reason: string;
+        };
+        Gap: {
+            /** Format: date */
+            date: string;
+            shiftId: string;
+            code: string;
+            reason: string;
+        };
+        /** @enum {unknown} */
+        GroupBy: "location" | "region" | "orgCategory";
+        /** @enum {unknown} */
+        HistoryAction: "created" | "updated" | "deleted";
+        Holiday: {
+            id: string;
+            /** Format: date */
+            date: string;
+            name: string;
+            locationIds?: string[];
+            isFullDay?: boolean;
+        };
+        HolidayRequest: {
+            /** Format: date */
+            date: string;
+            name: string;
+            locationIds: string[];
+            isFullDay: boolean;
+        };
+        InvalidRangeResponse: {
+            code: string;
+            message: string;
+        };
+        /** @enum {unknown} */
+        IsoWeekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+        Issue: {
+            key: string;
+            level?: components["schemas"]["IssueLevel"];
+            category?: components["schemas"]["IssueCategory"];
+            code?: components["schemas"]["IssueCode"];
+            message: string;
+            unitId: string;
+            /** Format: date */
+            date?: null | string;
+            personId?: null | string;
+            shiftId?: null | string;
+        };
+        /** @enum {unknown} */
+        IssueCategory: "gap" | "conflict" | "fairness" | "policy";
+        /** @enum {unknown} */
+        IssueCode: "coverageGap" | "coverageThin" | "coverageOverMax" | "assignedDuringAbsence" | "assignedDuringCompDay" | "doubleAssignment" | "shiftNotEligible" | "shiftOutsideRegion" | "shiftNotInDayConfig" | "absenceCapacityExceeded" | "minRestViolated" | "consecutiveDaysExceeded" | "weekendLoadExceeded" | "unavailableWeekday" | "preferenceViolated" | "targetShareDeviation" | "compDayAging" | "compDayPendingApproval";
+        /** @enum {unknown} */
+        IssueLevel: "blocking" | "warning" | "info";
+        JsonElement: unknown;
+        Location: {
+            id: string;
+            name: string;
+            country: string;
+            timeZone: string;
+            holidayCalendarKey: string;
+            weekendDays?: components["schemas"]["IsoWeekday"][];
+        };
+        LocationRequest: {
+            name: string;
+            country: string;
+            timeZone: string;
+            holidayCalendarKey: string;
+            weekendDays: components["schemas"]["IsoWeekday"][];
+        };
+        MeResponse: {
+            personId: null | string;
+            displayName: null | string;
+            role: null | string;
+        };
+        NotFoundResponse: {
+            code: string;
+            id: string;
         };
         OpenDraftRequest: {
             editorPersonId: string;
@@ -1205,33 +1793,125 @@ export interface components {
         };
         /** @enum {unknown} */
         OrgCategory: "support" | "serviceTransition" | "management";
+        Person: {
+            id: string;
+            displayName: string;
+            initials: string;
+            employeeId?: null | string;
+            unitId: string;
+            locationId: string;
+            orgCategory?: components["schemas"]["OrgCategory"];
+            isActive?: boolean;
+            isIncluded?: boolean;
+            availableWeekdays?: components["schemas"]["IsoWeekday"][];
+            defaultShiftId?: null | string;
+            weekendEligible?: boolean;
+            constraints?: components["schemas"]["PersonConstraints"];
+            preferences?: null | components["schemas"]["PersonPreferences"];
+            calendarToken: string;
+            eligibility?: components["schemas"]["ShiftEligibility"][];
+        };
+        PersonConstraints: {
+            /** Format: int32 */
+            minRestHours?: number | string;
+            /** Format: int32 */
+            maxConsecutiveDays?: number | string;
+            /** Format: int32 */
+            maxWeekendsPerQuarter?: null | number | string;
+        };
+        PersonPreferences: {
+            avoidsWeekdays?: components["schemas"]["IsoWeekday"][];
+            preferredPartnerIds?: string[];
+            blackoutDates?: string[];
+            note?: null | string;
+        };
         PersonPreferencesRequest: {
             avoidsWeekdays: null | components["schemas"]["IsoWeekday"][];
             preferredPartnerIds: null | string[];
             blackoutDates: null | string[];
             note: null | string;
         };
-        PersonRequest: {
-            displayName: string;
-            initials: string;
-            employeeId: null | string;
-            unitId: string;
-            locationId: string;
-            orgCategory: components["schemas"]["OrgCategory"];
-            isActive: boolean;
-            isIncluded: boolean;
+        PlanningUnit: {
+            id: string;
+            name: string;
+            kind?: components["schemas"]["UnitKind"];
+            groupBy?: components["schemas"]["GroupBy"];
+            primaryLocationId: string;
+            locationIds?: string[];
+            compOffPolicy?: components["schemas"]["CompOffPolicy"];
+            locations?: components["schemas"]["Location"][];
+            shifts?: components["schemas"]["Shift"][];
+            dayConfigurations?: components["schemas"]["DayConfiguration"][];
+            absenceCapacityRules?: components["schemas"]["AbsenceCapacityRule"][];
         };
-        RuleRequest: {
+        PublishDraftResponse: {
+            /** Format: int32 */
+            remainingGaps: number | string;
+            history: components["schemas"]["AssignmentHistoryEntry"][];
+            generatedCompDays: components["schemas"]["CompDayEntry"][];
+        };
+        ReferenceResponse: {
+            locations: components["schemas"]["Location"][];
+            holidays: components["schemas"]["Holiday"][];
+            units: components["schemas"]["PlanningUnit"][];
+            shifts: components["schemas"]["Shift"][];
+            dayConfigurations: components["schemas"]["DayConfiguration"][];
+            people: components["schemas"]["Person"][];
+            absenceCapacityRules: components["schemas"]["AbsenceCapacityRule"][];
+        };
+        Result: {
+            assignments: components["schemas"]["Assignment"][];
+            compDays: components["schemas"]["CompDayEntry"][];
+            gaps: components["schemas"]["Gap"][];
+            /** Format: int32 */
+            assignedCount?: number | string;
+        };
+        /** @enum {unknown} */
+        RosterMarker: "off" | "notScheduled" | null;
+        SchedulePlan: {
+            assignments: components["schemas"]["Assignment"][];
+            absences: components["schemas"]["Absence"][];
+            compDays: components["schemas"]["CompDayEntry"][];
+        };
+        ScheduleResponse: {
+            unitIds: string[];
+            plan: components["schemas"]["SchedulePlan"];
+            coverage: components["schemas"]["CoverageCell"][];
+            issues: components["schemas"]["Issue"][];
+            acknowledgedIssueKeys: string[];
+            dayConfigurations: components["schemas"]["DayConfigurationSummary"][];
+            overlaidDraftId: null | string;
+        };
+        Shift: {
+            id: string;
             unitId: string;
-            scopeKind: components["schemas"]["AbsenceCapacityScopeKind"];
-            scopeShiftId: null | string;
-            durationBucket: components["schemas"]["AbsenceDurationBucket"];
+            code: string;
+            label: string;
+            description?: null | string;
+            color: string;
+            hotkey?: null | string;
+            timeZone: string;
+            /** Format: time */
+            start?: string;
+            /** Format: time */
+            end?: string;
+            crossesMidnight?: boolean;
             /** Format: int32 */
-            longThresholdWorkdays: number | string;
+            breakMinutes?: number | string;
+            countsAsCoverage?: boolean;
+            editableTime?: boolean;
+        };
+        ShiftEligibility: {
             /** Format: int32 */
-            maxConcurrent: number | string;
-            countsTypes: components["schemas"]["AbsenceType"][];
-            countsCompDays: boolean;
+            id?: number | string;
+            personId: string;
+            shiftId: string;
+            /** Format: double */
+            targetShare?: number | string;
+            /** Format: int32 */
+            minPerWeek?: null | number | string;
+            /** Format: int32 */
+            maxPerWeek?: null | number | string;
         };
         ShiftEligibilityRequest: {
             shiftId: string;
@@ -1260,6 +1940,22 @@ export interface components {
             countsAsCoverage: boolean;
             editableTime: boolean;
         };
+        ShiftRequirement: {
+            /** Format: int32 */
+            id?: number | string;
+            dayConfigurationId: string;
+            shiftId: string;
+            /** Format: int32 */
+            min?: number | string;
+            /** Format: int32 */
+            max?: null | number | string;
+            isDefault?: boolean;
+            /** Format: time */
+            timingOverrideStart?: null | string;
+            /** Format: time */
+            timingOverrideEnd?: null | string;
+            timingOverrideCrossesMidnight?: null | boolean;
+        };
         ShiftRequirementRequest: {
             shiftId: string;
             /** Format: int32 */
@@ -1280,6 +1976,13 @@ export interface components {
             unitId: string;
             excludePersonIds: null | string[];
         };
+        TimeOverride: {
+            /** Format: time */
+            start?: string;
+            /** Format: time */
+            end?: string;
+            crossesMidnight?: boolean;
+        };
         /** @enum {unknown} */
         UnitKind: "region" | "crossRegion";
         UnitRequest: {
@@ -1296,6 +1999,11 @@ export interface components {
             defaultShiftId: null | string;
             weekendEligible: boolean;
             preferences: null | components["schemas"]["PersonPreferencesRequest"];
+        };
+        ValidationErrorResponse: {
+            errors: {
+                [key: string]: string[];
+            };
         };
     };
     responses: never;
@@ -1320,7 +2028,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ReferenceResponse"];
+                };
             };
         };
     };
@@ -1338,7 +2048,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
             };
         };
     };
@@ -1361,7 +2073,27 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRangeResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftNotFoundResponse"];
+                };
             };
         };
     };
@@ -1383,7 +2115,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DraftSession"][];
+                };
             };
         };
     };
@@ -1400,12 +2134,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
-            200: {
+            /** @description Created */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DraftSession"];
+                };
             };
         };
     };
@@ -1422,6 +2158,15 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftChange"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1444,8 +2189,26 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
-            200: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftChange"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1465,8 +2228,24 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
-            200: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1490,6 +2269,24 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
+                content: {
+                    "application/json": components["schemas"]["DraftSession"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
         };
@@ -1510,7 +2307,25 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
+                content: {
+                    "application/json": components["schemas"]["PublishDraftResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };
@@ -1532,7 +2347,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CandidateResult"];
+                };
             };
         };
     };
@@ -1554,7 +2371,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Result"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };
@@ -1576,7 +2404,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Acknowledgement"];
+                };
             };
         };
     };
@@ -1597,7 +2427,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AssignmentHistoryEntry"][];
+                };
             };
         };
     };
@@ -1621,7 +2453,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
             };
         };
     };

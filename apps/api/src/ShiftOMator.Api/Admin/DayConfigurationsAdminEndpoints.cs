@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
+using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Application;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
@@ -17,16 +19,6 @@ namespace ShiftOMator.Api.Admin;
 /// </summary>
 public static class DayConfigurationsAdminEndpoints
 {
-    public record ShiftRequirementRequest(
-        string ShiftId, int Min, int? Max, bool IsDefault,
-        TimeOnly? TimingOverrideStart, TimeOnly? TimingOverrideEnd, bool? TimingOverrideCrossesMidnight);
-
-    public record NewVersionRequest(
-        string UnitId, DayConfigKey Key, List<IsoWeekday> Weekdays, DateOnly? Date,
-        string? Label, DateOnly EffectiveFrom, List<ShiftRequirementRequest> ShiftRequirements);
-
-    public record LabelRequest(string? Label);
-
     public static void MapDayConfigurationsAdminEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/admin/day-configurations").RequireAuthorization(AuthPolicies.AdminOnly);
@@ -37,9 +29,10 @@ public static class DayConfigurationsAdminEndpoints
             Results.Ok(await db.DayConfigurations.AsNoTracking()
                 .Include(c => c.ShiftRequirements)
                 .OrderBy(c => c.UnitId).ThenBy(c => c.Key).ThenBy(c => c.EffectiveFrom)
-                .ToListAsync(ct)));
+                .ToListAsync(ct)))
+            .Produces<IReadOnlyList<DayConfiguration>>();
 
-        group.MapPost("/", async (NewVersionRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (DayConfigurationNewVersionRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -70,9 +63,11 @@ public static class DayConfigurationsAdminEndpoints
             db.DayConfigurations.Add(config);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/day-configurations/{config.Id}", config);
-        });
+        })
+        .Produces<DayConfiguration>(StatusCodes.Status201Created)
+        .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}/label", async (string id, LabelRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}/label", async (string id, DayConfigurationLabelRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var config = await db.DayConfigurations.Include(c => c.ShiftRequirements).FirstOrDefaultAsync(c => c.Id == id, ct);
             if (config is null) return AdminValidation.NotFound("day-configuration", id);
@@ -80,7 +75,9 @@ public static class DayConfigurationsAdminEndpoints
             config.Label = req.Label;
             await db.SaveChangesAsync(ct);
             return Results.Ok(config);
-        });
+        })
+        .Produces<DayConfiguration>()
+        .Produces(StatusCodes.Status404NotFound);
 
         // Undo for a version that has not taken effect yet — deleting anything already
         // in force would be the in-place-repaint ADR-0021 exists to prevent.
@@ -97,10 +94,13 @@ public static class DayConfigurationsAdminEndpoints
             db.DayConfigurations.Remove(config);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(NewVersionRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(DayConfigurationNewVersionRequest req, ScheduleDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.UnitId), req.UnitId);

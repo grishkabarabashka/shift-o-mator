@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Schedule;
 using ShiftOMator.Application;
 using ShiftOMator.Application.Drafts;
 using ShiftOMator.Domain;
@@ -20,7 +21,7 @@ public static class ScheduleEndpoints
         app.MapGet("/api/schedule", async (
             string unitId, DateOnly from, DateOnly to, string? draftId, ScheduleDbContext db, CancellationToken ct) =>
         {
-            if (to < from) return Results.BadRequest(new { code = "INVALID_RANGE", message = "to must not be before from." });
+            if (to < from) return Results.BadRequest(new InvalidRangeResponse("INVALID_RANGE", "to must not be before from."));
 
             var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
 
@@ -29,7 +30,7 @@ public static class ScheduleEndpoints
             {
                 draft = await db.DraftSessions.AsNoTracking().Include(s => s.Changes)
                     .FirstOrDefaultAsync(s => s.Id == draftId, ct);
-                if (draft is null) return Results.NotFound(new { code = "DRAFT_NOT_FOUND", draftId });
+                if (draft is null) return Results.NotFound(new DraftNotFoundResponse("DRAFT_NOT_FOUND", draftId));
             }
 
             var (assignments, absences, compDays) = Overlay(dataset, draft);
@@ -55,7 +56,7 @@ public static class ScheduleEndpoints
 
             var coverage = new List<CoverageCell>();
             var issues = new List<Issue>();
-            var dayConfigs = new List<object>();
+            var dayConfigs = new List<DayConfigurationSummary>();
 
             foreach (var resolvedUnitId in unitIds)
             {
@@ -70,7 +71,7 @@ public static class ScheduleEndpoints
                 {
                     var config = DayConfigurationResolver.Resolve(resolvedUnitId, date, index);
                     if (config is null) continue;
-                    dayConfigs.Add(new { date, unitId = resolvedUnitId, dayConfigurationId = config.Id, key = config.Key, label = config.Label });
+                    dayConfigs.Add(new DayConfigurationSummary(date, resolvedUnitId, config.Id, config.Key, config.Label));
                 }
             }
 
@@ -80,18 +81,19 @@ public static class ScheduleEndpoints
                 || (c.ProposedDate is not null && c.ProposedDate >= from && c.ProposedDate <= to)
                 || (c.ActualDate is not null && c.ActualDate >= from && c.ActualDate <= to)).ToList();
 
-            return Results.Ok(new
-            {
+            return Results.Ok(new ScheduleResponse(
                 unitIds,
-                plan = new { assignments = rangeAssignments, absences = rangeAbsences, compDays = rangeCompDays },
+                new SchedulePlan(rangeAssignments, rangeAbsences, rangeCompDays),
                 coverage,
                 issues,
-                acknowledgedIssueKeys = acknowledged,
-                dayConfigurations = dayConfigs,
-                overlaidDraftId = draftId,
-            });
+                acknowledged,
+                dayConfigs,
+                draftId));
         })
         .WithName("GetSchedule")
+        .Produces<ScheduleResponse>()
+        .Produces<InvalidRangeResponse>(StatusCodes.Status400BadRequest)
+        .Produces<DraftNotFoundResponse>(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
     }
 
