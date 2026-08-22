@@ -1,11 +1,14 @@
-# Артефакты сборки и инструментов — только в корне.
+# Артефакты сборки и инструментов. npm workspaces hoists most packages into
+# the root node_modules (a workspace symlink lives there too) but can still
+# leave a local node_modules under apps/web, so both are ignored.
 #
-# Пути якорятся слэшем в начале намеренно: незаякоренный `coverage/` совпадал с
-# `src/features/coverage/` и молча выкинул из репозитория полосу покрытия.
+# Пути якорятся слэшем в начале намеренно: незаякоренный `coverage/` совпадал бы
+# с `src/features/coverage/` и молча выкинул из репозитория полосу покрытия.
 /node_modules/
-/dist/
-/coverage/
-/.vite/
+/apps/web/node_modules/
+/apps/web/dist/
+/apps/web/coverage/
+/apps/web/.vite/
 *.local
 .DS_Store
 Thumbs.db
@@ -18,11 +21,11 @@ Thumbs.db
 !/.vscode/extensions.json
 
 # .NET backend — build output, not source. Unanchored on purpose: bin/obj recur
-# under every project (api/src/*/bin, api/tests/*/obj, ...).
+# under every project (apps/api/src/*/bin, apps/api/tests/*/obj, ...).
 bin/
 obj/
 *.user
 
 # Scratch install used only to run openapi-typescript against typescript@5,
-# isolated from the project's typescript@7 — see scripts/generate-api-schema.mjs.
-/.openapi-gen/
+# isolated from the project's typescript@7 — see apps/web/scripts/generate-api-schema.mjs.
+/apps/web/.openapi-gen/

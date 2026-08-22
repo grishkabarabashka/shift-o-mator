@@ -1,0 +1,4488 @@
+{
+  "AMER": {
+    "Coverage": [
+      {
+        "Date": "2026-08-01",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-01",
+        "ShiftId": "AMER:ST",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-01",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-02",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-02",
+        "ShiftId": "AMER:ST",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-02",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Crew-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 3,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Crew-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:Lead-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-08",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-08",
+        "ShiftId": "AMER:ST",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-08",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-09",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-09",
+        "ShiftId": "AMER:ST",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-09",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:Lead",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Crew-E",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Crew-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:Lead-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-15",
+        "ShiftId": "AMER:Primary",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-15",
+        "ShiftId": "AMER:ST",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-15",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-16",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-16",
+        "ShiftId": "AMER:ST",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-16",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:Lead",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:Lead",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Crew-E",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Crew-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:Lead-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-22",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-22",
+        "ShiftId": "AMER:ST",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-22",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-23",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-23",
+        "ShiftId": "AMER:ST",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-23",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Cover",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Crew-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 3,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Crew-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:Lead-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-29",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-29",
+        "ShiftId": "AMER:ST",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-29",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-30",
+        "ShiftId": "AMER:Primary",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-30",
+        "ShiftId": "AMER:ST",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-30",
+        "ShiftId": "AMER:Secondary",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Batch-E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Batch-L",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Batch-U",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Cover",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 3,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Crew",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Crew-BC",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "AMER:ST Amer",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      }
+    ],
+    "IssueKeys": [
+      "COVERAGE_GAP|2026-08-03||AMER:Batch-L",
+      "COVERAGE_GAP|2026-08-04||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-06||AMER:Batch-E",
+      "COVERAGE_GAP|2026-08-07||AMER:Batch-L",
+      "COVERAGE_GAP|2026-08-13||AMER:Lead",
+      "COVERAGE_GAP|2026-08-15||AMER:Primary",
+      "COVERAGE_GAP|2026-08-19||AMER:Lead",
+      "COVERAGE_GAP|2026-08-20||AMER:Lead",
+      "COVERAGE_GAP|2026-08-25||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-27||AMER:ST Amer",
+      "COVERAGE_GAP|2026-08-31||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-01||AMER:Primary",
+      "COVERAGE_THIN|2026-08-02||AMER:Primary",
+      "COVERAGE_THIN|2026-08-03||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-03||AMER:Crew",
+      "COVERAGE_THIN|2026-08-03||AMER:Lead",
+      "COVERAGE_THIN|2026-08-03||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-04||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-04||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-04||AMER:Crew",
+      "COVERAGE_THIN|2026-08-04||AMER:Lead",
+      "COVERAGE_THIN|2026-08-05||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-05||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-05||AMER:Crew",
+      "COVERAGE_THIN|2026-08-05||AMER:Lead",
+      "COVERAGE_THIN|2026-08-05||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-06||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-06||AMER:Crew",
+      "COVERAGE_THIN|2026-08-06||AMER:Lead",
+      "COVERAGE_THIN|2026-08-06||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-07||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-07||AMER:Crew-E",
+      "COVERAGE_THIN|2026-08-07||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-07||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-07||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-08||AMER:Primary",
+      "COVERAGE_THIN|2026-08-09||AMER:Primary",
+      "COVERAGE_THIN|2026-08-10||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-10||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-10||AMER:Crew",
+      "COVERAGE_THIN|2026-08-10||AMER:Lead",
+      "COVERAGE_THIN|2026-08-10||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-11||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-11||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-11||AMER:Crew",
+      "COVERAGE_THIN|2026-08-11||AMER:Lead",
+      "COVERAGE_THIN|2026-08-11||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-12||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-12||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-12||AMER:Crew",
+      "COVERAGE_THIN|2026-08-12||AMER:Lead",
+      "COVERAGE_THIN|2026-08-12||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-13||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-13||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-13||AMER:Crew",
+      "COVERAGE_THIN|2026-08-13||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-14||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-14||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-14||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-14||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-14||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-16||AMER:Primary",
+      "COVERAGE_THIN|2026-08-17||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-17||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-17||AMER:Crew",
+      "COVERAGE_THIN|2026-08-17||AMER:Lead",
+      "COVERAGE_THIN|2026-08-17||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-18||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-18||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-18||AMER:Crew",
+      "COVERAGE_THIN|2026-08-18||AMER:Lead",
+      "COVERAGE_THIN|2026-08-18||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-19||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-19||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-19||AMER:Crew",
+      "COVERAGE_THIN|2026-08-19||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-20||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-20||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-20||AMER:Crew",
+      "COVERAGE_THIN|2026-08-20||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-21||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-21||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-21||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-21||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-21||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-22||AMER:Primary",
+      "COVERAGE_THIN|2026-08-23||AMER:Primary",
+      "COVERAGE_THIN|2026-08-24||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-24||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-24||AMER:Crew",
+      "COVERAGE_THIN|2026-08-24||AMER:Lead",
+      "COVERAGE_THIN|2026-08-24||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-25||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-25||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-25||AMER:Crew",
+      "COVERAGE_THIN|2026-08-25||AMER:Lead",
+      "COVERAGE_THIN|2026-08-26||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-26||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-26||AMER:Crew",
+      "COVERAGE_THIN|2026-08-26||AMER:Lead",
+      "COVERAGE_THIN|2026-08-26||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-27||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-27||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-27||AMER:Crew",
+      "COVERAGE_THIN|2026-08-27||AMER:Lead",
+      "COVERAGE_THIN|2026-08-28||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-28||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-28||AMER:Crew-E",
+      "COVERAGE_THIN|2026-08-28||AMER:Crew-L",
+      "COVERAGE_THIN|2026-08-28||AMER:Lead-E",
+      "COVERAGE_THIN|2026-08-28||AMER:ST Amer",
+      "COVERAGE_THIN|2026-08-29||AMER:Primary",
+      "COVERAGE_THIN|2026-08-30||AMER:Primary",
+      "COVERAGE_THIN|2026-08-31||AMER:Batch-E",
+      "COVERAGE_THIN|2026-08-31||AMER:Batch-L",
+      "COVERAGE_THIN|2026-08-31||AMER:Crew",
+      "COVERAGE_THIN|2026-08-31||AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-alison-kowalski|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-alison-kowalski|AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-anjali-kulkarni|AMER:Batch-L",
+      "TARGET_SHARE_DEVIATION||p-anjali-kulkarni|AMER:Crew",
+      "TARGET_SHARE_DEVIATION||p-david-simmons|AMER:Crew-E",
+      "TARGET_SHARE_DEVIATION||p-david-simmons|AMER:Lead-E",
+      "TARGET_SHARE_DEVIATION||p-gregory-ramirez|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-james-brooks|AMER:Cover",
+      "TARGET_SHARE_DEVIATION||p-james-brooks|AMER:Lead",
+      "TARGET_SHARE_DEVIATION||p-karan-rao|AMER:Shadow",
+      "TARGET_SHARE_DEVIATION||p-michael-reed|AMER:Batch-E",
+      "TARGET_SHARE_DEVIATION||p-sarah-whitfield|AMER:Batch-U",
+      "TARGET_SHARE_DEVIATION||p-sneha-chauhan|AMER:Batch-U",
+      "TARGET_SHARE_DEVIATION||p-thomas-foley|AMER:Lead",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-09|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-15|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-16|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-curtis-aldridge|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-29|p-curtis-aldridge|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-29|p-karan-rao|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-30|p-karan-rao|"
+    ],
+    "IssueCodeCounts": {
+      "COVERAGE_GAP": 11,
+      "WEEKEND_LOAD_EXCEEDED": 8,
+      "TARGET_SHARE_DEVIATION": 14,
+      "COVERAGE_THIN": 106
+    }
+  },
+  "EMEA": {
+    "Coverage": [
+      {
+        "Date": "2026-08-01",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-02",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 2,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-08",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-09",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-15",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-16",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:E",
+        "Actual": 0,
+        "Min": 1,
+        "Max": null,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-22",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-23",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 2,
+        "Min": 1,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:BM",
+        "Actual": 0,
+        "Min": 1,
+        "Max": null,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:BM",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:BM",
+        "Actual": 0,
+        "Min": 1,
+        "Max": null,
+        "Level": "GAP",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:BM-Lead",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:CH-Early",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:CH-Late",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:CH-SL",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:E",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:MOD",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 1,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:ST EMEA",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "EMEA:Shift-Lead",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 2,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-29",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-30",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "EMEA:CH-OC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      }
+    ],
+    "IssueKeys": [
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-15||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-16||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-17||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-18||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-19||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-20||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-21||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-22||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-23||EMEA:Shift-Lead",
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-24||EMEA:Shift-Lead",
+      "COVERAGE_GAP|2026-08-03||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-06||EMEA:Shift-Lead",
+      "COVERAGE_GAP|2026-08-08||EMEA:CH-OC",
+      "COVERAGE_GAP|2026-08-12||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-18||EMEA:E",
+      "COVERAGE_GAP|2026-08-22||EMEA:CH-OC",
+      "COVERAGE_GAP|2026-08-24||EMEA:CH-Early",
+      "COVERAGE_GAP|2026-08-25||EMEA:BM",
+      "COVERAGE_GAP|2026-08-28||EMEA:BM",
+      "COVERAGE_THIN|2026-08-01||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-02||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-03||EMEA:BM",
+      "COVERAGE_THIN|2026-08-03||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-03||EMEA:E",
+      "COVERAGE_THIN|2026-08-03||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-03||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-04||EMEA:BM",
+      "COVERAGE_THIN|2026-08-04||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-04||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-04||EMEA:E",
+      "COVERAGE_THIN|2026-08-04||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-05||EMEA:BM",
+      "COVERAGE_THIN|2026-08-05||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-05||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-05||EMEA:E",
+      "COVERAGE_THIN|2026-08-05||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-05||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-06||EMEA:BM",
+      "COVERAGE_THIN|2026-08-06||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-06||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-06||EMEA:E",
+      "COVERAGE_THIN|2026-08-06||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-07||EMEA:BM",
+      "COVERAGE_THIN|2026-08-07||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-07||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-07||EMEA:E",
+      "COVERAGE_THIN|2026-08-07||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-09||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-10||EMEA:BM",
+      "COVERAGE_THIN|2026-08-10||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-10||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-10||EMEA:E",
+      "COVERAGE_THIN|2026-08-10||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-10||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-11||EMEA:BM",
+      "COVERAGE_THIN|2026-08-11||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-11||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-11||EMEA:E",
+      "COVERAGE_THIN|2026-08-11||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-11||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-12||EMEA:BM",
+      "COVERAGE_THIN|2026-08-12||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-12||EMEA:E",
+      "COVERAGE_THIN|2026-08-12||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-12||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-13||EMEA:BM",
+      "COVERAGE_THIN|2026-08-13||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-13||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-13||EMEA:E",
+      "COVERAGE_THIN|2026-08-13||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-13||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-14||EMEA:BM",
+      "COVERAGE_THIN|2026-08-14||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-14||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-14||EMEA:E",
+      "COVERAGE_THIN|2026-08-14||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-14||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-15||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-16||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-17||EMEA:BM",
+      "COVERAGE_THIN|2026-08-17||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-17||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-17||EMEA:E",
+      "COVERAGE_THIN|2026-08-17||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-17||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-18||EMEA:BM",
+      "COVERAGE_THIN|2026-08-18||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-18||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-18||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-19||EMEA:BM",
+      "COVERAGE_THIN|2026-08-19||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-19||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-19||EMEA:E",
+      "COVERAGE_THIN|2026-08-19||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-20||EMEA:BM",
+      "COVERAGE_THIN|2026-08-20||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-20||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-20||EMEA:E",
+      "COVERAGE_THIN|2026-08-20||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-21||EMEA:BM",
+      "COVERAGE_THIN|2026-08-21||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-21||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-21||EMEA:E",
+      "COVERAGE_THIN|2026-08-21||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-23||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-24||EMEA:BM",
+      "COVERAGE_THIN|2026-08-24||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-24||EMEA:E",
+      "COVERAGE_THIN|2026-08-24||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-25||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-25||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-25||EMEA:E",
+      "COVERAGE_THIN|2026-08-25||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-25||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-26||EMEA:BM",
+      "COVERAGE_THIN|2026-08-26||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-26||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-26||EMEA:E",
+      "COVERAGE_THIN|2026-08-26||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-26||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-27||EMEA:BM",
+      "COVERAGE_THIN|2026-08-27||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-27||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-27||EMEA:E",
+      "COVERAGE_THIN|2026-08-27||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-27||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-28||EMEA:CH-Early",
+      "COVERAGE_THIN|2026-08-28||EMEA:CH-SL",
+      "COVERAGE_THIN|2026-08-28||EMEA:E",
+      "COVERAGE_THIN|2026-08-28||EMEA:ST EMEA",
+      "COVERAGE_THIN|2026-08-28||EMEA:Shift-Lead",
+      "COVERAGE_THIN|2026-08-29||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-30||EMEA:CH-OC",
+      "COVERAGE_THIN|2026-08-31||EMEA:CH-OC",
+      "MIN_REST_VIOLATED|2026-08-10|p-nadine-keller|",
+      "MIN_REST_VIOLATED|2026-08-16|p-elena-zimmermann|",
+      "MIN_REST_VIOLATED|2026-08-17|p-elena-zimmermann|",
+      "TARGET_SHARE_DEVIATION||p-adam-ashworth|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-adam-ashworth|EMEA:MOD",
+      "TARGET_SHARE_DEVIATION||p-anna-frei|EMEA:CH-Early",
+      "TARGET_SHARE_DEVIATION||p-anna-frei|EMEA:CH-SL",
+      "TARGET_SHARE_DEVIATION||p-charlotte-harding|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-hannah-reid|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-hannah-reid|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-meera-shetty|EMEA:BM",
+      "TARGET_SHARE_DEVIATION||p-meera-shetty|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-nikhil-joshi|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-nikhil-joshi|EMEA:MOD",
+      "TARGET_SHARE_DEVIATION||p-sophie-pemberton|EMEA:E",
+      "TARGET_SHARE_DEVIATION||p-sophie-pemberton|EMEA:Shift-Lead",
+      "TARGET_SHARE_DEVIATION||p-thomas-baumann|EMEA:CH-Early",
+      "TARGET_SHARE_DEVIATION||p-thomas-baumann|EMEA:CH-SL",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-23|p-elena-zimmermann|",
+      "WEEKEND_LOAD_EXCEEDED|2026-08-30|p-elena-zimmermann|"
+    ],
+    "IssueCodeCounts": {
+      "COVERAGE_GAP": 9,
+      "MIN_REST_VIOLATED": 3,
+      "ABSENCE_CAPACITY_EXCEEDED": 10,
+      "WEEKEND_LOAD_EXCEEDED": 2,
+      "TARGET_SHARE_DEVIATION": 15,
+      "COVERAGE_THIN": 115
+    }
+  },
+  "APAC": {
+    "Coverage": [
+      {
+        "Date": "2026-08-01",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-02",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-03",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-04",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-05",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-06",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-07",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-08",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-09",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-10",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-11",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-12",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-13",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-14",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-15",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-16",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-17",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-18",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-19",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-20",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-21",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-22",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-23",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-24",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-25",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-26",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 0,
+        "Min": 1,
+        "Max": 1,
+        "Level": "GAP",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "APAC:G",
+        "Actual": 1,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-27",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-28",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      },
+      {
+        "Date": "2026-08-29",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-30",
+        "ShiftId": "APAC:MC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "APAC:G",
+        "Actual": 0,
+        "Min": 0,
+        "Max": 2,
+        "Level": "OK",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "APAC:M",
+        "Actual": 1,
+        "Min": 1,
+        "Max": null,
+        "Level": "THIN",
+        "IsServiceTransition": false
+      },
+      {
+        "Date": "2026-08-31",
+        "ShiftId": "APAC:ST APAC",
+        "Actual": 1,
+        "Min": 1,
+        "Max": 1,
+        "Level": "THIN",
+        "IsServiceTransition": true
+      }
+    ],
+    "IssueKeys": [
+      "ABSENCE_CAPACITY_EXCEEDED|2026-08-11||APAC:M",
+      "COVERAGE_GAP|2026-08-14||APAC:ST APAC",
+      "COVERAGE_GAP|2026-08-26||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-01||APAC:MC",
+      "COVERAGE_THIN|2026-08-02||APAC:MC",
+      "COVERAGE_THIN|2026-08-03||APAC:M",
+      "COVERAGE_THIN|2026-08-03||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-04||APAC:M",
+      "COVERAGE_THIN|2026-08-04||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-05||APAC:M",
+      "COVERAGE_THIN|2026-08-05||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-06||APAC:M",
+      "COVERAGE_THIN|2026-08-06||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-07||APAC:M",
+      "COVERAGE_THIN|2026-08-07||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-08||APAC:MC",
+      "COVERAGE_THIN|2026-08-09||APAC:MC",
+      "COVERAGE_THIN|2026-08-10||APAC:M",
+      "COVERAGE_THIN|2026-08-11||APAC:M",
+      "COVERAGE_THIN|2026-08-11||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-12||APAC:M",
+      "COVERAGE_THIN|2026-08-12||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-13||APAC:M",
+      "COVERAGE_THIN|2026-08-13||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-14||APAC:M",
+      "COVERAGE_THIN|2026-08-15||APAC:MC",
+      "COVERAGE_THIN|2026-08-16||APAC:MC",
+      "COVERAGE_THIN|2026-08-17||APAC:M",
+      "COVERAGE_THIN|2026-08-17||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-18||APAC:M",
+      "COVERAGE_THIN|2026-08-18||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-19||APAC:M",
+      "COVERAGE_THIN|2026-08-19||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-20||APAC:M",
+      "COVERAGE_THIN|2026-08-20||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-21||APAC:M",
+      "COVERAGE_THIN|2026-08-21||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-22||APAC:MC",
+      "COVERAGE_THIN|2026-08-23||APAC:MC",
+      "COVERAGE_THIN|2026-08-24||APAC:M",
+      "COVERAGE_THIN|2026-08-24||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-25||APAC:M",
+      "COVERAGE_THIN|2026-08-25||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-26||APAC:M",
+      "COVERAGE_THIN|2026-08-27||APAC:M",
+      "COVERAGE_THIN|2026-08-27||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-28||APAC:M",
+      "COVERAGE_THIN|2026-08-28||APAC:ST APAC",
+      "COVERAGE_THIN|2026-08-29||APAC:MC",
+      "COVERAGE_THIN|2026-08-30||APAC:MC",
+      "COVERAGE_THIN|2026-08-31||APAC:M",
+      "COVERAGE_THIN|2026-08-31||APAC:ST APAC"
+    ],
+    "IssueCodeCounts": {
+      "COVERAGE_GAP": 2,
+      "ABSENCE_CAPACITY_EXCEEDED": 1,
+      "COVERAGE_THIN": 49
+    }
+  }
+}
