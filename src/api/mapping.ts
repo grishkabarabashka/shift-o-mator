@@ -136,7 +136,7 @@ interface WireLocation {
   readonly weekendDays: readonly string[];
 }
 
-function locationFromWire(w: WireLocation): Location {
+export function locationFromWire(w: WireLocation): Location {
   return {
     id: w.id,
     name: w.name,
@@ -154,7 +154,7 @@ interface WireHoliday {
   readonly isFullDay: boolean;
 }
 
-function holidayFromWire(w: WireHoliday): Holiday {
+export function holidayFromWire(w: WireHoliday): Holiday {
   return { id: w.id, date: w.date, name: w.name, locationIds: w.locationIds, isFullDay: w.isFullDay };
 }
 
@@ -175,7 +175,7 @@ interface WireRegion {
   readonly compOffPolicy: WireCompOffPolicy;
 }
 
-function regionFromWire(w: WireRegion): Region {
+export function regionFromWire(w: WireRegion): Region {
   return {
     id: w.id,
     name: w.name,
@@ -200,7 +200,7 @@ interface WirePlanningUnit {
   readonly groupBy: string;
 }
 
-function unitFromWire(w: WirePlanningUnit): PlanningUnit {
+export function unitFromWire(w: WirePlanningUnit): PlanningUnit {
   return {
     id: w.id,
     name: w.name,
@@ -222,7 +222,7 @@ interface WireShiftDefinition {
   readonly breakMinutes: number;
 }
 
-function shiftFromWire(w: WireShiftDefinition): ShiftDefinition {
+export function shiftFromWire(w: WireShiftDefinition): ShiftDefinition {
   return {
     id: w.id,
     regionId: w.regionId,
@@ -253,7 +253,7 @@ interface WireShiftRole {
   readonly editableTime: boolean;
 }
 
-function roleFromWire(w: WireShiftRole): ShiftRole {
+export function roleFromWire(w: WireShiftRole): ShiftRole {
   return {
     id: w.id,
     regionId: w.regionId,
@@ -311,7 +311,7 @@ interface WireDayConfiguration {
   readonly roleRequirements: readonly WireRoleRequirement[];
 }
 
-function dayConfigurationFromWire(w: WireDayConfiguration): DayConfiguration {
+export function dayConfigurationFromWire(w: WireDayConfiguration): DayConfiguration {
   return {
     id: w.id,
     regionId: w.regionId,
@@ -388,7 +388,7 @@ function preferencesFromWire(w: WirePersonPreferences): PersonPreferences {
   };
 }
 
-function personFromWire(w: WirePerson): Person {
+export function personFromWire(w: WirePerson): Person {
   return {
     id: w.id,
     displayName: w.displayName,
@@ -429,7 +429,7 @@ interface WireAbsenceCapacityRule {
   readonly countsCompDays: boolean;
 }
 
-function absenceCapacityRuleFromWire(w: WireAbsenceCapacityRule): AbsenceCapacityRule {
+export function absenceCapacityRuleFromWire(w: WireAbsenceCapacityRule): AbsenceCapacityRule {
   return {
     id: w.id,
     regionId: w.regionId,

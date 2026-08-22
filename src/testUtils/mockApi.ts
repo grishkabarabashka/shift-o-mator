@@ -431,7 +431,77 @@ export const handlers = [
     const body = await request.json();
     return HttpResponse.json({ id: params.id, ...(body as object) });
   }),
+
+  // -- Phase 6 admin CRUD ---------------------------------------------------
+  // Minimal — enough for the Settings interaction tests to exercise the real
+  // request/response round trip without reimplementing every validation rule
+  // the .NET differential/integration tests already cover.
+
+  ...adminCrudHandlers(base, 'locations', (d) => d.locations, (d, list) => ({ ...d, locations: list }), locationToWire),
+  ...adminCrudHandlers(base, 'holidays', (d) => d.holidays, (d, list) => ({ ...d, holidays: list }), (h) => h),
+  ...adminCrudHandlers(base, 'units', (d) => d.units, (d, list) => ({ ...d, units: list }), unitToWire),
+  ...adminCrudHandlers(
+    base,
+    'absence-capacity-rules',
+    (d) => d.absenceCapacityRules,
+    (d, list) => ({ ...d, absenceCapacityRules: list }),
+    (r) => r,
+  ),
+  ...adminCrudHandlers(base, 'shifts', (d) => d.shifts, (d, list) => ({ ...d, shifts: list }), shiftToWire),
+  ...adminCrudHandlers(base, 'roles', (d) => d.roles, (d, list) => ({ ...d, roles: list }), roleToWire),
+
+  http.put(`${base}/api/admin/regions/:id`, async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    mockBackend.data = {
+      ...mockBackend.data,
+      regions: mockBackend.data.regions.map((r) => (r.id === params.id ? { ...r, ...body } : r)),
+    };
+    return HttpResponse.json({ id: params.id, ...body });
+  }),
+
+  http.post(`${base}/api/admin/day-configurations`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const created = { id: mockBackend.nextId('dc'), ...body };
+    mockBackend.data = { ...mockBackend.data, dayConfigurations: [...mockBackend.data.dayConfigurations, created as never] };
+    return HttpResponse.json(created);
+  }),
 ];
+
+/** Builds GET(list is unused by the UI, which reads `/api/reference` instead) +
+ * POST/PUT/DELETE handlers for one admin resource backed by a `mockBackend.data`
+ * array. `toWireDomain` isn't applied here — the admin request body already *is*
+ * the wire shape the real endpoint expects, so it's stored close to as-sent and
+ * `/api/reference`'s own `*ToWire` mapping (already in this file) takes care of
+ * shaping the read side consistently. */
+function adminCrudHandlers<T extends { id: string }>(
+  base: string,
+  path: string,
+  getList: (d: ScheduleDataset) => readonly T[],
+  setList: (d: ScheduleDataset, list: T[]) => ScheduleDataset,
+  _unused: (t: T) => unknown,
+) {
+  return [
+    http.post(`${base}/api/admin/${path}`, async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      const created = { id: mockBackend.nextId(path), ...body } as unknown as T;
+      mockBackend.data = setList(mockBackend.data, [...getList(mockBackend.data), created]);
+      return HttpResponse.json(created);
+    }),
+    http.put(`${base}/api/admin/${path}/:id`, async ({ params, request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      const list = getList(mockBackend.data).map((item) =>
+        item.id === params.id ? ({ ...item, ...body, id: item.id } as unknown as T) : item,
+      );
+      mockBackend.data = setList(mockBackend.data, list as T[]);
+      return HttpResponse.json({ id: params.id, ...body });
+    }),
+    http.delete(`${base}/api/admin/${path}/:id`, ({ params }) => {
+      const list = getList(mockBackend.data).filter((item) => item.id !== params.id);
+      mockBackend.data = setList(mockBackend.data, list as T[]);
+      return new HttpResponse(null, { status: 204 });
+    }),
+  ];
+}
 
 export const server = setupServer(...handlers);
 

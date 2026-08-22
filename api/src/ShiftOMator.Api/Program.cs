@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api;
+using ShiftOMator.Api.Admin;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
@@ -87,6 +88,17 @@ app.MapSuggestEndpoints();
 app.MapAcknowledgementsEndpoints();
 app.MapHistoryEndpoints();
 app.MapPeopleEndpoints();
+
+// Phase 6: full CRUD administration, gated behind AuthPolicies.AdminOnly.
+app.MapLocationsAdminEndpoints();
+app.MapHolidaysAdminEndpoints();
+app.MapUnitsAdminEndpoints();
+app.MapAbsenceCapacityRulesAdminEndpoints();
+app.MapRegionsAdminEndpoints();
+app.MapShiftsAdminEndpoints();
+app.MapRolesAdminEndpoints();
+app.MapDayConfigurationsAdminEndpoints();
+app.MapPeopleAdminEndpoints();
 
 // Справочные данные — всегда (защищено идемпотентной проверкой в FixtureSeeder).
 // Демо-план (назначения/отпуска/отгулы) — только по явному флагу: первый прод не

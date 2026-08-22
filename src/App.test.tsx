@@ -154,7 +154,8 @@ describe('оболочка', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Roles' }));
     const table = await screen.findByRole('table');
-    expect(within(table).getByText('Batch-E')).toBeInTheDocument();
+    // Phase 6: role code is now an editable field, not static text.
+    expect(within(table).getByDisplayValue('Batch-E')).toBeInTheDocument();
   });
 });
 
