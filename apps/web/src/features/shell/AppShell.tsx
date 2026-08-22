@@ -10,12 +10,13 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider.tsx';
-import { ALL_UNITS } from '../../domain/types.ts';
+import { ALL_UNITS, type Location } from '../../domain/types.ts';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
-import { daysBetween, parseDate } from '../../engine/dates.ts';
+import { daysBetween, formatInZone, parseDate } from '../../engine/dates.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
-import { TODAY, useUi, type DisplayZone } from '../../store/useUi.ts';
-import { Select, type SelectOption } from '../../ui/primitives.tsx';
+import { TODAY, useUi } from '../../store/useUi.ts';
+import { useNow } from '../../ui/useNow.ts';
+import { Select } from '../../ui/primitives.tsx';
 
 export interface NavItem {
   readonly to: string;
@@ -52,7 +53,6 @@ function ProductHeader() {
 
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);
-  const displayZone = useUi((s) => s.displayZone);
   const setDisplayZone = useUi((s) => s.setDisplayZone);
 
   // Stub identity for now (Phase 4 client seam) — see `auth/AuthProvider.tsx`. Not the
@@ -62,13 +62,16 @@ function ProductHeader() {
 
   const units = reference?.units ?? [];
 
-  const zoneOptions: SelectOption[] = [
-    { value: 'role', label: 'Role time' },
-    { value: 'UTC', label: 'UTC' },
-    ...[...new Set((reference?.locations ?? []).map((location) => location.timeZone))]
-      .sort()
-      .map((zone) => ({ value: zone, label: zone })),
-  ];
+  // Locations of the currently selected unit — `ALL_UNITS` has no locations
+  // of its own, so it falls back to every location in the dataset rather
+  // than showing an empty strip.
+  const unit = reference?.units.find((u) => u.id === unitId);
+  const strip: readonly Location[] =
+    unitId !== ALL_UNITS && unit
+      ? unit.locationIds
+          .map((id) => reference?.locations.find((l) => l.id === id))
+          .filter((l): l is Location => l !== undefined)
+      : (reference?.locations ?? []);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
@@ -107,15 +110,7 @@ function ProductHeader() {
           </span>
         ) : null}
 
-        <div className="hidden items-center gap-1.5 lg:flex">
-          <span className="text-[11.5px] font-medium text-faint">Show in</span>
-          <Select
-            ariaLabel="Display timezone"
-            value={displayZone}
-            onChange={(value) => setDisplayZone(value as DisplayZone)}
-            options={zoneOptions}
-          />
-        </div>
+        <LocationClockStrip locations={strip} onPick={setDisplayZone} />
 
         <div className="h-6 w-px bg-line" />
 
@@ -157,6 +152,62 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
     >
       Absences current as of {parseDate(date).toFormat('d LLL')} ({relative})
     </span>
+  );
+}
+
+/**
+ * Location clock strip — replaces the timezone dropdown (CLAUDE.md: showing
+ * a single named timezone made less sense than several small clocks for the
+ * locations actually in play, one per location of the selected unit). Each
+ * clock doubles as the display-timezone picker: clicking one sets
+ * `displayZone` to that location's zone, so choosing "look at it from
+ * Pune's clock" and reading Pune's clock are the same click.
+ */
+function LocationClockStrip({
+  locations,
+  onPick,
+}: {
+  readonly locations: readonly Location[];
+  readonly onPick: (zone: string) => void;
+}) {
+  const now = useNow();
+  const displayZone = useUi((s) => s.displayZone);
+
+  // De-duplicated by timezone, not by location — Pune/Kolkata etc. would
+  // otherwise repeat the same clock face under different names.
+  const byZone = new Map<string, Location>();
+  for (const location of locations) {
+    if (!byZone.has(location.timeZone)) byZone.set(location.timeZone, location);
+  }
+  const clocks = [...byZone.values()].sort((a, b) => a.timeZone.localeCompare(b.timeZone));
+
+  if (clocks.length === 0) return null;
+
+  return (
+    <div className="hidden items-center gap-1.5 lg:flex" role="group" aria-label="Location times">
+      <button
+        type="button"
+        className="pill"
+        data-active={displayZone === 'shift'}
+        title="Show each assignment in its own shift's timezone"
+        onClick={() => onPick('shift')}
+      >
+        Shift time
+      </button>
+      {clocks.map((location) => (
+        <button
+          key={location.timeZone}
+          type="button"
+          className="pill"
+          data-active={displayZone === location.timeZone}
+          title={`${location.name} — ${location.timeZone}`}
+          onClick={() => onPick(location.timeZone)}
+        >
+          <span className="font-medium">{location.name}</span>{' '}
+          <span className="font-mono">{formatInZone(now, location.timeZone)}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
