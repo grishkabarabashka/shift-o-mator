@@ -25,8 +25,14 @@ are not reopened by accident.
 | **`Training` semantics** | Not an absence. In-hours training and other engineering activity is the **`Cover`** role — `Cover` is engineering work. | `AbsenceType` narrowed to `VACATION \| SICK \| OTHER`. A `Training` cell imports as `Cover` and **counts toward coverage**. ([ADR-0017](adr/0017-absence-range-cell-projection.md)) |
 | **Dated event rules** | Planners know an event is happening and staff up. Event-specific minimums are a custom case; not built now. | `DayConfiguration.key = 'date'` stays in the type; no UI, no fixture, no engine branch. ([ADR-0008](adr/0008-events-are-dated-coverage-rules.md)) |
 | **Effective dating** | Do not touch the past. Raising a minimum today must not make last March fail. | Coverage-affecting configuration is versioned by effective date. ([ADR-0021](adr/0021-effective-dated-configuration.md)) |
-| **Who plans Service Transition** | A manager plans cross-regionally. Planning units should be first-class and may be regions *or* cross-region teams. Write access for everyone everywhere is fine — the team is small — provided there is an audit trail. | Region and planning unit become two orthogonal axes; regional authorization scoping is removed entirely. ([ADR-0020](adr/0020-planning-unit-and-region.md)) |
-| **Absence capacity limits** | Needed. This was done by hand before and is not in the prototype. | Kept. 3 long / 4 short region-wide as confirmed defaults, configurable. ([ADR-0010](adr/0010-absence-limits-by-role-pool.md)) |
+| **Who plans Service Transition** | A manager plans cross-regionally. Planning units should be first-class and may be regions *or* cross-region teams. Write access for everyone everywhere is fine — the team is small — provided there is an audit trail. | At the time: region and planning unit became two orthogonal axes, with regional authorization scoping removed entirely (ADR-0020). **Superseded by Phase 8** ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)): Region turned out to duplicate PlanningUnit for 65 of 76 people, so it was deleted outright — Service Transition is simply `unit-st`, a planning unit like any other, with its own (zero-minimum) coverage rules. No write-access scoping either way. |
+| **Absence capacity limits** | Needed. This was done by hand before and is not in the prototype. | Kept. 3 long / 4 short per unit as confirmed defaults, configurable. ([ADR-0010](adr/0010-absence-limits-by-role-pool.md), scope updated by [ADR-0032](adr/0032-planning-unit-single-rule-axis.md)) |
+
+## Known gap in Phase 8
+
+**Overview date range is not yet decoupled from Schedule.**
+
+Overview and Schedule share the same selected date range: when you change the range on Schedule, Overview updates to match. The owner requested that Overview should default independently to "today" and not sync with Schedule's selection. This requires a second parallel schedule load and was deprioritized as "if time allows" during Phase 8. It is tracked as a known limitation — no regression; the screens work together rather than independently as intended.
 
 ## Remaining assumptions
 

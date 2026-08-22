@@ -18,8 +18,8 @@ views with one model:
 - a traceable history of schedule changes.
 
 The central object is an **assignment**: one person, one calendar date, one working
-role or one roster marker. Assignments are shown in a calendar grid, interpreted
-against regional requirements, and turned into coverage information.
+shift or one roster marker. Assignments are shown in a calendar grid, interpreted
+against unit requirements, and turned into coverage information.
 
 ## What's wrong with the spreadsheet today
 
@@ -39,7 +39,7 @@ against regional requirements, and turned into coverage information.
 
 ## Goals
 
-1. Anyone can answer "who is working, where, in which role" without opening several
+1. Anyone can answer "who is working, where, in which shift" without opening several
    spreadsheets.
 2. A planner can build a schedule without touching the published rota until they
    choose to.
@@ -60,15 +60,15 @@ incident alerting.
 
 | User | What they need | Product behavior |
 |---|---|---|
-| **Viewer** | Understand coverage, find personal duties | Reads published data, filters to Only Me, changes display timezone, browses Dashboard / Schedule / People. Cannot alter the published plan. |
-| **Planner** | Build and maintain a valid rota | Opens a draft, assigns eligible roles, marks non-working states, checks gaps, undoes, generates suggestions, reviews and publishes — **in any planning unit**. |
-| **Administrator** | Maintain the scheduling model | Everything a planner can, plus people, eligibility, shifts, day configurations, role requirements, colors, holidays, comp-off rules and handovers. May force-publish, explicitly and audited. |
+| **Viewer** | Understand coverage, find personal duties | Reads published data, filters to Only Me, changes display timezone, browses Overview / Schedule / People. Cannot alter the published plan. |
+| **Planner** | Build and maintain a valid rota | Opens a draft, assigns eligible shifts, marks non-working states, checks gaps, undoes, generates suggestions, reviews and publishes — **in any planning unit**. |
+| **Administrator** | Maintain the scheduling model | Everything a planner can, plus people, eligibility, shifts, day configurations, shift requirements, colors, holidays, comp-off rules and handovers. May force-publish, explicitly and audited. |
 
-**There is no regional scoping of write access**
-([ADR-0020](adr/0020-planning-unit-and-region.md)). The team is small and nobody edits
+**There is no unit scoping of write access**
+([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). The team is small and nobody edits
 another team's rota without reason; the control is a **complete audit trail** — who
 changed what, when, and what it was before — not a permission matrix. This removes
-region-scope claims and cross-region permission checks from the model entirely.
+unit-scope claims and permission checks from the model entirely.
 
 Identity comes from authenticated access rules. Any in-app role switcher is a
 development convenience and must not ship to ordinary users.
@@ -79,24 +79,23 @@ development convenience and must not ship to ordinary users.
 |---|---|
 | Published schedule | The authoritative rota visible to everyone. |
 | Draft | A private set of proposed changes owned by a planner for a unit and period. |
-| Region | A scheduling **rule** boundary (`AMER`, `EMEA`, `APAC`) — organizational, not geographic. Decides which roles, requirements and policies apply. |
-| Planning unit | A **planning** boundary — whose screen a person appears on. Either a region's roster or a cross-region team such as Service Transition. A default filter, not a permission boundary. |
-| Role | Work performed that day: `Lead`, `Crew`, `E`, `BM`, `M`, `Primary`. `Cover` is engineering work, including in-hours training. |
+| Planning unit | A scheduling and **planning** boundary (`unit-amer`, `unit-emea`, `unit-apac`, `unit-st`). Owns all rules that apply: shifts, requirements, policies and comp-off policy. Defines whose screen a person appears on (a default filter, not a permission boundary). |
+| Shift | Work performed that day: `Lead`, `Crew`, `E`, `BM`, `M`, `Primary`, `ST:AMER`. `Cover` is engineering work, including in-hours training. Shifts belong to a planning unit and carry an absolute time window. |
 | Marker | A roster state that is not work and not leave: `Off`, `0`. |
 | Status | The resolved non-working state of a cell: `Off`, `PH`, `Comp-Off`, `Vacation`, `Sick`, `0`. |
-| Day configuration | The set of role requirements that applies to a group of weekdays. |
-| Requirement | Minimum and optional maximum people for a role on a day type. |
+| Day configuration | The set of shift requirements that applies to a group of weekdays (or a specific date for events). |
+| Requirement | Minimum and optional maximum people for a shift on a day type. Zero minimum is legal (e.g., Service Transition optional shifts). |
 | Coverage | Comparison of actual assignments against requirements. |
-| Gap | Fewer eligible assignments than the role minimum. |
+| Gap | Fewer eligible assignments than the shift minimum (never reported for zero-minimum shifts). |
 | Thin | Minimum met, no spare capacity. |
-| Conflict | Invalid data: ineligible role, double booking, assignment during absence. |
-| Handover | A configured transition from one region's operational window to the next. |
+| Conflict | Invalid data: ineligible shift, double booking, assignment during absence. |
+| Handover | The overlap between two units' shift windows on the timeline — computed on the fly, not stored. |
 | Comp-off | A compensatory non-working day earned by weekend or holiday work. |
 | Rotation | Fair ordering of eligible people for specialist or weekend work. |
 
 ## Scale
 
-80 people, 3 regions, 4 planning units. That's small, and the technical consequences
+80 people, 4 planning units (3 regional + 1 cross-regional). That's small, and the technical consequences
 are spelled out in [12-architecture.md](12-architecture.md): the whole quarter loads
 into the browser at once, there's no server-side pagination, and no virtualization.
 

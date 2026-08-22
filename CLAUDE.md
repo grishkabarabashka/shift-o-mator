@@ -1,7 +1,8 @@
 # shift-o-mator — project context
 
-A shift-planning tool for a global application support team (~80 people, 3 regions:
-AMER, EMEA, APAC). Replaces manual planning in a shared Excel file.
+A shift-planning tool for a global application support team (~80 people across four
+planning units: `unit-amer`, `unit-emea`, `unit-apac`, and the cross-cutting
+`unit-st` for Service Transition). Replaces manual planning in a shared Excel file.
 
 
 ## State of the code
@@ -9,7 +10,10 @@ AMER, EMEA, APAC). Replaces manual planning in a shared Excel file.
 Phases 0–6 complete the HTTP cutover: the backend is built and tested, domain logic
 lives server-side, and the frontend talks entirely over REST. Code and design agree.
 
-**Frontend** (`src/`):
+The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
+workspace root at the repository root with no other members.
+
+**Frontend** (`apps/web/src/`):
 
 - `domain/` — types only (no fixtures; seeded on backend)
 - `engine/` — client-side utilities: `dates` (parsing, formatting), `period` (zoom and
@@ -17,16 +21,17 @@ lives server-side, and the frontend talks entirely over REST. Code and design ag
 - `data/` — `ScheduleRepository` interface and `HttpScheduleRepository` (REST client)
 - `store/` — `useSchedule` (draft metadata), `useUi` (selection, range, dialogs)
 - `api/` — TanStack Query hooks, OpenAPI-generated types (`schema.d.ts`)
-- `features/` — `planning` (grid), `coverage` (strip), `issues` (panel), `absences`,
-  `compdays`, `shell` (navigation and context), `settings` (admin UI)
+- `features/` — `planning` (grid, `ShiftPalette`), `coverage` (strip), `issues` (panel),
+  `absences`, `compdays`, `shell` (navigation, context, the location clock strip),
+  `settings` (admin UI)
 - `pages/` — `OverviewPage`, `SchedulePage`, `DayDrilldownPage`, `PeoplePage`,
   `SettingsPage`; routed in `App.tsx`
 - `ui/` — Radix UI wrappers, `theme.css` (Tailwind tokens), shared styles
 - `auth/` — `AuthProvider`, stub identity for development
 
-**Backend** (`api/src/`):
+**Backend** (`apps/api/src/`):
 
-- `ShiftOMator.Domain` — entities and enums (mirrors `frontend/domain/types.ts`)
+- `ShiftOMator.Domain` — entities and enums (mirrors `apps/web/src/domain/types.ts`)
 - `ShiftOMator.Application` — engines (coverage, validation, ranking, comp days,
   auto-populate), services (drafts), helpers
 - `ShiftOMator.Infrastructure` — EF Core `ScheduleDbContext`, migrations, seeding
@@ -34,8 +39,8 @@ lives server-side, and the frontend talks entirely over REST. Code and design ag
 
 **Tests:**
 
-- Frontend: `src/**/*.test.ts` (Vitest)
-- Backend: `api/tests/**/*.cs` (xUnit)
+- Frontend: `apps/web/src/**/*.test.ts` (Vitest)
+- Backend: `apps/api/tests/**/*.cs` (xUnit)
 
 Two traps worth knowing before touching the UI:
 
@@ -55,44 +60,43 @@ English mixed, and unifying it is out of scope.
 **Verify with:**
 
 ```bash
-# Frontend
+# Frontend (from the repo root — npm workspace delegates to apps/web)
 npm run typecheck
 npm run test:run
 npm run build
 npm run api:schema:check      # type generation has not drifted
 
-# Backend (from api/ directory)
+# Backend (from apps/api/)
 dotnet build
 dotnet test
 ```
 
 ## Key decisions (don't revisit without a new ADR)
 
-1. **A role carries its own time**, in the role's fixed timezone. `Crew` is
+1. **A shift carries its own absolute time**, in a fixed timezone. `Crew` is
    09:00–18:00 America/Chicago, which renders as 10:00–19:00 in New York — one absolute
-   window. Separately, **a `ShiftDefinition` is the person's contracted window**
-   (Pune EMEA shift 13:00–21:30 IST). Coverage and timelines use role time; People and
-   roster context use shift time. (ADR-0001, ADR-0018)
+   window. Everyone holding this shift works that interval; there is no location-specific
+   variation. (ADR-0033, supersedes ADR-0001 and ADR-0018)
 
 2. **A location is responsible only for** the calendar of weekends and holidays and for
-   display timezone. Nothing to do with role timing. (ADR-0002)
+   display timezone. Nothing to do with shift timing. (ADR-0002)
 
-3. **Region and planning unit are two orthogonal axes.** Region = which rules apply
-   (AMER includes New York, Chicago, Hartford, Pune). Planning unit = whose screen —
-   either a region's roster or a cross-region team such as Service Transition. A person
-   has both. A unit is a **default filter, not a boundary**; coverage is always computed
-   per region. **No regional scoping of write access** — everyone can plan anywhere, and
-   the control is a complete audit trail. **`ALL_UNITS` is the default everywhere**: the
-   question people open this for is global. (ADR-0020, ADR-0025)
+3. **PlanningUnit is the single rule axis.** One entity answers both questions: which
+   rules apply (coverage, shifts, day configurations, comp-off policy) and whose screen
+   this person appears on. There are four units: `unit-amer`, `unit-emea`, `unit-apac`
+   (REGION kind) and `unit-st` (CROSS_REGION kind). A unit is a **default filter, not a
+   hard boundary**; the Schedule screen offers a toggle to view all people with shifts in
+   that unit. **No unit scoping of write access** — everyone can plan anywhere, and the
+   control is a complete audit trail. (ADR-0032, supersedes ADR-0004 and ADR-0020)
 
-4. **Roles belong to a region.** No global catalog; matching codes across regions are
-   coincidental. (ADR-0004)
+4. **Shifts belong to a unit.** No global catalog; matching codes across units are
+   coincidental. (ADR-0032, narrowing ADR-0004)
 
-5. **Day configurations carry role sets, not just minimums.** AMER Mon–Thu runs `Lead`
-   and `Crew`; Friday runs `Lead-E`, `Crew-E`, `Crew-L` — different roles. An event
+5. **Day configurations carry shift sets, not just minimums.** unit-amer Mon–Thu runs `Lead`
+   and `Crew`; Friday runs `Lead-E`, `Crew-E`, `Crew-L` — different shifts. An event
    (DR test) is a dated day configuration. (ADR-0016, ADR-0008)
 
-6. **No work-pattern entity**; `defaultRoleId` and `availableWeekdays` are person
+6. **No work-pattern entity**; `defaultShiftId` and `availableWeekdays` are person
    fields read only by auto-populate. Managers are `orgCategory = MANAGEMENT` with
    `isIncluded = false`. (ADR-0005)
 
@@ -121,11 +125,11 @@ dotnet test
     `THIN` as a distinct coverage state. Soft rules never block; they require an
     acknowledgement with a comment. **A conflict does not block either** — coming in
     during your own leave is a decision, not corrupt data. Only a double assignment
-    and an unknown/out-of-region role stay BLOCKING. (ADR-0009, ADR-0024)
+    and an unknown/ineligible shift stay BLOCKING. (ADR-0009, ADR-0024)
 
-12. **Absence limits apply per region and per role pool.** Three of four possible leads
+12. **Absence limits apply per unit and per shift pool.** Three of four possible leads
     being out is invisible to a headcount counter. Not present in the prototype — it is
-    the owner's rule; 3 long / 4 short region-wide are confirmed defaults. (ADR-0010)
+    the owner's rule; 3 long / 4 short per unit are confirmed defaults. (ADR-0010)
 
 13. **Optimistic drafts, not locking.** `DraftSession` + ordered `DraftChange`;
     concurrent drafts allowed with an informational banner; atomic publish; version
@@ -146,6 +150,10 @@ dotnet test
     `@dnd-kit` separately for drag interactions that never shipped. Its dimensions are
     adopted: 185px person column, 62px date columns, 26px rows. (ADR-0014)
 
+18. **Zero minimums are a legal coverage state.** A unit (Service Transition, for one)
+    may carry shifts with `min=0` — no hard requirement. This never renders as a gap
+    or understaffed cell. (ADR-0034)
+
 ## Technical decisions
 
 - Frontend: React 19 + Vite + TypeScript (strict), react-router, TanStack Query for
@@ -157,10 +165,11 @@ dotnet test
   Backend layering: `Api → Application → Infrastructure → Domain`. Domain logic
   executes server-side only
 - One date library. Mixing in the native `Date` across eight locations produces DST bugs
-- Cell interaction: right-click opens a picker with **only the roles in that day's
+- Cell interaction: right-click opens a picker with **only the shifts in that day's
   configuration that this person is eligible for**, plus Non-working and Clear. The
-  role palette and hotkeys are the fast path for painting ranges. **Any edit opens the
-  draft by itself** — there is no Edit mode to enter (ADR-0023)
+  shift palette (`ShiftPalette`, filtered to the selected planning unit) and hotkeys
+  are the fast path for painting ranges. **Any edit opens the draft by itself** — there
+  is no Edit mode to enter (ADR-0023)
 - The visible period is one piece of state (`useUi.range`) driven three ways — zoom
   buttons, day strip, year scrubber — and all the arithmetic lives in `engine/period.ts`
 

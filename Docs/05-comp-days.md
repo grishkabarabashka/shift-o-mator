@@ -7,7 +7,7 @@ as a source of disputes, because it is adjacent to pay.
 
 ## Policy
 
-Owned by the region.
+Owned by the unit.
 
 ```
 CompOffPolicy {

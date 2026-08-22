@@ -13,33 +13,32 @@ detail panel right when a row is selected.
 | Column | Notes |
 |---|---|
 | Name | With muted initials |
-| Region | Which rules apply |
-| Unit | Whose screen they are planned on |
+| Unit | Which rules apply and whose screen they appear on |
 | Location | |
-| Shift | The person's contracted window |
+| Shift | The person's contracted window (if set) |
 | Days (3mo) | Working days in the last three calendar months |
 | Comp-Off | Available balance |
-| Eligible Roles | Colored role badges |
+| Eligible Shifts | Colored shift badges |
 | Weekend | Check or dash |
 
-Region and Only Me filters apply. Search matches display name, location and eligible
-role code. The footer reports visible versus total included people.
+Unit and Only Me filters apply. Search matches display name, location and eligible
+shift code. The footer reports visible versus total included people.
 
 ### Person panel
 
-1. Header: name, region tag, shift, close button.
+1. Header: name, unit tag, shift, close button.
 2. Period label: the last three calendar months.
 3. KPI strip: Working Days, Weekends, Comp-Off Due.
-4. **Fairness banner**: above, below or on target against the regional team average,
+4. **Fairness banner**: above, below or on target against the unit team average,
    with a ±12% tolerance.
 5. **Comp-Off tiles**: Earned, Taken, Pending, Due, and **Aged** — outstanding longer
    than the configured threshold. Comp days never expire; an aged tile is a prompt, not
    a loss. See [05-comp-days.md](05-comp-days.md).
-6. **Role Mix**: one row per role with a colored badge, a percentage bar, the
+6. **Shift Mix**: one row per shift with a colored badge, a percentage bar, the
    percentage, the count, and **a marker for the person's `targetShare`** so deviation
    is visible rather than inferred.
 7. Expandable **Profile & Configuration**: location, org category, week pattern,
-   default entry, weekend eligibility, eligible roles, constraints and preferences.
+   default entry, weekend eligibility, eligible shifts, constraints and preferences.
 
 Selection is read-only. Admin editing is an explicit edit state with Save and Cancel,
 and **must never silently alter an open draft**.
@@ -48,9 +47,8 @@ and **must never silently alter an open draft**.
 
 - Add, edit, deactivate and reactivate people **without deleting assignment history** —
   deactivation removes someone from future planning, nothing else.
-- Region and planning unit are set independently: an ST engineer is AMER region,
-  Service Transition unit.
-- Role-eligibility checkboxes with target shares, default shift, default entry, weekend
+- Unit is the sole rule axis (where they work, whose screen they appear on).
+- Shift-eligibility checkboxes with target shares, default shift, default entry, weekend
   eligibility, `maxWeekendsPerQuarter`, blackout dates and preferred partners.
 - History stays attached to the stable person ID.
 
@@ -63,38 +61,37 @@ A vertically scrolling sequence of cards.
 
 ### User Preferences
 
-Home region. Display defaults.
+Home unit. Display defaults.
 
 ### Display Options
 
 Switches: show Off/Leave days, show weekends, highlight coverage gaps, highlight
 scheduling conflicts.
 
-### Region configuration
+### Unit configuration
 
-One card per region, each containing:
+One card per unit, each containing:
 
-- editable region name;
-- searchable IANA timezone dropdown;
-- location list;
+- editable unit name;
+- unit kind (`REGION` or `CROSS_REGION`);
+- searchable IANA primary timezone dropdown (used for day-configuration resolution);
+- location list (many-to-many — Pune hosts AMER, EMEA, APAC people at once);
 - **Shifts table** — Name, Code, Timezone, Start, End, Break, computed Net Hours;
-- **one Roles table per day configuration** — immutable code, editable name, min,
+- **Shift requirements per day configuration** — immutable code, editable min,
   optional max (`∞` when blank), color picker, remove;
-- an inline Add Role form: code, name, min, color;
+- an inline Add Shift form: code, name, min, color, timezone, times;
 - **Day configuration editor** — which weekdays belong to which group, reorderable;
-  replacing a region's complete day configuration is atomic;
-- Weekend roles as tags with minimums, plus Saturday/Sunday timing;
+  replacing a unit's complete day configuration is atomic;
+- Weekend shifts as tags with minimums, plus Saturday/Sunday timing;
 - **Comp-off rules** — window before/after, excluded weekdays, aging threshold,
   approval behavior. There is no expiry setting: comp days do not expire;
-- Absence capacity rules — region-wide (3 long / 4 short) and per role pool.
+- Absence capacity rules — per unit (3 long / 4 short) and per shift pool.
 
-### Planning units
+### Managing units
 
-Add and edit units: name, kind (`REGION` or `CROSS_REGION`), the region for a region
-unit, and the default grid grouping. Assigning a person to a unit happens on the People
-screen, not here.
+Units are created by the Unit configuration card above (with their shifts, day configurations, etc.). Assigning a person to a unit happens on the People screen, not here.
 
-The day-configuration editor is what makes "Friday has different roles from
+The day-configuration editor is what makes "Friday has different shifts from
 Monday–Thursday" configuration rather than code
 ([ADR-0016](adr/0016-day-configuration-groups.md)).
 
@@ -103,15 +100,10 @@ Monday–Thursday" configuration rather than code
 Per location and per year. Add, edit, delete, CSV import, and **a preview of which
 people and which coverage requirements a change affects** before it is saved.
 
-### Handovers
-
-Editable time, overlap duration and DST adjustment per season. Historical dates keep
-rendering with the rule that applied then.
-
 ### Access
 
-Identity-group to app-role mappings: Viewer, Planner, Admin. **No regional scoping**
-([ADR-0020](adr/0020-planning-unit-and-region.md)) — a planner may edit any unit. The
+Identity-group to app-role mappings: Viewer, Planner, Admin. **No unit scoping**
+([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)) — a planner may edit any unit. The
 control is the audit trail, and this screen links to it.
 
 ### Dirty state

@@ -6,7 +6,7 @@ Coverage is the comparison of actual assignments against the requirements of the
 configuration that applies to that date. It is computed, never stored by hand, and
 recomputed after every draft change.
 
-For one region and date, per role:
+For one unit and date, per shift:
 
 | Level | Condition | Meaning |
 |---|---|---|
@@ -19,12 +19,12 @@ For one region and date, per role:
 away from not being" is the single most actionable signal for a planner and it
 disappears if it's folded into green.
 
-Only assignments whose role has `countsAsCoverage` contribute. Non-working states never
-satisfy a working-role requirement. `ONCALL` roles count toward their own requirements
+Only assignments whose shift has `countsAsCoverage` contribute. Non-working states never
+satisfy a working-shift requirement. `ONCALL` shifts count toward their own requirements
 only.
 
 The snapshot also carries headcount, total required and total filled, so the grid can
-show an aggregate `filled/required` per day alongside the per-role detail.
+show an aggregate `filled/required` per day alongside the per-shift detail.
 
 ## Validation levels
 
@@ -33,9 +33,9 @@ Three levels, which must not be blended
 
 | Level | Examples | Behavior |
 |---|---|---|
-| **BLOCKING** | Coverage below `min` (gap); double assignment; role from another region; unknown role | Publication is impossible. These are model violations, not policy. |
-| **WARNING / CONFLICT** | Role not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Requires a deliberate acknowledgement with a comment before publication. Conflicts are decisions, not invalid data — a person may work during their leave, and an eligible override is recorded. |
-| **INFO** | `THIN` coverage; preference violated; deviation from target role share; comp day aging past the threshold; role outside the day configuration | Highlighted, never blocking. |
+| **BLOCKING** | Coverage below `min` (gap); double assignment; shift not in the person's unit; unknown shift | Publication is impossible. These are model violations, not policy. |
+| **WARNING / CONFLICT** | Shift not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Requires a deliberate acknowledgement with a comment before publication. Conflicts are decisions, not invalid data — a person may work during their leave, and an eligible override is recorded. |
+| **INFO** | `THIN` coverage; preference violated; deviation from target shift share; comp day aging past the threshold; shift outside the day configuration | Highlighted, never blocking. |
 
 > **`THIN` is INFO, not WARNING.** Running at exactly the minimum is the normal
 > state of this rota, not a deviation — in the reference data it describes most days.

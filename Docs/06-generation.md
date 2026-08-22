@@ -1,6 +1,6 @@
 # Rotation, suggestions and auto-generation
 
-Three related capabilities on one engine: rank candidates for a role on a date, fill
+Three related capabilities on one engine: rank candidates for a shift on a date, fill
 one gap, or fill a whole period.
 
 ## Candidate ordering
@@ -8,12 +8,12 @@ one gap, or fill a whole period.
 The ordering below comes from the validated prototype and is the shared basis for
 Suggest and Auto-populate:
 
-1. **Eligibility** — the role is in the person's eligibility list.
+1. **Eligibility** — the shift is in the person's eligibility list.
 2. **Availability** — not on leave, not a confirmed comp day, not a blackout date, the
    weekday is in their availability, and they hold no conflicting duty that day.
-3. **Fairness over 90 days** — fewest assignments of this role in the trailing 90 days
+3. **Fairness over 90 days** — fewest assignments of this shift in the trailing 90 days
    first.
-4. **Recency** — the most recent holder of this role is pushed down.
+4. **Recency** — the most recent holder of this shift is pushed down.
 5. **Personal targets** — `maxWeekendsPerQuarter` and `maxPerWeek` push a person down
    or out.
 
@@ -29,8 +29,8 @@ suggestion list so the ranking can be argued with.
 ## Suggest — fix one gap
 
 A coverage cell in the `GAP` state exposes a Suggest action. It opens a ranked
-candidate list showing, per candidate: name, role count in the last 90 days, days since
-they last held the role, weekend load against target, and any warning that would be
+candidate list showing, per candidate: name, shift count in the last 90 days, days since
+they last held the shift, weekend load against target, and any warning that would be
 created by choosing them.
 
 Choosing a candidate **stages a draft change**. It never publishes.
@@ -42,7 +42,7 @@ closed — "3 eligible, all on leave" — rather than showing an empty box.
 
 Constraints:
 
-- one region, one period, at most **92 days**;
+- one unit, one period, at most **92 days**;
 - runs into a draft, never into published data;
 - **locked cells are never touched** — the planner locks the assignments they have
   already decided, and generation receives those IDs.

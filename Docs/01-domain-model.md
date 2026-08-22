@@ -1,49 +1,40 @@
 # Domain model
 
-## Two orthogonal axes
+## Single axis: PlanningUnit
 
-The single most important structural decision
-([ADR-0020](adr/0020-planning-unit-and-region.md)): **a region and a planning unit are
-different things and a person belongs to both.**
+The single most important structural decision ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)): **a planning unit is the sole rule boundary** — which rules apply, whose screen a person appears on, everything.
 
-- **Region** answers *which rules apply* — roles, day configurations, coverage
-  requirements, comp-off policy, handovers.
-- **Planning unit** answers *whose screen this person appears on* — a unit is either a
-  region's own roster or a cross-region team such as Service Transition.
+- **PlanningUnit** answers *which rules apply* and *whose screen this person appears on* — roles, shifts, day configurations, coverage requirements, comp-off policy.
 
-An ST engineer in Hartford is in the **AMER region** (works AMER hours, holds the
-`ST Amer` role, counts toward AMER coverage) and in the **Service Transition planning
-unit** (planned by the manager who plans ST across all regions).
+Units come in two kinds:
+- **REGION** units: `unit-amer`, `unit-emea`, `unit-apac` — each is a region's roster.
+- **CROSS_REGION** units: `unit-st` (Service Transition) — a team drawn from people who sit in different regions' locations, but plans and is staffed as one unit.
+
+A person belongs to exactly one unit (`Person.unitId`) — there is no dual membership. An ST engineer who happens to sit in Hartford is in **unit-st**, full stop: their shifts, eligibility, and coverage all resolve against `unit-st`'s own day configurations (which carry `min=0` — ST coverage is optional, not required; see [ADR-0034](adr/0034-zero-minimum-legal-coverage-state.md)). Their `Location` (Hartford) still governs their calendar and display timezone, independently of which unit they're on — that's the whole point of `Location` and `PlanningUnit` being two separate axes instead of one.
+
+**Coverage is computed per unit.** Absence limits are per unit. Comp-off policy is per unit.
 
 ## Relationship overview
 
 ```
-Region  (rule boundary: AMER | EMEA | APAC)
- ├─ references Locations
- ├─ defines ShiftDefinitions          contracted working windows
- ├─ defines ShiftRoles                what work is done, with its own time window
- ├─ defines DayConfigurations         which roles apply to which group of days
- │    └─ each holds RoleRequirements  min / max / default per role
+PlanningUnit  (single rule boundary: unit-amer | unit-emea | unit-apac | unit-st)
+ ├─ references Locations (many-to-many)
+ ├─ defines Shifts                what work is done, with its own time window
+ ├─ defines DayConfigurations    which shifts apply to which group of days
+ │    └─ each holds ShiftRequirements  min / max / default per shift
  ├─ owns CompOffPolicy
- ├─ owns AbsenceCapacityRules
- └─ participates in Handovers
-
-PlanningUnit  (planning boundary)
- ├─ kind: REGION → one region's roster
- │      | CROSS_REGION → a team drawn from several regions
- └─ groupBy: LOCATION | REGION | ORG_CATEGORY
+ └─ owns AbsenceCapacityRules
 
 Location
  ├─ timezone (display)
  └─ holiday calendar + weekend days      → what is non-working for a person
 
 Person
- ├─ belongs to a Region       → rules, roles, coverage
- ├─ belongs to a PlanningUnit → whose screen
- ├─ has a Location and a default ShiftDefinition
- └─ has RoleEligibility, availability, constraints, preferences
+ ├─ belongs to a PlanningUnit    → rules, shifts, coverage, whose screen
+ ├─ has a Location and a default Shift
+ └─ has ShiftEligibility, availability, constraints, preferences
 
-Assignment            one person + one date + (working role | roster marker)
+Assignment            one person + one date + (working shift | roster marker)
  ├─ published, or held as a DraftChange
  ├─ contributes to the computed CoverageSnapshot
  ├─ may earn a CompDayEntry
@@ -62,47 +53,41 @@ CellValue             a projection: what the grid shows for (person, date)
 ## Entity relationships
 
 The ASCII sketch above is the narrative; this is the same model as a diagram, with
-cardinalities. Region and PlanningUnit are drawn as two independent parents of Person —
-that split *is* ADR-0020, not an accident of layout.
+cardinalities. PlanningUnit is the sole rule axis — that is ADR-0032, not an accident of layout.
 
 ```mermaid
 erDiagram
-    REGION ||--o{ LOCATION : "operates in"
-    REGION ||--o{ SHIFT_ROLE : defines
-    REGION ||--o{ SHIFT_DEFINITION : defines
-    REGION ||--o{ DAY_CONFIGURATION : defines
-    REGION ||--o{ ABSENCE_CAPACITY_RULE : owns
-    REGION ||--o{ PERSON : governs
+    PLANNING_UNIT ||--o{ LOCATION : "operates in"
+    PLANNING_UNIT ||--o{ SHIFT : defines
+    PLANNING_UNIT ||--o{ DAY_CONFIGURATION : defines
+    PLANNING_UNIT ||--o{ ABSENCE_CAPACITY_RULE : owns
+    PLANNING_UNIT ||--o{ PERSON : governs
 
-    DAY_CONFIGURATION ||--o{ ROLE_REQUIREMENT : contains
-    ROLE_REQUIREMENT }o--|| SHIFT_ROLE : requires
-
-    PLANNING_UNIT ||--o{ PERSON : rosters
+    DAY_CONFIGURATION ||--o{ SHIFT_REQUIREMENT : contains
+    SHIFT_REQUIREMENT }o--|| SHIFT : requires
 
     LOCATION ||--o{ PERSON : locates
     LOCATION ||--o{ HOLIDAY : observes
-    SHIFT_DEFINITION ||--o{ PERSON : "contracts (ADR-0018)"
+    SHIFT ||--o{ PERSON : "contracts (default)"
 
     PERSON ||--o{ ASSIGNMENT : holds
     PERSON ||--o{ ABSENCE : takes
     PERSON ||--o{ COMP_DAY_ENTRY : accrues
     PERSON ||--o{ DRAFT_SESSION : edits
 
-    SHIFT_ROLE ||--o{ ASSIGNMENT : fills
+    SHIFT ||--o{ ASSIGNMENT : fills
     ASSIGNMENT |o--o| COMP_DAY_ENTRY : "may earn"
     ASSIGNMENT ||--o{ ASSIGNMENT_HISTORY_ENTRY : logs
 
     DRAFT_SESSION ||--o{ DRAFT_CHANGE : contains
     PLANNING_UNIT ||--o{ DRAFT_SESSION : scopes
 
-    REGION {
+    PLANNING_UNIT {
         string id PK
-        string primaryTimeZone
         string primaryLocationId FK
     }
     PERSON {
         string id PK
-        string regionId FK
         string unitId FK
         string locationId FK
         string defaultShiftId FK
@@ -112,7 +97,7 @@ erDiagram
         string id PK
         string personId FK
         string date
-        string regionId FK
+        string unitId FK
         int version
     }
     ABSENCE {
@@ -154,43 +139,25 @@ stateDiagram-v2
     DISCARDED --> [*]
 ```
 
-## Region
-
-```
-Region {
-  id                    'AMER' | 'EMEA' | 'APAC'
-  name
-  primaryTimeZone       classifies a date into a day configuration
-  primaryLocationId     whose holiday calendar decides "is this a holiday for the rota"
-  locationIds[]
-  compOffPolicy
-}
-```
-
-The region's primary location decides whether a date is a weekday, a weekend or a
-holiday **for requirement purposes**. Whether a day is non-working **for a person** is
-always their own location's calendar
-([ADR-0002](adr/0002-location-is-calendar-only.md)). These two can disagree by a day,
-and that is correct.
-
 ## Planning unit
 
 ```
 PlanningUnit {
   id, name
   kind                  REGION | CROSS_REGION
-  regionId?             set when kind = REGION
-  plannerPersonIds[]    informational; not a permission boundary
+  primaryLocationId     whose holiday calendar decides "is this a holiday for the rota"
+  locationIds[]         many-to-many — Pune hosts amer/emea/apac at once
   groupBy               LOCATION | REGION | ORG_CATEGORY
+  compOffPolicy
 }
 ```
 
-Default units: `AMER`, `EMEA`, `APAC` (kind `REGION`, grouped by location) and
-`Service Transition` (kind `CROSS_REGION`, grouped by region).
+Default units: `unit-amer`, `unit-emea`, `unit-apac` (kind `REGION`, grouped by location) and
+`unit-st` (kind `CROSS_REGION`, grouped by region).
 
-**A unit is a default filter, not a hard boundary.** The Schedule screen defaults to
-the selected unit's people and offers a toggle to show the whole region. Because every
-planner can write everywhere (see Access below), a gap in a role belonging to another
+**A unit is a default filter, not a hard boundary** when displayed on screen — the Schedule screen defaults to
+the selected unit's people and offers a toggle to show all people working that unit's shifts. Because every
+planner can write anywhere (see Access below), a gap in a shift belonging to another
 unit can be fixed without leaving the screen.
 
 Adding a fourth unit — "Automation", "SRE" — is a data change.
@@ -198,7 +165,7 @@ Adding a fourth unit — "Automation", "SRE" — is a data change.
 ## Location
 
 Responsible for exactly two things: the calendar of weekends and public holidays, and
-the timezone used to display a person's schedule to them. Nothing to do with role
+the timezone used to display a person's schedule to them. Nothing to do with shift
 timing.
 
 ```
@@ -207,47 +174,24 @@ Location {
   timeZone              IANA
   holidayCalendarKey    'US' | 'GB' | 'CH' | 'SG' | 'IN'
   weekendDays[]         usually [Sat, Sun]
+  country
 }
 ```
 
 Known locations: Singapore, Pune, London, Stevenage, Zurich, Chicago, New York,
 Hartford.
 
-## Shift definition
+## Shift
 
-A **contracted working window** — an attribute of a person, not of the work they do
-that day ([ADR-0018](adr/0018-shift-distinct-from-role.md)).
-
-```
-ShiftDefinition {
-  id, regionId
-  code, name           'APAC', 'EMEA', 'Amer', 'Singapore', 'APAC Mid'
-  timeZone             the zone the window is written in
-  start, end           local wall-clock
-  breakMinutes         60 for the AMER weekday pattern
-  netHours             computed
-}
-```
-
-Examples: Pune APAC shift 06:30–15:00 IST; Pune EMEA shift 13:00–21:30 IST; Singapore
-07:00–15:30 SGT; Chicago 09:00–17:30 CT; New York 11:00–19:30 ET.
-
-A shift says when a person is normally at work. A role says what they are doing and
-when that duty runs.
-
-## Shift role
-
-**A role carries its own time** ([ADR-0001](adr/0001-role-carries-time.md)), defined in
-a fixed timezone. `Crew` is 09:00–18:00 `America/Chicago`, which renders as 10:00–19:00
-in New York — one absolute window, two displays.
+**One entity, one absolute window** ([ADR-0033](adr/0033-one-shift-entity-absolute-window.md)): a shift created as 11:00–20:00 New York is that same absolute interval for everyone holding it, with no location-specific bending.
 
 ```
-ShiftRole {
-  id, regionId
+Shift {
+  id, unitId
   code                 'Lead', 'Crew', 'Batch-E', 'E', 'BM', 'M', 'Primary'
   label, description   operational purpose, shown in the picker and settings
   color                configuration, not decoration
-  hotkey?              unique within the region
+  hotkey?              unique within the unit
   timeZone, start, end, crossesMidnight
   breakMinutes
   countsAsCoverage
@@ -255,23 +199,22 @@ ShiftRole {
 }
 ```
 
-Roles belong to a region ([ADR-0004](adr/0004-roles-belong-to-unit.md)). `Batch-E` in
-AMER and `E` in EMEA are unrelated entities; matching codes across regions are
+Shifts belong to a unit ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). `ST:AMER` in unit-st and `ST Amer` in unit-amer are separate entities; matching codes across units are
 coincidental.
 
-On-call is an ordinary role code occupying the day, not a parallel duty — see
+On-call is an ordinary shift code occupying the day, not a parallel duty — see
 "Assignment".
 
-### Real role codes
+### Real shift codes
 
-| Region | Codes |
+| Unit | Codes |
 |---|---|
-| APAC | `M`, `G`, `MC` |
-| EMEA | `E`, `BM`, `BM-Lead`, `Shift-Lead`, `MOD`, `CH-Early`, `CH-SL`, `CH-Late`, `CH-OC`, `CH-OC-Mo`, `CH-OC-Ev`, `CH` |
-| AMER Mon–Thu | `Lead`, `Crew`, `Crew-BC`, `Batch-E`, `Batch-L`, `Batch-U`, `Cover`, `ST Amer` |
-| AMER Friday | `Lead-E`, `Crew-E`, `Crew-L`, `Batch-E`, `Batch-L`, `Cover` |
-| AMER weekend | `Primary`, `Secondary`, `ST`, `Shadow`, `BCM` |
-| Cross-region | `OnCall S2`, `OnCall S3` |
+| unit-apac | `M`, `G`, `MC` |
+| unit-emea | `E`, `BM`, `BM-Lead`, `Shift-Lead`, `MOD`, `CH-Early`, `CH-SL`, `CH-Late`, `CH-OC`, `CH-OC-Mo`, `CH-OC-Ev`, `CH` |
+| unit-amer Mon–Thu | `Lead`, `Crew`, `Crew-BC`, `Batch-E`, `Batch-L`, `Batch-U`, `Cover`, `ST Amer` |
+| unit-amer Friday | `Lead-E`, `Crew-E`, `Crew-L`, `Batch-E`, `Batch-L`, `Cover` |
+| unit-amer weekend | `Primary`, `Secondary`, `ST`, `Shadow`, `BCM` |
+| unit-st | `ST:AMER`, `ST:EMEA`, `ST:APAC` |
 
 **`Cover` is engineering work**, not spare capacity: incident and alert coverage,
 automation, improvement work, and **in-hours training**. A person on `Cover` is at
@@ -279,27 +222,27 @@ work. This is why training is not an absence.
 
 ## Day configuration
 
-**Different day groups carry different role sets, not just different minimums**
+**Different day groups carry different shift sets, not just different minimums**
 ([ADR-0016](adr/0016-day-configuration-groups.md)). AMER Monday–Thursday has `Lead` and
-`Crew`; Friday has `Lead-E`, `Crew-E` and `Crew-L` — different roles, not different
+`Crew`; Friday has `Lead-E`, `Crew-E` and `Crew-L` — different shifts, not different
 counts.
 
 ```
 DayConfiguration {
-  id, regionId
+  id, unitId
   key                  'weekday' | 'friday' | 'weekend' | 'holiday' | 'date'
   weekdays[]           for weekday-style groups
   date?, label?        for a one-off group — deferred, see below
-  roleRequirements[]
+  shiftRequirements[]
   effectiveFrom        see "Effective dating"
 }
 
-RoleRequirement {
-  roleId
-  min                  hard requirement; below it is a gap
+ShiftRequirement {
+  shiftId
+  min                  hard requirement; below it is a gap. Zero is legal ([ADR-0034](adr/0034-zero-minimum-legal-coverage-state.md))
   max?                 above it is a warning
   isDefault            offered in the picker even without a requirement
-  timingOverride?      this role runs at a different time on this day group
+  timingOverride?      this shift runs at a different time on this day group
 }
 ```
 
@@ -315,15 +258,16 @@ weekday group containing that weekday.
 
 | Day group | Requirements (`min`/`max`) |
 |---|---|
-| AMER Mon–Thu | Lead 1/1, Crew 1/∞, Batch-E 1/1, Batch-L 1/1, Cover 0/3, Crew-BC 0/1, Batch-U 0/1 |
-| AMER Friday | Lead-E 1/1, Crew-E 1/3, Crew-L 1/1, Batch-E 1/1, Batch-L 1/1 |
-| AMER weekend | Primary 1/1, Secondary 0/1, ST 0/1 |
-| EMEA weekday | Shift-Lead or BM-Lead 1/2, BM 1/∞, E 1/∞ |
-| APAC weekday | M 1/∞ |
+| unit-amer Mon–Thu | Lead 1/1, Crew 1/∞, Batch-E 1/1, Batch-L 1/1, Cover 0/3, Crew-BC 0/1, Batch-U 0/1 |
+| unit-amer Friday | Lead-E 1/1, Crew-E 1/3, Crew-L 1/1, Batch-E 1/1, Batch-L 1/1 |
+| unit-amer weekend | Primary 1/1, Secondary 0/1, ST 0/1 |
+| unit-emea weekday | Shift-Lead or BM-Lead 1/2, BM 1/∞, E 1/∞ |
+| unit-apac weekday | M 1/∞ |
+| unit-st all | All shifts 0/∞ (zero-minimum, optional coverage) |
 
 ## Effective dating
 
-Coverage requirements, roles and day configurations are **versioned with an effective
+Coverage requirements, shifts and day configurations are **versioned with an effective
 date** ([ADR-0021](adr/0021-effective-dated-configuration.md)). Raising a minimum today
 must not turn last March red: March was closed against the rule in force in March.
 
@@ -337,15 +281,14 @@ they never mutate the previous one.
 Person {
   id                        stable; history stays attached to it
   displayName, initials, employeeId?
-  regionId                  rules and coverage
-  planningUnitId            whose screen
+  unitId                    rules, coverage, whose screen
   locationId, defaultShiftId
   orgCategory               SUPPORT | SERVICE_TRANSITION | MANAGEMENT
   isActive                  deactivation ≠ deletion
   isIncluded                participates in planning at all
   eligibility[]
   availableWeekdays[]
-  defaultRoleId?            the ordinary-day default used by auto-populate
+  defaultShiftId?           the ordinary-day default used by auto-populate
   weekendEligible
   constraints  { minRestHours, maxConsecutiveDays, maxWeekendsPerQuarter }
   preferences  { avoidsWeekdays[], preferredPartnerIds[], blackoutDates[] }
@@ -354,37 +297,36 @@ Person {
 ```
 
 **There is no separate work-pattern entity**
-([ADR-0005](adr/0005-no-work-pattern-entity.md)). `defaultRoleId` and
+([ADR-0005](adr/0005-no-work-pattern-entity.md)). `defaultShiftId` and
 `availableWeekdays` are person fields consumed only by auto-populate; they never
 override an explicit assignment.
 
-`orgCategory` is a reporting and grouping attribute. It is no longer how Service
-Transition is modeled — that is `planningUnitId`. Managers are
+`orgCategory` is a reporting and grouping attribute. Managers are
 `orgCategory = MANAGEMENT` with `isIncluded = false`, which keeps them in the roster
 and out of the planning rows.
 
 ```
-RoleEligibility {
-  roleId
+ShiftEligibility {
+  shiftId
   targetShare          desired share of this person's workload, 0..1
   minPerWeek?, maxPerWeek?
 }
 ```
 
 Eligibility stores a **target share, not a boolean**
-([ADR-0006](adr/0006-eligibility-target-shares.md)). A role absent from the list means
+([ADR-0006](adr/0006-eligibility-target-shares.md)). A shift absent from the list means
 "not eligible"; the boolean case is a degenerate instance.
 
 ## Assignment
 
-One person, one date, and either a working role or a roster marker.
+One person, one date, and either a working shift or a roster marker.
 
 ```
 Assignment {
   id
-  personId, date            date is local to the role's timezone
-  regionId
-  content                   { kind: 'ROLE',   roleId, timeOverride? }
+  personId, date            date is local to the shift's timezone
+  unitId                    denormalized from the person's unit
+  content                   { kind: 'SHIFT',   shiftId, timeOverride? }
                           | { kind: 'MARKER', marker: 'OFF' | 'NOT_SCHEDULED' }
   isWeekend                 by the person's location calendar
   note?
@@ -395,7 +337,7 @@ Assignment {
 ```
 
 **Exactly one assignment per (person, date).** A person is never on two duties the same
-day — including on-call, which is an ordinary role code occupying the day like any
+day — including on-call, which is an ordinary shift code occupying the day like any
 other. This is a hard uniqueness constraint, not a soft rule.
 
 `OFF` is the spreadsheet's `Off` / `W-Off`: a planned day off. `NOT_SCHEDULED` is `0`:
@@ -421,7 +363,7 @@ Absence {
 ```
 
 **Training is not an absence.** In-hours training and other engineering activity is the
-`Cover` role — the person is at work. A `Training` value in a historical spreadsheet
+`Cover` shift — the person is at work. A `Training` value in a historical spreadsheet
 maps to `Cover`, not to leave, and therefore counts toward coverage.
 
 `lastSeenInImportAt` detects records that vanished from a later export. Import never
@@ -476,8 +418,8 @@ stateDiagram-v2
 Holiday { id, date, name, locationIds[], isFullDay }
 ```
 
-A holiday says nothing about who works. One person may show `PH` while another holds an
-AMER role on the same date. Holiday definition and holiday coverage stay separate.
+A holiday says nothing about who works. One person may show `PH` while another holds a
+shift on the same date. Holiday definition and holiday coverage stay separate.
 
 ## Cell value — the projection
 
@@ -486,7 +428,7 @@ projection is the single place where precedence lives.
 
 ```
 CellValue =
-  | { kind: 'ROLE',   role, assignment }
+  | { kind: 'SHIFT',   shift, assignment }
   | { kind: 'STATUS', status: 'OFF' | 'NOT_SCHEDULED' | 'PH'
                             | 'COMP_OFF' | 'VACATION' | 'SICK' | 'OTHER' }
   | { kind: 'EMPTY' }                            no decision recorded
@@ -494,7 +436,7 @@ CellValue =
 
 Precedence, first match wins:
 
-1. an `Assignment` with a working role — a person can be scheduled on a holiday or a
+1. an `Assignment` with a working shift — a person can be scheduled on a holiday or a
    weekend, and that must win over any non-working signal;
 2. an `Absence` covering the date;
 3. a `CompDayEntry` that is `SCHEDULED` or `TAKEN` on the date;
@@ -509,19 +451,18 @@ drawn as a dashed hint over an empty cell; it does not yet occupy the day.
 
 ## Coverage snapshot
 
-Computed, never stored by hand. For one region and date: filled count per role, gaps,
+Computed, never stored by hand. For one unit and date: filled count per shift, gaps,
 conflicts, headcount, total required, total filled. Recomputed after every draft change
 and authoritatively rechecked on publish.
 
-**Coverage is computed per region, not per planning unit.** A gap in `ST Amer` appears
-on the AMER coverage strip even though those people are planned in the Service
-Transition unit — the requirement belongs to the region, and anyone may fix it.
+**Coverage is computed per unit.** A gap in `ST:AMER` appears
+in the unit-st coverage strip — the requirement belongs to the unit, and anyone may fix it.
 
 ## Draft session
 
 ```
 DraftSession {
-  id, editorPersonId, planningUnitId
+  id, editorPersonId, unitId
   from, to                       the period being edited
   status                         OPEN | PUBLISHED | DISCARDED
   createdAt, updatedAt
@@ -545,14 +486,14 @@ hold overlapping drafts; the conflict is resolved on publish, not prevented up f
 ## Absence capacity rule
 
 A limit on simultaneous absences, checked when leave is approved rather than when
-shifts are planned. **The role-pool limit matters more than the overall one**
+shifts are planned. **The shift-pool limit matters more than the overall one**
 ([ADR-0010](adr/0010-absence-limits-by-role-pool.md)): three of the four people who can
 lead being out at once is a problem a headcount counter never sees.
 
 ```
 AbsenceCapacityRule {
-  id, regionId
-  scope                 REGION | ROLE_POOL(roleId)
+  id, unitId
+  scope                 UNIT | SHIFT_POOL(shiftId)
   durationBucket        SHORT | LONG
   longThresholdWorkdays 5
   maxConcurrent
@@ -560,23 +501,17 @@ AbsenceCapacityRule {
 }
 ```
 
-Confirmed defaults: at most **3 long** and **4 short** absences region-wide. Role-pool
+Confirmed defaults: at most **3 long** and **4 short** absences per unit. Shift-pool
 limits are configurable; the critical lead-type pools are seeded at 1 as an
 `ASSUMPTION`.
 
 ## Handover
 
-```
-Handover {
-  id, name
-  fromRegionId, toRegionId
-  normalTimeUtc, overlapMinutes
-  adjustments[]        { period, adjustedTimeUtc } for DST seasons
-}
-```
-
-Approximate zones: APAC→EMEA 08:00–09:00 UTC, EMEA→AMER 14:30–16:00 UTC, AMER→APAC
-22:00–00:00 UTC. Configuration, not constants.
+Not a stored entity. A handover between units is the intersection of two units'
+shift windows on the timeline, computed on the fly by `engine/timeline.ts`
+(`Handover { fromUnitId, toUnitId, ... }`, a view-layer type, not a domain entity).
+Storing it separately would let it drift from reality on the first DST transition —
+the two units' actual windows are the source of truth, not a cached overlap.
 
 ## Access and audit
 
@@ -586,16 +521,15 @@ Acknowledgement   { issueKey, comment, byPersonId, at }
 ```
 
 Three application roles, and **no regional scoping**
-([ADR-0020](adr/0020-planning-unit-and-region.md)):
+([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)):
 
 | Role | Can |
 |---|---|
 | Viewer | Read published data |
-| Planner | Draft and publish in **any** unit or region |
+| Planner | Draft and publish in **any** unit |
 | Admin | Everything a planner can, plus configuration and force-publish |
 
 The team is small and nobody edits another team's rota without reason. The control is
 **a complete audit trail**, not a permission matrix: every published change records who
-made it, when, and what the previous value was. This removes region-scope claims,
-cross-region permission checks and the "who may plan Service Transition" problem
-entirely.
+made it, when, and what the previous value was. This removes unit-scope claims,
+cross-unit permission checks entirely.

@@ -49,25 +49,21 @@ two truths.
 
 ## Handovers
 
-```
-Handover {
-  fromRegionId, toRegionId
-  normalTimeUtc, overlapMinutes
-  adjustments[]   { period, adjustedTimeUtc }
-}
-```
+Not a stored entity. A handover is the intersection of two units' shift windows on the
+timeline — computed on the fly by `engine/timeline.ts` from each unit's actual shifts,
+not cached or configured separately. Storing an "expected" handover window would let it
+drift from reality on the first DST transition, since the two units' real shift
+timezones are the only source of truth. As shifts move between the DST and standard
+offsets of their own timezones over the year, the computed overlap band shifts with
+them automatically — nothing needs to be "adjusted per season."
 
-The timeline resolves the applicable adjustment for the selected date, annotates the
-active offset/DST state, and repositions both the handover band and the connected
-shift blocks. Planners may update adjustments during seasonal transitions.
-
-Approximate zones — configuration, not constants:
+Approximate zones, for orientation (derived from today's seeded shifts, not configured):
 
 | Handover | Typical UTC window |
 |---|---|
-| APAC → EMEA | 08:00–09:00 |
-| EMEA → AMER | 14:30–16:00 |
-| AMER → APAC | 22:00–00:00 |
+| unit-apac → unit-emea | 08:00–09:00 |
+| unit-emea → unit-amer | 14:30–16:00 |
+| unit-amer → unit-apac | 22:00–00:00 |
 
 ## Display timezone
 

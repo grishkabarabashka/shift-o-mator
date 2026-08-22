@@ -37,6 +37,9 @@ not something else?"
 | [0029](0029-http-cutover-and-server-persistence.md) | HTTP cutover: published and draft data move to the server | accepted |
 | [0030](0030-domain-logic-server-single-implementation.md) | Domain logic lives on the server as the single implementation | accepted |
 | [0031](0031-stubbed-real-auth-scaffold.md) | Stubbed-but-real auth scaffold: bearer token, role claims, no region scoping | accepted |
+| [0032](0032-planning-unit-single-rule-axis.md) | PlanningUnit is the single rule axis (supersedes 0004, 0020) | accepted |
+| [0033](0033-one-shift-entity-absolute-window.md) | One Shift entity with absolute window (supersedes 0001, 0018) | accepted |
+| [0034](0034-zero-minimum-legal-coverage-state.md) | Zero minimums are a legal coverage state | accepted |
 
 ## Superseded decisions (archive)
 
@@ -46,5 +49,9 @@ decision.
 
 | # | Title | Superseded by |
 |---|---|---|
+| [0001](0001-role-carries-time.md) | A role carries its own time in the role's fixed timezone | 0033 (one Shift entity with absolute window) |
+| [0004](0004-roles-belong-to-unit.md) | Roles belong to a region | 0032 (PlanningUnit single rule axis) |
 | [0011](0011-checkout-instead-of-realtime.md) | Period locking via check-out | 0015 (optimistic drafts) |
-| [0019](0019-service-transition-as-category.md) | Service Transition as category with cross-region view | 0020 (planning unit and region axes) |
+| [0018](0018-shift-distinct-from-role.md) | Shift is distinct from role | 0033 (one Shift entity with absolute window) |
+| [0019](0019-service-transition-as-category.md) | Service Transition as category with cross-region view | 0020 (planning unit and region axes) → 0032 (PlanningUnit single axis) |
+| [0020](0020-planning-unit-and-region.md) | Region and planning unit are orthogonal axes | 0032 (PlanningUnit single rule axis) |

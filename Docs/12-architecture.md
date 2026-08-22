@@ -12,7 +12,7 @@
 | Tests | Vitest (frontend), xUnit (backend) | engines covered on both; parity test proves frontend and backend implementations match |
 | **Backend** | .NET 10 + EF Core 10 | organizational standard; minimal APIs, code-first schema |
 | Storage | SQL Server (LocalDB for dev) | `rowversion` for optimistic concurrency; EF Core migrations |
-| Identity | Stubbed (Phase 4) | bearer token with role claims; production deploys Entra ID. No region scoping (ADR-0020). |
+| Identity | Stubbed (Phase 4) | bearer token with role claims; production deploys Entra ID. No unit scoping (ADR-0032). |
 | Solver | Backend (C#) | candidate ranker runs server-side for fairness and history; not portable to frontend |
 
 **Phases 0–6 completed the HTTP cutover:** frontend now makes REST calls to a real
@@ -82,7 +82,7 @@ removeDraftChange(sessionId, changeId)          DELETE /api/drafts/{id}/changes/
 publishDraft(sessionId)                         POST /api/drafts/{id}/publish
 discardDraft(sessionId)                         POST /api/drafts/{id}/discard
 listOpenDrafts(regionId, range)                 GET /api/drafts?regionId=...&overlapping=...
-suggest(date, roleId)                           GET /api/coverage/suggest?date=...&roleId=...
+suggest(date, shiftId)                          GET /api/coverage/suggest?date=...&shiftId=...
 autoPopulate(regionId, range, lockedIds)        POST /api/auto-populate (rate-limited)
 ```
 
@@ -94,7 +94,7 @@ errors. All responses validated via OpenAPI type generation (`npm run api:schema
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/auth/me` | GET | Current identity (stub in dev, Entra in production) |
-| `/reference` | GET | Regions, locations, shifts, roles, day configs, people, holidays |
+| `/reference` | GET | Planning units, locations, shifts, day configs, people, holidays |
 | `/schedule` | GET | Published assignments, absences, comp days for a range; optional `draftId` overlays |
 | `/drafts` | POST | Create or return existing open session for (editor, region, range) |
 | `/drafts/{id}` | GET | Fetch a draft session and its changes |
@@ -104,10 +104,10 @@ errors. All responses validated via OpenAPI type generation (`npm run api:schema
 | `/drafts/{id}/publish` | POST | Atomic publish: applies changes, runs validation server-side, returns created/updated/deleted and `remainingGaps` |
 | `/drafts/{id}/discard` | POST | Mark session discarded, audit retention |
 | `/coverage/snapshot` | GET | Per-region coverage snapshot for a date or range |
-| `/coverage/suggest` | GET | Ranked candidates for a role on a date |
+| `/coverage/suggest` | GET | Ranked candidates for a shift on a date |
 | `/auto-populate` | POST | Generate assignments for a range; rate-limited 5/min per user |
 | `/people/{id}` | PUT | Update person eligibility and preferences |
-| `/admin/*` | *various* | Gated by Admin role: regions, roles, day configs, shifts, locations, absence limits, people |
+| `/admin/*` | *various* | Gated by Admin role: units, shifts, day configs, locations, absence limits, people |
 | `/history` | GET | Append-only audit log of published changes |
 
 Rules:
@@ -118,7 +118,7 @@ Rules:
 - Server validation runs on `POST /api/drafts/{id}/publish` and returns `issues` and
   `remainingGaps` in the publish result.
 - A failed publish preserves the draft and every change — never discards on error.
-- Bearer token auth with role claims; `[Authorize]` gates endpoints; no region scoping.
+- Bearer token auth with role claims; `[Authorize]` gates endpoints; no unit scoping.
 
 ## Visual layer
 
@@ -181,12 +181,12 @@ api/
 
 **Backend (xUnit):** engines are the primary unit-test target with complete coverage.
 
-- Coverage: single and multiple gaps, over-coverage, thin state, role counts.
+- Coverage: single and multiple gaps, over-coverage, thin state, shift counts.
 - Validation: blocking gaps, warnings/conflicts that don't block, acknowledgements.
 - CandidateRanker: eligibility, absences, 90-day fairness, recency, weekend targets.
 - CompDayService: before/after windows, excluded weekdays, occupied dates, separate
   Saturday/Sunday earnings, pending approval, aging.
-- AutoPopulateService: defaults, rotating roles, weekends, holidays, locked cells,
+- AutoPopulateService: defaults, rotating shifts, weekends, holidays, locked cells,
   92-day rejection, rate limiting.
 - DraftService: session lifecycle, change ordering, undo, publish atomicity,
   version conflicts.

@@ -26,12 +26,12 @@ session is open. No separate Edit mode — any cell change opens a draft immedia
 | Zoom | Columns | Purpose |
 |---|---|---|
 | Day | 1 | Drill-down, one column per person-hour detail |
-| Week | 7 | Full role codes, primary editing view |
+| Week | 7 | Full shift codes, primary editing view |
 | Two weeks | 14 | Compact codes, still editable |
 | Month | 28–31 | Dense codes; the default planning horizon |
 | 3 / 6 months | Weeks | **Read-only heatmap** for pattern recognition |
 
-The heatmap is for leave blocks, role density and fairness — not editing. Each person
+The heatmap is for leave blocks, shift density and fairness — not editing. Each person
 is one row, each day a small colored cell, weeks grouped by header, names sticky while
 both axes scroll.
 
@@ -62,19 +62,19 @@ PUNE                (6)
 
 | Unit kind | Default grouping |
 |---|---|
-| `REGION` (AMER, EMEA, APAC) | by **location** — locations differ in holidays and timezone, which is what a planner needs to see |
-| `CROSS_REGION` (Service Transition) | by **region** — the same duty in three rule contexts |
+| `REGION` (unit-amer, unit-emea, unit-apac) | by **location** — locations differ in holidays and timezone, which is what a planner needs to see |
+| `CROSS_REGION` (unit-st) | by **region** — the same duty in three rule contexts |
 | `ALL` selected | by region, then by the unit within it |
 
 `ORG_CATEGORY` is available as a third grouping for units that want it.
 
 **The unit is a default filter, not a boundary**
-([ADR-0020](adr/0020-planning-unit-and-region.md)). The scope toggle switches between
-"this unit" and "everyone in this region". Since every planner can write everywhere, a
-gap in a role belonging to another unit — an `ST Amer` hole seen from the AMER grid —
+([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). The scope toggle switches between
+"this unit" and "all shifts this unit offers" (including people from other units holding those shifts). Since every planner can write everywhere, a
+gap in a shift belonging to another unit — an `ST:AMER` hole seen from the unit-amer grid —
 is fixed in place, without navigating away.
 
-Coverage is always computed **per region**, whatever the grid is currently showing. A
+Coverage is always computed **per unit**, whatever the grid is currently showing. A
 unit filter narrows the rows, never the requirements.
 
 ### Cells
@@ -83,7 +83,7 @@ Each cell renders one `CellValue` (see [01-domain-model.md](01-domain-model.md))
 
 | Value | Rendering |
 |---|---|
-| Working role | Full-cell colored chip, role code, white or dark text by contrast. On-call codes are ordinary roles and render the same way. |
+| Working shift | Full-cell colored chip, shift code, white or dark text by contrast. On-call codes are ordinary shifts and render the same way. |
 | `Off`, `0`, `PH`, `Comp-Off`, `Vacation`, `Sick` | Muted gray chip with the status code |
 | Empty | Blank |
 | Ineligible weekend cell | Em dash — the person cannot be placed here at all |
@@ -96,12 +96,12 @@ Each cell renders one `CellValue` (see [01-domain-model.md](01-domain-model.md))
 Two things, both under the grid, both visible while planning:
 
 1. **Pinned coverage row** — one cell per date showing aggregate `filled/required`.
-   Green when every minimum is met, amber on thin, red when any role is below minimum.
-   The tooltip lists the failing roles: `Lead: 0/1`.
-2. **Per-role coverage strip** — one row per role, one column per day, each cell
+   Green when every minimum is met, amber on thin, red when any shift is below minimum.
+   The tooltip lists the failing shifts: `Lead: 0/1`.
+2. **Per-shift coverage strip** — one row per shift, one column per day, each cell
    `actual/min`. Red is a gap, amber below target or thin.
 
-The aggregate answers "is this day fine"; the strip answers "which role is the hole".
+The aggregate answers "is this day fine"; the strip answers "which shift is the hole".
 The prototype only had the aggregate, which means a planner has to hover every red day
 to find out what's missing. Keeping both is the point at which this beats a
 spreadsheet.
@@ -122,7 +122,7 @@ dropdown, rendered outside the grid so overflow cannot clip it:
 ┌──────────────────────────────┐
 │ PERSON 06 · 2026-08-17       │
 ├──────────────────────────────┤
-│ ROLES                        │
+│ SHIFTS                       │
 │ ■ Lead      09:45–18:45 CT   │
 │ ■ Crew      09:00–18:00 CT   │
 │ ■ Batch-E   09:00–18:00 CT   │
@@ -138,15 +138,15 @@ dropdown, rendered outside the grid so overflow cannot clip it:
 └──────────────────────────────┘
 ```
 
-The Roles section lists **only roles in that day's configuration for which this person
-is eligible**, plus the region's default roles. Each shows color, code, long name and
+The Shifts section lists **only shifts in that day's configuration for which this person
+is eligible**, plus the unit's default shifts. Each shows color, code, long name and
 window. Clear appears only when the cell is populated and is styled destructively.
 
 Non-working entries create the right entity for their meaning
 ([ADR-0017](adr/0017-absence-range-cell-projection.md)): `Off` and `0` write a roster
 marker on the assignment; `Vacation` and `Sick` create a one-day `Absence` that can be
 extended into a range; `Comp-Off` schedules a `CompDayEntry`. There is no `Training`
-entry — in-hours training is the `Cover` role and appears in the Roles section.
+entry — in-hours training is the `Cover` shift and appears in the Shifts section.
 
 Selection applies immediately, stages a draft change, and recomputes coverage. The
 picker closes on selection or outside click.
@@ -160,7 +160,7 @@ picker closes on selection or outside click.
 | Home / End | Row start / end |
 | Enter | Open picker on the focused cell |
 | Escape | Close picker, then clear selection |
-| Role hotkey | Apply that role to the whole selection |
+| Shift hotkey | Apply that shift to the whole selection |
 | Delete / Backspace | Clear the selection |
 | Ctrl/Cmd + C / V | Copy / paste a range |
 | Ctrl/Cmd + Z / Y | Undo / redo |
@@ -170,13 +170,13 @@ the one a new planner finds first.
 
 ### Mouse and bulk
 
-- **Paint** — pick a role in the palette, drag across cells.
+- **Paint** — pick a shift in the palette, drag across cells.
 - **Range select** — shift-click or drag; a bulk action applies one value to the whole
   selection.
-- **Fill pattern** — repeat a selected role/status sequence across a date range.
+- **Fill pattern** — repeat a selected shift/status sequence across a date range.
 - **Drag** a populated cell to another date to move it; between people to swap — the
   swap applies **only if both resulting assignments are valid**.
-- **Drag from the role palette** to create.
+- **Drag from the shift palette** to create.
 - Valid drop zones highlight positively; invalid ones name the rule that blocks the
   drop — eligibility, date or conflict.
 - **Lock** a cell before Generate; locked assignment IDs are passed to the generator and
