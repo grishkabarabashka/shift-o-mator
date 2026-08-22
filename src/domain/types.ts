@@ -90,6 +90,7 @@ export interface Location {
 }
 
 export interface Holiday {
+  readonly id: string;
   readonly date: IsoDate;
   readonly name: string;
   readonly locationIds: readonly LocationId[];
@@ -578,12 +579,18 @@ export interface PublishResult {
   readonly remainingGaps: number;
 }
 
-/** Расхождение опубликованного и черновика при устаревшей версии. */
+/**
+ * Расхождение опубликованного и черновика при устаревшей версии.
+ *
+ * Только `ASSIGNMENT` версионируется сегодня (ADR-0015 detectConflicts), но
+ * тип шире намеренно — absence/comp-day конфликты появятся на бэкенде без
+ * очередной правки этого интерфейса.
+ */
 export interface PublishConflict {
   readonly changeId: string;
   readonly targetType: DraftTargetType;
-  readonly published: unknown;
-  readonly draft: unknown;
+  readonly published: Assignment | Absence | CompDayEntry | null;
+  readonly draft: Assignment | Absence | CompDayEntry | null;
   readonly reason: string;
 }
 

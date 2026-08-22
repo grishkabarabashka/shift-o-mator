@@ -59,6 +59,101 @@ DraftSession          one editor + one unit + one period
 CellValue             a projection: what the grid shows for (person, date)
 ```
 
+## Entity relationships
+
+The ASCII sketch above is the narrative; this is the same model as a diagram, with
+cardinalities. Region and PlanningUnit are drawn as two independent parents of Person —
+that split *is* ADR-0020, not an accident of layout.
+
+```mermaid
+erDiagram
+    REGION ||--o{ LOCATION : "operates in"
+    REGION ||--o{ SHIFT_ROLE : defines
+    REGION ||--o{ SHIFT_DEFINITION : defines
+    REGION ||--o{ DAY_CONFIGURATION : defines
+    REGION ||--o{ ABSENCE_CAPACITY_RULE : owns
+    REGION ||--o{ PERSON : governs
+
+    DAY_CONFIGURATION ||--o{ ROLE_REQUIREMENT : contains
+    ROLE_REQUIREMENT }o--|| SHIFT_ROLE : requires
+
+    PLANNING_UNIT ||--o{ PERSON : rosters
+
+    LOCATION ||--o{ PERSON : locates
+    LOCATION ||--o{ HOLIDAY : observes
+    SHIFT_DEFINITION ||--o{ PERSON : "contracts (ADR-0018)"
+
+    PERSON ||--o{ ASSIGNMENT : holds
+    PERSON ||--o{ ABSENCE : takes
+    PERSON ||--o{ COMP_DAY_ENTRY : accrues
+    PERSON ||--o{ DRAFT_SESSION : edits
+
+    SHIFT_ROLE ||--o{ ASSIGNMENT : fills
+    ASSIGNMENT |o--o| COMP_DAY_ENTRY : "may earn"
+    ASSIGNMENT ||--o{ ASSIGNMENT_HISTORY_ENTRY : logs
+
+    DRAFT_SESSION ||--o{ DRAFT_CHANGE : contains
+    PLANNING_UNIT ||--o{ DRAFT_SESSION : scopes
+
+    REGION {
+        string id PK
+        string primaryTimeZone
+        string primaryLocationId FK
+    }
+    PERSON {
+        string id PK
+        string regionId FK
+        string unitId FK
+        string locationId FK
+        string defaultShiftId FK
+        boolean isIncluded
+    }
+    ASSIGNMENT {
+        string id PK
+        string personId FK
+        string date
+        string regionId FK
+        int version
+    }
+    ABSENCE {
+        string id PK
+        string personId FK
+        string from
+        string to
+        string type
+    }
+    COMP_DAY_ENTRY {
+        string id PK
+        string personId FK
+        string earnedForAssignmentId FK
+        string status
+    }
+    DRAFT_SESSION {
+        string id PK
+        string editorPersonId FK
+        string unitId FK
+        string status
+    }
+```
+
+## Draft session lifecycle
+
+Full narrative in [03-drafts-and-publication.md](03-drafts-and-publication.md); this is
+the same three states as a diagram. A failed publish leaves the session `OPEN` with the
+draft intact — never a fourth "conflicted" state, because the draft itself didn't
+change, only the verdict on applying it.
+
+```mermaid
+stateDiagram-v2
+    [*] --> OPEN: openDraft()
+    OPEN --> OPEN: appendChanges / removeChanges (undo, redo)
+    OPEN --> OPEN: publishDraft() — version conflict, draft kept intact
+    OPEN --> PUBLISHED: publishDraft() — success, atomic
+    OPEN --> DISCARDED: discardDraft()
+    PUBLISHED --> [*]
+    DISCARDED --> [*]
+```
+
 ## Region
 
 ```
@@ -357,6 +452,23 @@ CompDayEntry {
 ```
 
 Saturday and Sunday are two independent earning events and may produce two entries.
+
+Full mechanics, including the window search, live in
+[05-comp-days.md](05-comp-days.md); this is the same status machine as a diagram. No
+terminal expiry state — `TAKEN` and `DECLINED` are the only ends, and an entry with no
+valid slot in its window goes to `PENDING_APPROVAL` rather than being dropped.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PROPOSED: earn (Sat / Sun / holiday worked, slot found)
+    [*] --> PENDING_APPROVAL: earn, no valid slot in the window
+    PROPOSED --> SCHEDULED: confirm / move
+    PROPOSED --> DECLINED: planner declines
+    PENDING_APPROVAL --> SCHEDULED: planner picks a date
+    SCHEDULED --> TAKEN: earned date passes
+    DECLINED --> [*]
+    TAKEN --> [*]
+```
 
 ## Holiday
 

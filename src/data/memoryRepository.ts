@@ -13,7 +13,9 @@
 import { del, get, set } from 'idb-keyval';
 import { applyChanges } from '../domain/draft.ts';
 import { createFixtureDataset } from '../domain/fixtures.ts';
+import { buildIndex } from '../domain/lookup.ts';
 import type {
+  Acknowledgement,
   Assignment,
   AssignmentHistoryEntry,
   DateRange,
@@ -24,11 +26,13 @@ import type {
   PersonId,
   PlanData,
   PublishConflict,
+  RegionId,
   ReferenceData,
   ScheduleDataset,
   UnitId,
 } from '../domain/types.ts';
 import { ALL_UNITS } from '../domain/types.ts';
+import { computeCoverage } from '../engine/coverage.ts';
 import { rangesOverlap } from '../engine/dates.ts';
 import type { DraftBundle, PublishOutcome, ScheduleRepository } from './repository.ts';
 
@@ -111,6 +115,18 @@ export class MemoryScheduleRepository implements ScheduleRepository {
     return clone(person);
   }
 
+  async saveAcknowledgement(ack: Acknowledgement): Promise<void> {
+    await this.ready();
+    this.data = {
+      ...this.data,
+      acknowledgements: [
+        ...this.data.acknowledgements.filter((a) => a.issueKey !== ack.issueKey),
+        clone(ack),
+      ],
+    };
+    await this.flush();
+  }
+
   /**
    * Люди берутся по **региону**, а не по единице: покрытие считается по
    * региону, и дыра в чужой единице должна быть видна (ADR-0020).
@@ -131,6 +147,20 @@ export class MemoryScheduleRepository implements ScheduleRepository {
     return new Set(
       this.data.people.filter((p) => regionIds.has(p.regionId)).map((p) => p.id),
     );
+  }
+
+  /** Регионы, которые видит единица — для покрытия, а не для строк (ADR-0020). */
+  private regionIdsForUnit(unitId: UnitId): Set<RegionId> {
+    if (unitId === ALL_UNITS) return new Set(this.data.regions.map((r) => r.id));
+
+    const unit = this.data.units.find((u) => u.id === unitId);
+    if (unit?.kind === 'REGION' && unit.regionId) return new Set([unit.regionId]);
+
+    const regionIds = new Set<RegionId>();
+    for (const person of this.data.people) {
+      if (person.unitId === unitId) regionIds.add(person.regionId);
+    }
+    return regionIds;
   }
 
   private selectPlan(unitId: UnitId, range: DateRange): PlanData {
@@ -282,9 +312,22 @@ export class MemoryScheduleRepository implements ScheduleRepository {
     this.sessions.set(sessionId, { ...session, status: 'PUBLISHED', updatedAt: now });
     await this.flush();
 
+    // Пересчитывается по факту публикации, а не оценивается заранее: только
+    // так число совпадает с тем, что увидит следующий, кто откроет период.
+    const index = buildIndex(this.data);
+    let remainingGaps = 0;
+    for (const regionId of this.regionIdsForUnit(session.unitId)) {
+      remainingGaps += computeCoverage({
+        regionId,
+        range: session.range,
+        assignments: this.data.assignments,
+        index,
+      }).filter((cell) => cell.level === 'GAP').length;
+    }
+
     return {
       ok: true,
-      result: { created, updated, deleted, compDaysGenerated, remainingGaps: 0 },
+      result: { created, updated, deleted, compDaysGenerated, remainingGaps },
     };
   }
 

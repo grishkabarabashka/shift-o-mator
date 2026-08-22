@@ -28,6 +28,7 @@ import type { IsoDate, PersonId, RoleId, ShiftRole } from '../../domain/types.ts
 import { isBlocked } from '../../engine/cellValue.ts';
 import { useSchedule, type CellRef } from '../../store/useSchedule.ts';
 import { selectionBounds, useUi } from '../../store/useUi.ts';
+import { columnsTemplate } from '../../ui/gridTemplate.ts';
 import { AssignmentPicker, type PickerTarget } from './AssignmentPicker.tsx';
 import { GridCell } from './GridCell.tsx';
 import { cellKey, type DayColumn, type GridRow, type PlanningView } from './usePlanningView.ts';
@@ -102,12 +103,12 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   }, [bounds, personRows, columns]);
 
   /**
-   * Любая правка сама открывает черновик.
+   * Любая правка сама открывает черновик (ADR-0023).
    *
-   * Спека прототипа требовала сначала нажать Edit, и это ровно та стена, о
-   * которую бьётся новый пользователь: он кликает по ячейке, ничего не
-   * происходит, и понять почему неоткуда. Режим остаётся — он виден по бейджу
-   * Draft и панели действий, — но входить в него вручную больше не нужно.
+   * Явный режим Edit был бы ровно той стеной, о которую бьётся новый
+   * пользователь: он кликает по ячейке, ничего не происходит, и понять почему
+   * неоткуда. Черновик остаётся — он виден по бейджу Draft и панели действий,
+   * — но входить в него вручную не нужно.
    */
   const withDraft = useCallback(
     async (apply: () => void) => {
@@ -385,7 +386,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
       ?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }, [highlightDate]);
 
-  const template = `var(--name-w) repeat(${columns.length}, var(--cell-w))`;
+  const template = columnsTemplate(columns.length);
 
   return (
     <div
@@ -496,7 +497,7 @@ function ColumnHead({
       title={column.holidayName ? `${column.date} · ${column.holidayName}` : column.date}
     >
       <span className="sheet__head-wd">{column.weekdayLabel}</span>
-      {/* Вход в day drill-down (спека §4.5: «entered from a date header»).
+      {/* Вход в day drill-down по заголовку колонки.
           Не data-cell — делегирующий обработчик мыши на грид его не тронет. */}
       <Link
         to={`/schedule/day/${column.date}`}

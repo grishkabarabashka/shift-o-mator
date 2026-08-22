@@ -1,11 +1,10 @@
 /**
  * Компактный вид длинных периодов: человек — строка, день — точка.
  *
- * Спека §4.2 разводит два масштаба намеренно. Три и шесть месяцев — это
- * 90–180 колонок; редактируемая сетка на таком масштабе не помещается ни на
- * экран, ни в бюджет отрисовки, и главное — на ней нечего делать мышью.
- * Здесь отвечают на другие вопросы: где сидят блоки отпусков, кто месяцами не
- * стоял в выходные, ровно ли размазаны роли.
+ * Три и шесть месяцев — это 90–180 колонок; редактируемая сетка на таком
+ * масштабе не помещается ни на экран, ни в бюджет отрисовки, и главное — на
+ * ней нечего делать мышью. Здесь отвечают на другие вопросы: где сидят блоки
+ * отпусков, кто месяцами не стоял в выходные, ровно ли размазаны роли.
  *
  * Поэтому вид только на чтение, а цвет берётся у роли: те же цвета, что в
  * сетке, People и таймлайне.
@@ -15,14 +14,18 @@ import { useMemo } from 'react';
 import type { IsoDate } from '../../domain/types.ts';
 import { parseDate } from '../../engine/dates.ts';
 import { useUi } from '../../store/useUi.ts';
+import { useElementWidth } from '../../ui/useElementWidth.ts';
 import type { GridRow, PlanningView } from './usePlanningView.ts';
 import { STATUS_LABEL } from './GridCell.tsx';
 
-const DAY_W = 7;
+const NAME_W = 185;
+/** Пол для точки: меньше не различить, даже глядя специально. */
+const MIN_DAY_W = 4;
 
 export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
   const setZoom = useUi((s) => s.setZoom);
   const { rows, columns } = view;
+  const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
 
   /** Заголовки месяцев: недельные группы на 180 колонках нечитаемы. */
   const months = useMemo(() => {
@@ -36,7 +39,11 @@ export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
     return out;
   }, [columns]);
 
-  const template = `var(--name-w) repeat(${columns.length}, ${DAY_W}px)`;
+  // Тот же приём, что у сетки: зум растягивает точки под ширину экрана вместо
+  // фиксированных 7px, с полом там, где точка иначе стала бы линией.
+  const dayW =
+    columns.length > 0 ? Math.max(MIN_DAY_W, (fillWidth - NAME_W) / columns.length) : MIN_DAY_W;
+  const template = `var(--name-w) repeat(${columns.length}, ${dayW}px)`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -48,7 +55,7 @@ export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
         <Legend />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div ref={fillRef} className="min-h-0 flex-1 overflow-auto">
         <div className="heat" style={{ gridTemplateColumns: template }}>
           <div className="heat__head sticky left-0 z-[4]" />
           {months.map((month) => (

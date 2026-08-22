@@ -63,7 +63,7 @@ describe('расчёт покрытия за период', () => {
       people,
       assignments,
       dayConfigurations: [weekday, weekend, holiday],
-      holidays: [{ date: '2026-09-07', name: 'Labor Day', locationIds: ['loc-ny'], isFullDay: true }],
+      holidays: [{ id: 'hol-labor-day', date: '2026-09-07', name: 'Labor Day', locationIds: ['loc-ny'], isFullDay: true }],
     });
     return computeCoverage({
       regionId: testRegion.id,

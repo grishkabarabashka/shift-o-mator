@@ -1,8 +1,8 @@
 /**
  * Выбор видимого периода — три способа выбрать одно и то же.
  *
- * Планировщики думают о времени по-разному, и спека прототипа (§4.2) прямо
- * перечисляет все три органа управления в одной карточке:
+ * Планировщики думают о времени по-разному, и три органа управления живут в
+ * одной карточке:
  *
  *   1. **Шаг и масштаб** — «следующая неделя», «покажи месяц». Дискретно и
  *      предсказуемо; основной путь.
@@ -29,9 +29,7 @@ import {
   scrubberTrack,
 } from '../../engine/period.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
-
-/** Полоса дней теряет смысл, когда день уже неразличим — дальше только шкала. */
-const DAY_STRIP_LIMIT = 45;
+import { useElementWidth } from '../../ui/useElementWidth.ts';
 
 export function DateRangeControl() {
   const zoom = useUi((s) => s.zoom);
@@ -44,6 +42,13 @@ export function DateRangeControl() {
 
   const length = rangeLength(range);
   const containsToday = TODAY >= range.from && TODAY <= range.to;
+
+  // Сколько чипов помещается без обрезки — а не фиксированный лимит,
+  // молчаливо прячущий хвост дат за правым краем. Пока ширина не измерена
+  // (первый кадр), полоса не рисуется вовсе: лучше кадр пустоты, чем неверное
+  // число чипов, тут же перерисованное.
+  const [stripRef, stripWidth] = useElementWidth<HTMLDivElement>();
+  const chipSlots = chipSlotsFor(stripWidth);
 
   return (
     <section className="card px-3 py-2.5" aria-label="Visible period">
@@ -106,9 +111,11 @@ export function DateRangeControl() {
         </div>
       </div>
 
-      {length <= DAY_STRIP_LIMIT ? (
-        <DayStrip range={range} onSelect={setCustomRange} />
-      ) : null}
+      <div ref={stripRef}>
+        {chipSlots > 0 && length <= chipSlots ? (
+          <DayStrip range={range} chipCount={chipSlots} onSelect={setCustomRange} />
+        ) : null}
+      </div>
 
       <Scrubber range={range} onSelect={setCustomRange} />
     </section>
@@ -119,16 +126,31 @@ export function DateRangeControl() {
 // Полоса дней
 // ---------------------------------------------------------------------------
 
+/** Минимальная ширина чипа плюс зазор между ними — из `.day-chip` в theme.css. */
+const MIN_CHIP_W = 30;
+const CHIP_GAP = 3;
+
+/** Сколько чипов минимальной ширины помещается в измеренную ширину, без обрезки. */
+function chipSlotsFor(containerWidth: number): number {
+  if (containerWidth <= 0) return 0;
+  return Math.max(1, Math.floor((containerWidth + CHIP_GAP) / (MIN_CHIP_W + CHIP_GAP)));
+}
+
 /**
- * Дни периода плюс неделя контекста с каждой стороны.
+ * Дни периода плюс симметричный контекст по краям, ровно до `chipCount`.
  *
  * Ровно период показывать бессмысленно вдвойне: полоса нужна, чтобы выйти
  * **за** его границы одним движением, и без полей выделение занимает её
  * целиком — сплошная синяя лента, по которой не видно, что вообще выделено.
+ * Число чипов теперь равно тому, что реально помещается по ширине, а не
+ * фиксированной константе — отсюда `chipCount` параметром.
  */
-function stripDays(range: DateRange): IsoDate[] {
-  const start = parseDate(range.from).minus({ days: 7 });
-  const end = parseDate(range.to).plus({ days: 7 });
+function stripDays(range: DateRange, chipCount: number): IsoDate[] {
+  const context = Math.max(0, chipCount - rangeLength(range));
+  const before = Math.ceil(context / 2);
+  const after = context - before;
+  const start = parseDate(range.from).minus({ days: before });
+  const end = parseDate(range.to).plus({ days: after });
   const days: IsoDate[] = [];
   for (let cursor = start; cursor <= end; cursor = cursor.plus({ days: 1 })) {
     days.push(cursor.toISODate() ?? '');
@@ -138,12 +160,14 @@ function stripDays(range: DateRange): IsoDate[] {
 
 function DayStrip({
   range,
+  chipCount,
   onSelect,
 }: {
   readonly range: DateRange;
+  readonly chipCount: number;
   readonly onSelect: (range: DateRange) => void;
 }) {
-  const days = useMemo(() => stripDays(range), [range]);
+  const days = useMemo(() => stripDays(range, chipCount), [range, chipCount]);
   const [dragFrom, setDragFrom] = useState<IsoDate>();
   const [dragTo, setDragTo] = useState<IsoDate>();
   // Клик-клик — второй способ задать диапазон, без перетаскивания: первый
@@ -195,7 +219,7 @@ function DayStrip({
 
   return (
     <div className="mt-2.5 flex flex-wrap items-center gap-2">
-      <div className="flex gap-[3px] overflow-x-auto pb-1" role="group" aria-label="Day strip">
+      <div className="flex gap-[3px] pb-1" role="group" aria-label="Day strip">
         {days.map((date) => {
           const dt = parseDate(date);
           const weekend = dt.weekday >= 6;

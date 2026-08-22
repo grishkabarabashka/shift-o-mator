@@ -21,6 +21,7 @@ import {
 import { buildIndex, cellKey, type DatasetIndex } from '../domain/lookup.ts';
 import type {
   Absence,
+  Acknowledgement,
   Assignment,
   CompDayEntry,
   DateRange,
@@ -40,6 +41,7 @@ import type {
 import { ALL_UNITS } from '../domain/types.ts';
 import type { AutoPopulateResult } from '../engine/autoPopulate.ts';
 import { proposeCompDays } from '../engine/compDays.ts';
+import { isWeekendIn } from '../engine/dates.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -85,7 +87,7 @@ export interface ScheduleState {
   setAbsence: (absence: Absence | null, previous?: Absence) => void;
   setAbsences: (absences: readonly Absence[]) => void;
   setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => void;
-  acknowledge: (issueKey: string, comment: string) => void;
+  acknowledge: (issueKey: string, comment: string) => Promise<void>;
   /** Профиль человека — справочные данные, идут мимо черновика. */
   savePerson: (person: Person) => Promise<void>;
   /** Ставит результат превью auto-populate в черновик, открывая его при нужде. */
@@ -216,6 +218,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
       const person = index.people.get(cell.personId);
       if (!person) continue;
+      const location = index.locations.get(person.locationId);
 
       if (content.kind === 'ROLE') {
         // Роль всегда берётся из региона человека: чужая не попадёт.
@@ -232,7 +235,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         date: cell.date,
         regionId: person.regionId,
         content,
-        isWeekend: before?.isWeekend ?? false,
+        // Выходной по календарю локации человека, а не роли (ADR-0002) — та же
+        // проверка, что использует автогенерация для сгенерированных ячеек.
+        isWeekend: location ? isWeekendIn(cell.date, location) : (before?.isWeekend ?? false),
         source: 'MANUAL',
         version: before?.version ?? 0,
         createdBy: before?.createdBy ?? currentUserId ?? 'unknown',
@@ -409,19 +414,23 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       commit(resequenced);
     },
 
-    acknowledge(issueKey, comment) {
+    async acknowledge(issueKey, comment) {
       const { currentUserId, plan, reference, published } = get();
       if (!plan || !reference || !published) return;
       // Подтверждения не проходят через черновик: они относятся к оценке
-      // плана, а не к самому плану.
+      // плана, а не к самому плану — но, как и правки, обязаны пережить
+      // перезагрузку, поэтому идут в репозиторий напрямую (ADR-0012).
+      const ack: Acknowledgement = {
+        issueKey,
+        comment,
+        byPersonId: currentUserId ?? 'unknown',
+        at: new Date().toISOString(),
+      };
+      await scheduleRepository.saveAcknowledgement(ack);
+
       const acknowledgements = [
-        ...plan.acknowledgements.filter((ack) => ack.issueKey !== issueKey),
-        {
-          issueKey,
-          comment,
-          byPersonId: currentUserId ?? 'unknown',
-          at: new Date().toISOString(),
-        },
+        ...plan.acknowledgements.filter((a) => a.issueKey !== issueKey),
+        ack,
       ];
       const nextPlan = { ...plan, acknowledgements };
       set({

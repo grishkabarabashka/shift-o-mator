@@ -1,7 +1,7 @@
 /**
  * Полоса покрытия под сеткой.
  *
- * По умолчанию — **одна** строка `filled/required` на день, как в спеке §4.2.
+ * По умолчанию — **одна** строка `filled/required` на день.
  * Первая версия рисовала строку на каждую роль: в AMER их шестнадцать, полоса
  * занимала пол-экрана и вытесняла сам ростер. Ответ на вопрос «где дыра» стоил
  * ответа на вопрос «кто работает», а это плохой обмен.
@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoverageLevel, IsoDate, PersonId, RoleId } from '../../domain/types.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
+import { columnsTemplate } from '../../ui/gridTemplate.ts';
 import type { PlanningView } from '../planning/usePlanningView.ts';
 import { SuggestPopover, type SuggestTarget } from './SuggestPopover.tsx';
 
@@ -96,7 +97,7 @@ export function CoverageStrip({ view, syncWith }: Props) {
 
   if (view.coverageRoles.length === 0) return null;
 
-  const template = `var(--name-w) repeat(${view.columns.length}, var(--cell-w))`;
+  const template = columnsTemplate(view.columns.length);
   const gapDays = totals.filter((total) => total.level === 'GAP').length;
 
   return (

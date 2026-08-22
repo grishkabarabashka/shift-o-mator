@@ -60,17 +60,16 @@ mistake in the holiday calendar quietly corrupts a balance, and that balance is 
 
 ## Lifecycle
 
-```
-              ┌──────────────┐
-   earn ────▶ │   PROPOSED   │ ── planner declines ──▶ DECLINED
-              └──────┬───────┘
-                     │ confirm / move
-                     ▼
-              ┌──────────────┐
-              │  SCHEDULED   │ ── date passes ──▶ TAKEN
-              └──────────────┘
-
-   no valid slot ──▶ PENDING_APPROVAL ── planner picks a date ──▶ SCHEDULED
+```mermaid
+stateDiagram-v2
+    [*] --> PROPOSED: earn (Sat / Sun / holiday worked, slot found)
+    [*] --> PENDING_APPROVAL: earn, no valid slot in the window
+    PROPOSED --> SCHEDULED: confirm / move
+    PROPOSED --> DECLINED: planner declines
+    PENDING_APPROVAL --> SCHEDULED: planner picks a date
+    SCHEDULED --> TAKEN: earned date passes
+    DECLINED --> [*]
+    TAKEN --> [*]
 ```
 
 There is no terminal expiry state: an entry stays owed until it is taken or explicitly

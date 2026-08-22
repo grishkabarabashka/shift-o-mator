@@ -300,8 +300,8 @@ function checkAssignments(params: ValidateParams): IssueDraft[] {
         roleId: role.id,
       });
     } else if (!person.eligibility.some((e) => e.roleId === role.id)) {
-      // Не блокер: аврал закрывают тем, кто есть, и спека прямо допускает
-      // «authorized override ... recorded» — это и есть подтверждение.
+      // Не блокер: аврал закрывают тем, кто есть, и осознанный отход от
+      // eligibility допустим, если он подтверждён (ADR-0024).
       drafts.push({
         level: 'WARNING',
         category: 'CONFLICT',

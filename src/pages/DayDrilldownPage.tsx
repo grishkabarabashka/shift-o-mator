@@ -2,23 +2,22 @@
  * Day drill-down: один день, час за часом, каждый назначенный человек — своя
  * полоса.
  *
- * Таймлайн (`TimelinePage`) отвечает «закрыта ли роль» и сворачивает всех
- * исполнителей в счётчик. Этот экран — детализация одного дня: «закрыта чем
- * именно, кем» (спека §4.5: «expands one day and shows each assigned person
- * as a bar»). Та же визуальная грамматика — ось, дорожки по регионам,
- * пунктирные дыры, полосы передачи смены, маркер NOW, — но без агрегации.
+ * Overview отвечает «закрыта ли роль» и сворачивает всех исполнителей в
+ * счётчик. Этот экран — детализация одного дня: закрыта чем именно, кем. Та
+ * же визуальная грамматика — ось, дорожки по регионам, пунктирные дыры,
+ * полосы передачи смены, маркер NOW, — но без агрегации.
  *
- * Вход — по заголовку колонки в сетке или из строки «Right now» на дашборде
- * (спека: «entered from a date header or Dashboard alert»). Сам экран не
- * редактирует: правка остаётся в сетке, единственном месте, где стоит логика
- * пикера, — здесь только переход туда с уже выбранным днём.
+ * Вход — по заголовку колонки в сетке или из строки «Attention required» на
+ * Overview. Сам экран не редактирует: правка остаётся в сетке, единственном
+ * месте, где стоит логика пикера, — здесь только переход туда с уже выбранным
+ * днём.
  */
 
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { UtcInterval } from '../domain/types.ts';
 import { formatInZone, parseDate } from '../engine/dates.ts';
-import { buildDayDetail, positionOf, type DayDetailBar } from '../engine/timeline.ts';
+import { buildDayDetail, hourTicks, positionOf, type DayDetailBar } from '../engine/timeline.ts';
 import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
@@ -76,8 +75,8 @@ export function DayDrilldownPage({ view, now }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
       <div className="flex items-center gap-2 text-[12px] text-faint">
-        <Link to="/timeline" className="hover:text-accent hover:underline">
-          Timeline
+        <Link to="/overview" className="hover:text-accent hover:underline">
+          Overview
         </Link>
         <span aria-hidden>/</span>
         <span className="text-ink">{parseDate(date).toFormat('d LLLL yyyy')}</span>
@@ -250,20 +249,6 @@ function spanStyle(axis: UtcInterval, interval: UtcInterval): React.CSSPropertie
 
 function rowStyle(row: number): React.CSSProperties {
   return { top: 3 + row * ROW_H, height: ROW_H - 3, bottom: 'auto' };
-}
-
-function hourTicks(axis: UtcInterval, zone: string): { at: string; left: number; label: string }[] {
-  const start = Date.parse(axis.start);
-  const end = Date.parse(axis.end);
-  const hours = Math.round((end - start) / 3_600_000);
-  const step = hours <= 24 ? 3 : 6;
-
-  const ticks: { at: string; left: number; label: string }[] = [];
-  for (let hour = 0; hour <= hours; hour += step) {
-    const at = new Date(start + hour * 3_600_000).toISOString();
-    ticks.push({ at, left: positionOf(axis, at) * 100, label: formatInZone(at, zone, 'HH:mm') });
-  }
-  return ticks;
 }
 
 function barTitle(bar: DayDetailBar, zone: string): string {

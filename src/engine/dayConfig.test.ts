@@ -38,6 +38,7 @@ function indexWith(configs: readonly DayConfiguration[], holidays: string[] = []
     makeDataset({
       dayConfigurations: configs,
       holidays: holidays.map((date) => ({
+        id: `hol-${date}`,
         date,
         name: 'Test holiday',
         locationIds: ['loc-ny'],
@@ -77,7 +78,7 @@ describe('выбор группы дней', () => {
       makeDataset({
         dayConfigurations: [monThu, friday, weekend, holiday],
         holidays: [
-          { date: '2026-09-08', name: 'Pune only', locationIds: ['loc-pune'], isFullDay: true },
+          { id: 'hol-pune-only', date: '2026-09-08', name: 'Pune only', locationIds: ['loc-pune'], isFullDay: true },
         ],
       }),
     );

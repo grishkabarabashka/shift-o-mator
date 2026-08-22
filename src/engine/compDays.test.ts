@@ -15,8 +15,8 @@ import { compDayBalance, compDayAge, isAged, proposeCompDays, triggerFor } from 
 const AUGUST = { from: '2026-08-01', to: '2026-08-31' } as const;
 
 const holidays: Holiday[] = [
-  { date: '2026-08-20', name: 'US test holiday', locationIds: ['loc-ny'], isFullDay: true },
-  { date: '2026-08-19', name: 'IN test holiday', locationIds: ['loc-pune'], isFullDay: true },
+  { id: 'hol-us-test', date: '2026-08-20', name: 'US test holiday', locationIds: ['loc-ny'], isFullDay: true },
+  { id: 'hol-in-test', date: '2026-08-19', name: 'IN test holiday', locationIds: ['loc-pune'], isFullDay: true },
 ];
 
 const person = makePerson({ id: 'p-ny' });

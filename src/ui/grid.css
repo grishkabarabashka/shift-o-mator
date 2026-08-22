@@ -81,7 +81,7 @@
   line-height: 1;
 }
 
-/* Заголовок дня — вход в day drill-down (спека §4.5). */
+/* Заголовок дня — вход в day drill-down. */
 .sheet__head-num--link {
   color: inherit;
   text-decoration: none;

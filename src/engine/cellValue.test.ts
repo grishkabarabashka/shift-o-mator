@@ -9,6 +9,7 @@ const RANGE = { from: '2026-09-07', to: '2026-09-13' } as const;
 const person = makePerson({ id: 'p-1' });
 
 const holiday: Holiday = {
+  id: 'hol-test',
   date: '2026-09-08',
   name: 'Test holiday',
   locationIds: ['loc-ny'],

@@ -1,10 +1,9 @@
 /**
  * Тестовые данные.
  *
- * Коды ролей, окна и минимумы покрытия взяты из спецификации прототипа
- * (SHIFT-O-MATOR-desc-anonymized.md, §13) — это реальная операционная
- * практика, а не выдумка. Всё, что помечено `ASSUMPTION`, реальными данными
- * не подтверждено; список — в Docs/14-open-questions.md.
+ * Коды ролей, окна и минимумы покрытия — реальная операционная практика, а не
+ * выдумка (см. Docs/01-domain-model.md). Всё, что помечено `ASSUMPTION`,
+ * реальными данными не подтверждено; список — в Docs/14-open-questions.md.
  *
  * Люди синтетические: последовательные имена из пулов, без исходного ростера.
  *
@@ -78,27 +77,27 @@ const GB_LOCATIONS = ['loc-lon', 'loc-ste'];
 
 /** ASSUMPTION: сокращённые календари на 2026 год, только заметные даты. */
 export const holidays: readonly Holiday[] = [
-  { date: '2026-01-01', name: "New Year's Day", locationIds: [...US_LOCATIONS, ...GB_LOCATIONS, 'loc-zrh', 'loc-sgp'], isFullDay: true },
-  { date: '2026-05-25', name: 'Memorial Day', locationIds: US_LOCATIONS, isFullDay: true },
-  { date: '2026-07-03', name: 'Independence Day (observed)', locationIds: US_LOCATIONS, isFullDay: true },
-  { date: '2026-09-07', name: 'Labor Day', locationIds: US_LOCATIONS, isFullDay: true },
-  { date: '2026-11-26', name: 'Thanksgiving', locationIds: US_LOCATIONS, isFullDay: true },
-  { date: '2026-12-25', name: 'Christmas Day', locationIds: [...US_LOCATIONS, ...GB_LOCATIONS, 'loc-zrh', 'loc-sgp'], isFullDay: true },
+  { id: 'hol-2026-01-01', date: '2026-01-01', name: "New Year's Day", locationIds: [...US_LOCATIONS, ...GB_LOCATIONS, 'loc-zrh', 'loc-sgp'], isFullDay: true },
+  { id: 'hol-2026-05-25', date: '2026-05-25', name: 'Memorial Day', locationIds: US_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-07-03', date: '2026-07-03', name: 'Independence Day (observed)', locationIds: US_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-09-07', date: '2026-09-07', name: 'Labor Day', locationIds: US_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-11-26', date: '2026-11-26', name: 'Thanksgiving', locationIds: US_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-12-25', date: '2026-12-25', name: 'Christmas Day', locationIds: [...US_LOCATIONS, ...GB_LOCATIONS, 'loc-zrh', 'loc-sgp'], isFullDay: true },
 
-  { date: '2026-04-03', name: 'Good Friday', locationIds: [...GB_LOCATIONS, 'loc-zrh'], isFullDay: true },
-  { date: '2026-05-04', name: 'Early May Bank Holiday', locationIds: GB_LOCATIONS, isFullDay: true },
-  { date: '2026-08-31', name: 'Summer Bank Holiday', locationIds: GB_LOCATIONS, isFullDay: true },
-  { date: '2026-12-28', name: 'Boxing Day (observed)', locationIds: GB_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-04-03', date: '2026-04-03', name: 'Good Friday', locationIds: [...GB_LOCATIONS, 'loc-zrh'], isFullDay: true },
+  { id: 'hol-2026-05-04', date: '2026-05-04', name: 'Early May Bank Holiday', locationIds: GB_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-08-31', date: '2026-08-31', name: 'Summer Bank Holiday', locationIds: GB_LOCATIONS, isFullDay: true },
+  { id: 'hol-2026-12-28', date: '2026-12-28', name: 'Boxing Day (observed)', locationIds: GB_LOCATIONS, isFullDay: true },
 
-  { date: '2026-08-01', name: 'Bundesfeier', locationIds: ['loc-zrh'], isFullDay: true },
+  { id: 'hol-2026-08-01', date: '2026-08-01', name: 'Bundesfeier', locationIds: ['loc-zrh'], isFullDay: true },
 
-  { date: '2026-01-26', name: 'Republic Day', locationIds: ['loc-pune'], isFullDay: true },
-  { date: '2026-08-15', name: 'Independence Day', locationIds: ['loc-pune'], isFullDay: true },
-  { date: '2026-10-02', name: 'Gandhi Jayanti', locationIds: ['loc-pune'], isFullDay: true },
-  { date: '2026-11-08', name: 'Diwali', locationIds: ['loc-pune'], isFullDay: true },
+  { id: 'hol-2026-01-26', date: '2026-01-26', name: 'Republic Day', locationIds: ['loc-pune'], isFullDay: true },
+  { id: 'hol-2026-08-15', date: '2026-08-15', name: 'Independence Day', locationIds: ['loc-pune'], isFullDay: true },
+  { id: 'hol-2026-10-02', date: '2026-10-02', name: 'Gandhi Jayanti', locationIds: ['loc-pune'], isFullDay: true },
+  { id: 'hol-2026-11-08', date: '2026-11-08', name: 'Diwali', locationIds: ['loc-pune'], isFullDay: true },
 
-  { date: '2026-05-01', name: 'Labour Day', locationIds: ['loc-sgp'], isFullDay: true },
-  { date: '2026-08-10', name: 'National Day (observed)', locationIds: ['loc-sgp'], isFullDay: true },
+  { id: 'hol-2026-05-01', date: '2026-05-01', name: 'Labour Day', locationIds: ['loc-sgp'], isFullDay: true },
+  { id: 'hol-2026-08-10', date: '2026-08-10', name: 'National Day (observed)', locationIds: ['loc-sgp'], isFullDay: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -107,7 +106,7 @@ export const holidays: readonly Holiday[] = [
 
 /**
  * ASSUMPTION: окно поиска и порог «висит слишком долго» не подтверждены.
- * Исключённые дни — Пн и Пт — из спецификации прототипа.
+ * Исключённые дни — Пн и Пт — операционное правило (Docs/05-comp-days.md).
  */
 const standardCompOffPolicy: CompOffPolicy = {
   windowBeforeDays: 14,
@@ -175,7 +174,7 @@ export const shifts: readonly ShiftDefinition[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Роли — коды и окна из §13 спецификации прототипа
+// Роли — реальные коды и окна (Docs/01-domain-model.md)
 // ---------------------------------------------------------------------------
 
 const COLOR = {
@@ -291,7 +290,7 @@ export function roleId(regionId: string, code: string): string {
 export const roles: readonly ShiftRole[] = buildRoles();
 
 // ---------------------------------------------------------------------------
-// Конфигурации дней — минимумы из §13 спецификации прототипа
+// Конфигурации дней — реальные минимумы (Docs/01-domain-model.md)
 // ---------------------------------------------------------------------------
 
 type ReqSpec = readonly [
@@ -652,7 +651,7 @@ function buildPeople(): Person[] {
 export const people: readonly Person[] = buildPeople();
 
 // ---------------------------------------------------------------------------
-// Лимиты одновременных отсутствий — правило владельца, в прототипе его нет
+// Лимиты одновременных отсутствий — правило владельца продукта (ADR-0010)
 // ---------------------------------------------------------------------------
 
 function buildAbsenceCapacityRules(): AbsenceCapacityRule[] {

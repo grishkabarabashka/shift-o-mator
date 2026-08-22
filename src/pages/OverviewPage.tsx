@@ -23,6 +23,7 @@ import type { Issue, IsoDate, UtcInterval } from '../domain/types.ts';
 import { eachDate, formatInZone, parseDate } from '../engine/dates.ts';
 import {
   buildDayDetailRange,
+  hourTicks,
   positionOf,
   type DayDetailRange,
   type DayDetailRangeBar,
@@ -30,15 +31,19 @@ import {
 } from '../engine/timeline.ts';
 import { useSchedule } from '../store/useSchedule.ts';
 import { TODAY, useUi } from '../store/useUi.ts';
+import { useElementWidth } from '../ui/useElementWidth.ts';
 import { DateRangeControl } from '../features/shell/DateRangeControl.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 /**
- * Пикселей на сутки. Одна плотность, не три — промотка по горизонтали и есть
- * промотка времени, а выбор между «сжато/нормально/широко» не отвечал ни на
- * один вопрос планировщика, только добавлял клик.
+ * Пикселей на сутки — измеряется, не фиксировано. Зум «День» должен занять
+ * весь экран одним днём, а не выглядеть узкой полосой в пустом пространстве;
+ * зум «Месяц» и длиннее упирается в пол и скроллится вбок, как и раньше.
+ * Одна плотность, не три — промотка по горизонтали и есть промотка времени, а
+ * выбор между «сжато/нормально/широко» не отвечал ни на один вопрос
+ * планировщика, только добавлял клик.
  */
-const DAY_PX = 220;
+const MIN_DAY_PX = 90;
 
 const ROW_H = 22;
 
@@ -58,6 +63,7 @@ export function OverviewPage({ view, now }: Props) {
   const index = useSchedule((s) => s.index);
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
 
   const dates = useMemo(() => eachDate(range), [range]);
 
@@ -73,7 +79,9 @@ export function OverviewPage({ view, now }: Props) {
   }, [dates, plan, index, view.regionIds, view.coverageCells]);
 
   const zone = displayZone === 'role' ? 'UTC' : displayZone;
-  const width = dates.length * DAY_PX;
+  const dayPx = dates.length > 0 ? Math.max(MIN_DAY_PX, fillWidth / dates.length) : MIN_DAY_PX;
+  const width = dates.length * dayPx;
+  const showHours = dates.length <= 2;
 
   const gaps = view.issues.filter(
     (issue) => issue.level === 'BLOCKING' && issue.category === 'GAP',
@@ -197,9 +205,10 @@ export function OverviewPage({ view, now }: Props) {
               ))}
             </div>
 
-            <div className="min-w-0 flex-1 overflow-x-auto">
+            <div ref={fillRef} className="min-w-0 flex-1 overflow-x-auto">
               <div style={{ width }}>
                 <DayHeader timeline={timeline} dates={dates} />
+                {showHours ? <HourAxis axis={timeline.axis} zone={zone} /> : null}
                 {timeline.lanes.map((lane) => (
                   <LaneBody
                     key={lane.regionId}
@@ -280,6 +289,24 @@ function DayHeader({
           </span>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * На масштабе «День»/«2 дня» ось уже занимает весь экран одним-двумя днями —
+ * без часовых меток лента читается как одна безликая полоса вместо дневного
+ * вида. Та же разметка, что у day drill-down (`engine/timeline.ts#hourTicks`).
+ */
+function HourAxis({ axis, zone }: { readonly axis: UtcInterval; readonly zone: string }) {
+  const ticks = hourTicks(axis, zone);
+  return (
+    <div className="axis border-b border-line">
+      {ticks.map((tick) => (
+        <span key={tick.at} className="axis__tick" style={{ left: `${tick.left}%` }}>
+          {tick.label}
+        </span>
+      ))}
     </div>
   );
 }

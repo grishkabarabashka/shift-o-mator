@@ -13,6 +13,7 @@ import { useRef, useState } from 'react';
 import { zoomSpec } from '../engine/period.ts';
 import { hasDraftChanges, useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
+import { useElementWidth } from '../ui/useElementWidth.ts';
 import { AbsenceDialog } from '../features/absences/AbsenceDialog.tsx';
 import { AbsenceImportDialog } from '../features/absences/AbsenceImportDialog.tsx';
 import { CompDayDialog } from '../features/compdays/CompDayDialog.tsx';
@@ -27,6 +28,11 @@ import { DateRangeControl } from '../features/shell/DateRangeControl.tsx';
 import { resolveAbsenceTargets } from '../features/absences/selection.ts';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
+/** Из `--name-w`/`--cell-w` в theme.css — колонка имени и пол, ниже которого
+ * ячейка становится нечитаемой. */
+const NAME_W = 185;
+const MIN_CELL_W = 40;
+
 interface Props {
   readonly view: PlanningView;
   readonly asOf: string;
@@ -37,6 +43,17 @@ export function SchedulePage({ view, asOf }: Props) {
   const [autoPopulateOpen, setAutoPopulateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const gridScroller = useRef<HTMLDivElement>(null);
+
+  // Зум задаёт масштаб, а не лимит показа: неделя должна растянуться на весь
+  // экран, а не остаться полосой 62px-колонок в пустом пространстве. Ширина
+  // ячейки — это то, что осталось после имени, поделенное на число колонок, с
+  // полом в MIN_CELL_W. Меряется на общем предке сетки и полосы покрытия и
+  // пишется одной CSS-переменной, чтобы обе не могли разъехаться.
+  const [fillRef, fillWidth] = useElementWidth<HTMLElement>();
+  const cellWidth =
+    view.columns.length > 0
+      ? Math.max(MIN_CELL_W, (fillWidth - NAME_W) / view.columns.length)
+      : MIN_CELL_W;
 
   const zoom = useUi((s) => s.zoom);
   const custom = useUi((s) => s.custom);
@@ -72,7 +89,11 @@ export function SchedulePage({ view, asOf }: Props) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 gap-3">
-        <section className="card flex min-w-0 flex-1 flex-col overflow-hidden">
+        <section
+          ref={fillRef}
+          className="card flex min-w-0 flex-1 flex-col overflow-hidden"
+          style={{ '--cell-w': `${cellWidth}px` } as React.CSSProperties}
+        >
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
             {detail ? (
               <button

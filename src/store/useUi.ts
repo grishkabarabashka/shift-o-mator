@@ -78,11 +78,6 @@ export interface UiState {
    */
   highlightDate: IsoDate | undefined;
   issueFilter: IssueLevel | 'ALL';
-  /**
-   * Показывать всех людей региона, а не только выбранной единицы.
-   * Единица — фильтр по умолчанию, а не граница (ADR-0020).
-   */
-  wholeRegion: boolean;
   /** Внутренний буфер обмена: строки людей × колонки дней. */
   clipboard: (RoleId | null)[][] | undefined;
   absenceDraft: AbsenceDraft | undefined;
@@ -109,7 +104,6 @@ export interface UiState {
   focusDate: (date: IsoDate, personId?: PersonId) => void;
   highlight: (date: IsoDate) => void;
   setIssueFilter: (level: IssueLevel | 'ALL') => void;
-  setWholeRegion: (value: boolean) => void;
   setClipboard: (rows: (RoleId | null)[][]) => void;
   openAbsenceCreate: (targets: readonly AbsenceRangeTarget[]) => void;
   openAbsenceEdit: (absence: Absence) => void;
@@ -130,7 +124,6 @@ export const useUi = create<UiState>((set, get) => ({
   selection: { anchor: undefined, focus: undefined },
   highlightDate: undefined,
   issueFilter: 'ALL',
-  wholeRegion: false,
   clipboard: undefined,
   absenceDraft: undefined,
   compDayDraft: undefined,
@@ -182,7 +175,6 @@ export const useUi = create<UiState>((set, get) => ({
   highlight: (highlightDate) => set({ highlightDate }),
 
   setIssueFilter: (issueFilter) => set({ issueFilter }),
-  setWholeRegion: (wholeRegion) => set({ wholeRegion }),
   setClipboard: (clipboard) => set({ clipboard }),
 
   openAbsenceCreate: (targets) => {

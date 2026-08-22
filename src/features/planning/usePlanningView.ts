@@ -35,7 +35,6 @@ import { resolveDayConfiguration } from '../../engine/dayConfig.ts';
 import { eachDate, holidayNameIn, isNonWorkingDayIn } from '../../engine/dates.ts';
 import { acknowledgedKeys, summarizeIssues, validate } from '../../engine/validate.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
-import { useUi } from '../../store/useUi.ts';
 
 /** Строка сетки: либо заголовок группы, либо человек. */
 export type GridRow =
@@ -123,24 +122,13 @@ const EMPTY_VIEW: PlanningView = {
 
 export { cellKey };
 
-/** Люди, попадающие в строки: единица либо весь регион, если включён режим. */
-function selectPeople(
-  unitId: string,
-  wholeRegion: boolean,
-  index: DatasetIndex,
-): Person[] {
+/** Люди, попадающие в строки: единица планирования, либо все (ADR-0020). */
+function selectPeople(unitId: string, index: DatasetIndex): Person[] {
   // `ALL` — не единица, а её отсутствие: фильтра нет (ADR-0020).
   if (unitId === ALL_UNITS) {
     return [...index.people.values()].filter((p) => p.isIncluded);
   }
-
-  const unitPeople = (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded);
-  if (!wholeRegion) return unitPeople;
-
-  const regionIds = new Set(unitPeople.map((p) => p.regionId));
-  return [...index.people.values()].filter(
-    (p) => p.isIncluded && regionIds.has(p.regionId),
-  );
+  return (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded);
 }
 
 function groupKeyOf(person: Person, groupBy: string, index: DatasetIndex): string {
@@ -160,7 +148,6 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
   const reference = useSchedule((s) => s.reference);
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
-  const wholeRegion = useUi((s) => s.wholeRegion);
 
   return useMemo<PlanningView>(() => {
     if (!unitId || !range || !reference || !plan || !index) return EMPTY_VIEW;
@@ -173,7 +160,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
     const groupBy = unit?.groupBy ?? 'REGION';
 
     const dates = eachDate(range);
-    const people = selectPeople(unitId, wholeRegion, index);
+    const people = selectPeople(unitId, index);
     const regionIds = [...new Set(people.map((p) => p.regionId))].sort();
 
     // --- Строки ------------------------------------------------------------
@@ -328,5 +315,5 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       absenceById: (id) => plan.absences.find((absence) => absence.id === id),
       compDayById: (id) => plan.compDays.find((entry) => entry.id === id),
     };
-  }, [unitId, range, reference, plan, index, asOf, wholeRegion]);
+  }, [unitId, range, reference, plan, index, asOf]);
 }

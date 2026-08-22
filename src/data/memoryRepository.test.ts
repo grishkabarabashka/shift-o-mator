@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { assignmentChange } from '../domain/draft.ts';
-import type { Assignment, DraftChange } from '../domain/types.ts';
+import { buildIndex } from '../domain/lookup.ts';
+import type { Acknowledgement, Assignment, DraftChange } from '../domain/types.ts';
+import { computeCoverage } from '../engine/coverage.ts';
 import { MemoryScheduleRepository } from './memoryRepository.ts';
 
 const RANGE = { from: '2026-08-01', to: '2026-08-31' } as const;
@@ -219,6 +221,55 @@ describe('публикация', () => {
     const after = await r.getDraft(second.session.id);
     expect(after?.session.status).toBe('OPEN');
     expect(after?.changes).toHaveLength(1);
+  });
+
+  it('remainingGaps считает дыры по факту опубликованного покрытия, не заглушкой', async () => {
+    const draft = await r.openDraft(UNIT, RANGE, EDITOR);
+    const existing = await firstAssignment(r);
+    await r.appendChanges(draft.session.id, [assignmentChange(existing, null, 0, AT)]);
+
+    const outcome = await r.publishDraft(draft.session.id);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const dataset = await r.snapshot();
+    const index = buildIndex(dataset);
+    const expectedGaps = computeCoverage({
+      regionId: existing.regionId,
+      range: RANGE,
+      assignments: dataset.assignments,
+      index,
+    }).filter((cell) => cell.level === 'GAP').length;
+
+    expect(outcome.result.remainingGaps).toBe(expectedGaps);
+  });
+});
+
+describe('подтверждения нарушений', () => {
+  it('переживают повторную загрузку, а не только текущую сессию', async () => {
+    const r = repo();
+    const ack: Acknowledgement = {
+      issueKey: 'gap:AMER:2026-08-10:Lead',
+      comment: 'Covered by an authorized override',
+      byPersonId: EDITOR,
+      at: AT,
+    };
+    await r.saveAcknowledgement(ack);
+
+    const plan = await r.loadPublished(UNIT, RANGE);
+    expect(plan.acknowledgements).toContainEqual(ack);
+  });
+
+  it('повторное подтверждение той же дыры заменяет прежнюю запись', async () => {
+    const r = repo();
+    const issueKey = 'gap:AMER:2026-08-10:Lead';
+    await r.saveAcknowledgement({ issueKey, comment: 'first', byPersonId: EDITOR, at: AT });
+    await r.saveAcknowledgement({ issueKey, comment: 'second', byPersonId: EDITOR, at: AT });
+
+    const plan = await r.loadPublished(UNIT, RANGE);
+    const matching = plan.acknowledgements.filter((a) => a.issueKey === issueKey);
+    expect(matching).toHaveLength(1);
+    expect(matching[0]?.comment).toBe('second');
   });
 });
 

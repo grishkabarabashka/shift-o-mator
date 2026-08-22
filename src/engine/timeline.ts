@@ -31,7 +31,7 @@ import type {
   UtcInterval,
 } from '../domain/types.ts';
 import { resolveDayConfiguration } from './dayConfig.ts';
-import { shiftInterval } from './dates.ts';
+import { formatInZone, shiftInterval } from './dates.ts';
 
 export interface TimelinePerson {
   readonly id: PersonId;
@@ -101,9 +101,8 @@ export interface TimelineInput {
  *
  * The aggregate `TimelineBlock` above answers "is this role covered" — it
  * collapses everyone into a count. The day drill-down answers "who,
- * specifically" (prototype spec §4.5: "expands one day and shows each
- * assigned person as a bar"), so each assignment gets its own row instead of
- * being folded into `people.length`.
+ * specifically" — each assignment gets its own row instead of being folded
+ * into `people.length`.
  */
 export interface DayDetailBar {
   readonly key: string;
@@ -761,4 +760,30 @@ export function positionOf(axis: UtcInterval, instant: IsoInstant): number {
   const total = Date.parse(axis.end) - start;
   if (total <= 0) return 0;
   return Math.min(Math.max((Date.parse(instant) - start) / total, 0), 1);
+}
+
+export interface HourTick {
+  readonly at: IsoInstant;
+  readonly left: number;
+  readonly label: string;
+}
+
+/**
+ * Часовые метки на оси — общие для дневной детализации и для Overview на
+ * масштабе «день»/«2 дня», где ось занимает весь экран и без часов читается
+ * как одна безликая полоса. 3-часовой шаг внутри суток, 6-часовой на более
+ * длинной оси — иначе метки наезжают друг на друга.
+ */
+export function hourTicks(axis: UtcInterval, zone: string): HourTick[] {
+  const start = Date.parse(axis.start);
+  const end = Date.parse(axis.end);
+  const hours = Math.round((end - start) / HOUR_MS);
+  const step = hours <= 24 ? 3 : 6;
+
+  const ticks: HourTick[] = [];
+  for (let hour = 0; hour <= hours; hour += step) {
+    const at = new Date(start + hour * HOUR_MS).toISOString();
+    ticks.push({ at, left: positionOf(axis, at) * 100, label: formatInZone(at, zone, 'HH:mm') });
+  }
+  return ticks;
 }

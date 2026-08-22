@@ -74,7 +74,7 @@ export function IssuePanel({ view }: Props) {
 
   const confirm = () => {
     if (!pendingAck || comment.trim().length === 0) return;
-    acknowledge(pendingAck.key, comment.trim());
+    void acknowledge(pendingAck.key, comment.trim());
     setPendingAck(undefined);
     setComment('');
   };

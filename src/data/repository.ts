@@ -14,6 +14,7 @@
 
 import type { DraftChange } from '../domain/types.ts';
 import type {
+  Acknowledgement,
   AssignmentHistoryEntry,
   DateRange,
   DraftSession,
@@ -58,6 +59,13 @@ export interface ScheduleRepository {
    * мы связали бы изменение профиля с выпуском конкретного месяца.
    */
   savePerson(person: Person): Promise<Person>;
+
+  /**
+   * Подтверждение нарушения — тоже мимо черновика (как и `savePerson`), но по
+   * другой причине: это оценка уже опубликованного плана, а не его правка.
+   * Заменяет прежнюю запись с тем же `issueKey`, если она была.
+   */
+  saveAcknowledgement(ack: Acknowledgement): Promise<void>;
 
   // -- Черновики ------------------------------------------------------------
 

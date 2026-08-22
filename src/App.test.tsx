@@ -31,7 +31,6 @@ afterEach(() => {
     activeRoleId: undefined,
     clipboard: undefined,
     issueFilter: 'ALL',
-    wholeRegion: false,
     absenceDraft: undefined,
     compDayDraft: undefined,
     // Дефолт приложения — «все единицы» (ADR-0020): сбрасываемся в него, а
@@ -205,16 +204,6 @@ describe('сетка', () => {
     const palette = screen.getByRole('toolbar', { name: 'Roles' });
     expect(within(palette).getByText('Lead')).toBeInTheDocument();
     expect(within(palette).getByText('Batch-E')).toBeInTheDocument();
-  });
-
-  it('переключатель показывает весь регион, а не только единицу', async () => {
-    await renderSchedule();
-    const unitCells = grid().querySelectorAll('[role="gridcell"]').length;
-
-    fireEvent.click(screen.getByRole('button', { name: 'Whole region' }));
-    await waitFor(() => {
-      expect(grid().querySelectorAll('[role="gridcell"]').length).toBeGreaterThan(unitCells);
-    });
   });
 });
 

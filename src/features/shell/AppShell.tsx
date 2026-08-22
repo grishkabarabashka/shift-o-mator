@@ -1,11 +1,10 @@
 /**
  * Оболочка приложения: шапка продукта, навигация и контекстные переключатели.
  *
- * Раскладка по спеке §3.2: общая шапка с названием, переключателями и бейджем
- * пользователя, под ней — горизонтальные вкладки. Ровно один экран активен,
- * контекст (единица, «весь регион», таймзона отображения) живёт в шапке и
- * переживает переход между вкладками: планировщик не выбирает регион заново,
- * прыгая с дашборда в расписание.
+ * Общая шапка с названием, переключателями и бейджем пользователя, под ней —
+ * горизонтальные вкладки. Ровно один экран активен, контекст (единица,
+ * таймзона отображения) живёт в шапке и переживает переход между вкладками:
+ * планировщик не выбирает единицу заново, прыгая с Overview в расписание.
  */
 
 import type { ReactNode } from 'react';
@@ -53,8 +52,6 @@ function ProductHeader() {
 
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);
-  const wholeRegion = useUi((s) => s.wholeRegion);
-  const setWholeRegion = useUi((s) => s.setWholeRegion);
   const displayZone = useUi((s) => s.displayZone);
   const setDisplayZone = useUi((s) => s.setDisplayZone);
 
@@ -95,18 +92,6 @@ function ProductHeader() {
             ...units.map((unit) => ({ value: unit.id, label: unit.name })),
           ]}
         />
-        {/* Со «всеми» этот переключатель — тавтология: скрываем. */}
-        {unitId === ALL_UNITS ? null : (
-          <button
-            type="button"
-            className="btn btn--sm"
-            data-active={wholeRegion}
-            onClick={() => setWholeRegion(!wholeRegion)}
-            title="Show everyone in this unit's region, including other units"
-          >
-            Whole region
-          </button>
-        )}
       </div>
 
       <div className="ml-auto flex items-center gap-3">

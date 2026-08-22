@@ -45,8 +45,8 @@ describe('календарь локации', () => {
   const index = buildIndex(
     makeDataset({
       holidays: [
-        { date: '2026-09-07', name: 'Labor Day', locationIds: ['loc-ny'], isFullDay: true },
-        { date: '2026-08-15', name: 'Independence Day', locationIds: ['loc-pune'], isFullDay: true },
+        { id: 'hol-labor-day', date: '2026-09-07', name: 'Labor Day', locationIds: ['loc-ny'], isFullDay: true },
+        { id: 'hol-independence-day', date: '2026-08-15', name: 'Independence Day', locationIds: ['loc-pune'], isFullDay: true },
       ],
     }),
   );

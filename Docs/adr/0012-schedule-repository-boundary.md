@@ -5,8 +5,8 @@
 ## Context
 
 The MVP is built outside the corporate perimeter and runs on fixtures. Production is
-.NET on AKS with Postgres. There should be no interface rewrite between these two
-states.
+.NET with SQL Server via EF Core code-first (see `12-architecture.md`). There should
+be no interface rewrite between these two states.
 
 ## Decision
 
