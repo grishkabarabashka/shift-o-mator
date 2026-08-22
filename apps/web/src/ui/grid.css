@@ -507,6 +507,36 @@
   background: var(--bad);
 }
 
+/* Multi-location "now" badge — one per Overview timeline, anchored on the
+   same x position as .lane__now, above the lanes. Each row is that
+   location's current local time, so "what time is it there right now" reads
+   without clicking through to the header's clock strip. */
+.now-clocks {
+  position: absolute;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--bad);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 12%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.now-clocks__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+}
+.now-clocks__name {
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
 .lane__gap {
   position: absolute;
   display: flex;
@@ -528,42 +558,6 @@
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
-}
-
-/* Свёрнутая дорожка региона: одна клетка на сутки, «закрыто/нужно». Делит
-   геометрию с развёрнутым видом, чтобы «где дыра» читалось одинаково. */
-.cover-cell {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 4px;
-  background: var(--surface-sunken);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  cursor: pointer;
-}
-.cover-cell:hover {
-  outline: 1px solid var(--accent);
-}
-.cover-cell[data-level='OK'] {
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-.cover-cell[data-level='THIN'] {
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-.cover-cell[data-level='GAP'] {
-  background: var(--bad-soft);
-  color: var(--bad);
 }
 
 .axis {

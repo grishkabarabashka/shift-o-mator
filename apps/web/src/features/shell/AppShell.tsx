@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthProvider.tsx';
 import { ALL_UNITS, type Location } from '../../domain/types.ts';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
 import { daysBetween, formatInZone, parseDate } from '../../engine/dates.ts';
+import { dedupeLocationsByZone } from '../../engine/locationClocks.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { useNow } from '../../ui/useNow.ts';
@@ -73,6 +74,12 @@ function ProductHeader() {
           .filter((l): l is Location => l !== undefined)
       : (reference?.locations ?? []);
 
+  // Any unit's primary location is the "real" name for its timezone — Hartford
+  // and New York share America/New_York, and which one a plain list happens to
+  // list first is an accident of id sort order, not a fact about which city
+  // people actually mean by that clock.
+  const primaryLocationIds = new Set(units.map((u) => u.primaryLocationId));
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
       <div className="flex shrink-0 items-center gap-2.5">
@@ -110,7 +117,7 @@ function ProductHeader() {
           </span>
         ) : null}
 
-        <LocationClockStrip locations={strip} onPick={setDisplayZone} />
+        <LocationClockStrip locations={strip} primaryLocationIds={primaryLocationIds} onPick={setDisplayZone} />
 
         <div className="h-6 w-px bg-line" />
 
@@ -165,21 +172,16 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
  */
 function LocationClockStrip({
   locations,
+  primaryLocationIds,
   onPick,
 }: {
   readonly locations: readonly Location[];
+  readonly primaryLocationIds: ReadonlySet<string>;
   readonly onPick: (zone: string) => void;
 }) {
   const now = useNow();
   const displayZone = useUi((s) => s.displayZone);
-
-  // De-duplicated by timezone, not by location — Pune/Kolkata etc. would
-  // otherwise repeat the same clock face under different names.
-  const byZone = new Map<string, Location>();
-  for (const location of locations) {
-    if (!byZone.has(location.timeZone)) byZone.set(location.timeZone, location);
-  }
-  const clocks = [...byZone.values()].sort((a, b) => a.timeZone.localeCompare(b.timeZone));
+  const clocks = dedupeLocationsByZone(locations, primaryLocationIds);
 
   if (clocks.length === 0) return null;
 

@@ -255,6 +255,19 @@
     background: var(--accent-soft);
     color: var(--accent);
   }
+  /* Interactive pills (e.g. the location clock strip) need their own active
+     state — .btn[data-active] doesn't apply here since these aren't .btn. */
+  button.pill {
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  button.pill:hover {
+    background: var(--surface-hover);
+  }
+  button.pill[data-active='true'] {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
 
   /* --- Поля ввода -------------------------------------------------------- */
   .field {

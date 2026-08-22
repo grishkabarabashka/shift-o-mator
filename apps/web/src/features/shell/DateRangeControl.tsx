@@ -129,21 +129,16 @@ export function DateRangeControl() {
         </div>
       </div>
 
-      {pickerOpen ? (
-        <>
-          <div ref={stripRef}>
-            {chipSlots > 0 && length <= chipSlots ? (
-              <DayStrip range={range} chipCount={chipSlots} onSelect={setCustomRange} />
-            ) : null}
-          </div>
+      {/* The width-measured node stays mounted across collapse/expand — only
+          its children toggle — so the ResizeObserver never has to re-attach
+          to a freshly-mounted node and briefly report a stale/zero width. */}
+      <div ref={stripRef}>
+        {pickerOpen && chipSlots > 0 && length <= chipSlots ? (
+          <DayStrip range={range} chipCount={chipSlots} onSelect={setCustomRange} />
+        ) : null}
+      </div>
 
-          <Scrubber range={range} onSelect={setCustomRange} />
-        </>
-      ) : (
-        // The ref must stay mounted even collapsed — the chip-slot measurement
-        // needs the container's width on the next expand, not a stale zero.
-        <div ref={stripRef} />
-      )}
+      {pickerOpen ? <Scrubber range={range} onSelect={setCustomRange} /> : null}
     </section>
   );
 }

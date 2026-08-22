@@ -1,16 +1,7 @@
 namespace ShiftOMator.Domain;
 
-/// <summary>Target share is the fairness metric, not a boolean flag (ADR-0006).</summary>
-public class ShiftEligibility
-{
-    public int Id { get; set; }
-    public required string PersonId { get; set; }
-    public required string ShiftId { get; set; }
-    public double TargetShare { get; set; }
-    public int? MinPerWeek { get; set; }
-    public int? MaxPerWeek { get; set; }
-}
-
+/// <summary>Owned value object — has no identity of its own, only ever
+/// meaningful attached to a <see cref="Person"/>.</summary>
 public class PersonConstraints
 {
     public int MinRestHours { get; set; }
@@ -18,6 +9,8 @@ public class PersonConstraints
     public int? MaxWeekendsPerQuarter { get; set; }
 }
 
+/// <summary>Owned value object — has no identity of its own, only ever
+/// meaningful attached to a <see cref="Person"/>.</summary>
 public class PersonPreferences
 {
     public List<IsoWeekday> AvoidsWeekdays { get; set; } = [];

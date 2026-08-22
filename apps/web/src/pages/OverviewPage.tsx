@@ -12,15 +12,18 @@
  *   2. что чинить — список, ведущий в конкретную ячейку сетки;
  *   3. **одна непрерывная лента времени**, единицы планирования друг под другом.
  *
- * Единица свёрнута по умолчанию и показывает суточное покрытие полосой; развёрнута —
- * показывает смены на той же оси. Свёрнутый и развёрнутый вид делят геометрию,
- * поэтому «где дыра» читается одинаково в обоих.
+ * Лента всегда развёрнута — полосы по людям, как в day-drilldown, а не суточная
+ * клетка «занято/нужно»: владелец предпочёл читать «кем именно» с одного взгляда,
+ * без клика внутрь. Один день занимает примерно всю измеренную ширину контейнера
+ * (не сжимается, чтобы влезло N дней) — несколько дней подряд промысливаются
+ * горизонтальной промоткой, а не потерей читаемости.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import type { Issue, IsoDate, UtcInterval } from '../domain/types.ts';
+import type { Issue, IsoDate, Location, UtcInterval } from '../domain/types.ts';
 import { eachDate, formatInZone, parseDate } from '../engine/dates.ts';
+import { dedupeLocationsByZone } from '../engine/locationClocks.ts';
 import {
   buildDayDetailRange,
   hourTicks,
@@ -36,16 +39,16 @@ import { DateRangeControl } from '../features/shell/DateRangeControl.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 /**
- * Пикселей на сутки — измеряется, не фиксировано. Зум «День» должен занять
- * весь экран одним днём, а не выглядеть узкой полосой в пустом пространстве;
- * зум «Месяц» и длиннее упирается в пол и скроллится вбок, как и раньше.
- * Одна плотность, не три — промотка по горизонтали и есть промотка времени, а
- * выбор между «сжато/нормально/широко» не отвечал ни на один вопрос
- * планировщика, только добавлял клик.
+ * Пикселей на сутки — фиксировано на ширину измеренного контейнера, не сжимается
+ * под число дней в диапазоне (owner review: сжатые 3 дня уже читались плохо).
+ * Одни сутки = один разворот экрана; больше дней — горизонтальная промотка, а
+ * не более узкие сутки. `MIN_DAY_PX` — только пол на первый кадр, пока ширина
+ * ещё не измерена.
  */
-const MIN_DAY_PX = 90;
+const MIN_DAY_PX = 320;
 
 const ROW_H = 22;
+const HEADCOUNT_H = 20;
 
 interface Props {
   readonly view: PlanningView;
@@ -61,11 +64,26 @@ export function OverviewPage({ view, now }: Props) {
   const setAnchor = useUi((s) => s.setAnchor);
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
+  const reference = useSchedule((s) => s.reference);
 
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
 
   const dates = useMemo(() => eachDate(range), [range]);
+
+  // Every location behind the units actually on screen — so "now" reads the
+  // same regardless of which unit's coverage you're looking at, not just the
+  // header's globally-selected unit.
+  const nowClocks = useMemo(() => {
+    if (!reference) return [];
+    const locationIds = new Set<string>();
+    for (const unitId of view.unitIds) {
+      const unit = reference.units.find((u) => u.id === unitId);
+      unit?.locationIds.forEach((id) => locationIds.add(id));
+    }
+    const primaryLocationIds = new Set(reference.units.map((u) => u.primaryLocationId));
+    const locations = reference.locations.filter((l) => locationIds.has(l.id));
+    return dedupeLocationsByZone(locations, primaryLocationIds);
+  }, [reference, view.unitIds]);
 
   const timeline = useMemo<DayDetailRange | undefined>(() => {
     if (!plan || !index) return undefined;
@@ -79,9 +97,9 @@ export function OverviewPage({ view, now }: Props) {
   }, [dates, plan, index, view.unitIds, view.coverageCells]);
 
   const zone = displayZone === 'shift' ? 'UTC' : displayZone;
-  const dayPx = dates.length > 0 ? Math.max(MIN_DAY_PX, fillWidth / dates.length) : MIN_DAY_PX;
+  const dayPx = Math.max(MIN_DAY_PX, fillWidth);
   const width = dates.length * dayPx;
-  const showHours = dates.length <= 2;
+  const axisTop = 26 + nowClocks.length * 22;
 
   const gaps = view.issues.filter(
     (issue) => issue.level === 'BLOCKING' && issue.category === 'GAP',
@@ -109,13 +127,6 @@ export function OverviewPage({ view, now }: Props) {
     if (issue.personId) select({ personId: issue.personId, date: issue.date });
     focusDate(issue.date, issue.personId);
     void navigate('/schedule');
-  };
-
-  const toggle = (unitId: string) => {
-    const next = new Set(expanded);
-    if (next.has(unitId)) next.delete(unitId);
-    else next.add(unitId);
-    setExpanded(next);
   };
 
   return (
@@ -194,21 +205,17 @@ export function OverviewPage({ view, now }: Props) {
           <div className="flex min-h-0 flex-1">
             {/* Имена регионов не уезжают при промотке времени. */}
             <div className="w-[170px] shrink-0 border-r border-line">
-              <div className="h-[26px] border-b border-line" />
+              <div style={{ height: axisTop }} className="border-b border-line" />
               {timeline.lanes.map((lane) => (
-                <UnitHeader
-                  key={lane.unitId}
-                  lane={lane}
-                  expanded={expanded.has(lane.unitId)}
-                  onToggle={() => toggle(lane.unitId)}
-                />
+                <UnitHeader key={lane.unitId} lane={lane} />
               ))}
             </div>
 
             <div ref={fillRef} className="min-w-0 flex-1 overflow-x-auto">
-              <div style={{ width }}>
+              <div style={{ width }} className="relative">
                 <DayHeader timeline={timeline} dates={dates} />
-                {showHours ? <HourAxis axis={timeline.axis} zone={zone} /> : null}
+                <MultiZoneAxis axis={timeline.axis} clocks={nowClocks} />
+                <NowClocks axis={timeline.axis} now={now} clocks={nowClocks} top={axisTop} />
                 {timeline.lanes.map((lane) => (
                   <LaneBody
                     key={lane.unitId}
@@ -216,8 +223,6 @@ export function OverviewPage({ view, now }: Props) {
                     timeline={timeline}
                     zone={zone}
                     now={now}
-                    expanded={expanded.has(lane.unitId)}
-                    onPickDate={(date) => void navigate(`/schedule/day/${date}`)}
                     onPickBar={(bar) => void navigate(`/schedule/day/${bar.date}`)}
                   />
                 ))}
@@ -230,38 +235,19 @@ export function OverviewPage({ view, now }: Props) {
   );
 }
 
-function UnitHeader({
-  lane,
-  expanded,
-  onToggle,
-}: {
-  readonly lane: DayDetailRangeLane;
-  readonly expanded: boolean;
-  readonly onToggle: () => void;
-}) {
+function UnitHeader({ lane }: { readonly lane: DayDetailRangeLane }) {
+  const peak = lane.headcountByHour.reduce((max, count) => Math.max(max, count), 0);
   return (
-    <button
-      type="button"
-      className="flex w-full items-center gap-2 border-b border-line px-3 text-left hover:bg-hover"
-      style={{ height: laneHeight(lane, expanded) }}
-      onClick={onToggle}
-      aria-expanded={expanded}
+    <div
+      className="flex w-full items-center gap-2 border-b border-line px-3 text-left"
+      style={{ height: laneHeight(lane) }}
     >
-      <span
-        aria-hidden
-        className="text-[9px] text-faint transition-transform"
-        style={{ transform: expanded ? 'rotate(90deg)' : undefined }}
-      >
-        ▶
-      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-semibold">{lane.unitName}</span>
-        <span className="block text-[10.5px] text-faint">
-          {expanded ? `${lane.bars.length} bars` : 'daily coverage'}
-        </span>
+        <span className="block text-[10.5px] text-faint">peak {peak} on shift</span>
       </span>
       {lane.gaps > 0 ? <span className="pill pill--bad">{lane.gaps}</span> : null}
-    </button>
+    </div>
   );
 }
 
@@ -294,17 +280,69 @@ function DayHeader({
 }
 
 /**
- * На масштабе «День»/«2 дня» ось уже занимает весь экран одним-двумя днями —
- * без часовых меток лента читается как одна безликая полоса вместо дневного
- * вида. Та же разметка, что у day drill-down (`engine/timeline.ts#hourTicks`).
+ * Одна ось на локацию, друг под другом — не единственное общее время, а «сколько
+ * там времени в каждом из наших городов прямо на этом участке ленты» (owner
+ * review). Подпись локации приклеена к левому краю (`position: sticky`), чтобы
+ * не потеряться при промотке — оси сами живут в промативаемом содержимом, ведь
+ * это единственное место, где часовые деления совпадают с барами по X.
  */
-function HourAxis({ axis, zone }: { readonly axis: UtcInterval; readonly zone: string }) {
-  const ticks = hourTicks(axis, zone);
+function MultiZoneAxis({
+  axis,
+  clocks,
+}: {
+  readonly axis: UtcInterval;
+  readonly clocks: readonly Location[];
+}) {
+  if (clocks.length === 0) return null;
   return (
-    <div className="axis border-b border-line">
-      {ticks.map((tick) => (
-        <span key={tick.at} className="axis__tick" style={{ left: `${tick.left}%` }}>
-          {tick.label}
+    <div className="border-b border-line">
+      {clocks.map((location) => (
+        <div
+          key={location.timeZone}
+          className="axis border-b border-line/60 last:border-b-0"
+          style={{ height: 22 }}
+        >
+          <span className="sticky left-0 z-[2] inline-block bg-surface px-1 text-[9.5px] font-semibold text-muted">
+            {location.name}
+          </span>
+          {hourTicks(axis, location.timeZone).map((tick) => (
+            <span key={tick.at} className="axis__tick" style={{ left: `${tick.left}%` }}>
+              {tick.label}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * "Сейчас" не одно время — оно разное в каждой локации. Один бейдж над лентой,
+ * на вертикальной линии `.lane__now`, со временем каждой затронутой локации —
+ * так «сколько там времени в Нью-Йорке/Лондоне/Сингапуре прямо сейчас, и что
+ * у них с покрытием» читается с одного взгляда, без клика по шапке.
+ */
+function NowClocks({
+  axis,
+  now,
+  clocks,
+  top,
+}: {
+  readonly axis: UtcInterval;
+  readonly now: string;
+  readonly clocks: readonly Location[];
+  readonly top: number;
+}) {
+  const inside = now >= axis.start && now <= axis.end;
+  if (!inside || clocks.length === 0) return null;
+  const left = positionOf(axis, now) * 100;
+
+  return (
+    <div className="now-clocks" style={{ left: `${left}%`, top }}>
+      {clocks.map((location) => (
+        <span key={location.timeZone} className="now-clocks__row">
+          <span className="now-clocks__name">{location.name}</span>
+          <span className="font-mono">{formatInZone(now, location.timeZone)}</span>
         </span>
       ))}
     </div>
@@ -316,16 +354,12 @@ function LaneBody({
   timeline,
   zone,
   now,
-  expanded,
-  onPickDate,
   onPickBar,
 }: {
   readonly lane: DayDetailRangeLane;
   readonly timeline: DayDetailRange;
   readonly zone: string;
   readonly now: string;
-  readonly expanded: boolean;
-  readonly onPickDate: (date: IsoDate) => void;
   readonly onPickBar: (bar: DayDetailRangeBar) => void;
 }) {
   const nowInside = now >= timeline.axis.start && now <= timeline.axis.end;
@@ -333,94 +367,106 @@ function LaneBody({
   const handovers = timeline.handovers.filter(
     (h) => h.fromUnitId === lane.unitId || h.toUnitId === lane.unitId,
   );
+  const barsHeight = lane.rowCount * ROW_H + 6;
 
   return (
-    <div
-      className="relative border-b border-line"
-      style={{ height: laneHeight(lane, expanded) }}
-    >
+    <div className="relative border-b border-line" style={{ height: laneHeight(lane) }}>
       {timeline.days.map((day) => (
         <span
           key={day.date}
-          className="absolute inset-y-0 border-l border-line"
-          style={{ left: `${day.left * 100}%` }}
+          className="absolute border-l border-line"
+          style={{ left: `${day.left * 100}%`, top: 0, height: barsHeight }}
         />
       ))}
 
-      {expanded ? (
-        <>
-          {handovers.map((h) => (
-            <span
-              key={`${h.date}-${h.fromUnitId}-${h.toUnitId}`}
-              className="lane__handover"
-              style={spanStyle(timeline.axis, h.interval)}
-              title={`Handover ${h.fromUnitId} → ${h.toUnitId}`}
-            />
-          ))}
+      {handovers.map((h) => (
+        <span
+          key={`${h.date}-${h.fromUnitId}-${h.toUnitId}`}
+          className="lane__handover"
+          style={{ ...spanStyle(timeline.axis, h.interval), top: 0, height: barsHeight }}
+          title={`Handover ${h.fromUnitId} → ${h.toUnitId}`}
+        />
+      ))}
 
-          {lane.bars.map((bar) => {
-            const geometry = {
-              ...spanStyle(timeline.axis, bar.interval),
-              top: 3 + bar.row * ROW_H,
-              height: ROW_H - 3,
-            };
-            if (bar.kind === 'gap') {
-              return (
-                <button
-                  key={bar.key}
-                  type="button"
-                  className="lane__gap"
-                  style={geometry}
-                  title={`${bar.date} · ${bar.code} — unfilled`}
-                  onClick={() => onPickBar(bar)}
-                >
-                  {bar.code} — unfilled
-                </button>
-              );
-            }
-            return (
-              <button
-                key={bar.key}
-                type="button"
-                className="lane__block"
-                style={{ ...geometry, background: bar.color }}
-                title={barTitle(bar, zone)}
-                onClick={() => onPickBar(bar)}
-              >
-                <span className="font-mono opacity-90">{bar.code}</span>
-                <span className="ml-1.5 truncate font-normal opacity-85">{bar.personName}</span>
-              </button>
-            );
-          })}
-        </>
-      ) : (
-        // Свёрнутый вид: одна клетка на сутки — «сколько закрыто из скольких».
-        timeline.days.map((day, dayIndex) => {
-          const cover = lane.daily[dayIndex];
-          if (!cover) return null;
+      {lane.bars.map((bar) => {
+        const geometry = {
+          ...spanStyle(timeline.axis, bar.interval),
+          top: 3 + bar.row * ROW_H,
+          height: ROW_H - 3,
+        };
+        if (bar.kind === 'gap') {
           return (
             <button
-              key={day.date}
+              key={bar.key}
               type="button"
-              className="cover-cell"
-              data-level={cover.level}
-              style={{ left: `${day.left * 100}%`, width: `${day.width * 100}%` }}
-              title={`${day.date}\n${cover.filled} assigned against ${cover.required} required`}
-              onClick={() => onPickDate(day.date)}
+              className="lane__gap"
+              style={geometry}
+              title={`${bar.date} · ${bar.code} — unfilled`}
+              onClick={() => onPickBar(bar)}
             >
-              {cover.filled}/{cover.required}
+              {bar.code} — unfilled
             </button>
           );
-        })
-      )}
+        }
+        return (
+          <button
+            key={bar.key}
+            type="button"
+            className="lane__block"
+            style={{ ...geometry, background: bar.color }}
+            title={barTitle(bar, zone)}
+            onClick={() => onPickBar(bar)}
+          >
+            <span className="font-mono opacity-90">{bar.code}</span>
+            <span className="ml-1.5 truncate font-normal opacity-85">{bar.personName}</span>
+          </button>
+        );
+      })}
 
-      {nowInside ? <span className="lane__now" style={{ left: `${nowLeft}%` }} /> : null}
+      {nowInside ? <span className="lane__now" style={{ left: `${nowLeft}%`, height: barsHeight }} /> : null}
+
+      <HeadcountStrip headcountByHour={lane.headcountByHour} top={barsHeight} />
     </div>
   );
 }
 
-function laneHeight(lane: DayDetailRangeLane, expanded: boolean): number {
-  return expanded ? lane.rowCount * ROW_H + 6 : 30;
+/** This unit's own on-shift headcount, hour by hour — the same chart shape as
+ * day-drilldown's bottom graph, but per lane instead of one combined figure,
+ * so a unit's own load reads on its own row (owner review). */
+function HeadcountStrip({
+  headcountByHour,
+  top,
+}: {
+  readonly headcountByHour: readonly number[];
+  readonly top: number;
+}) {
+  const peak = Math.max(1, ...headcountByHour);
+  const hourWidth = 100 / Math.max(1, headcountByHour.length);
+  return (
+    <div
+      className="absolute right-0 left-0 border-t border-line/60"
+      style={{ top, height: HEADCOUNT_H }}
+    >
+      {headcountByHour.map((count, hour) => (
+        <span
+          key={hour}
+          className="absolute bottom-0 rounded-t-[1px]"
+          style={{
+            left: `${hour * hourWidth}%`,
+            width: `${hourWidth}%`,
+            height: `${Math.max(8, (count / peak) * 100)}%`,
+            background:
+              count === 0 ? 'transparent' : 'color-mix(in srgb, var(--accent) 40%, transparent)',
+          }}
+          title={`${count} on shift`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function laneHeight(lane: DayDetailRangeLane): number {
+  return lane.rowCount * ROW_H + 6 + HEADCOUNT_H;
 }
 
 function spanStyle(axis: UtcInterval, interval: UtcInterval): React.CSSProperties {

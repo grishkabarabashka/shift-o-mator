@@ -605,6 +605,10 @@ export interface DayDetailRangeLane {
   readonly rowCount: number;
   readonly gaps: number;
   readonly daily: readonly DayCoverage[];
+  /** This unit's own on-shift headcount, hour by hour across the axis — not
+   * the combined figure every lane shares, so each unit's own load reads on
+   * its own row instead of only in one graph at the bottom of everything. */
+  readonly headcountByHour: readonly number[];
 }
 
 export interface DayDetailRange {
@@ -657,6 +661,10 @@ export function buildDayDetailRange({
       rowCount: packed.reduce((max, bar) => Math.max(max, bar.row + 1), 1),
       gaps: packed.filter((bar) => bar.kind === 'gap').length,
       daily: coverageByDayUnit.get(unitId) ?? [],
+      headcountByHour: headcountOf(
+        packed.filter((bar) => bar.kind === 'assigned').map((bar) => ({ interval: bar.interval, weight: 1 })),
+        axis,
+      ),
     };
   });
 
