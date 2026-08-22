@@ -11,10 +11,16 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import { effectiveCompDayDate, type CompDayStatus } from '../../domain/types.ts';
-import { compDayAge } from '../../engine/compDays.ts';
+import { effectiveCompDayDate, type CompDayEntry, type CompDayStatus, type IsoDate } from '../../domain/types.ts';
+import { daysBetween } from '../../engine/dates.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
+
+/** Возраст начисления в днях на дату отсчёта. Раньше жила в `engine/compDays.ts`
+ * вместе с самим движком начисления — тот файл удалён вместе с портом на бэкенд. */
+function compDayAge(entry: CompDayEntry, asOf: IsoDate): number {
+  return daysBetween(entry.earnedForDate, asOf);
+}
 
 const STATUS_LABEL: Record<CompDayStatus, string> = {
   PROPOSED: 'proposed',

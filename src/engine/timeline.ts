@@ -30,7 +30,6 @@ import type {
   RoleId,
   UtcInterval,
 } from '../domain/types.ts';
-import { resolveDayConfiguration } from './dayConfig.ts';
 import { formatInZone, shiftInterval } from './dates.ts';
 
 export interface TimelinePerson {
@@ -154,22 +153,21 @@ export function buildTimelineDay({
     else peopleByRole.set(assignment.content.roleId, [entry]);
   }
 
-  const coverageByRole = new Map<string, CoverageCell>();
-  for (const cell of coverageCells) {
-    if (cell.date === date) coverageByRole.set(`${cell.regionId}|${cell.roleId}`, cell);
-  }
-
   const lanes: TimelineLane[] = [];
 
   for (const regionId of regionIds) {
     const region = index.regions.get(regionId);
-    const config = resolveDayConfiguration(regionId, date, index);
-    if (!region || !config) continue;
+    if (!region) continue;
 
     const raw: Omit<TimelineBlock, 'row'>[] = [];
 
-    for (const requirement of config.roleRequirements) {
-      const role = index.roles.get(requirement.roleId);
+    // The set of required roles for the day comes from the coverage cells
+    // themselves (server-resolved, Phase 5) rather than from a locally
+    // re-resolved day configuration — they already enumerate exactly the
+    // roles required that day, one cell per role.
+    for (const cell of coverageCells) {
+      if (cell.regionId !== regionId || cell.date !== date) continue;
+      const role = index.roles.get(cell.roleId);
       if (!role || !role.countsAsCoverage) continue;
 
       let interval: UtcInterval;
@@ -181,9 +179,7 @@ export function buildTimelineDay({
       }
 
       const people = peopleByRole.get(role.id) ?? [];
-      const coverage = coverageByRole.get(`${regionId}|${role.id}`);
 
-      const min = coverage?.min ?? requirement.min;
       raw.push({
         roleId: role.id,
         code: role.code,
@@ -191,9 +187,9 @@ export function buildTimelineDay({
         color: role.color,
         interval,
         people,
-        required: min,
-        filled: coverage?.actual ?? people.length,
-        level: coverage?.level ?? (people.length < min ? 'GAP' : 'OK'),
+        required: cell.min,
+        filled: cell.actual,
+        level: cell.level,
         empty: people.length === 0,
       });
     }
@@ -249,29 +245,25 @@ export function buildDayDetail({
 }: TimelineInput): DayDetail {
   const onDate = assignments.filter((assignment) => assignment.date === date);
 
-  const coverageByRole = new Map<string, CoverageCell>();
-  for (const cell of coverageCells) {
-    if (cell.date === date) coverageByRole.set(`${cell.regionId}|${cell.roleId}`, cell);
-  }
-
   const lanes: DayDetailLane[] = [];
 
   for (const regionId of regionIds) {
     const region = index.regions.get(regionId);
-    const config = resolveDayConfiguration(regionId, date, index);
-    if (!region || !config) continue;
+    if (!region) continue;
 
     const raw: Omit<DayDetailBar, 'row'>[] = [];
 
-    for (const requirement of config.roleRequirements) {
-      const role = index.roles.get(requirement.roleId);
+    // Same source of truth as `buildTimelineDay`: the coverage cells already
+    // enumerate exactly the roles required that day (server-resolved).
+    for (const cell of coverageCells) {
+      if (cell.regionId !== regionId || cell.date !== date) continue;
+      const role = index.roles.get(cell.roleId);
       if (!role || !role.countsAsCoverage) continue;
 
       const assignedHere = onDate.filter(
         (assignment) => assignment.content.kind === 'ROLE' && assignment.content.roleId === role.id,
       );
-      const coverage = coverageByRole.get(`${regionId}|${role.id}`);
-      const min = coverage?.min ?? requirement.min;
+      const min = cell.min;
 
       if (assignedHere.length === 0) {
         if (min === 0) continue; // not required today — not a gap, just absent from the lane

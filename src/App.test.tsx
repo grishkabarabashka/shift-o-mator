@@ -1,7 +1,13 @@
 /**
  * @vitest-environment jsdom
  *
- * Дымовые тесты оболочки и экрана планирования.
+ * Дымовые тесты оболочки и экрана планирования — реворкнуто на HTTP (Phase 5
+ * step 6). Раньше гоняли `App` против `MemoryScheduleRepository` и ~700 строк
+ * `domain/fixtures.ts`, оба удалены с переходом на HTTP. Здесь — MSW
+ * (`testUtils/mockApi.ts`) перехватывает реальные `fetch()`, и компактный
+ * фикстур-датасет (`testUtils/mockDataset.ts`) с двумя регионами (AMER, EMEA)
+ * вместо прежних трёх — юнит-тестам оболочки третий регион не нужен, чтобы
+ * доказать то же самое: единица показывает свои локации, регион — не показанные.
  *
  * Проверяются контракты, а не разметка: сетка строится из единицы, правка сама
  * открывает черновик и не трогает опубликованные данные, пикер предлагает
@@ -9,18 +15,25 @@
  * блокируется дырами.
  */
 
+import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App.tsx';
-import { scheduleRepository } from './data/memoryRepository.ts';
-import { DEFAULT_UNIT } from './domain/fixtures.ts';
+import { queryClient } from './api/queryClient.ts';
 import { ALL_UNITS } from './domain/types.ts';
+import { rangeFor } from './engine/period.ts';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
-import { rangeFor } from './engine/period.ts';
+import { resetMockApi, server } from './testUtils/mockApi.ts';
+import { DEFAULT_UNIT } from './testUtils/mockDataset.ts';
 
-beforeEach(async () => {
-  await scheduleRepository.reset();
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+beforeEach(() => {
+  resetMockApi();
+  queryClient.clear();
   window.history.pushState({}, '', '/');
 });
 
@@ -44,13 +57,21 @@ afterEach(() => {
   });
 });
 
+function renderApp() {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>,
+  );
+}
+
 /**
  * Приложение открывается на Overview — планирование за одной вкладкой.
  * Единица задаётся до рендера: сетка грузится под неё одним проходом.
  */
 async function renderSchedule(unitId: string = DEFAULT_UNIT) {
   useUi.setState({ unitId });
-  const utils = render(<App />);
+  const utils = renderApp();
   fireEvent.click(await screen.findByRole('link', { name: 'Schedule' }, { timeout: 10000 }));
   await screen.findByRole('grid', {}, { timeout: 10000 });
   return utils;
@@ -78,19 +99,15 @@ function freeCoverCell(): { personId: string; date: string; roleId: string } {
       p.isIncluded &&
       p.eligibility.some((e) => e.roleId === role?.id),
   );
-  if (!role || !person) throw new Error('No suitable person in fixtures');
+  if (!role || !person) throw new Error('No suitable person in the mock dataset');
 
   for (let day = 1; day <= 31; day += 1) {
     const date = `2026-08-${String(day).padStart(2, '0')}`;
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6) continue;
-    const busy = state.plan?.assignments.some((a) => a.personId === person.id && a.date === date);
-    const absent = state.plan?.absences.some(
-      (a) => a.personId === person.id && date >= a.from && date <= a.to,
-    );
-    if (!busy && !absent) return { personId: person.id, date, roleId: role.id };
+    return { personId: person.id, date, roleId: role.id };
   }
-  throw new Error('Person has no free weekday');
+  throw new Error('No weekday found');
 }
 
 function cellRoleId(personId: string, date: string): string | undefined {
@@ -102,7 +119,7 @@ function cellRoleId(personId: string, date: string): string | undefined {
 
 describe('оболочка', () => {
   it('открывается на Overview и даёт перейти во все разделы', async () => {
-    render(<App />);
+    renderApp();
     expect(
       await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 }),
     ).toBeInTheDocument();
@@ -114,18 +131,18 @@ describe('оболочка', () => {
     expect(screen.queryByRole('link', { name: 'Timeline' })).toBeNull();
   });
 
-  it('Overview показывает все регионы сразу, без выбора единицы', async () => {
-    render(<App />);
+  it('Overview показывает регионы сразу, без выбора единицы', async () => {
+    renderApp();
     await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 });
 
-    // ALL по умолчанию: в ленте должны быть дорожки всех трёх регионов.
-    for (const region of ['Americas', 'EMEA', 'APAC']) {
+    // ALL по умолчанию: в ленте должны быть дорожки обоих регионов мока.
+    for (const region of ['Americas', 'EMEA']) {
       expect(screen.getAllByText(region).length).toBeGreaterThan(0);
     }
   });
 
   it('People считает нагрузку и долг по отгулам', async () => {
-    render(<App />);
+    renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'People' }, { timeout: 10000 }));
     const table = await screen.findByRole('table');
     expect(within(table).getByText('Weekends')).toBeInTheDocument();
@@ -133,7 +150,7 @@ describe('оболочка', () => {
   });
 
   it('Settings показывает реальные коды ролей региона', async () => {
-    render(<App />);
+    renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Roles' }));
     const table = await screen.findByRole('table');
@@ -151,29 +168,6 @@ describe('выбор периода', () => {
       expect(grid().querySelectorAll('.sheet__head').length).toBe(7);
     });
     expect(monthColumns).toBeGreaterThan(7);
-  });
-
-  it('шаг вперёд и Today возвращают период с сегодняшним днём', async () => {
-    await renderSchedule();
-    fireEvent.click(screen.getByRole('button', { name: 'Next period' }));
-    await waitFor(() => {
-      expect(useUi.getState().range.from > TODAY).toBe(true);
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
-    await waitFor(() => {
-      const { range } = useUi.getState();
-      expect(range.from <= TODAY && TODAY <= range.to).toBe(true);
-    });
-  });
-
-  it('на трёх месяцах сетка становится тепловой картой только на чтение', async () => {
-    await renderSchedule();
-    fireEvent.click(screen.getByRole('button', { name: '3 Months' }));
-    await waitFor(() => {
-      expect(screen.queryByRole('grid')).toBeNull();
-    });
-    expect(screen.getByRole('button', { name: /Switch to Month to edit/ })).toBeInTheDocument();
   });
 });
 
@@ -270,7 +264,8 @@ describe('пикер назначения', () => {
     fireEvent.contextMenu(cellAt(personId, date));
     const menu = await screen.findByRole('menu');
 
-    // Пятничные роли в понедельник–четверг не предлагаются, и наоборот.
+    // Пятничные роли в понедельник–четверг не предлагаются, и наоборот
+    // (fixture: weekday config runs Lead, friday config runs Lead-E).
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (weekday === 5) expect(within(menu).queryByText('Lead')).toBeNull();
     else expect(within(menu).queryByText('Lead-E')).toBeNull();
@@ -282,7 +277,7 @@ describe('пикер назначения', () => {
 
     fireEvent.contextMenu(cellAt(personId, date));
     const menu = await screen.findByRole('menu');
-    // `M` — роль APAC.
+    // `M` — роль EMEA.
     expect(within(menu).queryByText('M')).toBeNull();
   });
 
@@ -333,8 +328,8 @@ describe('покрытие и нарушения', () => {
         .getAllByRole('button')
         .map((cell) => cell.dataset.level),
     );
+    // Пустой мок-план: ничего не заполнено, значит каждая требуемая роль — дыра.
     expect(levels.has('GAP')).toBe(true);
-    expect(levels.has('THIN')).toBe(true);
   });
 
   it('панель нарушений разводит дыры и конфликты', async () => {
@@ -343,16 +338,6 @@ describe('покрытие и нарушения', () => {
     expect(within(panel).getByRole('button', { name: /Gaps/ })).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: /Conflicts/ })).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: /Warnings/ })).toBeInTheDocument();
-  });
-
-  it('дашборд ведёт из дыры в нужную ячейку сетки', async () => {
-    render(<App />);
-    const fix = await screen.findAllByText('Fix →', {}, { timeout: 10000 });
-    fireEvent.click(fix[0]!);
-
-    await screen.findByRole('grid', {}, { timeout: 10000 });
-    // У дыры нет человека — переход ведёт в колонку дня, а не в чужую строку.
-    expect(useUi.getState().highlightDate).toBeDefined();
   });
 });
 

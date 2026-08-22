@@ -14,8 +14,8 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useMemo, useState } from 'react';
+import { AUTO_POPULATE_MAX_DAYS, runAutoPopulate, type AutoPopulateResult } from '../../api/planning.ts';
 import type { RegionId } from '../../domain/types.ts';
-import { AUTO_POPULATE_MAX_DAYS, autoPopulate, type AutoPopulateResult } from '../../engine/autoPopulate.ts';
 import { rangeLength } from '../../engine/period.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
@@ -32,7 +32,6 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
   const range = useUi((s) => s.range);
   const lockedAssignmentIds = useUi((s) => s.lockedAssignmentIds);
   const plan = useSchedule((s) => s.plan);
-  const index = useSchedule((s) => s.index);
   const currentUserId = useSchedule((s) => s.currentUserId);
   const commitAutoPopulate = useSchedule((s) => s.commitAutoPopulate);
 
@@ -62,24 +61,20 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
     onClose();
   };
 
-  const run = () => {
-    if (!plan || !index || !regionId || tooLong) return;
+  const run = async () => {
+    if (!plan || !regionId || tooLong) return;
     setRunning(true);
-    // Синхронно: диапазон ограничен 92 днями, и это доли секунды даже на
-    // полном регионе — асинхронный лоадер добавил бы мерцание без пользы.
-    const result = autoPopulate({
-      regionId,
-      range,
-      lockedAssignmentIds,
-      assignments: plan.assignments,
-      absences: plan.absences,
-      compDays: plan.compDays,
-      index,
-      actorId: currentUserId ?? 'unknown',
-      now: new Date().toISOString(),
-    });
-    setPreview(result);
-    setRunning(false);
+    try {
+      const result = await runAutoPopulate({
+        regionId,
+        range,
+        lockedAssignmentIds,
+        actorId: currentUserId ?? 'unknown',
+      });
+      setPreview(result);
+    } finally {
+      setRunning(false);
+    }
   };
 
   const accept = async () => {
@@ -143,7 +138,7 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
                 type="button"
                 className="btn btn--primary w-full justify-center"
                 disabled={!regionId || tooLong || running}
-                onClick={run}
+                onClick={() => void run()}
               >
                 {running ? 'Generating…' : 'Generate'}
               </button>

@@ -10,10 +10,11 @@
  * 1 not available this weekday», а не пустая рамка.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQuery } from '@tanstack/react-query';
+import { fetchCandidates } from '../../api/planning.ts';
 import type { IsoDate, PersonId, RegionId, RoleId } from '../../domain/types.ts';
-import { rankCandidates } from '../../engine/candidates.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 
 export interface SuggestTarget {
@@ -38,24 +39,21 @@ export function SuggestPopover({ target, onClose, onPick }: Props) {
   const [pos, setPos] = useState({ left: target.x, top: target.y });
 
   const plan = useSchedule((s) => s.plan);
-  const index = useSchedule((s) => s.index);
 
-  const result = useMemo(() => {
-    if (!plan || !index) return undefined;
-    const busyToday = new Set(
-      plan.assignments.filter((a) => a.date === target.date).map((a) => a.personId),
-    );
-    return rankCandidates({
-      roleId: target.roleId,
-      date: target.date,
-      regionId: target.regionId,
-      index,
-      assignments: plan.assignments,
-      absences: plan.absences,
-      compDays: plan.compDays,
-      excludePersonIds: busyToday,
-    });
-  }, [plan, index, target.roleId, target.date, target.regionId]);
+  const busyToday = new Set(
+    (plan?.assignments ?? []).filter((a) => a.date === target.date).map((a) => a.personId),
+  );
+  const { data: result } = useQuery({
+    queryKey: ['suggest', target.roleId, target.date, target.regionId, [...busyToday].sort()],
+    queryFn: () =>
+      fetchCandidates({
+        roleId: target.roleId,
+        date: target.date,
+        regionId: target.regionId,
+        excludePersonIds: busyToday,
+      }),
+    enabled: plan !== undefined,
+  });
 
   useLayoutEffect(() => {
     const box = ref.current?.getBoundingClientRect();

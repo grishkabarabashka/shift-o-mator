@@ -47,6 +47,20 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(AuthPolicies.PlannerOrAbove, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Planner)))
     .AddPolicy(AuthPolicies.AdminOnly, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Admin)));
 
+// The client is a separate origin (Vite dev server, and any deployed SPA
+// origin) — without this, every fetch() from src/api/client.ts is blocked by
+// the browser before it reaches auth/routing at all. Origins are configured
+// (Cors:AllowedOrigins), not wildcarded, since the app sends no cookies but
+// does send whatever bearer token Auth:Mode=EntraId will add later.
+const string ClientCorsPolicy = "Client";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+builder.Services.AddCors(options =>
+    options.AddPolicy(ClientCorsPolicy, policy => policy
+        .WithOrigins(allowedOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod()));
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -55,6 +69,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors(ClientCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -70,6 +86,7 @@ app.MapDraftsEndpoints();
 app.MapSuggestEndpoints();
 app.MapAcknowledgementsEndpoints();
 app.MapHistoryEndpoints();
+app.MapPeopleEndpoints();
 
 // Справочные данные — всегда (защищено идемпотентной проверкой в FixtureSeeder).
 // Демо-план (назначения/отпуска/отгулы) — только по явному флагу: первый прод не

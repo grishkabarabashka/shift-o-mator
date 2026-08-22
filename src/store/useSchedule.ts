@@ -9,7 +9,15 @@
  */
 
 import { create } from 'zustand';
-import { scheduleRepository } from '../data/memoryRepository.ts';
+import type { AutoPopulateResult } from '../api/planning.ts';
+import {
+  referenceQueryOptions,
+  scheduleQueryKey,
+  scheduleQueryOptions,
+  type ScheduleResponse,
+} from '../api/queries.ts';
+import { queryClient } from '../api/queryClient.ts';
+import { scheduleRepository } from '../data/httpRepository.ts';
 import type { PublishOutcome } from '../data/repository.ts';
 import {
   absenceChange,
@@ -39,8 +47,6 @@ import type {
   UnitId,
 } from '../domain/types.ts';
 import { ALL_UNITS } from '../domain/types.ts';
-import type { AutoPopulateResult } from '../engine/autoPopulate.ts';
-import { proposeCompDays } from '../engine/compDays.ts';
 import { isWeekendIn } from '../engine/dates.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -78,6 +84,15 @@ export interface ScheduleState {
   publishing: boolean;
   lastPublish: PublishResult | undefined;
   conflicts: readonly PublishConflict[];
+
+  /**
+   * Draft-change POSTs are debounced and coverage/issues revalidate only
+   * after the batch settles (Phase 5 step 5) — `pendingSync` is true between
+   * a cell edit and that flush landing, for a "saving…" indicator that
+   * doesn't require touching the (memoized, perf-sensitive — CLAUDE.md)
+   * grid cells themselves.
+   */
+  pendingSync: boolean;
 
   load: (unitId: UnitId, range: DateRange) => Promise<void>;
   startDraft: () => Promise<void>;
@@ -117,7 +132,128 @@ function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
   return { ...reference, ...plan, history: [] };
 }
 
+/** The date span one change touches — a single date for an assignment/comp
+ * day, the whole `[from, to]` for an absence. */
+function dateRangeOfChange(change: DraftChange): DateRange | undefined {
+  if (change.targetType === 'ABSENCE') {
+    const entity = change.after ?? change.before;
+    return entity ? { from: entity.from, to: entity.to } : undefined;
+  }
+  if (change.targetType === 'ASSIGNMENT') {
+    const entity = change.after ?? change.before;
+    return entity ? { from: entity.date, to: entity.date } : undefined;
+  }
+  const entity = change.after ?? change.before;
+  return entity ? { from: entity.earnedForDate, to: entity.earnedForDate } : undefined;
+}
+
+/** Union of every change's touched span — what a scoped revalidation needs
+ * to re-fetch, instead of the whole visible period (Phase 5 step 5). */
+function dateRangeOfChanges(changes: readonly DraftChange[]): DateRange | undefined {
+  let from: IsoDate | undefined;
+  let to: IsoDate | undefined;
+  for (const change of changes) {
+    const span = dateRangeOfChange(change);
+    if (!span) continue;
+    if (!from || span.from < from) from = span.from;
+    if (!to || span.to > to) to = span.to;
+  }
+  return from && to ? { from, to } : undefined;
+}
+
+const SYNC_DEBOUNCE_MS = 400;
+
+/** TanStack Query rejects an in-flight query's promise with this shape when
+ * it's cancelled (queryClient.clear()/removeQueries, a superseding fetch) —
+ * not a failure, just a query that stopped mattering. */
+function isCancellationError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'revert' in error && 'silent' in error;
+}
+
 export const useSchedule = create<ScheduleState>((set, get) => {
+  // Batches edits into one flush instead of one POST per keystroke/paint —
+  // module-scoped (not component state) because edits happen from several
+  // call sites (setCell, setCells, commitAutoPopulate, absence import…) that
+  // all route through `commit()` below.
+  let flushTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingChanges: DraftChange[] = [];
+  let pendingRange: DateRange | undefined;
+
+  /**
+   * Re-fetches coverage/issues/day-configurations for exactly the dates an
+   * edit batch touched and patches them into the cached full-period schedule
+   * query — not `invalidateQueries` on the whole (unitId, range) key, which
+   * would re-fetch a full month of ~2300 assignments after every batch and
+   * make range-painting unusable (Phase 5 step 5, the plan's own caution).
+   */
+  async function revalidateTouched(touched: DateRange): Promise<void> {
+    const { unitId, range, session } = get();
+    if (!unitId || !range) return;
+    const draftId = session?.id;
+    const delta = await queryClient.fetchQuery({
+      ...scheduleQueryOptions(unitId, touched, draftId),
+      staleTime: 0,
+    });
+    const key = scheduleQueryKey(unitId, range, draftId);
+    queryClient.setQueryData(key, (old: ScheduleResponse | undefined) => {
+      if (!old) return old;
+      const inTouched = (date: IsoDate | undefined) =>
+        date !== undefined && date >= touched.from && date <= touched.to;
+      return {
+        ...old,
+        coverage: [...old.coverage.filter((c) => !inTouched(c.date)), ...delta.coverage],
+        issues: [...old.issues.filter((i) => !inTouched(i.date)), ...delta.issues],
+        dayConfigurations: [
+          ...old.dayConfigurations.filter((c) => !inTouched(c.date)),
+          ...delta.dayConfigurations,
+        ],
+        // Issue-acknowledgement keys are cheap and global, not worth diffing.
+        acknowledgedIssueKeys: delta.acknowledgedIssueKeys,
+      };
+    });
+  }
+
+  function flush(sessionId: string): void {
+    flushTimer = undefined;
+    const batch = pendingChanges;
+    const touched = pendingRange;
+    pendingChanges = [];
+    pendingRange = undefined;
+    if (batch.length === 0) {
+      set({ pendingSync: false });
+      return;
+    }
+    void (async () => {
+      try {
+        await scheduleRepository.appendChanges(sessionId, batch);
+        if (touched) await revalidateTouched(touched);
+      } catch (error) {
+        // Fire-and-forget by design (this runs off a debounce timer, not a
+        // caller awaiting it) — nothing to propagate to. A query cancelled
+        // out from under this flush (period changed, cache torn down mid-
+        // flight in a test) is expected; anything else is at least logged
+        // instead of becoming a silent unhandled rejection.
+        if (!isCancellationError(error)) console.error('Draft sync failed', error);
+      } finally {
+        // Only clear the indicator if nothing new queued up while this flush
+        // was in flight.
+        if (pendingChanges.length === 0) set({ pendingSync: false });
+      }
+    })();
+  }
+
+  function queueForSync(sessionId: string, changes: readonly DraftChange[]): void {
+    pendingChanges = [...pendingChanges, ...changes];
+    const span = dateRangeOfChanges(changes);
+    if (span) {
+      pendingRange = pendingRange
+        ? { from: span.from < pendingRange.from ? span.from : pendingRange.from, to: span.to > pendingRange.to ? span.to : pendingRange.to }
+        : span;
+    }
+    set({ pendingSync: true });
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => flush(sessionId), SYNC_DEBOUNCE_MS);
+  }
   /** Пересобирает `plan` и индекс из опубликованного плюс черновик. */
   function recompute(
     reference: ReferenceData,
@@ -156,39 +292,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     });
 
     const sessionId = state.session?.id;
-    if (sessionId) void scheduleRepository.appendChanges(sessionId, meaningful);
-  }
-
-  /**
-   * Начисления comp days пересчитываются сразу после правки: планировщик
-   * должен видеть последствие назначения в тот же момент, а не через неделю.
-   */
-  function compDayChanges(
-    plan: PlanData,
-    reference: ReferenceData,
-    range: DateRange,
-    scopeAssignmentIds: ReadonlySet<string>,
-  ): DraftChange[] {
-    const index = buildIndex(datasetOf(reference, plan));
-    const result = proposeCompDays({
-      range,
-      assignments: plan.assignments,
-      absences: plan.absences,
-      existing: plan.compDays,
-      index,
-      scopeAssignmentIds,
-    });
-
-    const changes: DraftChange[] = result.added.map((entry) =>
-      compDayChange(null, entry, nextSeq(), new Date().toISOString()),
-    );
-    // Предложение, потерявшее назначение, снимается молча; подтверждённое —
-    // требует решения планировщика и остаётся.
-    for (const orphan of result.orphaned) {
-      if (orphan.status !== 'PROPOSED') continue;
-      changes.push(compDayChange(orphan, null, nextSeq(), new Date().toISOString()));
-    }
-    return changes;
+    if (sessionId) queueForSync(sessionId, meaningful);
   }
 
   /** Строит изменения ячеек, отбрасывая невозможные. */
@@ -251,25 +355,22 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     return changes;
   }
 
+  /**
+   * Comp-day proposals no longer materialize into the draft the instant a
+   * Saturday/Sunday cell is filled: that generation moved to the server
+   * (`CompDayService.Propose`, run inside `DraftService.Publish`) along with
+   * the rest of the accrual engine (ADR: domain logic on the server). The
+   * planner sees the accrual once the batch is published, not before —
+   * `commitAutoPopulate` still stages comp days directly when a preview
+   * already carries them (`api/planning.ts`'s `runAutoPopulate`).
+   */
   function commitCells(
     cells: readonly CellRef[],
     content: Assignment['content'] | null,
   ): void {
     const changes = cellChanges(cells, content);
     if (changes.length === 0) return;
-
-    const state = get();
-    const { reference, plan, range } = state;
-    if (!reference || !plan || !range) return;
-
-    // Начисления считаются только за то, что тронула эта правка.
-    const touched = new Set<string>();
-    for (const change of changes) {
-      if (change.targetType === 'ASSIGNMENT' && change.after) touched.add(change.after.id);
-    }
-
-    const afterCells = applyChanges(plan, changes);
-    commit([...changes, ...compDayChanges(afterCells, reference, range, touched)]);
+    commit(changes);
   }
 
   return {
@@ -290,14 +391,20 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     publishing: false,
     lastPublish: undefined,
     conflicts: [],
+    pendingSync: false,
 
     async load(unitId, range) {
       set({ status: 'loading', error: undefined });
       try {
-        const [reference, published] = await Promise.all([
-          scheduleRepository.loadReference(),
-          scheduleRepository.loadPublished(unitId, range),
+        // TanStack Query owns server state (Phase 5): both fetches go through
+        // its cache, so a second consumer of the same (unitId, range) —
+        // `usePlanningView`'s schedule query for coverage/issues — reuses this
+        // request instead of firing it again.
+        const [reference, scheduleResponse] = await Promise.all([
+          queryClient.fetchQuery(referenceQueryOptions()),
+          queryClient.fetchQuery(scheduleQueryOptions(unitId, range, undefined)),
         ]);
+        const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
 
         // Пока нет аутентификации: первый включённый человек единицы. При
         // `ALL` единицы нет — берём любого менеджера.
@@ -323,6 +430,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           redoStack: [],
           overlappingDrafts: [],
           conflicts: [],
+          pendingSync: false,
         });
       } catch (error) {
         set({ status: 'error', error: error instanceof Error ? error.message : String(error) });
@@ -458,7 +566,22 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       });
 
       const sessionId = state.session?.id;
-      if (sessionId) void scheduleRepository.removeChanges(sessionId, [...drop]);
+      if (sessionId) {
+        // A change undone before its debounced flush landed never reached the
+        // server — drop it from the queue instead of asking the server to
+        // remove something it never received.
+        const stillPending = new Set(pendingChanges.filter((c) => drop.has(c.id)).map((c) => c.id));
+        pendingChanges = pendingChanges.filter((c) => !drop.has(c.id));
+        const alreadyFlushed = [...drop].filter((id) => !stillPending.has(id));
+        if (alreadyFlushed.length > 0) void scheduleRepository.removeChanges(sessionId, alreadyFlushed);
+
+        const touched = dateRangeOfChanges(batch);
+        if (touched) {
+          void revalidateTouched(touched).catch((error: unknown) => {
+            if (!isCancellationError(error)) console.error('Undo revalidation failed', error);
+          });
+        }
+      }
     },
 
     redo() {
@@ -481,7 +604,14 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           set({ publishing: false, conflicts: outcome.conflicts });
           return outcome;
         }
-        const published = await scheduleRepository.loadPublished(unitId, range);
+        // Publish changed the published plan server-side — every cached
+        // schedule query (any draftId, this unit/range or overlapping ones)
+        // is stale now, not just this session's overlay.
+        await queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        const scheduleResponse = await queryClient.fetchQuery(
+          scheduleQueryOptions(unitId, range, undefined),
+        );
+        const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
         const { reference } = get();
         if (!reference) return outcome;
         const { plan, index } = recompute(reference, published, []);

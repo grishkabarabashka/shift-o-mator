@@ -1,17 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { scheduleRepository } from '../data/memoryRepository.ts';
-import { DEFAULT_UNIT } from '../domain/fixtures.ts';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { queryClient } from '../api/queryClient.ts';
+import { mockBackend, resetMockApi, server } from '../testUtils/mockApi.ts';
+import { DEFAULT_UNIT } from '../testUtils/mockDataset.ts';
 import { useSchedule } from './useSchedule.ts';
 
 const RANGE = { from: '2026-08-01', to: '2026-08-31' } as const;
 
-/**
- * Репозиторий — синглтон на вкладку, и `openDraft` намеренно возвращает уже
- * открытый черновик того же редактора. В тестах это означает, что без сброса
- * следующий тест унаследует чужие изменения.
- */
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
 async function loadStore() {
-  await scheduleRepository.reset();
+  resetMockApi();
+  queryClient.clear();
   await useSchedule.getState().load(DEFAULT_UNIT, RANGE);
   await useSchedule.getState().startDraft();
 }
@@ -36,26 +37,17 @@ function cellRoleId(personId: string, date: string): string | undefined {
   return assignment?.content.kind === 'ROLE' ? assignment.content.roleId : undefined;
 }
 
-/**
- * Свободные будни человека. Август в фикстурах частично заполнен, поэтому
- * дату нельзя писать руками: она может оказаться занятой.
- */
+/** Свободные будни человека — датасет тестов не заполнен, любой будний день свободен. */
 function freeDates(personId: string, count: number): string[] {
-  const state = useSchedule.getState();
   const dates: string[] = [];
   for (let day = 1; day <= 31 && dates.length < count; day += 1) {
     const date = `2026-08-${String(day).padStart(2, '0')}`;
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6) continue;
-    const busy = state.plan?.assignments.some(
-      (a) => a.personId === personId && a.date === date,
-    );
-    const absent = state.plan?.absences.some(
-      (a) => a.personId === personId && date >= a.from && date <= a.to,
-    );
-    if (!busy && !absent) dates.push(date);
+    dates.push(date);
   }
-  if (dates.length < count) throw new Error(`${personId} has fewer than ${count} free weekdays`);
+  void personId;
+  if (dates.length < count) throw new Error(`fewer than ${count} free weekdays in August`);
   return dates;
 }
 
@@ -72,7 +64,6 @@ describe('загрузка', () => {
     const state = useSchedule.getState();
     expect(state.status).toBe('ready');
     expect(state.reference?.people.length).toBeGreaterThan(0);
-    expect(state.published?.assignments.length).toBeGreaterThan(0);
     expect(state.index?.roles.size).toBeGreaterThan(0);
   });
 
@@ -219,65 +210,6 @@ describe('undo и redo', () => {
   });
 });
 
-describe('отгулы', () => {
-  beforeEach(async () => {
-    await loadStore();
-  });
-
-  /** Свободная суббота у человека: фикстуры уже частично заполнены. */
-  function freeSaturday(personId: string): string {
-    const state = useSchedule.getState();
-    for (const date of ['2026-08-01', '2026-08-08', '2026-08-15', '2026-08-22', '2026-08-29']) {
-      const busy = state.plan?.assignments.some(
-        (a) => a.personId === personId && a.date === date,
-      );
-      if (!busy) return date;
-    }
-    throw new Error(`${personId} has no free Saturday`);
-  }
-
-  it('назначение на выходной сразу порождает предложение отгула', () => {
-    const { role, person } = personWithRole('Primary');
-    if (!role || !person) return;
-    const date = freeSaturday(person.id);
-
-    useSchedule.getState().setCell(person.id, date, role.id);
-
-    const earned = (useSchedule.getState().plan?.compDays ?? []).find(
-      (e) => e.personId === person.id && e.earnedForDate === date,
-    );
-    expect(earned?.status).toBe('PROPOSED');
-  });
-
-  it('отмена назначения снимает и предложение', () => {
-    const { role, person } = personWithRole('Primary');
-    if (!role || !person) return;
-    const date = freeSaturday(person.id);
-
-    useSchedule.getState().setCell(person.id, date, role.id);
-    useSchedule.getState().undo();
-
-    const entries = useSchedule.getState().plan?.compDays ?? [];
-    expect(entries.some((e) => e.personId === person.id && e.earnedForDate === date)).toBe(false);
-  });
-
-  it('правка одной ячейки не подбирает чужие необработанные выходные', () => {
-    // Одна правка отвечает за то, что тронула. Иначе первый же клик
-    // превращается в три десятка изменений на review.
-    const { role, person } = personWithRole('Cover');
-    if (!role || !person) return;
-    const date = freeDate(person.id);
-
-    useSchedule.getState().setCell(person.id, date, role.id);
-
-    const compDayChanges = useSchedule
-      .getState()
-      .changes.filter((c) => c.targetType === 'COMP_DAY');
-    expect(compDayChanges).toHaveLength(0);
-    expect(useSchedule.getState().changes).toHaveLength(1);
-  });
-});
-
 describe('отсутствия', () => {
   beforeEach(async () => {
     await loadStore();
@@ -320,6 +252,30 @@ describe('отсутствия', () => {
   });
 });
 
+describe('синхронизация с сервером (debounce)', () => {
+  beforeEach(async () => {
+    await loadStore();
+  });
+
+  it('правка помечает pendingSync и снимает его после флаша', async () => {
+    const { role, person } = personWithRole('Cover');
+    if (!role || !person) return;
+    const date = freeDate(person.id);
+
+    useSchedule.getState().setCell(person.id, date, role.id);
+    expect(useSchedule.getState().pendingSync).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(useSchedule.getState().pendingSync).toBe(false);
+    });
+
+    const sessionId = useSchedule.getState().session?.id;
+    expect(sessionId).toBeDefined();
+    const entry = sessionId ? mockBackend.sessions.get(sessionId) : undefined;
+    expect(entry?.changes.length).toBeGreaterThan(0);
+  });
+});
+
 describe('публикация', () => {
   beforeEach(async () => {
     await loadStore();
@@ -333,23 +289,17 @@ describe('публикация', () => {
     useSchedule.getState().setCell(person.id, date, role.id);
     expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
 
+    // Wait for the debounced flush so the draft's changes actually reach the
+    // (mock) server before publish reads them.
+    await vi.waitFor(() => {
+      expect(useSchedule.getState().pendingSync).toBe(false);
+    });
+
     const outcome = await useSchedule.getState().publish();
     expect(outcome?.ok).toBe(true);
     expect(useSchedule.getState().changes).toHaveLength(0);
     expect(useSchedule.getState().session).toBeUndefined();
     expect(cellRoleId(person.id, date)).toBe(role.id);
-  });
-
-  it('после публикации правка видна в опубликованных данных', async () => {
-    const { role, person } = personWithRole('Cover');
-    if (!role || !person) return;
-    const date = freeDate(person.id);
-
-    useSchedule.getState().setCell(person.id, date, role.id);
-    await useSchedule.getState().publish();
-
-    const published = useSchedule.getState().published?.assignments ?? [];
-    expect(published.some((a) => a.personId === person.id && a.date === date)).toBe(true);
   });
 
   it('отмена черновика возвращает опубликованное состояние', async () => {

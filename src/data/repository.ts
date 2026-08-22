@@ -2,14 +2,21 @@
  * Единственная граница данных — ADR-0012.
  *
  * Ни один компонент и ни одна функция движка не обращается к хранилищу мимо
- * этого интерфейса. В MVP реализация in-memory с персистом в IndexedDB, позже
- * та же сигнатура ложится на .NET-эндпоинты.
+ * этого интерфейса. Phase 5: единственная реализация — `HttpScheduleRepository`
+ * (`data/httpRepository.ts`) поверх .NET API; `MemoryScheduleRepository` и
+ * IndexedDB-персист удалены вместе с фикстурами (ADR: HTTP cutover).
  *
- * Все методы асинхронные с самого начала, даже когда данные локальные. Иначе
- * при появлении сети всплывут все места, где код рассчитывал на синхронность.
+ * Все методы асинхронные с самого начала, даже когда данные были локальными.
+ * Иначе при появлении сети всплыли бы все места, где код рассчитывал на
+ * синхронность.
  *
  * Опубликованные назначения **не пишутся напрямую** (ADR-0015): всё проходит
  * через черновик и публикацию.
+ *
+ * `exportJson`/`importJson`/`reset`/`snapshot` из MVP-версии интерфейса сняты
+ * здесь: это были debug/test-удобства поверх in-memory реализации, у бэкенда
+ * нет и не планируется соответствующих эндпоинтов (полный дамп датасета —
+ * не операция, которую делает планировщик).
  */
 
 import type { DraftChange } from '../domain/types.ts';
@@ -25,7 +32,6 @@ import type {
   PublishConflict,
   PublishResult,
   ReferenceData,
-  ScheduleDataset,
   UnitId,
 } from '../domain/types.ts';
 
@@ -71,7 +77,6 @@ export interface ScheduleRepository {
 
   /** Возвращает уже открытый черновик редактора или создаёт новый. */
   openDraft(unitId: UnitId, range: DateRange, editorId: PersonId): Promise<DraftBundle>;
-  getDraft(sessionId: DraftSessionId): Promise<DraftBundle | undefined>;
   appendChanges(sessionId: DraftSessionId, changes: readonly DraftChange[]): Promise<DraftBundle>;
   /** Убирает изменения из черновика — используется undo. */
   removeChanges(sessionId: DraftSessionId, changeIds: readonly string[]): Promise<DraftBundle>;
@@ -92,10 +97,4 @@ export interface ScheduleRepository {
   // -- Аудит и перенос ------------------------------------------------------
 
   history(range: DateRange): Promise<readonly AssignmentHistoryEntry[]>;
-
-  /** Полное состояние в JSON — для отладки и переноса данных из MVP. */
-  exportJson(): Promise<string>;
-  importJson(json: string): Promise<void>;
-  reset(): Promise<void>;
-  snapshot(): Promise<ScheduleDataset>;
 }

@@ -65,6 +65,7 @@ export function SchedulePage({ view, asOf }: Props) {
   const dirty = useSchedule(hasDraftChanges);
   const changeCount = useSchedule((s) => s.changes.length);
   const publishing = useSchedule((s) => s.publishing);
+  const pendingSync = useSchedule((s) => s.pendingSync);
   const overlapping = useSchedule((s) => s.overlappingDrafts);
   const undo = useSchedule((s) => s.undo);
   const redo = useSchedule((s) => s.redo);
@@ -130,6 +131,18 @@ export function SchedulePage({ view, asOf }: Props) {
             <div className="ml-auto flex items-center gap-2">
               {editing ? (
                 <>
+                  {pendingSync || view.coverageStale ? (
+                    <span
+                      className="text-[11px] text-faint"
+                      title={
+                        pendingSync
+                          ? 'Edits are staged and will sync to the draft shortly'
+                          : 'Coverage and issues are refreshing for the dates you just touched'
+                      }
+                    >
+                      {pendingSync ? 'Saving…' : 'Updating coverage…'}
+                    </span>
+                  ) : null}
                   <div className="flex items-center gap-1">
                     <button
                       type="button"

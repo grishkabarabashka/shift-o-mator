@@ -10,7 +10,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useMemo } from 'react';
 import { summarizeChanges } from '../../domain/draft.ts';
 import type { DraftChange } from '../../domain/types.ts';
-import { canPublish } from '../../engine/validate.ts';
+import { canPublish } from '../../engine/issues.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import type { PlanningView } from './usePlanningView.ts';
 

@@ -1,8 +1,19 @@
 /**
  * Производные данные экрана планирования.
  *
- * Всё, что нужно сетке, полосе покрытия и панели нарушений, считается здесь
- * одним проходом и мемоизируется. Компоненты остаются тупыми.
+ * Coverage, issues and resolved day configurations are server-computed now
+ * (Phase 5 — `dayConfig`/`coverage`/`validate` engines deleted, ported to
+ * `ShiftOMator.Application`): this hook reads them off `GET /api/schedule`
+ * (`useScheduleQuery`) instead of recomputing them locally. The grid's cell
+ * contents (`projection`/`cellAt`/rows) still come from the Zustand store's
+ * `plan` (published + locally-applied draft changes) — that stays instant and
+ * optimistic on purpose (Phase 5 step 5): a planner painting a range can't
+ * wait on a round trip per keystroke.
+ *
+ * The schedule query is opened with the current draft session's id when one
+ * is open, so coverage/issues reflect uncommitted edits the same way they did
+ * when computed locally — the server already supports this exactly for that
+ * reason ("GET /api/schedule taking draftId ... without publishing anything").
  *
  * Два масштаба намеренно разделены (ADR-0020): **строки** берутся из единицы
  * планирования, **покрытие** — из региона. Дыра по роли чужой единицы должна
@@ -10,6 +21,7 @@
  */
 
 import { useMemo } from 'react';
+import { useScheduleQuery } from '../../api/queries.ts';
 import { cellKey, type DatasetIndex } from '../../domain/lookup.ts';
 import type {
   Absence,
@@ -30,10 +42,9 @@ import type {
 import { ALL_UNITS } from '../../domain/types.ts';
 import type { CellProjection } from '../../engine/cellValue.ts';
 import { projectCells } from '../../engine/cellValue.ts';
-import { computeCoverage, indexCoverage, summarizeCoverage } from '../../engine/coverage.ts';
-import { resolveDayConfiguration } from '../../engine/dayConfig.ts';
+import { indexCoverage, summarizeCoverage } from '../../engine/coverageView.ts';
 import { eachDate, holidayNameIn, isNonWorkingDayIn } from '../../engine/dates.ts';
-import { acknowledgedKeys, summarizeIssues, validate } from '../../engine/validate.ts';
+import { summarizeIssues } from '../../engine/issues.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 
 /** Строка сетки: либо заголовок группы, либо человек. */
@@ -73,6 +84,8 @@ export interface PlanningView {
   readonly issuesByCell: ReadonlyMap<string, readonly Issue[]>;
   readonly acknowledged: ReadonlySet<string>;
   readonly issueSummary: ReturnType<typeof summarizeIssues>;
+  /** Идёт ли ещё фоновая пересборка coverage/issues после правки (Phase 5 step 5). */
+  readonly coverageStale: boolean;
   readonly cellAt: (personId: PersonId, date: IsoDate) => CellValue;
   /** Роли, доступные человеку в этот день: конфигурация дня ∩ eligibility. */
   readonly rolesFor: (personId: PersonId, date: IsoDate) => readonly ShiftRole[];
@@ -112,6 +125,7 @@ const EMPTY_VIEW: PlanningView = {
     info: 0,
     unacknowledgedWarnings: 0,
   },
+  coverageStale: false,
   cellAt: () => ({ kind: 'EMPTY' }),
   rolesFor: () => [],
   otherRolesFor: () => [],
@@ -148,9 +162,13 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
   const reference = useSchedule((s) => s.reference);
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
+  const draftId = useSchedule((s) => s.session?.id);
+
+  const scheduleQuery = useScheduleQuery(unitId, range, draftId);
+  const schedule = scheduleQuery.data;
 
   return useMemo<PlanningView>(() => {
-    if (!unitId || !range || !reference || !plan || !index) return EMPTY_VIEW;
+    if (!unitId || !range || !reference || !plan || !index || !schedule) return EMPTY_VIEW;
     const unit = index.units.get(unitId);
     if (!unit && unitId !== ALL_UNITS) return EMPTY_VIEW;
 
@@ -191,6 +209,21 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       }
     }
 
+    // --- Резолв конфигурации дня (сервер) -----------------------------------
+    // `GET /api/schedule` несёт только id/key/label резолвнутой конфигурации на
+    // дату — полный список ролей (`roleRequirements`) остаётся в справочнике
+    // (`reference.dayConfigurations`), сервер лишь говорит, какая версия
+    // применяется на эту дату (ADR-0021).
+    const dayConfigById = new Map(reference.dayConfigurations.map((c) => [c.id, c]));
+    const resolvedByRegionDate = new Map<string, (typeof schedule.dayConfigurations)[number]>();
+    for (const resolved of schedule.dayConfigurations) {
+      resolvedByRegionDate.set(`${resolved.regionId}|${resolved.date}`, resolved);
+    }
+    const resolveConfig = (regionId: RegionId, date: IsoDate): DayConfiguration | undefined => {
+      const resolved = resolvedByRegionDate.get(`${regionId}|${date}`);
+      return resolved ? dayConfigById.get(resolved.dayConfigurationId) : undefined;
+    };
+
     // --- Колонки -----------------------------------------------------------
     // Тип дня берётся из первого региона в виде: при одном регионе это точно,
     // при нескольких заголовок всё равно показывает только выходные.
@@ -202,9 +235,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
 
     const columns: DayColumn[] = dates.map((date) => {
       const isoWeekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-      const config = headerRegionId
-        ? resolveDayConfiguration(headerRegionId, date, index)
-        : undefined;
+      const config = headerRegionId ? resolveConfig(headerRegionId, date) : undefined;
       return {
         date,
         weekdayLabel: WEEKDAY_LABELS[isoWeekday === 0 ? 6 : isoWeekday - 1] ?? '',
@@ -216,7 +247,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       };
     });
 
-    // --- Проекция ячеек ----------------------------------------------------
+    // --- Проекция ячеек (оптимистичная, из Zustand) -------------------------
     const projection = projectCells({
       range,
       absences: plan.absences,
@@ -224,13 +255,9 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       index,
     });
 
-    // --- Покрытие: по региону, а не по единице -----------------------------
-    const coverageCells: CoverageCell[] = [];
-    for (const regionId of regionIds) {
-      coverageCells.push(
-        ...computeCoverage({ regionId, range, assignments: plan.assignments, index }),
-      );
-    }
+    // --- Покрытие и нарушения: сервер ----------------------------------------
+    const coverageCells = schedule.coverage;
+    const issues = schedule.issues;
 
     const coverageRoles: ShiftRole[] = [];
     const seenRole = new Set<RoleId>();
@@ -239,24 +266,6 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       seenRole.add(cell.roleId);
       const role = index.roles.get(cell.roleId);
       if (role) coverageRoles.push(role);
-    }
-
-    // --- Нарушения ---------------------------------------------------------
-    const issues: Issue[] = [];
-    for (const regionId of regionIds) {
-      issues.push(
-        ...validate({
-          regionId,
-          range,
-          assignments: plan.assignments,
-          absences: plan.absences,
-          compDays: plan.compDays,
-          coverageCells: coverageCells.filter((c) => c.regionId === regionId),
-          absenceCapacityRules: reference.absenceCapacityRules,
-          index,
-          asOf,
-        }),
-      );
     }
 
     const issuesByCell = new Map<string, Issue[]>();
@@ -268,13 +277,13 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       else issuesByCell.set(key, [issue]);
     }
 
-    const acknowledged = acknowledgedKeys(plan.acknowledgements);
+    const acknowledged = new Set(schedule.acknowledgedIssueKeys);
 
     // --- Доступные роли ----------------------------------------------------
     const rolesFor = (personId: PersonId, date: IsoDate): readonly ShiftRole[] => {
       const person = index.people.get(personId);
       if (!person) return [];
-      const config = resolveDayConfiguration(person.regionId, date, index);
+      const config = resolveConfig(person.regionId, date);
       if (!config) return [];
       const eligible = new Set(person.eligibility.map((e) => e.roleId));
       return config.roleRequirements
@@ -307,6 +316,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       issuesByCell,
       acknowledged,
       issueSummary: summarizeIssues(issues, acknowledged),
+      coverageStale: scheduleQuery.isFetching,
       cellAt: (personId, date) =>
         projection.byCell.get(cellKey(personId, date)) ?? { kind: 'EMPTY' },
       rolesFor,
@@ -315,5 +325,5 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       absenceById: (id) => plan.absences.find((absence) => absence.id === id),
       compDayById: (id) => plan.compDays.find((entry) => entry.id === id),
     };
-  }, [unitId, range, reference, plan, index, asOf]);
+  }, [unitId, range, reference, plan, index, asOf, schedule, scheduleQuery.isFetching]);
 }

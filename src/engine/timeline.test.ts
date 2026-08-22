@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildIndex } from '../domain/lookup.ts';
+import type { Assignment, CoverageCell, IsoDate } from '../domain/types.ts';
 import {
   leadRole,
   makeAssignment,
@@ -9,8 +10,37 @@ import {
   nightRole,
   testRegion,
 } from '../domain/testkit.ts';
-import { computeCoverage } from './coverage.ts';
 import { buildDayDetail, buildDayDetailRange, buildTimelineRange, positionOf } from './timeline.ts';
+
+/**
+ * `coverage.ts` (the engine) moved to the server in Phase 5 and is deleted
+ * from TS; timeline now takes coverage cells as an *input* it doesn't
+ * compute (per the module's own doc comment). This test only needs
+ * realistic cells for the two fixture roles across `DATES` — a minimal
+ * stand-in for what `GET /api/schedule`'s `coverage` array would carry.
+ */
+function fakeCoverage(dates: readonly IsoDate[], assignments: readonly Assignment[]): CoverageCell[] {
+  const roles = [leadRole, nightRole];
+  const cells: CoverageCell[] = [];
+  for (const date of dates) {
+    for (const role of roles) {
+      const actual = assignments.filter(
+        (a) => a.date === date && a.content.kind === 'ROLE' && a.content.roleId === role.id,
+      ).length;
+      const min = 1;
+      cells.push({
+        date,
+        regionId: testRegion.id,
+        roleId: role.id,
+        actual,
+        min,
+        level: actual < min ? 'GAP' : 'OK',
+        appliedKey: 'weekday',
+      });
+    }
+  }
+  return cells;
+}
 
 /**
  * Lead 07:00–15:00 и Night 22:00–06:00+1 в America/New_York. Пересекающиеся
@@ -56,13 +86,7 @@ function setup(assignments = [
     assignments,
   });
   const index = buildIndex(dataset);
-  const range = { from: DATES[0]!, to: DATES.at(-1)! };
-  const coverageCells = computeCoverage({
-    regionId: testRegion.id,
-    range,
-    assignments,
-    index,
-  });
+  const coverageCells = fakeCoverage(DATES, assignments);
   return { index, coverageCells, assignments };
 }
 

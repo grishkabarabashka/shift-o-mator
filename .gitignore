@@ -22,3 +22,7 @@ Thumbs.db
 bin/
 obj/
 *.user
+
+# Scratch install used only to run openapi-typescript against typescript@5,
+# isolated from the project's typescript@7 — see scripts/generate-api-schema.mjs.
+/.openapi-gen/
