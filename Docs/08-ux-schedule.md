@@ -64,9 +64,14 @@ PUNE                (6)
 |---|---|
 | `REGION` (unit-amer, unit-emea, unit-apac) | by **location** — locations differ in holidays and timezone, which is what a planner needs to see |
 | `CROSS_REGION` (unit-st) | by **region** — the same duty in three rule contexts |
-| `ALL` selected | by region, then by the unit within it |
+| more than one unit in scope (`ALL`, or several picked explicitly) | by **unit** first, then by that unit's own grouping within it |
 
 `ORG_CATEGORY` is available as a third grouping for units that want it.
+
+**The unit picker takes any set, not just "all or one"** (the picker in the header —
+Docs/07-ux-shell.md). A planner running AMER together with Service Transition selects
+exactly those two; grouping by unit first is what keeps Chicago (AMER) from sitting next
+to Chicago (ST) with no visible label saying whose rules apply to which.
 
 **The unit is a default filter, not a boundary**
 ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). The scope toggle switches between

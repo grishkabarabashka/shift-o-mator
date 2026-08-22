@@ -200,7 +200,7 @@ function CoverageRow({
           `${cell.actual} assigned, minimum is ${cell.min}`,
           cell.max !== undefined ? `maximum ${cell.max}` : undefined,
           cell.level === 'THIN' ? 'Exactly at the minimum — one absence breaks it' : undefined,
-          cell.level === 'GAP' ? 'Below the minimum — blocks publication' : undefined,
+          cell.level === 'GAP' ? 'Below the minimum' : undefined,
           cell.ruleLabel,
           cell.level === 'GAP' ? 'Click for suggested candidates' : undefined,
         ]

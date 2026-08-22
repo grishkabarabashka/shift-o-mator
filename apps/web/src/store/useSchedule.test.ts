@@ -302,6 +302,87 @@ describe('публикация', () => {
     expect(cellShiftId(person.id, date)).toBe(shift.id);
   });
 
+  /**
+   * Регрессы «сохранилась только часть ячеек».
+   *
+   * Все три когда-то ломались одинаково: клиент слал по POST на изменение,
+   * первая же 400-ка обрывала батч, а остаток правок не уходил никогда и
+   * молча. Публикация после этого сохраняла ровно то, что успело долететь.
+   */
+  it('публикует последнюю правку ячейки, перекрашенной внутри черновика', async () => {
+    const { person } = personWithShift('Cover');
+    if (!person) return;
+    const shifts = useSchedule
+      .getState()
+      .reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
+    if (shifts.length < 2) return;
+    const date = freeDate(person.id);
+
+    useSchedule.getState().setCell(person.id, date, shifts[0]?.id ?? null);
+    useSchedule.getState().setCell(person.id, date, shifts[1]?.id ?? null);
+
+    // Две правки одной ячейки — одно решение: в черновике на сервере лежит
+    // ровно одно изменение, а не CREATE плюс UPDATE несуществующей строки.
+    await useSchedule.getState().flushNow();
+    const sessionId = useSchedule.getState().session?.id;
+    expect(sessionId ? mockBackend.sessions.get(sessionId)?.changes : undefined).toHaveLength(1);
+
+    const outcome = await useSchedule.getState().publish();
+    expect(outcome?.ok).toBe(true);
+    expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
+  });
+
+  it('публикует правку, сделанную прямо перед нажатием Publish', async () => {
+    const { shift, person } = personWithShift('Cover');
+    if (!shift || !person) return;
+    const date = freeDate(person.id);
+
+    // Никакого ожидания дебаунса: ровно то, что делает планировщик, когда
+    // красит ячейку и сразу жмёт Publish.
+    useSchedule.getState().setCell(person.id, date, shift.id);
+    const outcome = await useSchedule.getState().publish();
+
+    expect(outcome?.ok).toBe(true);
+    expect(cellShiftId(person.id, date)).toBe(shift.id);
+  });
+
+  it('очищенная и снова закрашенная опубликованная ячейка публикуется повторно', async () => {
+    const { person } = personWithShift('Cover');
+    if (!person) return;
+    const shifts = useSchedule
+      .getState()
+      .reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
+    if (shifts.length < 2) return;
+    const date = freeDate(person.id);
+
+    useSchedule.getState().setCell(person.id, date, shifts[0]?.id ?? null);
+    expect((await useSchedule.getState().publish())?.ok).toBe(true);
+
+    await useSchedule.getState().startDraft();
+    useSchedule.getState().setCell(person.id, date, null);
+    useSchedule.getState().setCell(person.id, date, shifts[1]?.id ?? null);
+
+    const outcome = await useSchedule.getState().publish();
+    expect(outcome?.ok).toBe(true);
+    expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
+  });
+
+  it('отменённая правка не публикуется', async () => {
+    const { shift, person } = personWithShift('Cover');
+    if (!shift || !person) return;
+    const date = freeDate(person.id);
+
+    useSchedule.getState().setCell(person.id, date, shift.id);
+    await vi.waitFor(() => {
+      expect(useSchedule.getState().pendingSync).toBe(false);
+    });
+    useSchedule.getState().undo();
+
+    const outcome = await useSchedule.getState().publish();
+    expect(outcome?.ok).toBe(true);
+    expect(cellShiftId(person.id, date)).toBeUndefined();
+  });
+
   it('отмена черновика возвращает опубликованное состояние', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;

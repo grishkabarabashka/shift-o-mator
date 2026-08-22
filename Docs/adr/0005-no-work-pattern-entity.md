@@ -8,6 +8,12 @@
 > auto-populate reads them, and they never override an explicit assignment — so the
 > decision below stands, with the fields made explicit.
 >
+> **Narrowed by [ADR-0038](0038-day-configuration-owns-the-default-shift.md):**
+> `defaultShiftId` is no longer how an ordinary day gets filled. Engineers do not have a
+> default shift — they have shifts they cannot do — so the bulk shift is now declared by
+> the *day configuration*, and the person field survives only for genuine exceptions such
+> as Service Transition. `availableWeekdays` is unaffected.
+>
 > The `isPlannerOnly` flag mentioned below is replaced by
 > `orgCategory = MANAGEMENT` plus `isIncluded = false`
 > ([ADR-0019](0019-service-transition-as-category.md)).

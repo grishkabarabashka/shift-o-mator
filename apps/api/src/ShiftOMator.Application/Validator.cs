@@ -93,9 +93,12 @@ public static class Validator
     public static HashSet<string> AcknowledgedKeys(IEnumerable<Acknowledgement> acks) =>
         acks.Select(a => a.IssueKey).ToHashSet();
 
-    /// <summary>No BLOCKING and every WARNING acknowledged.</summary>
-    public static bool CanPublish(IReadOnlyList<Issue> issues, IReadOnlySet<string> acknowledged) =>
-        !issues.Any(i => i.Level == IssueLevel.Blocking || (i.Level == IssueLevel.Warning && !acknowledged.Contains(i.Key)));
+    /// <summary>No BLOCKING (ADR-0037, owner review): an unacknowledged warning is a
+    /// signal, not corrupt data, and stopped being a publish gate for the same reason
+    /// a gap did (ADR-0035). Only a double assignment and an unknown/ineligible shift
+    /// still block.</summary>
+    public static bool CanPublish(IReadOnlyList<Issue> issues) =>
+        !issues.Any(i => i.Level == IssueLevel.Blocking);
 
     public record IssueSummary(int Blocking, int Gaps, int Conflicts, int Warning, int Info, int UnacknowledgedWarnings);
 
@@ -105,13 +108,16 @@ public static class Validator
         foreach (var issue in issues)
         {
             // Категория считается независимо от уровня: конфликт остаётся конфликтом,
-            // даже когда он подтверждаемый, а не блокирующий (ADR-0024).
+            // даже когда он подтверждаемый, а не блокирующий (ADR-0024). Дыра —
+            // тоже: CoverageGap стал INFO (ADR-0035), но по-прежнему считается
+            // дырой по коду, не по уровню — иначе счётчик обнулился бы вместе с
+            // блокировкой.
             if (issue.Category == IssueCategory.Conflict) conflicts++;
+            if (issue.Code == IssueCode.CoverageGap) gaps++;
 
             if (issue.Level == IssueLevel.Blocking)
             {
                 blocking++;
-                if (issue.Category == IssueCategory.Gap) gaps++;
             }
             else if (issue.Level == IssueLevel.Info)
             {
@@ -140,7 +146,13 @@ public static class Validator
 
             if (cell.Level == CoverageLevel.Gap)
             {
-                drafts.Add(new IssueDraft(IssueLevel.Blocking, IssueCategory.Gap, IssueCode.CoverageGap,
+                // INFO, не BLOCKING (ADR-0035, owner review): gaps are shown and
+                // highlighted everywhere, but a real gap in a real roster is a
+                // decision to publish and keep working on, not data the system
+                // gets to refuse to save. Stays Category.Gap — it's still a gap,
+                // just no longer one of the two things that can block (ADR-0009 §11:
+                // only a double assignment and an unknown/ineligible shift do).
+                drafts.Add(new IssueDraft(IssueLevel.Info, IssueCategory.Gap, IssueCode.CoverageGap,
                     $"{code}{label}: {cell.Actual} assigned, minimum is {cell.Min}", cell.Date, ShiftId: cell.ShiftId));
             }
             else if (cell.Level == CoverageLevel.Thin)

@@ -112,13 +112,13 @@ export function AbsenceDialog() {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog__overlay" />
+        <Dialog.Overlay className="overlay" />
         <Dialog.Content className="dialog">
           <Dialog.Title className="dialog__title">
             {draft.mode === 'create' ? 'Mark absence' : 'Edit absence'}
           </Dialog.Title>
 
-          <div className="dialog__people">
+          <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-muted">
             {targets.map((target) => (
               <span key={`${target.personId}-${target.from}`}>
                 {nameOf(target.personId)}:{' '}
@@ -127,7 +127,7 @@ export function AbsenceDialog() {
             ))}
           </div>
 
-          <label>
+          <label className="mb-3 block text-[12px] font-medium text-muted">
             Type
             <Select
               ariaLabel="Absence type"
@@ -137,12 +137,16 @@ export function AbsenceDialog() {
             />
           </label>
 
-          <label>
+          <label className="mb-1 block text-[12px] font-medium text-muted">
             Comment
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} />
+            <textarea
+              className="field mt-1 h-20 w-full resize-none py-2 leading-snug"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
           </label>
 
-          <div className="dialog__actions">
+          <div className="mt-4 flex justify-end gap-2">
             {draft.mode === 'edit' ? (
               <button type="button" className="btn" onClick={remove}>
                 Delete

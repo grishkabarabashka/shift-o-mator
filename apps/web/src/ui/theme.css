@@ -255,8 +255,12 @@
     background: var(--accent-soft);
     color: var(--accent);
   }
-  /* Interactive pills (e.g. the location clock strip) need their own active
-     state — .btn[data-active] doesn't apply here since these aren't .btn. */
+  /* Pills need their own active state — .btn[data-active] doesn't apply here
+     since these aren't .btn. Clickable (button.pill, e.g. Settings tabs) and
+     read-only (span.pill, e.g. the header's location-clock indicator) both
+     use `data-active` to mark "this one is the current selection" — the
+     clock strip stopped being clickable but still needs to show which zone
+     Settings → Display currently has selected. */
   button.pill {
     cursor: pointer;
     transition: background-color 0.12s ease, color 0.12s ease;
@@ -264,7 +268,7 @@
   button.pill:hover {
     background: var(--surface-hover);
   }
-  button.pill[data-active='true'] {
+  .pill[data-active='true'] {
     background: var(--accent);
     color: var(--accent-ink);
   }

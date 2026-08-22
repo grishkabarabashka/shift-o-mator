@@ -154,6 +154,24 @@
   text-transform: uppercase;
 }
 
+/* Единица планирования как внешний уровень: темнее фон и обычный вес имени
+   вместо разрядки — иначе две одинаковых серых полоски подряд читаются как
+   повтор, а не как «внутри чего мы находимся». Появляется только когда единиц
+   на экране несколько. */
+.sheet__group[data-level='1'],
+.sheet__group-fill[data-level='1'] {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-sunken));
+}
+
+.sheet__group[data-level='1'] {
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.sheet__group[data-level='2'] {
+  padding-left: 22px;
+}
+
 .sheet__group-count {
   padding: 0 5px;
   border-radius: 999px;
@@ -179,14 +197,6 @@
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   font-weight: 500;
-}
-
-.sheet__name-meta {
-  margin-left: auto;
-  flex-shrink: 0;
-  color: var(--ink-faint);
-  font-size: 10.5px;
-  font-weight: 400;
 }
 
 /* --- Ячейка --------------------------------------------------------------- */

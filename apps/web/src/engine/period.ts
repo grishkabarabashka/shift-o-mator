@@ -14,16 +14,16 @@ import { DateTime } from 'luxon';
 import type { DateRange, IsoDate } from '../domain/types.ts';
 import { addDays, daysBetween, parseDate, toIsoDate } from './dates.ts';
 
-export type ZoomId = 'day' | 'two-day' | 'week' | 'two-week' | 'month' | 'quarter' | 'half-year';
+export type ScheduleZoom = 'month' | 'quarter' | 'half-year';
 
 export interface ZoomSpec {
-  readonly id: ZoomId;
+  readonly id: ScheduleZoom;
   /** Подпись на переключателе. */
   readonly label: string;
   /** Полная подпись для aria и тултипа. */
   readonly title: string;
   /**
-   * Сетка редактируема только на коротких масштабах. Три и шесть месяцев —
+   * Сетка редактируема только на месяце. Три и шесть месяцев —
    * тепловая карта только на чтение: 80 × 180 редактируемых ячеек не
    * помещаются ни на экран, ни в разумное время отрисовки.
    */
@@ -31,10 +31,6 @@ export interface ZoomSpec {
 }
 
 export const ZOOMS: readonly ZoomSpec[] = [
-  { id: 'day', label: 'Day', title: 'One day', detail: true },
-  { id: 'two-day', label: '2 Days', title: 'Two days', detail: true },
-  { id: 'week', label: 'Week', title: 'ISO week, Monday to Sunday', detail: true },
-  { id: 'two-week', label: '2 Weeks', title: 'Two ISO weeks', detail: true },
   { id: 'month', label: 'Month', title: 'Calendar month', detail: true },
   { id: 'quarter', label: '3 Months', title: 'Three months — read-only heatmap', detail: false },
   { id: 'half-year', label: '6 Months', title: 'Six months — read-only heatmap', detail: false },
@@ -42,35 +38,25 @@ export const ZOOMS: readonly ZoomSpec[] = [
 
 const ZOOM_BY_ID = new Map(ZOOMS.map((zoom) => [zoom.id, zoom]));
 
-export function zoomSpec(id: ZoomId): ZoomSpec {
+export function zoomSpec(id: ScheduleZoom): ZoomSpec {
   const spec = ZOOM_BY_ID.get(id);
   if (!spec) throw new Error(`Unknown zoom ${id}`);
   return spec;
 }
 
 /**
- * Период выбранного масштаба, содержащий якорную дату.
+ * Период выбранного масштаба, содержащий якорную дату. Только для Schedule —
+ * минимальный масштаб там месяц (owner review: меньше месяца планировать
+ * бессмысленно).
  *
  * Якорь — не «начало периода», а «день, который планировщик хочет видеть».
- * Поэтому неделя выравнивается на понедельник, а месяц — на первое число:
- * иначе стрелка «вперёд» от 15 августа давала бы 15 сентября и заголовки
- * колонок переставали бы совпадать с календарём.
+ * Поэтому месяц выравнивается на первое число: иначе стрелка «вперёд» от
+ * 15 августа давала бы 15 сентября и заголовки колонок переставали бы
+ * совпадать с календарём.
  */
-export function rangeFor(zoom: ZoomId, anchor: IsoDate): DateRange {
+export function rangeFor(zoom: ScheduleZoom, anchor: IsoDate): DateRange {
   const dt = parseDate(anchor);
   switch (zoom) {
-    case 'day':
-      return { from: anchor, to: anchor };
-    case 'two-day':
-      return { from: anchor, to: addDays(anchor, 1) };
-    case 'week': {
-      const monday = dt.startOf('week');
-      return { from: toIsoDate(monday), to: toIsoDate(monday.plus({ days: 6 })) };
-    }
-    case 'two-week': {
-      const monday = dt.startOf('week');
-      return { from: toIsoDate(monday), to: toIsoDate(monday.plus({ days: 13 })) };
-    }
     case 'month':
       return { from: toIsoDate(dt.startOf('month')), to: toIsoDate(dt.endOf('month')) };
     case 'quarter':
@@ -94,17 +80,9 @@ function monthSpan(dt: DateTime, months: number): DateRange {
  * Шаг равен видимому периоду, а не фиксированному числу дней: «дальше» от
  * месяца — это месяц, а не 30 дней, иначе февраль сдвигал бы сетку.
  */
-export function stepAnchor(zoom: ZoomId, anchor: IsoDate, direction: 1 | -1): IsoDate {
+export function stepAnchor(zoom: ScheduleZoom, anchor: IsoDate, direction: 1 | -1): IsoDate {
   const dt = parseDate(anchor);
   switch (zoom) {
-    case 'day':
-      return addDays(anchor, direction);
-    case 'two-day':
-      return addDays(anchor, 2 * direction);
-    case 'week':
-      return addDays(anchor, 7 * direction);
-    case 'two-week':
-      return addDays(anchor, 14 * direction);
     case 'month':
       return toIsoDate(dt.startOf('month').plus({ months: direction }));
     case 'quarter':
@@ -112,6 +90,32 @@ export function stepAnchor(zoom: ZoomId, anchor: IsoDate, direction: 1 | -1): Is
     case 'half-year':
       return toIsoDate(dt.startOf('month').plus({ months: 6 * direction }));
   }
+}
+
+/**
+ * Ширина окна Overview в днях: 1, 3 или 7 суток на всю ширину экрана
+ * (owner review — вместо семи зумов на одном таймлайне).
+ */
+export type OverviewSpan = 1 | 3 | 7;
+
+export const OVERVIEW_SPANS: readonly { readonly id: OverviewSpan; readonly label: string }[] = [
+  { id: 1, label: '1 Day' },
+  { id: 3, label: '3 Days' },
+  { id: 7, label: '7 Days' },
+];
+
+/**
+ * Окно Overview вокруг якоря: `span` суток от якоря плюс столько же контекста
+ * с каждой стороны, чтобы горизонтальный скролл был непрерывным в обе стороны
+ * без дозагрузки данных при обычном протаскивании.
+ */
+export function overviewRange(anchor: IsoDate, span: OverviewSpan): DateRange {
+  return { from: addDays(anchor, -span), to: addDays(anchor, 2 * span - 1) };
+}
+
+/** Якорь Overview после шага вперёд/назад — на ширину видимого окна. */
+export function stepOverviewAnchor(anchor: IsoDate, span: OverviewSpan, direction: 1 | -1): IsoDate {
+  return addDays(anchor, span * direction);
 }
 
 /**

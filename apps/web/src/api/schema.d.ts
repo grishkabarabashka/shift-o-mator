@@ -150,6 +150,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/drafts/{id}/changes/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SyncDraftChanges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/drafts/{id}/changes/{changeId}": {
         parameters: {
             query?: never;
@@ -224,6 +240,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["AutoPopulate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insights/gap-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GapSummary"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1552,6 +1584,7 @@ export interface components {
             rangeTo: string;
             lockedAssignmentIds: null | string[];
             actorId: string;
+            draftId?: null | string;
         };
         Candidate: {
             personId: string;
@@ -1714,6 +1747,30 @@ export interface components {
             shiftId: string;
             code: string;
             reason: string;
+        };
+        GapSummaryRequest: {
+            unitId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            draftId?: null | string;
+        };
+        GapSummaryResponse: {
+            summary: string;
+            /** Format: int32 */
+            total: number | string;
+            /** Format: int32 */
+            gaps: number | string;
+            /** Format: int32 */
+            conflicts: number | string;
+            /** Format: int32 */
+            warnings: number | string;
+            /** Format: int32 */
+            blocking: number | string;
+            model: null | string;
+            /** Format: date-time */
+            generatedAt: string;
         };
         /** @enum {unknown} */
         GroupBy: "location" | "region" | "orgCategory";
@@ -1976,6 +2033,14 @@ export interface components {
             unitId: string;
             excludePersonIds: null | string[];
         };
+        SyncChangeItem: {
+            targetType: components["schemas"]["DraftTargetType"];
+            key: string;
+            after: null | components["schemas"]["JsonElement"];
+        };
+        SyncChangesRequest: {
+            changes: components["schemas"]["SyncChangeItem"][];
+        };
         TimeOverride: {
             /** Format: time */
             start?: string;
@@ -2216,6 +2281,48 @@ export interface operations {
             };
         };
     };
+    SyncDraftChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncChangesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftChange"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     RemoveDraftChange: {
         parameters: {
             query?: never;
@@ -2377,6 +2484,57 @@ export interface operations {
             };
             /** @description Bad Request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    GapSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GapSummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GapSummaryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

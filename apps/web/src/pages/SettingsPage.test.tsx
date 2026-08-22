@@ -36,10 +36,9 @@ afterEach(() => {
     absenceDraft: undefined,
     compDayDraft: undefined,
     unitId: ALL_UNITS,
-    zoom: 'month',
-    anchor: TODAY,
+    overview: { anchor: TODAY, span: 1 },
+    schedule: { anchor: TODAY, zoom: 'month' },
     range: rangeFor('month', TODAY),
-    custom: false,
   });
 });
 
@@ -102,7 +101,7 @@ describe('Settings — editing', () => {
 
   it('day-configuration versions are create-only — no edit action beyond a new version', async () => {
     await openSettings();
-    fireEvent.click(await screen.findByRole('button', { name: 'Day configurations' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Day configs' }));
     expect(await screen.findByRole('button', { name: '+ New version' })).toBeInTheDocument();
     // No PUT-style inline inputs on the version cards themselves.
     expect(screen.queryByDisplayValue('weekday')).toBeNull();

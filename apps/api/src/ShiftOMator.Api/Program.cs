@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using ShiftOMator.Api;
 using ShiftOMator.Api.Admin;
 using ShiftOMator.Api.Auth;
@@ -18,6 +19,11 @@ builder.Services.AddOpenApi();
 var connectionString = builder.Configuration.GetConnectionString("Schedule")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Schedule");
 builder.Services.AddInfrastructure(connectionString);
+
+// Пояснения поверх плана (/api/insights/*). Ключа может не быть — сервис это знает и
+// отвечает 503 AI_NOT_CONFIGURED, не роняя остальное приложение.
+builder.Services.AddSingleton(ShiftOMator.Api.Insights.ChatModel.FromConfiguration(builder.Configuration));
+builder.Services.AddScoped<ShiftOMator.Api.Insights.GapSummaryService>();
 
 // Auth seam (Phase 4): Stub mode issues a fixed identity with no token validation, for
 // local dev/demo. Switching to a real IdP later (e.g. "EntraId") only adds a branch
@@ -67,6 +73,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    // Browsable API reference over the same document api:schema generates
+    // from (http://localhost:5106/scalar) — Stub auth (Program.cs, default
+    // Auth:Mode) authenticates every request already, so "Try it" works
+    // with no token to paste in.
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
@@ -85,6 +96,7 @@ app.MapAuthEndpoints();
 app.MapScheduleEndpoints();
 app.MapDraftsEndpoints();
 app.MapSuggestEndpoints();
+app.MapInsightsEndpoints();
 app.MapAcknowledgementsEndpoints();
 app.MapHistoryEndpoints();
 app.MapPeopleEndpoints();

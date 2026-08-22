@@ -96,9 +96,13 @@ dotnet test
    and `Crew`; Friday runs `Lead-E`, `Crew-E`, `Crew-L` — different shifts. An event
    (DR test) is a dated day configuration. (ADR-0016, ADR-0008)
 
-6. **No work-pattern entity**; `defaultShiftId` and `availableWeekdays` are person
-   fields read only by auto-populate. Managers are `orgCategory = MANAGEMENT` with
-   `isIncluded = false`. (ADR-0005)
+6. **No work-pattern entity**; `availableWeekdays` is a person field read only by
+   auto-populate. **The shift that absorbs everyone on an ordinary day belongs to the
+   day configuration**, not to the person: the requirement marked `isDefault` with no
+   `max`. `Person.defaultShiftId` survives only as an exception (Service Transition,
+   whose engineers hold one shift each) and is null for everyone else — engineers do not
+   have a default shift, they have shifts they cannot do. Managers are
+   `orgCategory = MANAGEMENT` with `isIncluded = false`. (ADR-0038, narrowing ADR-0005)
 
 7. **Eligibility holds target shares.** Target share is the fairness *metric*;
    candidate *ordering* is eligibility → availability → fewest in 90 days → recency →
@@ -122,10 +126,15 @@ dotnet test
     on-call is an ordinary role code occupying the day. Hard constraint.
 
 11. **Three validation levels**, with gap and conflict as separate categories and
-    `THIN` as a distinct coverage state. Soft rules never block; they require an
-    acknowledgement with a comment. **A conflict does not block either** — coming in
-    during your own leave is a decision, not corrupt data. Only a double assignment
-    and an unknown/ineligible shift stay BLOCKING. (ADR-0009, ADR-0024)
+    `THIN` as a distinct coverage state. **Nothing but BLOCKING blocks.** A conflict
+    (coming in during your own leave), a gap (an unfilled minimum), and an
+    unacknowledged warning are all decisions still to be made, not corrupt data —
+    none of them stop a publish. Acknowledging a warning with a comment is still a
+    real, kept record ("how often did we have to break the rule, and why"), it's
+    just no longer a precondition. All three stay visible and highlighted
+    everywhere (coverage strip, Overview, issues panel); only a double assignment
+    and an unknown/ineligible shift stay BLOCKING. (ADR-0009, ADR-0024, ADR-0035,
+    ADR-0037)
 
 12. **Absence limits apply per unit and per shift pool.** Three of four possible leads
     being out is invisible to a headcount counter. Not present in the prototype — it is
@@ -170,8 +179,17 @@ dotnet test
   shift palette (`ShiftPalette`, filtered to the selected planning unit) and hotkeys
   are the fast path for painting ranges. **Any edit opens the draft by itself** — there
   is no Edit mode to enter (ADR-0023)
-- The visible period is one piece of state (`useUi.range`) driven three ways — zoom
-  buttons, day strip, year scrubber — and all the arithmetic lives in `engine/period.ts`
+- **Overview and Schedule hold independent periods**, not one shared zoom (ADR-0036).
+  Overview is a fixed 1/3/7-day window centered on "now"; Schedule's shortest zoom is
+  a month (`month` / `quarter` / `half-year`). Each screen remembers its own slice in
+  `useUi` (`overview` / `schedule`) and writes the single active `useUi.range` on
+  mount (`enterOverview()` / `enterSchedule()`); every other consumer — data loading,
+  `usePlanningView`, coverage — still just reads `range`. There is no arbitrary custom
+  range anymore; the day strip and year scrubber only jump the anchor. All the period
+  arithmetic lives in `engine/period.ts`.
+- **A person's `employeeId` is a unique external key** once set (filtered unique index;
+  `null` is unconstrained) — the field an eventual HR import will match people by.
+  `AbsenceImportDialog`'s client-side `matchPeople` already tries it first.
 
 ## Open questions
 

@@ -21,8 +21,11 @@
 
 import type { DraftChange } from '../domain/types.ts';
 import type {
+  Absence,
   Acknowledgement,
+  Assignment,
   AssignmentHistoryEntry,
+  CompDayEntry,
   DateRange,
   DraftSession,
   DraftSessionId,
@@ -44,6 +47,26 @@ export type PublishOutcome =
 export interface DraftBundle {
   readonly session: DraftSession;
   readonly changes: readonly DraftChange[];
+}
+
+/**
+ * Одна синхронизируемая единица черновика: «вот чем должна кончиться эта
+ * ячейка», а не «вот какую операцию я сделал».
+ *
+ * Клиент больше не вычисляет op: раньше он выводил CREATE/UPDATE/DELETE из
+ * своего локального состояния, и повторная покраска ячейки, созданной в этом
+ * же черновике, уходила как UPDATE строки, которой в опубликованных данных
+ * ещё нет — сервер отвечал 400, а вместе с ним терялся весь хвост батча.
+ * Теперь op выводит сервер, сравнивая с опубликованным.
+ *
+ * `key` — то, о чём изменение: для назначения это ячейка `personId|date`
+ * (в ячейке не бывает двух назначений), для отсутствия и отгула — id записи.
+ */
+export interface DraftSyncItem {
+  readonly targetType: DraftChange['targetType'];
+  readonly key: string;
+  /** Желаемое состояние; `null` — ячейка должна остаться пустой. */
+  readonly after: Assignment | Absence | CompDayEntry | null;
 }
 
 export interface ScheduleRepository {
@@ -74,9 +97,13 @@ export interface ScheduleRepository {
 
   /** Возвращает уже открытый черновик редактора или создаёт новый. */
   openDraft(unitId: UnitId, range: DateRange, editorId: PersonId): Promise<DraftBundle>;
-  appendChanges(sessionId: DraftSessionId, changes: readonly DraftChange[]): Promise<DraftBundle>;
-  /** Убирает изменения из черновика — используется undo. */
-  removeChanges(sessionId: DraftSessionId, changeIds: readonly string[]): Promise<DraftBundle>;
+  /**
+   * Приводит черновик к состоянию, в котором находятся перечисленные ячейки:
+   * на ключ остаётся ровно одно изменение, лишнее убирается. Идемпотентно —
+   * повтор после сетевого сбоя (и undo, который тоже просто меняет состояние
+   * ячейки) не требует отдельного «удалить изменение».
+   */
+  syncChanges(sessionId: DraftSessionId, items: readonly DraftSyncItem[]): Promise<DraftBundle>;
   /** Атомарно применяет черновик к опубликованным данным. */
   publishDraft(sessionId: DraftSessionId): Promise<PublishOutcome>;
   /** Сессия сохраняется для аудита, а не удаляется. */

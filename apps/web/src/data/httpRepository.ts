@@ -16,18 +16,18 @@
  * result locally for the current session, same as before.
  */
 
-import { apiDelete, apiGet, apiPost, apiPut, qs } from '../api/client.ts';
+import { apiGet, apiPost, apiPut, qs } from '../api/client.ts';
 import {
   absenceFromWire,
   assignmentFromWire,
   compDayFromWire,
   draftChangeFromWire,
-  draftChangeToWireBody,
   draftSessionFromWire,
   historyEntryFromWire,
   publishConflictFromWire,
   publishResultFromWire,
   referenceFromWire,
+  syncItemToWireBody,
   weekdayToWire,
   type WireReferenceData,
 } from '../api/mapping.ts';
@@ -44,7 +44,7 @@ import type {
   ReferenceData,
   UnitId,
 } from '../domain/types.ts';
-import type { DraftBundle, PublishOutcome, ScheduleRepository } from './repository.ts';
+import type { DraftBundle, DraftSyncItem, PublishOutcome, ScheduleRepository } from './repository.ts';
 
 interface WireScheduleResponse {
   readonly unitIds: readonly string[];
@@ -133,27 +133,25 @@ export class HttpScheduleRepository implements ScheduleRepository {
     }
   }
 
-  async appendChanges(
+  /**
+   * Одним запросом на весь батч, а не POST на изменение.
+   *
+   * Прежний цикл `for (…) await post(…)` разваливался ровно посередине: первая
+   * же ошибка обрывала цикл, остальные правки не уходили никогда, и планировщик
+   * узнавал об этом только после публикации — «часть ячеек сохранилась». Теперь
+   * это один вызов: либо сервер принял весь набор, либо не принял ничего и
+   * вызывающий может повторить.
+   */
+  async syncChanges(
     sessionId: DraftSessionId,
-    changes: readonly DraftChange[],
+    items: readonly DraftSyncItem[],
   ): Promise<DraftBundle> {
-    for (const change of changes) {
-      const body = draftChangeToWireBody(change);
-      await apiPost(`/api/drafts/${sessionId}/changes`, body);
-    }
-    const all = (await this.fetchChanges(sessionId)) ?? [];
-    return { session: sessionStub(sessionId), changes: all };
-  }
-
-  async removeChanges(
-    sessionId: DraftSessionId,
-    changeIds: readonly string[],
-  ): Promise<DraftBundle> {
-    for (const changeId of changeIds) {
-      await apiDelete(`/api/drafts/${sessionId}/changes/${changeId}`);
-    }
-    const all = (await this.fetchChanges(sessionId)) ?? [];
-    return { session: sessionStub(sessionId), changes: all };
+    if (items.length === 0) return { session: sessionStub(sessionId), changes: [] };
+    const wire = await apiPost<readonly Parameters<typeof draftChangeFromWire>[0][]>(
+      `/api/drafts/${sessionId}/changes/sync`,
+      { changes: items.map(syncItemToWireBody) },
+    );
+    return { session: sessionStub(sessionId), changes: wire.map(draftChangeFromWire) };
   }
 
   async publishDraft(sessionId: DraftSessionId): Promise<PublishOutcome> {
@@ -198,7 +196,7 @@ export class HttpScheduleRepository implements ScheduleRepository {
 }
 
 /**
- * Every caller of `appendChanges`/`removeChanges` (`useSchedule.ts`) only reads
+ * Every caller of `syncChanges` (`useSchedule.ts`) only reads
  * `.changes` off the returned bundle, never `.session` (the session itself was
  * already captured from `openDraft`) — this stub avoids a wasted round trip
  * just to refill fields nobody reads.

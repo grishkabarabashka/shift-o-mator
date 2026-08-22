@@ -119,6 +119,9 @@ export async function runAutoPopulate(params: {
   readonly range: DateRange;
   readonly lockedAssignmentIds: ReadonlySet<string>;
   readonly actorId: PersonId;
+  /** Открытый черновик планировщика: генерация должна видеть уже
+   * расставленные вручную ячейки, иначе принятое превью их затрёт. */
+  readonly draftId?: string | undefined;
 }): Promise<AutoPopulateResult> {
   const wire = await apiPost<WireAutoPopulateResult>('/api/auto-populate', {
     unitId: params.unitId,
@@ -126,6 +129,7 @@ export async function runAutoPopulate(params: {
     rangeTo: params.range.to,
     lockedAssignmentIds: [...params.lockedAssignmentIds],
     actorId: params.actorId,
+    draftId: params.draftId ?? null,
   });
 
   const now: IsoInstant = new Date().toISOString();

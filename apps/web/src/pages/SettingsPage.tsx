@@ -54,19 +54,22 @@ import type {
   ShiftRequirement,
   Weekday,
 } from '../domain/types.ts';
+import { dedupeLocationsByZone } from '../engine/locationClocks.ts';
 import { DirtyBar } from '../features/settings/DirtyBar.tsx';
 import { CheckboxField, FieldErrorList, NativeSelectField, NumberField, TextField, TimeField } from '../features/settings/fields.tsx';
 import { type AdminEntity, type EntityOps, useAdminEdits } from '../features/settings/useAdminEdits.ts';
 import { useSchedule } from '../store/useSchedule.ts';
+import { useUi } from '../store/useUi.ts';
 
 const TABS = [
   'Units',
   'Locations',
   'Shifts',
-  'Day configurations',
+  'Day configs',
   'Holidays',
   'Absence limits',
   'People',
+  'Display',
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -184,7 +187,7 @@ export function SettingsPage() {
       <header className="flex items-center gap-3">
         <h1 className="text-[22px] font-semibold tracking-tight">Settings</h1>
         <span className="text-[11.5px] text-faint">
-          Day configurations and shifts are versioned by effective date — see ADR&#8209;0021
+          Day configurations and shifts are versioned by effective date
         </span>
       </header>
 
@@ -213,10 +216,11 @@ export function SettingsPage() {
         {tab === 'Units' ? <UnitsTab reference={reference} edits={edits} /> : null}
         {tab === 'Locations' ? <LocationsTab reference={reference} edits={edits} /> : null}
         {tab === 'Shifts' ? <ShiftsTab reference={reference} edits={edits} /> : null}
-        {tab === 'Day configurations' ? <DayConfigurationsTab reference={reference} /> : null}
+        {tab === 'Day configs' ? <DayConfigurationsTab reference={reference} /> : null}
         {tab === 'Holidays' ? <HolidaysTab reference={reference} edits={edits} /> : null}
         {tab === 'Absence limits' ? <AbsenceLimitsTab reference={reference} edits={edits} /> : null}
         {tab === 'People' ? <PeopleTab reference={reference} edits={edits} /> : null}
+        {tab === 'Display' ? <DisplayTab reference={reference} /> : null}
       </section>
     </div>
   );
@@ -505,11 +509,12 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
 
   return (
     <div className="card flex flex-col gap-2 border-2 border-accent p-3">
-      <p className="text-[12px] text-ink">
-        This creates a <strong>new version</strong> of the day configuration for the selected
-        unit, effective from the date below — it does <strong>not</strong> edit the currently
-        live configuration. Coverage before that date keeps using whatever version applied then
-        (ADR&#8209;0021).
+      <p
+        className="text-[12px] text-ink"
+        title="Coverage before the effective date keeps using whatever version applied then."
+      >
+        Creates a <strong>new version</strong> effective from the date below — the live
+        configuration is never edited in place.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <NativeSelectField
@@ -563,8 +568,13 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
         >
           {create.isPending ? 'Creating…' : 'Create new version'}
         </button>
-        <button type="button" className="btn btn--sm btn--ghost" onClick={onDone}>
-          Cancel — do not create anything
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          title="Close without creating a new version"
+          onClick={onDone}
+        >
+          Cancel
         </button>
       </div>
     </div>
@@ -761,7 +771,7 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
   const tempId = useId();
   return (
     <EditableTable
-      title="absence-capacity rule"
+      title="rule"
       rows={reference.absenceCapacityRules}
       entity="absenceCapacityRule"
       edits={edits}
@@ -861,6 +871,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
       newInitial={{
         displayName: '',
         initials: '',
+        employeeId: '',
         unitId: reference.units[0]?.id ?? '',
         locationId: reference.locations[0]?.id ?? '',
         orgCategory: 'SUPPORT',
@@ -871,6 +882,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
         <tr>
           <th>Name</th>
           <th>Initials</th>
+          <th>Employee ID</th>
           <th>Unit</th>
           <th>Location</th>
           <th>Active</th>
@@ -886,6 +898,18 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
           </td>
           <td>
             <TextField mono value={draft.initials} ariaLabel="Initials" onChange={(v) => setField('initials', v)} />
+          </td>
+          <td>
+            {/* External key an HR import will eventually match people by
+                (already tried first, client-side, by AbsenceImportDialog's
+                matchPeople) — unique once set, enforced server-side. */}
+            <TextField
+              mono
+              value={draft.employeeId ?? ''}
+              ariaLabel="Employee ID"
+              onChange={(v) => setField('employeeId', v)}
+            />
+            <FieldErrorList errors={errors?.employeeId} />
           </td>
           <td>
             <NativeSelectField
@@ -912,6 +936,66 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
         </>
       )}
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Display — display timezone, moved off the header's clock strip
+// ---------------------------------------------------------------------------
+
+/**
+ * Display timezone moved off a click on the header's location clocks
+ * (`AppShell.tsx`'s `LocationClockStrip`, now a read-only indicator) — that
+ * changed exactly two tooltip strings on Overview and nothing else, which
+ * read as broken rather than as a working control.
+ */
+function DisplayTab({ reference }: { readonly reference: Reference }) {
+  const displayZone = useUi((s) => s.displayZone);
+  const setDisplayZone = useUi((s) => s.setDisplayZone);
+
+  const primaryLocationIds = new Set(reference.units.map((u) => u.primaryLocationId));
+  const clocks = dedupeLocationsByZone(reference.locations, primaryLocationIds);
+
+  return (
+    <div className="max-w-[420px] p-4">
+      <h2 className="text-[13.5px] font-semibold">Display timezone</h2>
+      <p className="mt-1 mb-3 text-[11.5px] text-faint">
+        Used for the day-detail time axis, the shift palette&apos;s time labels, and
+        tooltips on the Overview timeline. Each location keeps its own axis on Overview
+        regardless of this choice.
+      </p>
+      <div className="flex flex-col gap-2" role="radiogroup" aria-label="Display timezone">
+        <label className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] hover:bg-hover">
+          <input
+            type="radio"
+            name="display-zone"
+            checked={displayZone === 'shift'}
+            onChange={() => setDisplayZone('shift')}
+          />
+          <span>
+            Shift time
+            <span className="ml-1.5 text-faint">— each shift&apos;s own timezone</span>
+          </span>
+        </label>
+        {clocks.map((location) => (
+          <label
+            key={location.timeZone}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] hover:bg-hover"
+          >
+            <input
+              type="radio"
+              name="display-zone"
+              checked={displayZone === location.timeZone}
+              onChange={() => setDisplayZone(location.timeZone)}
+            />
+            <span>
+              {location.name}
+              <span className="ml-1.5 font-mono text-faint">{location.timeZone}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
 

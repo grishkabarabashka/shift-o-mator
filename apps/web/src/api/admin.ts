@@ -399,7 +399,10 @@ export function personAdminToWire(p: {
   return {
     displayName: p.displayName,
     initials: p.initials,
-    employeeId: p.employeeId ?? null,
+    // Blank, not just unset, must become null: an empty string is still a
+    // value the unique index would enforce, and every person who left the
+    // field blank would collide with every other one.
+    employeeId: p.employeeId?.trim() ? p.employeeId.trim() : null,
     unitId: p.unitId,
     locationId: p.locationId,
     orgCategory: upperSnakeToCamel(p.orgCategory),

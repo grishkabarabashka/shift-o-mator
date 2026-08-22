@@ -17,8 +17,16 @@ import type {
   ShiftId,
 } from '../domain/types.ts';
 import { ALL_UNITS } from '../domain/types.ts';
-import { toIsoDate, parseDate } from '../engine/dates.ts';
-import { rangeFor, stepAnchor, type ZoomId } from '../engine/period.ts';
+import { addDays, toIsoDate, parseDate } from '../engine/dates.ts';
+import {
+  overviewRange,
+  rangeFor,
+  rangeLength,
+  stepAnchor,
+  stepOverviewAnchor,
+  type OverviewSpan,
+  type ScheduleZoom,
+} from '../engine/period.ts';
 import type { CellRef } from './useSchedule.ts';
 
 /**
@@ -56,15 +64,18 @@ export interface UiState {
   displayZone: DisplayZone;
   /** Единица планирования — фильтр по умолчанию, а не граница (ADR-0020). */
   unitId: string;
+
   /**
-   * Видимый период. `range` хранится, а не вычисляется в селекторе: селектор
+   * Overview и Schedule хотят разное из одного и того же времени: Overview
+   * листает сутки вокруг «сейчас», Schedule — месяцы (ADR-0036). Поэтому у
+   * каждого экрана свой запоминаемый срез, а `range` — общий активный диапазон,
+   * который переписывает та страница, что смонтирована (`enterOverview` /
+   * `enterSchedule`). `range` хранится, а не вычисляется в селекторе: селектор
    * возвращал бы новый объект на каждый вызов и перерисовывал бы всю сетку.
    */
-  zoom: ZoomId;
-  anchor: IsoDate;
+  overview: { readonly anchor: IsoDate; readonly span: OverviewSpan };
+  schedule: { readonly anchor: IsoDate; readonly zoom: ScheduleZoom };
   range: DateRange;
-  /** Диапазон, выбранный вручную по полосе дней или шкале. */
-  custom: boolean;
 
   activeShiftId: ShiftId | undefined;
   selection: Selection;
@@ -93,11 +104,22 @@ export interface UiState {
 
   setDisplayZone: (zone: DisplayZone) => void;
   setUnit: (unitId: string) => void;
-  setZoom: (zoom: ZoomId) => void;
-  setAnchor: (anchor: IsoDate) => void;
-  stepPeriod: (direction: 1 | -1) => void;
-  goToday: () => void;
-  setCustomRange: (range: DateRange) => void;
+
+  /** Пересчитать активный `range` из своего среза при монтировании страницы. */
+  enterOverview: () => void;
+  enterSchedule: () => void;
+  setOverviewSpan: (span: OverviewSpan) => void;
+  setOverviewAnchor: (anchor: IsoDate) => void;
+  stepOverview: (direction: 1 | -1) => void;
+  overviewToday: () => void;
+  setScheduleZoom: (zoom: ScheduleZoom) => void;
+  setScheduleAnchor: (anchor: IsoDate) => void;
+  /** Клик по дню в стрипе/шкале: делает эту дату началом периода той же
+   * длины — не привязывает к 1-му числу месяца, как `setScheduleAnchor`. */
+  jumpScheduleTo: (date: IsoDate) => void;
+  stepSchedule: (direction: 1 | -1) => void;
+  scheduleToday: () => void;
+
   setActiveShift: (shiftId: ShiftId | undefined) => void;
   select: (cell: CellRef, extend?: boolean) => void;
   clearSelection: () => void;
@@ -116,10 +138,9 @@ export interface UiState {
 export const useUi = create<UiState>((set, get) => ({
   displayZone: 'shift',
   unitId: ALL_UNITS,
-  zoom: 'month',
-  anchor: TODAY,
+  overview: { anchor: TODAY, span: 1 },
+  schedule: { anchor: TODAY, zoom: 'month' },
   range: rangeFor('month', TODAY),
-  custom: false,
   activeShiftId: undefined,
   selection: { anchor: undefined, focus: undefined },
   highlightDate: undefined,
@@ -132,20 +153,58 @@ export const useUi = create<UiState>((set, get) => ({
   setDisplayZone: (displayZone) => set({ displayZone }),
   setUnit: (unitId) => set({ unitId }),
 
-  setZoom: (zoom) => set({ zoom, custom: false, range: rangeFor(zoom, get().anchor) }),
-  setAnchor: (anchor) => set({ anchor, custom: false, range: rangeFor(get().zoom, anchor) }),
-
-  stepPeriod: (direction) => {
-    const { zoom, anchor } = get();
-    const next = stepAnchor(zoom, anchor, direction);
-    set({ anchor: next, custom: false, range: rangeFor(zoom, next) });
+  enterOverview: () => {
+    const { anchor, span } = get().overview;
+    set({ range: overviewRange(anchor, span) });
+  },
+  enterSchedule: () => {
+    const { anchor, zoom } = get().schedule;
+    set({ range: rangeFor(zoom, anchor) });
   },
 
-  goToday: () => set({ anchor: TODAY, custom: false, range: rangeFor(get().zoom, TODAY) }),
+  setOverviewSpan: (span) => {
+    const anchor = get().overview.anchor;
+    set({ overview: { anchor, span }, range: overviewRange(anchor, span) });
+  },
+  setOverviewAnchor: (anchor) => {
+    const span = get().overview.span;
+    set({ overview: { anchor, span }, range: overviewRange(anchor, span) });
+  },
+  stepOverview: (direction) => {
+    const { anchor, span } = get().overview;
+    const next = stepOverviewAnchor(anchor, span, direction);
+    set({ overview: { anchor: next, span }, range: overviewRange(next, span) });
+  },
+  overviewToday: () => {
+    const span = get().overview.span;
+    set({ overview: { anchor: TODAY, span }, range: overviewRange(TODAY, span) });
+  },
 
-  // Ручной диапазон не меняет `zoom`: переключатель остаётся подсвеченным как
-  // «откуда пришли», и один клик по нему возвращает регулярный период.
-  setCustomRange: (range) => set({ range, anchor: range.from, custom: true }),
+  setScheduleZoom: (zoom) => {
+    const anchor = get().schedule.anchor;
+    set({ schedule: { anchor, zoom }, range: rangeFor(zoom, anchor) });
+  },
+  setScheduleAnchor: (anchor) => {
+    const zoom = get().schedule.zoom;
+    set({ schedule: { anchor, zoom }, range: rangeFor(zoom, anchor) });
+  },
+  // Owner review: clicking a date in the strip/scrubber shouldn't snap to the
+  // 1st of that date's calendar month — it should make the clicked date the
+  // start of the period, keeping whatever width was already on screen.
+  jumpScheduleTo: (date) => {
+    const { zoom } = get().schedule;
+    const length = rangeLength(get().range);
+    set({ schedule: { anchor: date, zoom }, range: { from: date, to: addDays(date, length - 1) } });
+  },
+  stepSchedule: (direction) => {
+    const { anchor, zoom } = get().schedule;
+    const next = stepAnchor(zoom, anchor, direction);
+    set({ schedule: { anchor: next, zoom }, range: rangeFor(zoom, next) });
+  },
+  scheduleToday: () => {
+    const zoom = get().schedule.zoom;
+    set({ schedule: { anchor: TODAY, zoom }, range: rangeFor(zoom, TODAY) });
+  },
 
   setActiveShift: (activeShiftId) => set({ activeShiftId }),
 

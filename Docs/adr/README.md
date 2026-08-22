@@ -13,7 +13,7 @@ not something else?"
 | [0006](0006-eligibility-target-shares.md) | Eligibility holds target shares; candidate ordering is eligibility → availability → 90-day fairness → recency | accepted |
 | [0007](0007-comp-day-as-balance.md) | A comp day is an accrual with a balance placed by a search window, not a fixed offset | accepted |
 | [0008](0008-events-are-dated-coverage-rules.md) | Events (DR test, training) are dated day configurations, not absences | accepted |
-| [0009](0009-three-severity-levels.md) | Three validation levels: BLOCKING, WARNING, INFO; soft rules never block | accepted |
+| [0009](0009-three-severity-levels.md) | Three validation levels: BLOCKING, WARNING, INFO; soft rules never block | narrowed by 0024, 0035 |
 | [0010](0010-absence-limits-by-role-pool.md) | Absence limits apply per region and per role pool | scope updated by 0032 (per unit) |
 | [0012](0012-schedule-repository-boundary.md) | ScheduleRepository is the single data boundary; every method async from day one | accepted |
 | [0013](0013-headless-ui-layer.md) | Headless UI (Radix) so the shell can be swapped for a corporate component library | accepted |
@@ -35,6 +35,10 @@ not something else?"
 | [0032](0032-planning-unit-single-rule-axis.md) | PlanningUnit is the single rule axis (supersedes 0004, 0020) | accepted |
 | [0033](0033-one-shift-entity-absolute-window.md) | One Shift entity with absolute window (supersedes 0001, 0018) | accepted |
 | [0034](0034-zero-minimum-legal-coverage-state.md) | Zero minimums are a legal coverage state | accepted |
+| [0035](0035-coverage-gap-does-not-block-publication.md) | Coverage gap does not block publication (narrows 0009) | accepted |
+| [0036](0036-overview-and-schedule-independent-periods.md) | Overview and Schedule hold independent periods | accepted |
+| [0037](0037-warnings-do-not-block-publication.md) | Warnings do not block publication (narrows 0009) | accepted |
+| [0038](0038-day-configuration-owns-the-default-shift.md) | The day configuration owns the default shift, not the person (narrows 0005) | accepted |
 
 ## Superseded decisions (archive)
 

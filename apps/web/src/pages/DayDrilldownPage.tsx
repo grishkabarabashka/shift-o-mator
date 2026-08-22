@@ -33,8 +33,7 @@ export function DayDrilldownPage({ view, now }: Props) {
   const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
   const displayZone = useUi((s) => s.displayZone);
-  const setZoom = useUi((s) => s.setZoom);
-  const setAnchor = useUi((s) => s.setAnchor);
+  const setAnchor = useUi((s) => s.setScheduleAnchor);
   const select = useUi((s) => s.select);
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
@@ -55,13 +54,11 @@ export function DayDrilldownPage({ view, now }: Props) {
   if (!date) return null;
 
   const editInSchedule = () => {
-    setZoom('day');
     setAnchor(date);
     void navigate('/schedule');
   };
 
   const editBar = (bar: DayDetailBar) => {
-    setZoom('day');
     setAnchor(date);
     if (bar.personId) select({ personId: bar.personId, date });
     void navigate('/schedule');

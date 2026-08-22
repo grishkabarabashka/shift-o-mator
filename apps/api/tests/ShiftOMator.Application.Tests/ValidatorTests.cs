@@ -47,16 +47,19 @@ public class ValidatorTests
     private static List<IssueCode> Codes(IEnumerable<Issue> issues) => issues.Select(i => i.Code).ToList();
     private static Issue? FirstOf(IEnumerable<Issue> issues, IssueCode code) => issues.FirstOrDefault(i => i.Code == code);
 
-    public class BlockingGaps
+    /// <summary>Gaps don't block publication (ADR-0035, owner review) — shown and
+    /// highlighted everywhere, but a real gap in a real roster is a decision to
+    /// publish and keep working on, not data the system refuses to save.</summary>
+    public class NonBlockingGaps
     {
         [Fact]
         public void Unfilled_coverage_minimum()
         {
             var issues = IssuesFor(new Scenario());
             var issue = FirstOf(issues, IssueCode.CoverageGap);
-            Assert.Equal(IssueLevel.Blocking, issue?.Level);
+            Assert.Equal(IssueLevel.Info, issue?.Level);
             Assert.Equal(IssueCategory.Gap, issue?.Category);
-            Assert.False(Validator.CanPublish(issues, new HashSet<string>()));
+            Assert.True(Validator.CanPublish(issues));
         }
     }
 
@@ -74,8 +77,9 @@ public class ValidatorTests
             Assert.Equal(IssueCategory.Conflict, issue?.Category);
             Assert.Equal(new DateOnly(2026, 9, 9), issue?.Date);
 
-            Assert.False(Validator.CanPublish(issues, new HashSet<string>()));
-            Assert.True(Validator.CanPublish([issue!], new HashSet<string> { issue!.Key }));
+            // A WARNING no longer blocks publication either way (ADR-0037) —
+            // acknowledgement is still a real, comment-carrying record, just not a gate.
+            Assert.True(Validator.CanPublish(issues));
         }
 
         [Fact]
@@ -250,7 +254,7 @@ public class ValidatorTests
             var issue = FirstOf(issues, IssueCode.CoverageThin);
             Assert.Equal(IssueLevel.Info, issue?.Level);
             Assert.DoesNotContain(IssueCode.CoverageGap, Codes(issues));
-            Assert.True(Validator.CanPublish(issues, new HashSet<string>()));
+            Assert.True(Validator.CanPublish(issues));
         }
 
         [Fact]
@@ -308,7 +312,19 @@ public class ValidatorTests
         [Fact]
         public void Sorts_violations_by_level()
         {
-            var issues = IssuesFor(new Scenario { Assignments = [MakeAssignment("p-1", NightRole.Id, new DateOnly(2026, 9, 9))] });
+            // Дыра сама по себе больше не BLOCKING (ADR-0035) — только двойное
+            // назначение и чужая/несуществующая смена остались невозможными
+            // ни при каком решении.
+            var person = MakePerson("p-1", eligibility:
+            [
+                new ShiftEligibility { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 0.5 },
+                new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 0.5 },
+            ]);
+            var issues = IssuesFor(new Scenario
+            {
+                People = [person],
+                Assignments = [MakeAssignment("p-1", LeadRole.Id, new DateOnly(2026, 9, 9)), MakeAssignment("p-1", NightRole.Id, new DateOnly(2026, 9, 9))],
+            });
             Assert.Equal(IssueLevel.Blocking, issues[0].Level);
         }
 
@@ -326,13 +342,14 @@ public class ValidatorTests
             var summary = Validator.Summarize(issues, new HashSet<string>());
             Assert.True(summary.Gaps > 0);
             Assert.True(summary.Conflicts > 0);
-            // Конфликт считается по категории независимо от уровня (ADR-0024), и в
-            // blocking он больше не входит — там остались только дыры.
-            Assert.Equal(summary.Gaps, summary.Blocking);
+            // Дыра больше не блокирует (ADR-0035): в этом сценарии единственный
+            // непокрытый минимум — она сама, поэтому blocking здесь пуст, хотя
+            // gaps и conflicts оба посчитаны.
+            Assert.Equal(0, summary.Blocking);
         }
 
         [Fact]
-        public void Publication_needs_every_warning_acknowledged()
+        public void An_unacknowledged_warning_never_blocks_publication()
         {
             // Перебор максимума — настоящее предупреждение: три человека на роли
             // с max 2, при этом минимум закрыт и блокеров нет.
@@ -344,13 +361,18 @@ public class ValidatorTests
             var issues = IssuesFor(new Scenario { People = people, Assignments = assignments });
             Assert.DoesNotContain(issues, i => i.Level == IssueLevel.Blocking);
             Assert.Contains(issues, i => i.Level == IssueLevel.Warning);
-            Assert.False(Validator.CanPublish(issues, new HashSet<string>()));
 
+            // ADR-0037: publishable with the warning still unacknowledged...
+            Assert.True(Validator.CanPublish(issues));
+            Assert.True(Validator.Summarize(issues, new HashSet<string>()).UnacknowledgedWarnings > 0);
+
+            // ...and acknowledging it is still a real, comment-carrying record —
+            // it just isn't what made publication possible.
             var acks = Validator.AcknowledgedKeys(issues.Where(i => i.Level == IssueLevel.Warning).Select(i => new Acknowledgement
             {
                 IssueKey = i.Key, Comment = "covered by the on-call engineer", ByPersonId = "p-planner", At = DateTimeOffset.Parse("2026-09-07T10:00:00Z"),
             }));
-            Assert.True(Validator.CanPublish(issues, acks));
+            Assert.True(Validator.CanPublish(issues));
             Assert.Equal(0, Validator.Summarize(issues, acks).UnacknowledgedWarnings);
         }
     }

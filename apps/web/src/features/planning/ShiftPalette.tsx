@@ -75,10 +75,13 @@ export function ShiftPalette({ shifts, referenceDate }: Props) {
             ))}
           </div>
         ))}
-        <span className="text-[11.5px] text-faint">
+        <span
+          className="text-[11.5px] text-faint"
+          title={activeShiftId ? undefined : 'A shift only applies to its own unit.'}
+        >
           {activeShiftId
             ? 'Drag across cells to paint · Esc clears the selection'
-            : 'Right-click any cell for its options. A shift only applies to its own unit.'}
+            : 'Right-click a cell for options'}
         </span>
       </div>
     );

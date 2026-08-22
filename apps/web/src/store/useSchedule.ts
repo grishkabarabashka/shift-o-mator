@@ -18,7 +18,7 @@ import {
 } from '../api/queries.ts';
 import { queryClient } from '../api/queryClient.ts';
 import { scheduleRepository } from '../data/httpRepository.ts';
-import type { PublishOutcome } from '../data/repository.ts';
+import type { DraftSyncItem, PublishOutcome } from '../data/repository.ts';
 import {
   absenceChange,
   applyChanges,
@@ -46,7 +46,7 @@ import type {
   ShiftId,
   UnitId,
 } from '../domain/types.ts';
-import { ALL_UNITS } from '../domain/types.ts';
+import { scopeIncludes } from '../domain/unitScope.ts';
 import { isWeekendIn } from '../engine/dates.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -86,13 +86,23 @@ export interface ScheduleState {
   conflicts: readonly PublishConflict[];
 
   /**
-   * Draft-change POSTs are debounced and coverage/issues revalidate only
+   * Draft-change sync is debounced and coverage/issues revalidate only
    * after the batch settles (Phase 5 step 5) — `pendingSync` is true between
    * a cell edit and that flush landing, for a "saving…" indicator that
    * doesn't require touching the (memoized, perf-sensitive — CLAUDE.md)
    * grid cells themselves.
    */
   pendingSync: boolean;
+
+  /**
+   * Почему правки не доехали до черновика, если не доехали.
+   *
+   * Раньше сбой синхронизации уходил в `console.error` и больше нигде не
+   * проявлялся: сетка показывала правку как сделанную, сервер о ней не знал,
+   * и расходились они молча — до публикации, которая сохраняла половину.
+   * Теперь это видимое состояние, и публикация при нём не идёт.
+   */
+  syncError: string | undefined;
 
   load: (unitId: UnitId, range: DateRange) => Promise<void>;
   startDraft: () => Promise<void>;
@@ -111,6 +121,8 @@ export interface ScheduleState {
   commitAbsenceImport: (changes: readonly DraftChange[]) => Promise<void>;
   undo: () => void;
   redo: () => void;
+  /** Досылает всё, что ещё ждёт дебаунса, и дожидается уже летящего запроса. */
+  flushNow: () => Promise<void>;
   publish: () => Promise<PublishOutcome | undefined>;
   discard: () => Promise<void>;
 }
@@ -130,6 +142,51 @@ function nextSeq(): number {
 
 function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
   return { ...reference, ...plan, history: [] };
+}
+
+/**
+ * Ключ синхронизации: о чём изменение, а не какое оно.
+ *
+ * Для назначения это ячейка (в ней не бывает двух назначений), для отсутствия
+ * и отгула — id записи. Двадцать правок одной ячейки — двадцать версий одного
+ * решения; на сервер уходит последняя, а не лента операций поверх состояния,
+ * которого там нет.
+ */
+type SyncKey = string;
+
+function syncKeyOf(change: DraftChange): SyncKey | undefined {
+  if (change.targetType === 'ASSIGNMENT') {
+    const entity = change.after ?? change.before;
+    return entity ? `ASSIGNMENT ${cellKey(entity.personId, entity.date)}` : undefined;
+  }
+  const entity = change.after ?? change.before;
+  return entity ? `${change.targetType} ${entity.id}` : undefined;
+}
+
+/**
+ * Снимает с плана желаемое состояние по каждому ключу.
+ *
+ * Индексы строятся один раз на батч, а не поиск на ключ: покраска диапазона
+ * даёт сотню ключей на плане в пару тысяч назначений (CLAUDE.md: сетка —
+ * место, чувствительное к производительности).
+ */
+function syncItemsFor(keys: readonly SyncKey[], plan: PlanData): DraftSyncItem[] {
+  const assignments = new Map(plan.assignments.map((a) => [cellKey(a.personId, a.date), a]));
+  const absences = new Map(plan.absences.map((a) => [a.id, a]));
+  const compDays = new Map(plan.compDays.map((c) => [c.id, c]));
+
+  return keys.map((key) => {
+    const separator = key.indexOf(' ');
+    const targetType = key.slice(0, separator) as DraftChange['targetType'];
+    const entityKey = key.slice(separator + 1);
+    const after =
+      targetType === 'ASSIGNMENT'
+        ? (assignments.get(entityKey) ?? null)
+        : targetType === 'ABSENCE'
+          ? (absences.get(entityKey) ?? null)
+          : (compDays.get(entityKey) ?? null);
+    return { targetType, key: entityKey, after };
+  });
 }
 
 /** The date span one change touches — a single date for an assignment/comp
@@ -162,6 +219,9 @@ function dateRangeOfChanges(changes: readonly DraftChange[]): DateRange | undefi
 }
 
 const SYNC_DEBOUNCE_MS = 400;
+/** Пауза перед повтором после сбоя — дольше дебаунса: это уже не батчинг. */
+const SYNC_RETRY_MS = 2000;
+const SYNC_MAX_RETRIES = 3;
 
 /** TanStack Query rejects an in-flight query's promise with this shape when
  * it's cancelled (queryClient.clear()/removeQueries, a superseding fetch) —
@@ -171,13 +231,33 @@ function isCancellationError(error: unknown): boolean {
 }
 
 export const useSchedule = create<ScheduleState>((set, get) => {
-  // Batches edits into one flush instead of one POST per keystroke/paint —
+  // Batches edits into one request instead of one POST per keystroke/paint —
   // module-scoped (not component state) because edits happen from several
   // call sites (setCell, setCells, commitAutoPopulate, absence import…) that
   // all route through `commit()` below.
+  //
+  // Очередь хранит **ключи**, а не изменения: что бы ни случилось с ячейкой
+  // после правки — вторая покраска, undo, откат всего батча, — на сервер
+  // уходит её состояние на момент отправки. Поэтому повтор после сбоя
+  // безопасен и не требует помнить, что именно не долетело.
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
-  let pendingChanges: DraftChange[] = [];
+  let inFlight: Promise<void> | undefined;
+  let dirtyKeys = new Set<SyncKey>();
   let pendingRange: DateRange | undefined;
+  let consecutiveFailures = 0;
+
+  /**
+   * Overview and Schedule now own independent periods (ADR-0036) and each
+   * writes `useUi.range` on mount — switching screens quickly fires two
+   * overlapping `load()` calls for two different ranges. Without a guard, the
+   * one that resolves last wins regardless of which is the one the user is
+   * actually looking at. `loadSeq` tags each call; a `load()` that isn't the
+   * newest anymore drops its response instead of overwriting fresher state.
+   */
+  let loadSeq = 0;
+
+  /** In-flight `startDraft`, чтобы параллельные правки не открыли две сессии. */
+  let opening: Promise<void> | undefined;
 
   /**
    * Re-fetches coverage/issues/day-configurations for exactly the dates an
@@ -213,46 +293,91 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     });
   }
 
-  function flush(sessionId: string): void {
+  function widenPendingRange(span: DateRange | undefined): void {
+    if (!span) return;
+    pendingRange = pendingRange
+      ? {
+          from: span.from < pendingRange.from ? span.from : pendingRange.from,
+          to: span.to > pendingRange.to ? span.to : pendingRange.to,
+        }
+      : span;
+  }
+
+  /**
+   * Отправляет текущее состояние всех «грязных» ключей одним запросом.
+   *
+   * Провал возвращает ключи в очередь, а не теряет их: состояние
+   * пересчитывается из плана заново, так что повтор ничего не задваивает.
+   * После `SYNC_MAX_RETRIES` подряд повторы прекращаются — дальше это уже не
+   * сетевая икота, а отказ, который планировщик должен увидеть; `syncError`
+   * остаётся и держит публикацию.
+   */
+  async function runFlush(sessionId: string): Promise<void> {
     flushTimer = undefined;
-    const batch = pendingChanges;
+    const keys = [...dirtyKeys];
     const touched = pendingRange;
-    pendingChanges = [];
+    dirtyKeys = new Set();
     pendingRange = undefined;
-    if (batch.length === 0) {
+
+    const plan = get().plan;
+    if (keys.length === 0 || !plan) {
       set({ pendingSync: false });
       return;
     }
-    void (async () => {
-      try {
-        await scheduleRepository.appendChanges(sessionId, batch);
-        if (touched) await revalidateTouched(touched);
-      } catch (error) {
-        // Fire-and-forget by design (this runs off a debounce timer, not a
-        // caller awaiting it) — nothing to propagate to. A query cancelled
-        // out from under this flush (period changed, cache torn down mid-
-        // flight in a test) is expected; anything else is at least logged
-        // instead of becoming a silent unhandled rejection.
-        if (!isCancellationError(error)) console.error('Draft sync failed', error);
-      } finally {
-        // Only clear the indicator if nothing new queued up while this flush
-        // was in flight.
-        if (pendingChanges.length === 0) set({ pendingSync: false });
+
+    try {
+      await scheduleRepository.syncChanges(sessionId, syncItemsFor(keys, plan));
+      consecutiveFailures = 0;
+      set({ syncError: undefined });
+      if (touched) await revalidateTouched(touched);
+    } catch (error) {
+      // A query cancelled out from under this flush (period changed, cache
+      // torn down mid-flight in a test) is expected and means nothing failed.
+      if (isCancellationError(error)) return;
+
+      for (const key of keys) dirtyKeys.add(key);
+      widenPendingRange(touched);
+      consecutiveFailures += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      set({ syncError: message });
+      console.error('Draft sync failed', error);
+      if (consecutiveFailures < SYNC_MAX_RETRIES) {
+        flushTimer = setTimeout(() => void flush(sessionId), SYNC_RETRY_MS);
       }
-    })();
+    } finally {
+      // Only clear the indicator if nothing new queued up while this flush
+      // was in flight.
+      if (dirtyKeys.size === 0) set({ pendingSync: false });
+    }
+  }
+
+  /** Fire-and-forget обёртка: держит ссылку, чтобы `flushNow` мог дождаться. */
+  function flush(sessionId: string): void {
+    const run = runFlush(sessionId).finally(() => {
+      if (inFlight === run) inFlight = undefined;
+    });
+    inFlight = run;
+    void run;
   }
 
   function queueForSync(sessionId: string, changes: readonly DraftChange[]): void {
-    pendingChanges = [...pendingChanges, ...changes];
-    const span = dateRangeOfChanges(changes);
-    if (span) {
-      pendingRange = pendingRange
-        ? { from: span.from < pendingRange.from ? span.from : pendingRange.from, to: span.to > pendingRange.to ? span.to : pendingRange.to }
-        : span;
+    for (const change of changes) {
+      const key = syncKeyOf(change);
+      if (key) dirtyKeys.add(key);
     }
+    widenPendingRange(dateRangeOfChanges(changes));
     set({ pendingSync: true });
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = setTimeout(() => flush(sessionId), SYNC_DEBOUNCE_MS);
+  }
+
+  /** Снимает всё запланированное — черновик закрыт или период сменился. */
+  function cancelSync(): void {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = undefined;
+    dirtyKeys = new Set();
+    pendingRange = undefined;
+    consecutiveFailures = 0;
   }
   /** Пересобирает `plan` и индекс из опубликованного плюс черновик. */
   function recompute(
@@ -392,8 +517,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     lastPublish: undefined,
     conflicts: [],
     pendingSync: false,
+    syncError: undefined,
 
     async load(unitId, range) {
+      const seq = ++loadSeq;
+      cancelSync();
       set({ status: 'loading', error: undefined });
       try {
         // TanStack Query owns server state (Phase 5): both fetches go through
@@ -404,12 +532,17 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           queryClient.fetchQuery(referenceQueryOptions()),
           queryClient.fetchQuery(scheduleQueryOptions(unitId, range, undefined)),
         ]);
+        // A newer `load()` started (and possibly already resolved) while this
+        // one was in flight — its answer is stale, and applying it now would
+        // yank the screen back to a period the user has already left.
+        if (seq !== loadSeq) return;
+
         const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
 
         // Пока нет аутентификации: первый включённый человек единицы. При
         // `ALL` единицы нет — берём любого менеджера.
         const inScope = (p: (typeof reference.people)[number]): boolean =>
-          unitId === ALL_UNITS || p.unitId === unitId;
+          scopeIncludes(unitId, p.unitId);
         const currentUserId =
           reference.people.find((p) => inScope(p) && p.orgCategory === 'MANAGEMENT')?.id ??
           reference.people.find(inScope)?.id;
@@ -431,22 +564,41 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           overlappingDrafts: [],
           conflicts: [],
           pendingSync: false,
+          syncError: undefined,
         });
       } catch (error) {
+        if (seq !== loadSeq) return;
         set({ status: 'error', error: error instanceof Error ? error.message : String(error) });
       }
     },
 
     async startDraft() {
+      // Любая правка открывает черновик сама (ADR-0023), и две быстрые правки
+      // подряд обе видят `session === undefined`. Без этой блокировки они
+      // открывали две сессии: первая партия правок уезжала в ту, что тут же
+      // затиралась второй, публиковалась вторая — и часть правок пропадала.
+      if (opening) return opening;
       const { unitId, range, currentUserId, session } = get();
       if (!unitId || !range || !currentUserId || session) return;
-      const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId);
-      const overlapping = await scheduleRepository.listOverlappingDrafts(
-        unitId,
-        range,
-        currentUserId,
-      );
-      set({ session: bundle.session, changes: [...bundle.changes], overlappingDrafts: overlapping });
+
+      opening = (async () => {
+        try {
+          const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId);
+          const overlapping = await scheduleRepository.listOverlappingDrafts(
+            unitId,
+            range,
+            currentUserId,
+          );
+          set({
+            session: bundle.session,
+            changes: [...bundle.changes],
+            overlappingDrafts: overlapping,
+          });
+        } finally {
+          opening = undefined;
+        }
+      })();
+      return opening;
     },
 
     setCell(personId, date, shiftId) {
@@ -565,23 +717,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         redoStack: [...state.redoStack, batch],
       });
 
+      // Undo — это тоже просто новое состояние ячеек, а не отдельная операция
+      // «удалить изменение с сервера»: помечаем те же ключи, и ближайший флаш
+      // отправит то, чем ячейки стали. Дошло ли отменяемое изменение до
+      // сервера, знать не нужно — раньше эта развилка была источником
+      // рассинхрона.
       const sessionId = state.session?.id;
-      if (sessionId) {
-        // A change undone before its debounced flush landed never reached the
-        // server — drop it from the queue instead of asking the server to
-        // remove something it never received.
-        const stillPending = new Set(pendingChanges.filter((c) => drop.has(c.id)).map((c) => c.id));
-        pendingChanges = pendingChanges.filter((c) => !drop.has(c.id));
-        const alreadyFlushed = [...drop].filter((id) => !stillPending.has(id));
-        if (alreadyFlushed.length > 0) void scheduleRepository.removeChanges(sessionId, alreadyFlushed);
-
-        const touched = dateRangeOfChanges(batch);
-        if (touched) {
-          void revalidateTouched(touched).catch((error: unknown) => {
-            if (!isCancellationError(error)) console.error('Undo revalidation failed', error);
-          });
-        }
-      }
+      if (sessionId) queueForSync(sessionId, batch);
     },
 
     redo() {
@@ -593,9 +735,36 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       set({ undoStack: [...get().undoStack, batch] });
     },
 
+    async flushNow() {
+      const sessionId = get().session?.id;
+      if (!sessionId) return;
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = undefined;
+      }
+      // Сначала дождаться уже летящего запроса, потом отправить остаток: между
+      // ними могли добавиться ключи, и порядок здесь именно такой.
+      await inFlight;
+      if (dirtyKeys.size > 0) {
+        consecutiveFailures = 0; // явное действие пользователя — попытка с чистого листа
+        await runFlush(sessionId);
+      }
+    },
+
     async publish() {
       const { session, unitId, range } = get();
       if (!session || !unitId || !range) return undefined;
+
+      // Публикуется то, что лежит на сервере, а не то, что нарисовано в сетке.
+      // Без этого клик по Publish в пределах дебаунса публиковал черновик без
+      // последних правок — ровно тот случай, когда «сохранилась часть ячеек».
+      await get().flushNow();
+      const syncError = get().syncError;
+      if (syncError) {
+        set({ error: `Some edits could not be saved (${syncError}) — publish cancelled.` });
+        return undefined;
+      }
+
       set({ publishing: true, conflicts: [] });
       try {
         const outcome = await scheduleRepository.publishDraft(session.id);
@@ -638,6 +807,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
     async discard() {
       const state = get();
+      // Снять очередь до запроса: иначе отложенный флаш проснётся уже после
+      // discard и попробует писать в закрытую сессию.
+      cancelSync();
       if (state.session) await scheduleRepository.discardDraft(state.session.id);
       if (!state.reference || !state.published) return;
       const { plan, index } = recompute(state.reference, state.published, []);
@@ -647,6 +819,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         undoStack: [],
         redoStack: [],
         conflicts: [],
+        pendingSync: false,
+        syncError: undefined,
         plan,
         index,
       });

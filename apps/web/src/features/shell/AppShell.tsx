@@ -10,14 +10,15 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider.tsx';
-import { ALL_UNITS, type Location } from '../../domain/types.ts';
+import { type Location } from '../../domain/types.ts';
+import { isAllUnits, scopeIncludes } from '../../domain/unitScope.ts';
+import { UnitScopePicker } from './UnitScopePicker.tsx';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
 import { daysBetween, formatInZone, parseDate } from '../../engine/dates.ts';
 import { dedupeLocationsByZone } from '../../engine/locationClocks.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { useNow } from '../../ui/useNow.ts';
-import { Select } from '../../ui/primitives.tsx';
 
 export interface NavItem {
   readonly to: string;
@@ -54,7 +55,6 @@ function ProductHeader() {
 
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);
-  const setDisplayZone = useUi((s) => s.setDisplayZone);
 
   // Stub identity for now (Phase 4 client seam) — see `auth/AuthProvider.tsx`. Not the
   // same thing as `useSchedule`'s `currentUserId` (still "first manager in scope",
@@ -63,13 +63,13 @@ function ProductHeader() {
 
   const units = reference?.units ?? [];
 
-  // Locations of the currently selected unit — `ALL_UNITS` has no locations
-  // of its own, so it falls back to every location in the dataset rather
-  // than showing an empty strip.
-  const unit = reference?.units.find((u) => u.id === unitId);
+  // Locations of the units in scope. "All" has no locations of its own, and
+  // neither does a scope naming several units — both fall back to every
+  // location in the dataset rather than showing an empty strip.
+  const scopedUnits = units.filter((u) => scopeIncludes(unitId, u.id));
   const strip: readonly Location[] =
-    unitId !== ALL_UNITS && unit
-      ? unit.locationIds
+    !isAllUnits(unitId) && scopedUnits.length > 0
+      ? [...new Set(scopedUnits.flatMap((u) => u.locationIds))]
           .map((id) => reference?.locations.find((l) => l.id === id))
           .filter((l): l is Location => l !== undefined)
       : (reference?.locations ?? []);
@@ -81,11 +81,12 @@ function ProductHeader() {
   const primaryLocationIds = new Set(units.map((u) => u.primaryLocationId));
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4 shadow-[0_1px_3px_rgb(16_24_40_/_0.05)]">
       <div className="flex shrink-0 items-center gap-2.5">
         <span
           aria-hidden
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent text-[13px] font-bold text-accent-ink"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-accent-ink"
+          style={{ background: 'linear-gradient(155deg, var(--accent), color-mix(in srgb, var(--accent) 70%, black))' }}
         >
           S
         </span>
@@ -94,18 +95,12 @@ function ProductHeader() {
         </span>
       </div>
 
-      <div className="ml-3 flex shrink-0 items-center gap-2">
-        {/* Единица — фильтр, а не граница (ADR-0020), поэтому «все» стоит
-            первым и является значением по умолчанию. */}
-        <Select
-          ariaLabel="Planning unit"
-          value={unitId}
-          onChange={setUnit}
-          options={[
-            { value: ALL_UNITS, label: 'All planning units' },
-            ...units.map((unit) => ({ value: unit.id, label: unit.name })),
-          ]}
-        />
+      <div className="h-6 w-px shrink-0 bg-line" />
+
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Единица — фильтр, а не граница (ADR-0020): выбирается любой набор,
+            «все» — значение по умолчанию. */}
+        <UnitScopePicker units={units} scope={unitId} onChange={setUnit} />
       </div>
 
       <div className="ml-auto flex items-center gap-3">
@@ -117,7 +112,7 @@ function ProductHeader() {
           </span>
         ) : null}
 
-        <LocationClockStrip locations={strip} primaryLocationIds={primaryLocationIds} onPick={setDisplayZone} />
+        <LocationClockStrip locations={strip} primaryLocationIds={primaryLocationIds} />
 
         <div className="h-6 w-px bg-line" />
 
@@ -163,21 +158,19 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
 }
 
 /**
- * Location clock strip — replaces the timezone dropdown (CLAUDE.md: showing
- * a single named timezone made less sense than several small clocks for the
- * locations actually in play, one per location of the selected unit). Each
- * clock doubles as the display-timezone picker: clicking one sets
- * `displayZone` to that location's zone, so choosing "look at it from
- * Pune's clock" and reading Pune's clock are the same click.
+ * Location clock strip — a read-only indicator, one small clock per location
+ * actually in play. Used to double as the display-timezone picker; that
+ * picker moved to Settings → Display (owner review: clicking a clock in the
+ * header changed two tooltip strings on Overview and nothing else, which
+ * read as broken rather than as a working control — ADR-0036). The active
+ * pill still shows which zone is currently selected there.
  */
 function LocationClockStrip({
   locations,
   primaryLocationIds,
-  onPick,
 }: {
   readonly locations: readonly Location[];
   readonly primaryLocationIds: ReadonlySet<string>;
-  readonly onPick: (zone: string) => void;
 }) {
   const now = useNow();
   const displayZone = useUi((s) => s.displayZone);
@@ -187,27 +180,23 @@ function LocationClockStrip({
 
   return (
     <div className="hidden items-center gap-1.5 lg:flex" role="group" aria-label="Location times">
-      <button
-        type="button"
+      <span
         className="pill"
         data-active={displayZone === 'shift'}
-        title="Show each assignment in its own shift's timezone"
-        onClick={() => onPick('shift')}
+        title="Display timezone is 'Shift time' — change it in Settings → Display"
       >
         Shift time
-      </button>
+      </span>
       {clocks.map((location) => (
-        <button
+        <span
           key={location.timeZone}
-          type="button"
           className="pill"
           data-active={displayZone === location.timeZone}
-          title={`${location.name} — ${location.timeZone}`}
-          onClick={() => onPick(location.timeZone)}
+          title={`${location.name} — ${location.timeZone}. Change the display timezone in Settings → Display.`}
         >
           <span className="font-medium">{location.name}</span>{' '}
           <span className="font-mono">{formatInZone(now, location.timeZone)}</span>
-        </button>
+        </span>
       ))}
     </div>
   );

@@ -170,6 +170,42 @@ public static class DraftService
         }
     }
 
+    /// <summary>
+    /// What a change is *about*, so a later edit of the same thing can replace it instead
+    /// of stacking on top of it. An assignment's identity is its cell — one assignment per
+    /// (person, date), so two changes on the same cell are two versions of one decision,
+    /// never two decisions. Absences and comp days are identified by row id.
+    /// </summary>
+    public static string KeyOf(DraftChange change)
+    {
+        var json = change.AfterJson ?? change.BeforeJson;
+        if (json is null) return change.Id;
+
+        return change.TargetType switch
+        {
+            DraftTargetType.Assignment => AssignmentKeyOf(DraftJson.Deserialize<Assignment>(json)),
+            DraftTargetType.Absence => DraftJson.Deserialize<Absence>(json).Id,
+            DraftTargetType.CompDay => DraftJson.Deserialize<CompDayEntry>(json).Id,
+            _ => change.Id,
+        };
+    }
+
+    public static string AssignmentKeyOf(Assignment assignment) =>
+        DatasetIndex.CellKey(assignment.PersonId, assignment.Date);
+
+    /// <summary>
+    /// Drops every change the draft holds about <paramref name="key"/>, returning them so
+    /// the caller can delete the rows. The replacement is appended by the caller — this
+    /// only clears the slot.
+    /// </summary>
+    public static IReadOnlyList<DraftChange> TakeChangesForKey(DraftSession session, DraftTargetType targetType, string key)
+    {
+        EnsureOpen(session);
+        var stale = session.Changes.Where(c => c.TargetType == targetType && KeyOf(c) == key).ToList();
+        foreach (var change in stale) session.Changes.Remove(change);
+        return stale;
+    }
+
     public static void RemoveChange(DraftSession session, string changeId)
     {
         EnsureOpen(session);

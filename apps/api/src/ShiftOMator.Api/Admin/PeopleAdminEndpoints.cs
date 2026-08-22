@@ -26,7 +26,7 @@ public static class PeopleAdminEndpoints
 
         group.MapPost("/", async (AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
-            var validation = await ValidateAsync(req, db, ct);
+            var validation = await ValidateAsync(req, db, ct, currentId: null);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
 
             var person = new Person
@@ -51,7 +51,7 @@ public static class PeopleAdminEndpoints
 
         group.MapPut("/{id}", async (string id, AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
-            var validation = await ValidateAsync(req, db, ct);
+            var validation = await ValidateAsync(req, db, ct, currentId: id);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
 
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -94,7 +94,7 @@ public static class PeopleAdminEndpoints
         .Produces(StatusCodes.Status409Conflict);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct, string? currentId)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.DisplayName), req.DisplayName);
@@ -106,6 +106,15 @@ public static class PeopleAdminEndpoints
             v.Add(nameof(req.UnitId), $"Unit {req.UnitId} does not exist.");
         if (!string.IsNullOrWhiteSpace(req.LocationId) && !await db.Locations.AnyAsync(l => l.Id == req.LocationId, ct))
             v.Add(nameof(req.LocationId), $"Location {req.LocationId} does not exist.");
+
+        // EmployeeId is the external key an HR import will eventually match people by
+        // (AbsenceImportDialog's client-side matchPeople already tries it first) — optional
+        // today, but never allowed to collide once set. Mirrors the DB's own filtered
+        // unique index (ScheduleDbContext); checked here too so the client gets one
+        // consistent 400 field error instead of an unhandled unique-constraint exception.
+        if (!string.IsNullOrWhiteSpace(req.EmployeeId) &&
+            await db.People.AnyAsync(p => p.EmployeeId == req.EmployeeId && p.Id != currentId, ct))
+            v.Add(nameof(req.EmployeeId), "EMPLOYEE_ID_TAKEN — already assigned to another person.");
 
         return v;
     }

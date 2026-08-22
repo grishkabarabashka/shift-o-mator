@@ -71,6 +71,12 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         modelBuilder.Entity<Person>(e =>
         {
             e.HasKey(x => x.Id);
+            // Filtered unique index, not a required column: EmployeeId is the external
+            // key an HR import will eventually match people by (AbsenceImportDialog's
+            // matchPeople already tries it first, client-side, on the honor system) —
+            // but it's optional today, and SQL Server's default unique index treats
+            // every NULL as distinct from every other NULL only when filtered like this.
+            e.HasIndex(x => x.EmployeeId).IsUnique().HasFilter("[EmployeeId] IS NOT NULL");
             ConfigureList(e.Property(x => x.AvailableWeekdays));
             e.OwnsOne(x => x.Constraints);
             e.OwnsOne(x => x.Preferences, p =>

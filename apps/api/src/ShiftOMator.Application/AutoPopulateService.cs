@@ -3,17 +3,41 @@ using ShiftOMator.Domain;
 namespace ShiftOMator.Application;
 
 /// <summary>
-/// Port of engine/autoPopulate.ts (Docs/06-generation.md). Two passes, not one rule
+/// Port of engine/autoPopulate.ts (Docs/06-generation.md). Four passes, not one rule
 /// list:
-///   A. defaults — the person's DefaultShiftId on their ordinary weekday;
-///   B. the rest — whatever defaults didn't cover, filled by ranking
-///      (<see cref="CandidateRanker"/>) up to the requirement's minimum.
-/// Kept separate because they answer different questions: "whose ordinary job is
-/// this" is the person's profile; "who covers a special/weekend shift" is fairness and
-/// recency. Folding them into one pass would either give defaults a ranking (and
-/// "whose job is this" stops being predictable) or give ranked fills a default
-/// priority (and specialist shifts start going to whoever simply has the lowest count,
-/// not whoever it's actually for).
+///   1. minimums — every requirement filled to <see cref="ShiftRequirement.Min"/> by
+///      ranking (<see cref="CandidateRanker"/>). What is missing here is a real gap;
+///   2. personal defaults — a person carrying an explicit DefaultShiftId gets it, if the
+///      day offers that shift and it has room. An exception mechanism, not the norm
+///      (ADR-0038): most people have none;
+///   3. top-up — on ordinary working days, requirements are filled on towards
+///      <see cref="ShiftRequirement.Max"/>. Not a gap when it falls short: above the
+///      minimum, an empty slot is spare capacity, not an unmet obligation;
+///   4. the day's bulk shift — the requirement marked
+///      <see cref="ShiftRequirement.IsDefault"/> with no ceiling takes everyone still
+///      free and eligible. This is what fills an ordinary working day, and it is a
+///      property of the day configuration, not of a person (ADR-0038).
+///
+/// **Order is the whole design here.** Every pass that grabs people in bulk runs after
+/// every pass that needs a specific person, because the scarce thing is not the shift,
+/// it is someone free to work it. Defaults used to run first, and in a unit where
+/// everyone carried the same DefaultShiftId (unit-amer: 24 people on `Crew`) that pass
+/// consumed the entire team before minimums were considered — every specialist shift
+/// then reported "24 eligible, all already assigned to something else that day". The
+/// bulk pass sits last for the same reason: `AMER:Crew` sorts before `AMER:Crew-BC` and
+/// `AMER:Lead`, so mixing it into pass 3 would repeat that mistake one floor down.
+///
+/// Passes stay separate because they answer different questions: "everyone works today,
+/// and this is where they work" is the day configuration; "who covers a specialist or
+/// weekend shift" is fairness and recency.
+///
+/// Passes 2 and 3 skip weekend and holiday configurations: those are duty rosters, and
+/// filling them to capacity would invent weekend work — and the comp days that come with
+/// it (ADR-0007). A weekend gets exactly its minimums.
+///
+/// Every pass respects <see cref="ShiftRequirement.Max"/>. A null Max means unlimited,
+/// which is not a fill target — pass 3 skips such a requirement, and only pass 4 claims
+/// it, and only when it is the day's declared default.
 ///
 /// Never touches an already-occupied or locked cell. Deterministic: dates ascending,
 /// people by stable id — the same input gives the same output, or rerunning after one
@@ -86,21 +110,73 @@ public static class AutoPopulateService
             .OrderBy(person => person.Id, StringComparer.Ordinal)
             .ToList();
 
-        // --- A. Дефолты -----------------------------------------------------------
+        int FilledOn(DateOnly date, string shiftId) => working.Count(a =>
+            a.Date == date && a.ContentKind == AssignmentContentKind.Shift && a.ShiftId == shiftId);
+
+        /// <summary>Ranked fill of one requirement up to <paramref name="target"/>.
+        /// Returns the reason it could not get there, for the caller to record as a gap
+        /// or ignore — that judgement belongs to the pass, not here.</summary>
+        string? FillTowards(DateOnly date, ShiftRequirement requirement, int target)
+        {
+            var filled = FilledOn(date, requirement.ShiftId);
+            while (filled < target)
+            {
+                var busyToday = working.Where(a => a.Date == date).Select(a => a.PersonId).ToHashSet();
+                var result = CandidateRanker.Rank(new CandidateRanker.RankParams(
+                    requirement.ShiftId, date, p.UnitId, p.Index, working, p.Absences, p.CompDays, busyToday));
+
+                var pick = result.Available.FirstOrDefault();
+                if (pick is null) return GapReason(result);
+
+                Place(pick.PersonId, date, requirement.ShiftId);
+                filled++;
+            }
+            return null;
+        }
+
+        // Выходные и праздники — дежурство, а не рабочий день: их закрывают только
+        // минимумы. Дефолты и догрузка туда не идут, иначе генерация сама придумает
+        // работу в выходной и отгулы за неё.
+        static bool IsDutyRoster(DayConfiguration config) =>
+            config.Key is DayConfigKey.Weekend or DayConfigKey.Holiday;
+
+        // --- 1. Минимумы ------------------------------------------------------------
+
+        foreach (var date in dates)
+        {
+            var config = DayConfigurationResolver.Resolve(p.UnitId, date, p.Index);
+            if (config is null) continue;
+
+            foreach (var requirement in config.ShiftRequirements.OrderBy(r => r.ShiftId, StringComparer.Ordinal))
+            {
+                var reason = FillTowards(date, requirement, requirement.Min);
+                if (reason is not null)
+                {
+                    gaps.Add(new Gap(date, requirement.ShiftId, ShiftCode(p.Index, requirement.ShiftId), reason));
+                }
+            }
+        }
+
+        // --- 2. Дефолты -------------------------------------------------------------
 
         foreach (var date in dates)
         {
             var weekday = DateHelpers.IsoWeekdayOf(date);
             var config = DayConfigurationResolver.Resolve(p.UnitId, date, p.Index);
-            if (config is null) continue;
-            var requiredShifts = config.ShiftRequirements.Select(r => r.ShiftId).ToHashSet();
+            if (config is null || IsDutyRoster(config)) continue;
 
             foreach (var person in peopleInUnit)
             {
                 var key = $"{person.Id}|{date:yyyy-MM-dd}";
                 if (occupied.Contains(key) || locked.Contains(key)) continue;
-                if (person.DefaultShiftId is null || !requiredShifts.Contains(person.DefaultShiftId)) continue;
+                if (person.DefaultShiftId is null) continue;
                 if (!person.Eligibility.Any(e => e.ShiftId == person.DefaultShiftId)) continue;
+
+                var requirement = config.ShiftRequirements.FirstOrDefault(r => r.ShiftId == person.DefaultShiftId);
+                if (requirement is null) continue; // сегодня эта смена не выставляется
+                // Потолок держит и дефолт: если чей-то дефолт — Lead с max=1, вторым его
+                // никто не получает.
+                if (requirement.Max is int max && FilledOn(date, requirement.ShiftId) >= max) continue;
 
                 var blocked = CandidateRanker.AvailabilityBlockReason(person, date, weekday, p.Absences, p.CompDays);
                 if (blocked is not null) continue;
@@ -109,35 +185,43 @@ public static class AutoPopulateService
             }
         }
 
-        // --- B. Остаток по ранжированию --------------------------------------------
+        // --- 3. Догрузка до потолка на обычных рабочих днях --------------------------
 
         foreach (var date in dates)
         {
             var config = DayConfigurationResolver.Resolve(p.UnitId, date, p.Index);
-            if (config is null) continue;
+            if (config is null || IsDutyRoster(config)) continue;
 
-            var requirements = config.ShiftRequirements.OrderBy(r => r.ShiftId, StringComparer.Ordinal);
-
-            foreach (var requirement in requirements)
+            foreach (var requirement in config.ShiftRequirements.OrderBy(r => r.ShiftId, StringComparer.Ordinal))
             {
-                var filled = working.Count(a => a.Date == date && a.ContentKind == AssignmentContentKind.Shift && a.ShiftId == requirement.ShiftId);
+                // Null Max — «сколько угодно»: цель заполнения из этого не следует,
+                // такую смену разбирает проход 4.
+                if (requirement.Max is not int max) continue;
+                // Недобор выше минимума — не дыра: свободная ёмкость, а не невыполненное
+                // обязательство. Причину сюда возвращает FillTowards, и мы её отбрасываем.
+                _ = FillTowards(date, requirement, max);
+            }
+        }
 
-                while (filled < requirement.Min)
-                {
-                    var busyToday = working.Where(a => a.Date == date).Select(a => a.PersonId).ToHashSet();
-                    var result = CandidateRanker.Rank(new CandidateRanker.RankParams(
-                        requirement.ShiftId, date, p.UnitId, p.Index, working, p.Absences, p.CompDays, busyToday));
+        // --- 4. Массовая смена дня ---------------------------------------------------
+        //
+        // Идёт последней, и это не деталь: `AMER:Crew` в алфавите стоит перед
+        // `AMER:Crew-BC` и `AMER:Lead`, так что смешай её с потолочными — и она забрала
+        // бы людей раньше, чем до тех дошла очередь. Та же ошибка, из-за которой дефолты
+        // когда-то съедали команду до минимумов, только этажом ниже.
 
-                    var pick = result.Available.FirstOrDefault();
-                    if (pick is null)
-                    {
-                        gaps.Add(new Gap(date, requirement.ShiftId, ShiftCode(p.Index, requirement.ShiftId), GapReason(result)));
-                        break;
-                    }
+        foreach (var date in dates)
+        {
+            var config = DayConfigurationResolver.Resolve(p.UnitId, date, p.Index);
+            if (config is null || IsDutyRoster(config)) continue;
 
-                    Place(pick.PersonId, date, requirement.ShiftId);
-                    filled++;
-                }
+            foreach (var requirement in config.ShiftRequirements
+                .Where(r => r.Max is null && r.IsDefault)
+                .OrderBy(r => r.ShiftId, StringComparer.Ordinal))
+            {
+                // Ни минимума, ни потолка — «сюда идут все остальные». Заполняется, пока
+                // есть свободные и подходящие: int.MaxValue здесь не число, а «до конца».
+                _ = FillTowards(date, requirement, int.MaxValue);
             }
         }
 

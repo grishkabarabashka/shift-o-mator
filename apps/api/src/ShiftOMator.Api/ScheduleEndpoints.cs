@@ -33,7 +33,7 @@ public static class ScheduleEndpoints
                 if (draft is null) return Results.NotFound(new DraftNotFoundResponse("DRAFT_NOT_FOUND", draftId));
             }
 
-            var (assignments, absences, compDays) = Overlay(dataset, draft);
+            var (assignments, absences, compDays) = DraftOverlay.Apply(dataset, draft);
             var overlaid = new ScheduleDataset
             {
                 Locations = dataset.Locations,
@@ -97,65 +97,25 @@ public static class ScheduleEndpoints
         .RequireAuthorization(AuthPolicies.ViewerOrAbove);
     }
 
-    /// <summary>Best-effort preview overlay — publish is where conflicts are actually
-    /// enforced (ADR-0015); a read of an open draft should never itself fail.</summary>
-    private static (List<Assignment> Assignments, List<Absence> Absences, List<CompDayEntry> CompDays) Overlay(
-        ScheduleDataset dataset, DraftSession? draft)
-    {
-        var assignments = dataset.Assignments.ToDictionary(a => a.Id);
-        var absences = dataset.Absences.ToDictionary(a => a.Id);
-        var compDays = dataset.CompDays.ToDictionary(c => c.Id);
-        if (draft is null) return (assignments.Values.ToList(), absences.Values.ToList(), compDays.Values.ToList());
-
-        foreach (var change in draft.Changes.OrderBy(c => c.Seq))
-        {
-            try
-            {
-                switch (change.TargetType)
-                {
-                    case DraftTargetType.Assignment:
-                        ApplyOverlay(assignments, change, a => a.Id);
-                        break;
-                    case DraftTargetType.Absence:
-                        ApplyOverlay(absences, change, a => a.Id);
-                        break;
-                    case DraftTargetType.CompDay:
-                        ApplyOverlay(compDays, change, c => c.Id);
-                        break;
-                }
-            }
-            catch (DraftDomainException)
-            {
-                // A malformed snapshot shouldn't break the read of the rest of the plan.
-            }
-        }
-        return (assignments.Values.ToList(), absences.Values.ToList(), compDays.Values.ToList());
-    }
-
-    private static void ApplyOverlay<T>(Dictionary<string, T> byId, DraftChange change, Func<T, string> idOf)
-    {
-        if (change.Op == DraftOp.Delete)
-        {
-            var before = DraftJson.Deserialize<T>(change.BeforeJson!);
-            byId.Remove(idOf(before));
-        }
-        else
-        {
-            var after = DraftJson.Deserialize<T>(change.AfterJson!);
-            byId[idOf(after)] = after;
-        }
-    }
-
     /// <summary>PlanningUnit is now the single computation scope (Region deleted, Phase
     /// 8) — no more fan-out to derive a cross-cutting unit's involved regions, a unit's
     /// own id is the whole answer.</summary>
+    /// <summary>
+    /// The `unitId` parameter carries a *scope*, not necessarily one unit: `ALL`, a
+    /// single id, or a comma-separated set. A planning unit is a filter rather than a
+    /// boundary (ADR-0032), and a planner who runs AMER together with Service Transition
+    /// wants exactly those two — "all" mixes in EMEA and APAC, "one" hides the other.
+    ///
+    /// A scope that matches nothing falls back to every unit: an empty screen reads as a
+    /// broken query, not as an answer.
+    /// </summary>
     private static List<string> ResolveUnitIds(string unitId, ScheduleDataset dataset)
     {
-        if (string.IsNullOrEmpty(unitId) || unitId == "ALL_UNITS")
-            return [.. dataset.Units.Select(u => u.Id)];
+        var all = () => dataset.Units.Select(u => u.Id).ToList();
+        if (string.IsNullOrEmpty(unitId) || unitId == "ALL" || unitId == "ALL_UNITS") return all();
 
-        return dataset.Units.Any(u => u.Id == unitId)
-            ? [unitId]
-            : [.. dataset.Units.Select(u => u.Id)];
+        var named = unitId.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+        var known = dataset.Units.Where(u => named.Contains(u.Id)).Select(u => u.Id).ToList();
+        return known.Count > 0 ? known : all();
     }
 }

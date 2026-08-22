@@ -79,32 +79,33 @@ export function CompDayDialog({ asOf }: Props) {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog__overlay" />
+        <Dialog.Overlay className="overlay" />
         <Dialog.Content className="dialog">
           <Dialog.Title className="dialog__title">Comp day for {entry.earnedForDate}</Dialog.Title>
-          <Dialog.Description className="dialog__body">
+          <Dialog.Description className="mb-3 text-[13px] text-muted">
             {person?.displayName ?? entry.personId} · {STATUS_LABEL[entry.status]} · earned{' '}
             {age} {age === 1 ? 'day' : 'days'} ago
             {aged ? ' — outstanding longer than the threshold' : ''}
           </Dialog.Description>
 
           {entry.status === 'PENDING_APPROVAL' ? (
-            <p className="dialog__body">
+            <p className="mb-3 text-[12.5px] text-warn">
               No free eligible date was found inside the policy window. Pick a date manually.
             </p>
           ) : null}
 
-          <label>
+          <label className="mb-1 block text-[12px] font-medium text-muted">
             Comp day date
             <input
               type="date"
+              className="field mt-1 py-1"
               value={actualDate}
               disabled={!editable}
               onChange={(event) => setActualDate(event.target.value)}
             />
           </label>
 
-          <div className="dialog__actions">
+          <div className="mt-4 flex justify-end gap-2">
             <Dialog.Close asChild>
               <button type="button" className="btn">
                 Close

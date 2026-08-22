@@ -5,10 +5,9 @@
  * ему должны». Последнее — не отчётность: отгул, о котором забыли, обнаружится
  * заявлением на увольнение, а не письмом.
  *
- * Phase 8 удалил параллельную сущность контрактного окна (`ShiftDefinition`):
- * `defaultShiftId` теперь то же самое время, что и в сетке, а не отдельный
- * факт. Карточка человека поэтому показывает единицу планирования, локацию и
- * смену как одну связную строку, а не три разрозненных поля.
+ * Дефолтной смены в карточке нет (ADR-0038): у инженера её больше не бывает —
+ * есть смены, которые он не умеет, и они видны как eligibility в профиле. Куда
+ * идут все остальные, говорит конфигурация дня, а не запись о человеке.
  */
 
 import { useMemo, useState } from 'react';
@@ -28,7 +27,6 @@ interface PersonStats {
   readonly person: Person;
   readonly locationName: string;
   readonly unitName: string;
-  readonly shiftLabel: string;
   readonly worked: number;
   readonly weekends: number;
   readonly absent: number;
@@ -91,13 +89,10 @@ export function PeoplePage({ view, asOf }: Props) {
           })
           .sort((a, b) => b.count - a.count);
 
-        const defaultShift = person.defaultShiftId ? index.shifts.get(person.defaultShiftId) : undefined;
-
         return {
           person,
           locationName: row.location.name,
           unitName: row.unit.name,
-          shiftLabel: defaultShift ? `${defaultShift.code} ${defaultShift.start}–${defaultShift.end}` : '—',
           worked,
           weekends,
           absent,
@@ -114,6 +109,7 @@ export function PeoplePage({ view, asOf }: Props) {
     return stats.filter(
       (entry) =>
         entry.person.displayName.toLowerCase().includes(needle) ||
+        (entry.person.employeeId?.toLowerCase().includes(needle) ?? false) ||
         entry.locationName.toLowerCase().includes(needle) ||
         entry.unitName.toLowerCase().includes(needle) ||
         entry.shiftMix.some((shift) => shift.code.toLowerCase().includes(needle)),
@@ -134,7 +130,7 @@ export function PeoplePage({ view, asOf }: Props) {
         <span className="pill">{filtered.length}</span>
         <input
           className="field ml-auto w-[260px]"
-          placeholder="Search name, unit, location or shift"
+          placeholder="Search name, employee ID, unit, location or shift"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           aria-label="Search people"
@@ -151,7 +147,6 @@ export function PeoplePage({ view, asOf }: Props) {
                     одном списке ничего не говорят о том, чьи это правила. */}
                 <th>Unit</th>
                 <th>Location</th>
-                <th>Default shift</th>
                 <th className="text-right">Worked</th>
                 <th className="text-right">Weekends</th>
                 <th className="text-right">Absent</th>
@@ -167,14 +162,18 @@ export function PeoplePage({ view, asOf }: Props) {
                   onClick={() => setSelectedId(entry.person.id)}
                   className="cursor-pointer"
                 >
-                  <td className="font-medium whitespace-nowrap">{entry.person.displayName}</td>
+                  <td className="whitespace-nowrap">
+                    <span className="font-medium">{entry.person.displayName}</span>
+                    {entry.person.employeeId ? (
+                      <span className="ml-1.5 font-mono text-[10.5px] text-faint">
+                        {entry.person.employeeId}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="whitespace-nowrap">
                     <span className="pill">{entry.unitName}</span>
                   </td>
                   <td className="whitespace-nowrap text-muted">{entry.locationName}</td>
-                  <td className="font-mono text-[11.5px] whitespace-nowrap text-muted">
-                    {entry.shiftLabel}
-                  </td>
                   <td className="text-right font-mono">{entry.worked}</td>
                   <td
                     className={`text-right font-mono ${
@@ -260,7 +259,7 @@ function PersonPanel({
         <div className="min-w-0">
           <h2 className="truncate text-[15px] font-semibold">{entry.person.displayName}</h2>
           <p className="text-[12px] text-muted">
-            {entry.unitName} · {entry.locationName} · {entry.shiftLabel}
+            {entry.unitName} · {entry.locationName}
           </p>
         </div>
         <button type="button" className="btn btn--sm btn--ghost ml-auto" onClick={onClose}>

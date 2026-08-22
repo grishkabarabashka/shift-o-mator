@@ -31,6 +31,20 @@ public class AutoPopulateServiceTests
             DateTimeOffset.Parse("2026-09-01T00:00:00Z")));
     }
 
+    /// <summary>Прогон на своей конфигурации дня и своём диапазоне — для случаев про
+    /// потолки и порядок проходов, где важен ровно один день и ровно один набор
+    /// требований.</summary>
+    private static AutoPopulateService.Result RunWith(
+        List<DayConfiguration> configs, List<Person> people, DateOnly from, DateOnly to)
+    {
+        var dataset = MakeDataset(dayConfigurations: configs, people: people);
+        var index = BuildIndex(dataset);
+        return AutoPopulateService.Run(new AutoPopulateService.Params(
+            TestUnit.Id, from, to, new HashSet<string>(),
+            dataset.Assignments, dataset.Absences, dataset.CompDays, index, "p-planner",
+            DateTimeOffset.Parse("2026-09-01T00:00:00Z")));
+    }
+
     public class Defaults
     {
         [Fact]
@@ -71,16 +85,217 @@ public class AutoPopulateServiceTests
         }
 
         [Fact]
-        public void A_mismatched_default_is_not_used_in_pass_A()
+        public void A_mismatched_default_is_not_used()
         {
             // Дефолт — ночная роль, а будняя группа требует дневную: дефолт не
-            // подходит дню, и остаток (проход B) закрыть некем — eligibility нет.
+            // подходит дню, и минимум закрыть некем — eligibility нет.
             var bob = MakePerson("p-bob", defaultRoleId: NightRole.Id,
                 eligibility: [new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 1 }]);
             var result = Run(people: [bob]);
 
             Assert.DoesNotContain(result.Assignments, a => a.ShiftId == LeadRole.Id);
             Assert.Contains(result.Gaps, g => g.ShiftId == LeadRole.Id);
+        }
+
+        /// <summary>
+        /// Регресс: дефолты шли первым проходом и в единице, где у всех один и тот же
+        /// `defaultShiftId`, разбирали команду целиком — на специализированные смены
+        /// не оставалось никого, и каждая из них рапортовала дыру «все уже заняты».
+        /// </summary>
+        [Fact]
+        public void A_shared_default_no_longer_starves_the_other_minimums()
+        {
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [
+                    new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = null, IsDefault = true },
+                    new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 1, Max = 1 },
+                ]);
+
+            List<ShiftEligibility> both =
+            [
+                new ShiftEligibility { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 1 },
+                new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 1 },
+            ];
+            var people = new List<Person>
+            {
+                MakePerson("p-a", defaultRoleId: LeadRole.Id, eligibility: both),
+                MakePerson("p-b", defaultRoleId: LeadRole.Id, eligibility: both),
+                MakePerson("p-c", defaultRoleId: LeadRole.Id, eligibility: both),
+            };
+
+            var monday = new DateOnly(2026, 9, 7);
+            var result = RunWith([config], people, monday, monday);
+
+            Assert.Empty(result.Gaps);
+            Assert.Single(result.Assignments, a => a.ShiftId == NightRole.Id);
+            Assert.Equal(2, result.Assignments.Count(a => a.ShiftId == LeadRole.Id));
+        }
+
+        [Fact]
+        public void A_default_does_not_break_through_the_ceiling()
+        {
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = 1, IsDefault = true }]);
+
+            var eligibility = new List<ShiftEligibility> { new() { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 1 } };
+            var people = new List<Person>
+            {
+                MakePerson("p-a", defaultRoleId: LeadRole.Id, eligibility: eligibility),
+                MakePerson("p-b", defaultRoleId: LeadRole.Id, eligibility: eligibility),
+            };
+
+            var monday = new DateOnly(2026, 9, 7);
+            var result = RunWith([config], people, monday, monday);
+
+            Assert.Single(result.Assignments);
+        }
+    }
+
+    /// <summary>
+    /// Проход 3: смены дня заполняются дальше минимума — до `Max`. Без него пятница
+    /// (у которой свой набор смен, ничьим дефолтом не покрытый) получала ровно по
+    /// одному человеку на смену и оставалась пустой.
+    /// </summary>
+    public class TopUp
+    {
+        private static readonly DateOnly Monday = new(2026, 9, 7);
+
+        private static List<Person> ThreePeople(params string[] shiftIds)
+        {
+            var eligibility = shiftIds
+                .Select(id => new ShiftEligibility { PersonId = "", ShiftId = id, TargetShare = 1 })
+                .ToList();
+            return
+            [
+                MakePerson("p-a", eligibility: [.. eligibility]),
+                MakePerson("p-b", eligibility: [.. eligibility]),
+                MakePerson("p-c", eligibility: [.. eligibility]),
+            ];
+        }
+
+        [Fact]
+        public void Fills_an_ordinary_day_towards_Max_not_only_to_Min()
+        {
+            var config = MakeDayConfig(
+                "dc-friday", DayConfigKey.Friday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = 3 }]);
+
+            var result = RunWith([config], ThreePeople(LeadRole.Id), Monday, Monday);
+
+            Assert.Equal(3, result.Assignments.Count(a => a.ShiftId == LeadRole.Id));
+            Assert.Empty(result.Gaps);
+        }
+
+        [Fact]
+        public void Not_reaching_Max_is_not_a_gap()
+        {
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = 9 }]);
+
+            var result = RunWith([config], ThreePeople(LeadRole.Id), Monday, Monday);
+
+            Assert.Equal(3, result.Assignments.Count(a => a.ShiftId == LeadRole.Id));
+            Assert.Empty(result.Gaps);
+        }
+
+        [Fact]
+        public void An_unlimited_requirement_that_is_not_the_days_default_stays_at_its_minimum()
+        {
+            // Max = null и не IsDefault: ни цели, ни мандата собирать остальных.
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = null }]);
+
+            var result = RunWith([config], ThreePeople(LeadRole.Id), Monday, Monday);
+
+            Assert.Single(result.Assignments);
+        }
+
+        /// <summary>
+        /// ADR-0038: массовую смену задаёт конфигурация дня, а не профиль человека. Ни
+        /// у кого здесь нет `DefaultShiftId` — и всё равно рабочий день заполнен.
+        /// </summary>
+        [Fact]
+        public void The_days_default_shift_takes_everyone_still_free()
+        {
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 1, Max = null, IsDefault = true }]);
+
+            var result = RunWith([config], ThreePeople(LeadRole.Id), Monday, Monday);
+
+            Assert.Equal(3, result.Assignments.Count);
+            Assert.All(result.Assignments, a => Assert.Equal(LeadRole.Id, a.ShiftId));
+        }
+
+        /// <summary>
+        /// Массовая смена идёт последней. Иначе она разберёт команду раньше, чем дойдёт
+        /// очередь до смен с потолком — та же ошибка, что была у дефолтов до минимумов,
+        /// и алфавит её маскирует: `r-lead` сортируется раньше `r-night`.
+        /// </summary>
+        [Fact]
+        public void The_bulk_shift_does_not_starve_a_capped_one()
+        {
+            var config = MakeDayConfig(
+                "dc-weekday", DayConfigKey.Weekday,
+                weekdays: [IsoWeekday.Monday],
+                roleRequirements:
+                [
+                    new ShiftRequirement { DayConfigurationId = "", ShiftId = LeadRole.Id, Min = 0, Max = null, IsDefault = true },
+                    new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 0, Max = 1 },
+                ]);
+
+            var result = RunWith([config], ThreePeople(LeadRole.Id, NightRole.Id), Monday, Monday);
+
+            Assert.Single(result.Assignments, a => a.ShiftId == NightRole.Id);
+            Assert.Equal(2, result.Assignments.Count(a => a.ShiftId == LeadRole.Id));
+        }
+
+        [Fact]
+        public void A_weekend_is_not_filled_by_the_default_shift_either()
+        {
+            var config = MakeDayConfig(
+                "dc-weekend", DayConfigKey.Weekend,
+                weekdays: [IsoWeekday.Saturday, IsoWeekday.Sunday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 1, Max = null, IsDefault = true }]);
+
+            var saturday = new DateOnly(2026, 9, 12);
+            var result = RunWith([config], ThreePeople(NightRole.Id), saturday, saturday);
+
+            Assert.Single(result.Assignments);
+        }
+
+        [Fact]
+        public void A_weekend_gets_its_minimums_and_nothing_more()
+        {
+            // Суббота: дежурство, а не рабочий день. Догрузка до Max=3 здесь
+            // придумала бы работу в выходной и отгулы за неё (ADR-0007).
+            var config = MakeDayConfig(
+                "dc-weekend", DayConfigKey.Weekend,
+                weekdays: [IsoWeekday.Saturday, IsoWeekday.Sunday],
+                roleRequirements:
+                [new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 1, Max = 3 }]);
+
+            var saturday = new DateOnly(2026, 9, 12);
+            var result = RunWith([config], ThreePeople(NightRole.Id), saturday, saturday);
+
+            Assert.Single(result.Assignments);
         }
     }
 

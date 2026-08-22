@@ -169,6 +169,13 @@ function inRange(date: IsoDate, range: DateRange): boolean {
  * `ALL_UNITS` sees every unit, an existing unit id sees just itself. */
 function resolveUnitIds(unitId: string): string[] {
   if (!unitId || unitId === 'ALL' || unitId === 'ALL_UNITS') return mockBackend.data.units.map((u) => u.id);
+  // A scope may name several units (`unit-amer,unit-st`) — same grammar the real
+  // ScheduleEndpoints.ResolveUnitIds parses.
+  if (unitId.includes(',')) {
+    const named = new Set(unitId.split(',').filter(Boolean));
+    const known = mockBackend.data.units.filter((u) => named.has(u.id)).map((u) => u.id);
+    if (known.length > 0) return known;
+  }
   const unit = mockBackend.data.units.find((u) => u.id === unitId);
   return unit ? [unit.id] : mockBackend.data.units.map((u) => u.id);
 }
@@ -283,7 +290,9 @@ export const handlers = [
       .filter((cell) => cell.level === 'gap')
       .map((cell) => ({
         key: `COVERAGE_GAP|${cell.date}||${cell.shiftId}`,
-        level: 'blocking',
+        // INFO, not BLOCKING — coverage gaps stopped blocking publication
+        // (ADR-0035); mirrors Validator.cs's CheckCoverage.
+        level: 'info',
         category: 'gap',
         code: 'coverageGap',
         message: `${cell.shiftId}: ${cell.actual} assigned, minimum is ${cell.min}`,
@@ -359,33 +368,58 @@ export const handlers = [
     );
   }),
 
-  http.post(`${base}/api/drafts/:id/changes`, async ({ params, request }) => {
+  // Mirrors DraftsEndpoints.SyncAssignment/SyncAbsence/SyncCompDay: `before`
+  // comes from *published* data only (never from the draft overlay), the op is
+  // derived from it, and one change is kept per key. Being as strict as the real
+  // server here is the point — the previous handler resolved `before` against
+  // the overlay, which is exactly why the client's op mismatch never showed up
+  // in tests while failing in the browser.
+  http.post(`${base}/api/drafts/:id/changes/sync`, async ({ params, request }) => {
     const entry = mockBackend.sessions.get(params.id as string);
     if (!entry) return HttpResponse.json({ code: 'DRAFT_NOT_FOUND' }, { status: 404 });
-    const body = (await request.json()) as { targetType: string; op: string; entityId: string; after: unknown };
-    const targetType = upperSnakeToCamelReverse(body.targetType);
-    const op = upperSnakeToCamelReverse(body.op) as DraftOp;
-    const seq = entry.changes.length === 0 ? 1 : Math.max(...entry.changes.map((c) => c.seq)) + 1;
+    const body = (await request.json()) as {
+      changes: readonly { targetType: string; key: string; after: unknown }[];
+    };
     const now = new Date().toISOString();
 
-    const overlay = overlayPlan(entry);
-    const before = findBefore(targetType, body.entityId, overlay);
-    const after = body.after ? domainOf(targetType, body.after) : null;
+    for (const item of body.changes) {
+      const targetType = upperSnakeToCamelReverse(item.targetType);
+      const before = findPublished(targetType, item.key);
+      const raw = item.after ? domainOf(targetType, item.after) : null;
 
-    const change = { id: mockBackend.nextId('change'), seq, at: now, targetType, op, before, after } as DraftChange;
-    entry.changes.push(change);
+      entry.changes = entry.changes.filter((c) => keyOfChange(c) !== `${targetType} ${item.key}`);
+      if (!before && !raw) continue;
+
+      // The client's locally-minted id loses to the published row's, same as
+      // the server does.
+      const after =
+        raw && before && targetType === 'ASSIGNMENT' ? { ...raw, id: before.id } : raw;
+      const op: DraftOp = !before ? 'CREATE' : !after ? 'DELETE' : 'UPDATE';
+      const seq = entry.changes.length === 0 ? 1 : Math.max(...entry.changes.map((c) => c.seq)) + 1;
+      entry.changes.push({
+        id: mockBackend.nextId('change'),
+        seq,
+        at: now,
+        targetType,
+        op,
+        before,
+        after,
+      } as DraftChange);
+    }
+
     entry.session = { ...entry.session, updatedAt: now };
-
-    return HttpResponse.json({
-      id: change.id,
-      draftSessionId: entry.session.id,
-      seq: change.seq,
-      at: change.at,
-      targetType: body.targetType,
-      op: body.op,
-      beforeJson: before ? JSON.stringify(wireOf(targetType, before)) : null,
-      afterJson: after ? JSON.stringify(wireOf(targetType, after)) : null,
-    });
+    return HttpResponse.json(
+      entry.changes.map((c) => ({
+        id: c.id,
+        draftSessionId: entry.session.id,
+        seq: c.seq,
+        at: c.at,
+        targetType: upperSnakeToCamel(c.targetType),
+        op: upperSnakeToCamel(c.op),
+        beforeJson: c.before ? JSON.stringify(wireOf(c.targetType, c.before)) : null,
+        afterJson: c.after ? JSON.stringify(wireOf(c.targetType, c.after)) : null,
+      })),
+    );
   }),
 
   http.delete(`${base}/api/drafts/:id/changes/:changeId`, ({ params }) => {
@@ -518,14 +552,27 @@ function wireOf(targetType: DraftTargetType, entity: Assignment | Absence | Comp
   return compDayToWireLocal(entity as CompDayEntry);
 }
 
-function findBefore(
+/** Published state behind a sync key — an assignment's key is its cell. */
+function findPublished(
   targetType: DraftTargetType,
-  entityId: string,
-  overlay: ReturnType<typeof overlayPlan>,
+  key: string,
 ): Assignment | Absence | CompDayEntry | null {
-  if (targetType === 'ASSIGNMENT') return overlay.assignments.find((a) => a.id === entityId) ?? null;
-  if (targetType === 'ABSENCE') return overlay.absences.find((a) => a.id === entityId) ?? null;
-  return overlay.compDays.find((c) => c.id === entityId) ?? null;
+  if (targetType === 'ASSIGNMENT') {
+    return mockBackend.data.assignments.find((a) => `${a.personId}|${a.date}` === key) ?? null;
+  }
+  if (targetType === 'ABSENCE') return mockBackend.data.absences.find((a) => a.id === key) ?? null;
+  return mockBackend.data.compDays.find((c) => c.id === key) ?? null;
+}
+
+/** Same identity rule as `DraftService.KeyOf` server-side. */
+function keyOfChange(change: DraftChange): string {
+  const entity = change.after ?? change.before;
+  if (!entity) return change.id;
+  if (change.targetType === 'ASSIGNMENT') {
+    const a = entity as Assignment;
+    return `ASSIGNMENT ${a.personId}|${a.date}`;
+  }
+  return `${change.targetType} ${entity.id}`;
 }
 
 // Minimal local wire->domain reversal — small enough not to warrant reusing

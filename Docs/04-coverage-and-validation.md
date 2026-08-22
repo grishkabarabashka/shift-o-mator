@@ -10,7 +10,7 @@ For one unit and date, per shift:
 
 | Level | Condition | Meaning |
 |---|---|---|
-| `GAP` | filled < min | A hole. Blocks publication. |
+| `GAP` | filled < min | A hole. Shown and highlighted everywhere; does not block publication (ADR-0035). |
 | `THIN` | filled == min, and min > 0 | Requirement met with zero slack. One absence breaks it. |
 | `OK` | min < filled ≤ max | Healthy. |
 | `OVER` | filled > max | Over-allocated. Warning, not a hole. |
@@ -33,25 +33,26 @@ Three levels, which must not be blended
 
 | Level | Examples | Behavior |
 |---|---|---|
-| **BLOCKING** | Coverage below `min` (gap); double assignment; shift not in the person's unit; unknown shift | Publication is impossible. These are model violations, not policy. |
-| **WARNING / CONFLICT** | Shift not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Requires a deliberate acknowledgement with a comment before publication. Conflicts are decisions, not invalid data — a person may work during their leave, and an eligible override is recorded. |
-| **INFO** | `THIN` coverage; preference violated; deviation from target shift share; comp day aging past the threshold; shift outside the day configuration | Highlighted, never blocking. |
+| **BLOCKING** | Double assignment; shift not in the person's unit; unknown shift | Publication is impossible. These are model violations, not policy — the only things that cannot be right under any decision ([ADR-0009](adr/0009-three-severity-levels.md), narrowed by [ADR-0024](adr/0024-conflicts-do-not-block.md), [ADR-0035](adr/0035-coverage-gap-does-not-block-publication.md), [ADR-0037](adr/0037-warnings-do-not-block-publication.md)). |
+| **WARNING / CONFLICT** | Coverage below `min` (gap); shift not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Shown and highlighted everywhere; acknowledging a conflict or warning with a comment writes a kept record, but it is not a precondition for publishing. |
+| **INFO** | `THIN` coverage; preference violated; deviation from target shift share; comp day aging past the threshold; shift outside the day configuration | Highlighted, never blocking, never acknowledged. |
 
-> **`THIN` is INFO, not WARNING.** Running at exactly the minimum is the normal
+> **`THIN` is INFO, not WARNING/GAP.** Running at exactly the minimum is the normal
 > state of this rota, not a deviation — in the reference data it describes most days.
-> Treating it as a warning would demand a written justification for roughly a hundred
-> cells per month and make publication effectively impossible. The signal earns its
-> keep as a colour in the coverage strip, where it answers "where is the slack" at a
-> glance; it does not earn a blocker.
+> The signal earns its keep as a colour in the coverage strip, where it answers "where
+> is the slack" at a glance; it is not the same state as an unfilled minimum.
 
-**Soft rules do not block.** In reality they are sometimes broken deliberately, and the
-system must not stand in the way. It shows the issue, demands an acknowledgement with a
-comment, and remembers it. Six months later that record answers "how often did we have
-to step outside the rules, and why" — which is the argument for headcount.
+**Nothing but BLOCKING blocks.** A gap, a conflict, and an unacknowledged warning are
+all decisions still to be made or already made in reality, not corrupt data — none of
+them stand in the way of saving the rest of a valid draft. Acknowledging one with a
+comment still writes a kept record; it is no longer what makes publication possible.
+Six months later that record still answers "how often did we have to step outside the
+rules, and why" — which is the argument for headcount.
 
 ## Gaps versus conflicts
 
-Both are `BLOCKING`, and the UI must not merge them:
+Neither blocks publication, and the UI must still not merge them — they are fixed
+differently:
 
 - a **gap** is missing work — nobody is doing something that must be done;
 - a **conflict** is invalid data — somebody is recorded doing something they cannot do.
@@ -92,9 +93,10 @@ jumps to the exact grid cell.
 6. Friday uses the Friday configuration, not the Monday–Thursday one.
 7. Holiday applicability follows the person's location, not the region.
 8. Draft edits are never visible as published data before publication.
-9. Publication with unresolved gaps or corrupt data is blocked. Conflicts (role not
-   eligible, assigned during absence, assigned during comp day) require acknowledgement
-   but do not block. An Admin force on a gap is explicit and audited.
+9. Publication with corrupt data (a double assignment, or a shift outside the person's
+   unit) is blocked. Gaps and conflicts (role not eligible, assigned during absence,
+   assigned during comp day) do not block; acknowledging a conflict or warning is a
+   kept, comment-carrying record, not a precondition.
 10. A stale version produces a compare/refresh flow, never a silent overwrite.
 11. Every comp day generated from weekend work keeps its link to the earning
     assignment.
@@ -103,6 +105,18 @@ jumps to the exact grid cell.
 13. Dates always show weekday and date; times always show a timezone.
 14. Every green/amber/red state carries text or an icon. Color alone is never the
     signal.
+
+## Reading the list
+
+The issue panel shows **findings, not rows**. A month of one unit produces a couple of
+hundred issues, and "Cover understaffed" twelve times reads as twelve problems when it is
+one: Cover, twelve days. Issues therefore collapse by (code, subject) — subject being the
+shift, the person, or the unit — into a single line carrying the count and the date span,
+which expands to the individual dates when someone decides to act on it.
+
+The grouping rule is deliberately the same one `IssueDigest` applies server-side for the
+plain-English summary (Docs/06). The panel and the summary have to be talking about the
+same findings, or there is nothing to check the summary against.
 
 ## Acknowledgements
 

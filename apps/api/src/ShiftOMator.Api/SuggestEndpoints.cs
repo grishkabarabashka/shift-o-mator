@@ -1,7 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Api.Contracts.Suggest;
 using ShiftOMator.Application;
+using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 
 namespace ShiftOMator.Api;
@@ -36,11 +38,38 @@ public static class SuggestEndpoints
                 return Results.BadRequest(new ErrorResponse("RANGE_TOO_LONG", $"Auto-populate is limited to {AutoPopulateService.MaxDays} days."));
 
             var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
-            var index = DatasetIndex.Build(dataset);
+
+            // Генерация смотрит на план глазами планировщика: опубликованное плюс его
+            // открытый черновик. Иначе уже расставленные вручную ячейки для неё пусты, и
+            // принятое превью затирает их.
+            DraftSession? draft = null;
+            if (!string.IsNullOrEmpty(req.DraftId))
+            {
+                draft = await db.DraftSessions.AsNoTracking().Include(s => s.Changes)
+                    .FirstOrDefaultAsync(s => s.Id == req.DraftId, ct);
+                if (draft is null) return Results.NotFound(new ErrorResponse("DRAFT_NOT_FOUND", $"Draft {req.DraftId} does not exist."));
+            }
+
+            var (assignments, absences, compDays) = DraftOverlay.Apply(dataset, draft);
+            var index = DatasetIndex.Build(new ScheduleDataset
+            {
+                Locations = dataset.Locations,
+                Holidays = dataset.Holidays,
+                Units = dataset.Units,
+                Shifts = dataset.Shifts,
+                DayConfigurations = dataset.DayConfigurations,
+                People = dataset.People,
+                AbsenceCapacityRules = dataset.AbsenceCapacityRules,
+                Assignments = assignments,
+                Absences = absences,
+                CompDays = compDays,
+                Acknowledgements = dataset.Acknowledgements,
+                History = dataset.History,
+            });
 
             var result = AutoPopulateService.Run(new AutoPopulateService.Params(
                 req.UnitId, req.RangeFrom, req.RangeTo, req.LockedAssignmentIds ?? [],
-                dataset.Assignments, dataset.Absences, dataset.CompDays, index, req.ActorId, DateTimeOffset.UtcNow));
+                assignments, absences, compDays, index, req.ActorId, DateTimeOffset.UtcNow));
 
             return Results.Ok(result);
         })

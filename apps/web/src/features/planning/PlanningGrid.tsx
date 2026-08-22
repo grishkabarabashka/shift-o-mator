@@ -415,7 +415,13 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
 
         {rows.map((row) =>
           row.kind === 'group' ? (
-            <GroupRow key={row.key} label={row.label} count={row.count} span={columns.length} />
+            <GroupRow
+              key={row.key}
+              label={row.label}
+              count={row.count}
+              level={row.level}
+              span={columns.length}
+            />
           ) : (
             <PersonRow
               key={row.key}
@@ -513,19 +519,24 @@ function ColumnHead({
 function GroupRow({
   label,
   count,
+  level,
   span,
 }: {
   readonly label: string;
   readonly count: number;
+  readonly level: 1 | 2;
   readonly span: number;
 }) {
   return (
     <>
-      <div className="sheet__group">
+      {/* Уровень задан данными, отступ — представлением: вложенная группа
+          сдвигается и теряет насыщенность, чтобы единица читалась как рамка,
+          а локация внутри неё — как её часть. */}
+      <div className="sheet__group" data-level={level}>
         <span className="truncate">{label}</span>
         <span className="sheet__group-count">{count}</span>
       </div>
-      <div className="sheet__group-fill" style={{ gridColumn: `span ${span}` }} />
+      <div className="sheet__group-fill" data-level={level} style={{ gridColumn: `span ${span}` }} />
     </>
   );
 }
@@ -562,7 +573,6 @@ const PersonRow = memo(function PersonRow({
     <>
       <div className="sheet__name" title={`${person.displayName} · ${location.name}`}>
         <span className="truncate">{person.displayName}</span>
-        <span className="sheet__name-meta">{location.name}</span>
       </div>
       {columns.map((column, columnIndex) => {
         const key = cellKey(person.id, column.date);

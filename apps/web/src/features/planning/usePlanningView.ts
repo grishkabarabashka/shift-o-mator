@@ -41,7 +41,7 @@ import type {
   ShiftId,
   UnitId,
 } from '../../domain/types.ts';
-import { ALL_UNITS } from '../../domain/types.ts';
+import { isAllUnits, unitsInScope } from '../../domain/unitScope.ts';
 import type { CellProjection } from '../../engine/cellValue.ts';
 import { projectCells } from '../../engine/cellValue.ts';
 import { indexCoverage, summarizeCoverage } from '../../engine/coverageView.ts';
@@ -51,7 +51,19 @@ import { useSchedule } from '../../store/useSchedule.ts';
 
 /** Строка сетки: либо заголовок группы, либо человек. */
 export type GridRow =
-  | { readonly kind: 'group'; readonly key: string; readonly label: string; readonly count: number }
+  | {
+      readonly kind: 'group';
+      readonly key: string;
+      readonly label: string;
+      readonly count: number;
+      /**
+       * 1 — единица планирования, 2 — группировка внутри неё (локация,
+       * категория). Уровень появляется, только когда на экране больше одной
+       * единицы: тогда без него Chicago и Pune из разных единиц стоят в одном
+       * списке, и по строке не видно, чьи правила к ней применяются.
+       */
+      readonly level: 1 | 2;
+    }
   | {
       readonly kind: 'person';
       readonly key: string;
@@ -138,13 +150,15 @@ const EMPTY_VIEW: PlanningView = {
 
 export { cellKey };
 
-/** Люди, попадающие в строки: единица планирования, либо все (ADR-0020). */
-function selectPeople(unitId: string, index: DatasetIndex): Person[] {
+/** Люди, попадающие в строки: выбранные единицы, либо все (ADR-0020). */
+function selectPeople(scope: string, index: DatasetIndex): Person[] {
   // `ALL` — не единица, а её отсутствие: фильтра нет (ADR-0020).
-  if (unitId === ALL_UNITS) {
+  if (isAllUnits(scope)) {
     return [...index.people.values()].filter((p) => p.isIncluded);
   }
-  return (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded);
+  return unitsInScope(scope, [...index.units.keys()]).flatMap((unitId) =>
+    (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded),
+  );
 }
 
 function groupKeyOf(person: Person, groupBy: string, index: DatasetIndex): string {
@@ -173,12 +187,13 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
 
   return useMemo<PlanningView>(() => {
     if (!unitId || !range || !reference || !plan || !index || !schedule) return EMPTY_VIEW;
-    const unit = index.units.get(unitId);
-    if (!unit && unitId !== ALL_UNITS) return EMPTY_VIEW;
+    // Область из одной единицы — это её собственная группировка; из нескольких
+    // (или «все») — своей группировки у сводного вида нет, и внешним уровнем
+    // становится сама единица (см. сборку строк ниже).
+    const scopedUnitIds = unitsInScope(unitId, [...index.units.keys()]);
+    const unit = scopedUnitIds.length === 1 ? index.units.get(scopedUnitIds[0] as UnitId) : undefined;
+    if (scopedUnitIds.length === 0) return EMPTY_VIEW;
 
-    // Без фильтра по единице группировка идёт по локации: со всеми единицами
-    // сразу список локаций — единственная осмысленная группировка, раз своей
-    // единицы группировки у сводного вида нет.
     const groupBy = unit?.groupBy ?? 'LOCATION';
 
     const dates = eachDate(range);
@@ -186,31 +201,68 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
     const unitIds = [...new Set(people.map((p) => p.unitId))].sort();
 
     // --- Строки ------------------------------------------------------------
-    const byGroup = new Map<string, Person[]>();
-    for (const person of people) {
-      const key = groupKeyOf(person, groupBy, index);
-      const bucket = byGroup.get(key);
-      if (bucket) bucket.push(person);
-      else byGroup.set(key, [person]);
-    }
-
+    //
+    // Единица планирования — внешний уровень, и только когда их несколько.
+    // Со всеми единицами сразу список локаций перемешивался: Chicago (AMER)
+    // стоял рядом с Chicago (ST), и по строке не было видно, чьи правила к ней
+    // применяются — а правила висят именно на единице (ADR-0032).
     const rows: GridRow[] = [];
-    for (const groupLabel of [...byGroup.keys()].sort()) {
-      const members = [...(byGroup.get(groupLabel) ?? [])].sort((a, b) =>
-        a.displayName.localeCompare(b.displayName),
-      );
-      rows.push({
-        kind: 'group',
-        key: `g-${groupLabel}`,
-        label: groupLabel,
-        count: members.length,
-      });
-      for (const person of members) {
-        const location = index.locations.get(person.locationId);
-        const personUnit = index.units.get(person.unitId);
-        if (!location || !personUnit) continue;
-        rows.push({ kind: 'person', key: person.id, person, location, unit: personUnit });
+    const byUnit = new Map<UnitId, Person[]>();
+    for (const person of people) {
+      const bucket = byUnit.get(person.unitId);
+      if (bucket) bucket.push(person);
+      else byUnit.set(person.unitId, [person]);
+    }
+    const multiUnit = byUnit.size > 1;
+
+    const pushGroup = (people: readonly Person[], groupByForUnit: string, level: 1 | 2): void => {
+      const byGroup = new Map<string, Person[]>();
+      for (const person of people) {
+        const key = groupKeyOf(person, groupByForUnit, index);
+        const bucket = byGroup.get(key);
+        if (bucket) bucket.push(person);
+        else byGroup.set(key, [person]);
       }
+
+      for (const groupLabel of [...byGroup.keys()].sort()) {
+        const members = [...(byGroup.get(groupLabel) ?? [])].sort((a, b) =>
+          a.displayName.localeCompare(b.displayName),
+        );
+        rows.push({
+          kind: 'group',
+          key: `g-${level}-${groupLabel}`,
+          label: groupLabel,
+          count: members.length,
+          level,
+        });
+        for (const person of members) {
+          const location = index.locations.get(person.locationId);
+          const personUnit = index.units.get(person.unitId);
+          if (!location || !personUnit) continue;
+          rows.push({ kind: 'person', key: person.id, person, location, unit: personUnit });
+        }
+      }
+    };
+
+    if (multiUnit) {
+      const unitOrder = [...byUnit.keys()].sort((a, b) =>
+        (index.units.get(a)?.name ?? a).localeCompare(index.units.get(b)?.name ?? b),
+      );
+      for (const memberUnitId of unitOrder) {
+        const members = byUnit.get(memberUnitId) ?? [];
+        rows.push({
+          kind: 'group',
+          key: `u-${memberUnitId}`,
+          label: index.units.get(memberUnitId)?.name ?? memberUnitId,
+          count: members.length,
+          level: 1,
+        });
+        // Внутри единицы действует её собственная группировка, а не общая:
+        // у ST она может отличаться от AMER, и это её правило.
+        pushGroup(members, index.units.get(memberUnitId)?.groupBy ?? 'LOCATION', 2);
+      }
+    } else {
+      pushGroup(people, groupBy, 1);
     }
 
     // --- Резолв конфигурации дня (сервер) -----------------------------------

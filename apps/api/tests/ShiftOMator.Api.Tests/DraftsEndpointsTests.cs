@@ -188,4 +188,107 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var plainAssignments = withoutDraft.GetProperty("plan").GetProperty("assignments").EnumerateArray().ToList();
         Assert.DoesNotContain(plainAssignments, a => a.GetProperty("id").GetString() == assignmentId);
     }
+
+    // -- Sync (the declarative path the client actually uses) ------------------
+
+    private static Task<HttpResponseMessage> SyncAsync(HttpClient client, string draftId, params object[] items) =>
+        client.PostAsJsonAsync($"/api/drafts/{draftId}/changes/sync", new { changes = items });
+
+    private static object AssignmentItem(string personId, DateOnly date, object? after) =>
+        new { targetType = "assignment", key = $"{personId}|{date:yyyy-MM-dd}", after };
+
+    /// <summary>
+    /// Repainting a cell the same draft created: the client sends the cell's new state
+    /// twice, and the draft ends up holding one change, not a create plus an update
+    /// against a row that does not exist in published data yet.
+    /// </summary>
+    [Fact]
+    public async Task Sync_keeps_one_change_per_cell_when_it_is_repainted()
+    {
+        var client = factory.CreateClient();
+        var date = NextDate();
+        var draftId = await OpenDraftAsync(client, date, date);
+
+        var firstId = $"as-local-{Guid.NewGuid():n}";
+        var secondId = $"as-local-{Guid.NewGuid():n}";
+        (await SyncAsync(client, draftId, AssignmentItem(PersonId, date, AssignmentPayload(firstId, PersonId, date, ShiftId))))
+            .EnsureSuccessStatusCode();
+        var second = await SyncAsync(client, draftId, AssignmentItem(PersonId, date, AssignmentPayload(secondId, PersonId, date, "AMER:Cover")));
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+        var changes = await client.GetFromJsonAsync<JsonElement>($"/api/drafts/{draftId}/changes");
+        var list = changes.EnumerateArray().ToList();
+        Assert.Single(list);
+        Assert.Equal("create", list[0].GetProperty("op").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/drafts/{draftId}/publish", null)).StatusCode);
+
+        var schedule = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/schedule?unitId={UnitId}&from={date:yyyy-MM-dd}&to={date:yyyy-MM-dd}");
+        var assignments = schedule.GetProperty("plan").GetProperty("assignments").EnumerateArray()
+            .Where(a => a.GetProperty("personId").GetString() == PersonId).ToList();
+        Assert.Single(assignments);
+        Assert.Equal("AMER:Cover", assignments[0].GetProperty("shiftId").GetString());
+    }
+
+    /// <summary>
+    /// Clearing a published cell and painting it again inside one draft. The client mints
+    /// a fresh local id for the repaint; the server keeps editing the published row.
+    /// </summary>
+    [Fact]
+    public async Task Sync_turns_clear_then_repaint_of_a_published_cell_into_one_update()
+    {
+        var client = factory.CreateClient();
+        var date = NextDate();
+
+        var publishedId = $"as-test-{Guid.NewGuid():n}";
+        var firstDraft = await OpenDraftAsync(client, date, date);
+        (await SyncAsync(client, firstDraft, AssignmentItem(PersonId, date, AssignmentPayload(publishedId, PersonId, date, ShiftId))))
+            .EnsureSuccessStatusCode();
+        (await client.PostAsync($"/api/drafts/{firstDraft}/publish", null)).EnsureSuccessStatusCode();
+
+        var secondDraft = await OpenDraftAsync(client, date, date);
+        (await SyncAsync(client, secondDraft, AssignmentItem(PersonId, date, null))).EnsureSuccessStatusCode();
+        var repaintId = $"as-local-{Guid.NewGuid():n}";
+        (await SyncAsync(client, secondDraft, AssignmentItem(PersonId, date, AssignmentPayload(repaintId, PersonId, date, "AMER:Cover"))))
+            .EnsureSuccessStatusCode();
+
+        var changes = await client.GetFromJsonAsync<JsonElement>($"/api/drafts/{secondDraft}/changes");
+        var list = changes.EnumerateArray().ToList();
+        Assert.Single(list);
+        Assert.Equal("update", list[0].GetProperty("op").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/drafts/{secondDraft}/publish", null)).StatusCode);
+
+        var schedule = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/schedule?unitId={UnitId}&from={date:yyyy-MM-dd}&to={date:yyyy-MM-dd}");
+        var assignments = schedule.GetProperty("plan").GetProperty("assignments").EnumerateArray()
+            .Where(a => a.GetProperty("personId").GetString() == PersonId).ToList();
+        Assert.Single(assignments);
+        Assert.Equal(publishedId, assignments[0].GetProperty("id").GetString());
+        Assert.Equal("AMER:Cover", assignments[0].GetProperty("shiftId").GetString());
+    }
+
+    /// <summary>A whole painted range in one request — no partial application on a bad
+    /// item, which is what made the old per-change loop lose the tail of a batch.</summary>
+    [Fact]
+    public async Task Sync_rejects_the_whole_batch_when_one_item_is_invalid()
+    {
+        var client = factory.CreateClient();
+        var date = NextDate();
+        var draftId = await OpenDraftAsync(client, date, date);
+
+        var goodId = $"as-local-{Guid.NewGuid():n}";
+        var badId = $"as-local-{Guid.NewGuid():n}";
+        var response = await SyncAsync(
+            client,
+            draftId,
+            AssignmentItem(PersonId, date, AssignmentPayload(goodId, PersonId, date, ShiftId)),
+            // EMEA shift on an AMER person — SHIFT_OUTSIDE_UNIT (ADR-0004).
+            AssignmentItem(PersonId, date.AddDays(1), AssignmentPayload(badId, PersonId, date.AddDays(1), "EMEA:BM")));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var changes = await client.GetFromJsonAsync<JsonElement>($"/api/drafts/{draftId}/changes");
+        Assert.Empty(changes.EnumerateArray());
+    }
 }

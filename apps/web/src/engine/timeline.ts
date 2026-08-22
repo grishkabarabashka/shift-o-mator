@@ -218,7 +218,7 @@ export function buildTimelineDay({
     date,
     axis,
     lanes,
-    handovers: handoversOf(lanes),
+    handovers: handoversOf(regionLanesFor(lanes, index)),
     headcountByHour: headcountOf(
       lanes.flatMap((lane) =>
         lane.blocks.filter((block) => !block.empty).map((block) => ({
@@ -327,7 +327,7 @@ export function buildDayDetail({
     date,
     axis,
     lanes,
-    handovers: handoversOf(lanes),
+    handovers: handoversOf(regionLanesFor(lanes, index)),
     headcountByHour: headcountOf(
       lanes.flatMap((lane) =>
         lane.bars.filter((bar) => bar.kind === 'assigned').map((bar) => ({
@@ -393,6 +393,22 @@ function ceilHour(instant: IsoInstant): IsoInstant {
   const dt = DateTime.fromISO(instant, { zone: 'utc' });
   const floored = dt.startOf('hour');
   return (floored.equals(dt) ? dt : floored.plus({ hours: 1 })).toISO()!;
+}
+
+/**
+ * Только REGION-единицы участвуют в передаче смены — сама передача существует
+ * только между ними (follow-the-sun: AMER → EMEA → APAC → AMER).
+ * CROSS_REGION-единица вроде unit-st пересекается по времени с региональными
+ * соседями почти всегда, но это не передача: её собственное покрытие по
+ * регионам (ST:AMER/ST:EMEA/ST:APAC) — внутреннее дело самой этой единицы,
+ * рисуется в её собственной дорожке, и штриховка «эта единица сдаёт смену
+ * той» здесь была бы неправдой (owner review).
+ */
+function regionLanesFor<T extends { unitId: UnitId }>(
+  lanes: readonly T[],
+  index: DatasetIndex,
+): readonly T[] {
+  return lanes.filter((lane) => index.units.get(lane.unitId)?.kind === 'REGION');
 }
 
 /**

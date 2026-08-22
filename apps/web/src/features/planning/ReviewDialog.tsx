@@ -4,6 +4,13 @@
  * Ничего не становится публичным без этого экрана: счётчики, построчный diff
  * старое → новое, влияние на покрытие. Публикация атомарна; при расхождении
  * версий показывается сравнение, а черновик **сохраняется целиком**.
+ *
+ * Список изменений группируется по человеку — на черновике в полсотни правок
+ * плоская лента спанов читалась как одна строка текста (owner review). Ни
+ * `dialog--wide`, ни `review__*` классов в CSS не было — диалог рисовался
+ * узким, без колонок и без прокрутки списка, выдавливая кнопки за край;
+ * здесь только `.overlay`/`.dialog` и Tailwind, как в остальном приложении
+ * (ADR-0022).
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -29,7 +36,9 @@ export function ReviewDialog({ view, open, onClose }: Props) {
 
   const summary = useMemo(() => summarizeChanges(changes), [changes]);
   const { gaps, conflicts: dataConflicts, unacknowledgedWarnings } = view.issueSummary;
-  const publishable = canPublish(view.issues, view.acknowledged);
+  const publishable = canPublish(view.issues);
+
+  const groups = useMemo(() => groupByPerson(changes, view), [changes, view]);
 
   const onPublish = async (): Promise<void> => {
     const outcome = await publish();
@@ -47,70 +56,65 @@ export function ReviewDialog({ view, open, onClose }: Props) {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog__overlay" />
-        <Dialog.Content className="dialog dialog--wide">
+        <Dialog.Overlay className="overlay" />
+        <Dialog.Content className="dialog w-[min(680px,calc(100vw-32px))]">
           <Dialog.Title className="dialog__title">Review changes</Dialog.Title>
 
-          <div className="review__counts">
-            <span className="review__count">
-              <strong>{summary.created}</strong> created
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
+            <span>
+              <strong className="font-semibold">{summary.created}</strong> created
             </span>
-            <span className="review__count">
-              <strong>{summary.updated}</strong> modified
+            <span>
+              <strong className="font-semibold">{summary.updated}</strong> modified
             </span>
-            <span className="review__count">
-              <strong>{summary.deleted}</strong> removed
+            <span>
+              <strong className="font-semibold">{summary.deleted}</strong> removed
             </span>
           </div>
 
-          <div className="review__impact">
-            <span className={gaps > 0 ? 'review__impact--bad' : 'review__impact--good'}>
-              {gaps} coverage {gaps === 1 ? 'gap' : 'gaps'} remaining
-            </span>
-            <span className={dataConflicts > 0 ? 'review__impact--bad' : 'review__impact--good'}>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {/* Дыры не блокируют публикацию (ADR-0035) — этот чип информационный,
+                не предупреждение об отказе. */}
+            <Pill tone={gaps > 0 ? 'warn' : 'ok'}>
+              {gaps} coverage {gaps === 1 ? 'gap' : 'gaps'} will stay after publishing
+            </Pill>
+            <Pill tone={dataConflicts > 0 ? 'warn' : 'ok'}>
               {dataConflicts} {dataConflicts === 1 ? 'conflict' : 'conflicts'}
-            </span>
-            <span
-              className={
-                unacknowledgedWarnings > 0 ? 'review__impact--warn' : 'review__impact--good'
-              }
-            >
-              {unacknowledgedWarnings} unacknowledged{' '}
-              {unacknowledgedWarnings === 1 ? 'warning' : 'warnings'}
-            </span>
+            </Pill>
+            <Pill tone={unacknowledgedWarnings > 0 ? 'warn' : 'ok'}>
+              {unacknowledgedWarnings} unacknowledged {unacknowledgedWarnings === 1 ? 'warning' : 'warnings'}
+            </Pill>
           </div>
 
           {conflicts.length > 0 ? (
-            <div className="review__conflicts">
-              <strong>Publication was rejected — the schedule changed underneath you.</strong>
-              <ul>
+            <div className="mb-3 rounded-lg border border-bad bg-bad-soft px-3 py-2.5 text-[12.5px]">
+              <strong className="block font-semibold text-bad">
+                Publication was rejected — the schedule changed underneath you.
+              </strong>
+              <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
                 {conflicts.map((conflict) => (
                   <li key={conflict.changeId}>{conflict.reason}</li>
                 ))}
               </ul>
-              <p>Your draft is intact. Reload the period and reapply.</p>
+              <p className="mt-1.5 text-faint">Your draft is intact. Reload the period and reapply.</p>
             </div>
           ) : null}
 
-          <div className="review__list">
-            {changes.length === 0 ? (
-              <p className="issues__empty">No changes yet</p>
+          <div className="max-h-[45vh] overflow-y-auto rounded-lg border border-line">
+            {groups.length === 0 ? (
+              <p className="p-3 text-[12.5px] text-faint">No changes yet</p>
             ) : (
-              changes.map((change) => (
-                <ChangeRow key={change.id} change={change} view={view} />
-              ))
+              groups.map((group) => <PersonGroup key={group.personId} group={group} />)
             )}
           </div>
 
           {!publishable ? (
-            <p className="dialog__body">
-              {gaps + dataConflicts > 0
-                ? 'Publication is blocked until every gap and conflict is resolved.'
-                : 'Every warning must be acknowledged with a comment before publishing.'}
+            <p className="mt-3 text-[12.5px] text-bad">
+              Publication is blocked by a double assignment or an unknown/ineligible shift.
             </p>
           ) : null}
 
-          <div className="dialog__actions">
+          <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
               className="btn"
@@ -141,44 +145,104 @@ export function ReviewDialog({ view, open, onClose }: Props) {
   );
 }
 
-function ChangeRow({ change, view }: { change: DraftChange; view: PlanningView }) {
-  const describe = (value: unknown): string => {
-    if (value === null || value === undefined) return '—';
-    if (change.targetType === 'ASSIGNMENT') {
-      const assignment = value as { content: { kind: string; shiftId?: string; marker?: string } };
-      if (assignment.content.kind === 'SHIFT' && assignment.content.shiftId) {
-        return view.shiftById(assignment.content.shiftId)?.code ?? assignment.content.shiftId;
-      }
-      return assignment.content.marker === 'OFF' ? 'Off' : '0';
-    }
-    if (change.targetType === 'ABSENCE') {
-      const absence = value as { type: string; from: string; to: string };
-      return `${absence.type} ${absence.from}–${absence.to}`;
-    }
-    const entry = value as { status: string };
-    return entry.status;
+function Pill({
+  tone,
+  children,
+}: {
+  readonly tone: 'ok' | 'warn' | 'bad';
+  readonly children: React.ReactNode;
+}) {
+  return <span className={`pill pill--${tone}`}>{children}</span>;
+}
+
+// ---------------------------------------------------------------------------
+// Группировка по человеку
+// ---------------------------------------------------------------------------
+
+interface PersonGroup {
+  readonly personId: string;
+  readonly personName: string;
+  readonly changes: readonly DraftChange[];
+}
+
+function personIdOf(change: DraftChange): string | undefined {
+  return (change.after ?? change.before)?.personId;
+}
+
+function dateOf(change: DraftChange): string {
+  if (change.targetType === 'ASSIGNMENT') return (change.after ?? change.before)?.date ?? '';
+  if (change.targetType === 'ABSENCE') return (change.after ?? change.before)?.from ?? '';
+  return (change.after ?? change.before)?.earnedForDate ?? '';
+}
+
+function groupByPerson(changes: readonly DraftChange[], view: PlanningView): PersonGroup[] {
+  const nameOf = (personId: string | undefined): string => {
+    if (!personId) return '—';
+    const row = view.rows.find((r) => r.kind === 'person' && r.person.id === personId);
+    return row?.kind === 'person' ? row.person.displayName : personId;
   };
 
-  const anchor = (): string => {
-    if (change.targetType === 'ASSIGNMENT') {
-      const target = change.after ?? change.before;
-      if (!target) return '';
-      const person = view.rows.find(
-        (row) => row.kind === 'person' && row.person.id === target.personId,
-      );
-      const name = person?.kind === 'person' ? person.person.displayName : target.personId;
-      return `${name} · ${target.date}`;
-    }
-    const target = change.after ?? change.before;
-    return target ? `${(target as { personId: string }).personId}` : '';
-  };
+  const byPerson = new Map<string, DraftChange[]>();
+  for (const change of changes) {
+    const personId = personIdOf(change) ?? '—';
+    const bucket = byPerson.get(personId);
+    if (bucket) bucket.push(change);
+    else byPerson.set(personId, [change]);
+  }
 
+  return [...byPerson.entries()]
+    .map(([personId, personChanges]) => ({
+      personId,
+      personName: nameOf(personId === '—' ? undefined : personId),
+      changes: [...personChanges].sort((a, b) => dateOf(a).localeCompare(dateOf(b))),
+    }))
+    .sort((a, b) => a.personName.localeCompare(b.personName));
+}
+
+function PersonGroup({ group }: { readonly group: PersonGroup }) {
   return (
-    <div className="review__row">
-      <span className="review__anchor">{anchor()}</span>
-      <span className="review__from">{describe(change.before)}</span>
-      <span className="review__arrow">→</span>
-      <span className="review__to">{describe(change.after)}</span>
+    <div className="border-b border-line last:border-0">
+      <div className="sticky top-0 flex items-center gap-2 border-b border-line bg-sunken px-3 py-1.5">
+        <span className="text-[12px] font-semibold">{group.personName}</span>
+        <span className="text-[10.5px] text-faint">
+          {group.changes.length} {group.changes.length === 1 ? 'change' : 'changes'}
+        </span>
+      </div>
+      <div className="divide-y divide-line/60">
+        {group.changes.map((change) => (
+          <ChangeRow key={change.id} change={change} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function describe(change: DraftChange, value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (change.targetType === 'ASSIGNMENT') {
+    const assignment = value as { content: { kind: string; shiftId?: string; marker?: string } };
+    if (assignment.content.kind === 'SHIFT' && assignment.content.shiftId) {
+      return assignment.content.shiftId;
+    }
+    return assignment.content.marker === 'OFF' ? 'Off' : '0';
+  }
+  if (change.targetType === 'ABSENCE') {
+    const absence = value as { type: string; from: string; to: string };
+    return `${absence.type} ${absence.from}–${absence.to}`;
+  }
+  const entry = value as { status: string };
+  return entry.status;
+}
+
+function ChangeRow({ change }: { readonly change: DraftChange }) {
+  return (
+    <div className="grid grid-cols-[72px_1fr_auto_1fr] items-center gap-2 px-3 py-1.5 text-[12px]">
+      <span className="font-mono text-[11px] text-faint">{dateOf(change).slice(5) || '—'}</span>
+      <span className="truncate text-muted">{describe(change, change.before)}</span>
+      <span aria-hidden className="text-faint">
+        →
+      </span>
+      <span className="truncate font-medium">{describe(change, change.after)}</span>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.Drafts;
@@ -97,6 +98,59 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
 
+        // The client syncs *desired cell state*, not a log of ops (SyncChangesRequest):
+        // one request for a whole painted range, one change kept per cell, and the op
+        // derived here from published data. Repainting a cell the same draft created is
+        // then an ordinary replacement rather than an UPDATE against a row that does not
+        // exist yet — which used to 400 and take the rest of the client's batch with it.
+        app.MapPost("/api/drafts/{id}/changes/sync", async (string id, SyncChangesRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        {
+            var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
+            if (session is null) return Results.NotFound();
+
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var index = DatasetIndex.Build(dataset);
+            var now = DateTimeOffset.UtcNow;
+
+            try
+            {
+                foreach (var item in req.Changes)
+                {
+                    foreach (var stale in DraftService.TakeChangesForKey(session, item.TargetType, item.Key))
+                        db.DraftChanges.Remove(stale);
+
+                    switch (item.TargetType)
+                    {
+                        case DraftTargetType.Assignment:
+                            SyncAssignment(session, item, index, now);
+                            break;
+                        case DraftTargetType.Absence:
+                            SyncAbsence(session, item, dataset, index, now);
+                            break;
+                        case DraftTargetType.CompDay:
+                            SyncCompDay(session, item, dataset, index, now);
+                            break;
+                        default:
+                            throw new DraftDomainException("UNKNOWN_TARGET_TYPE", $"Unknown target type {item.TargetType}.");
+                    }
+                }
+            }
+            catch (DraftDomainException ex)
+            {
+                // Nothing is saved: SaveChangesAsync is below the loop, so a bad item
+                // leaves the draft exactly as it was rather than half-applied.
+                return Results.BadRequest(new ErrorResponse(ex.Code, ex.Message));
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(session.Changes.OrderBy(c => c.Seq));
+        })
+        .WithName("SyncDraftChanges")
+        .Produces<IReadOnlyList<DraftChange>>()
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound)
+        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+
         app.MapDelete("/api/drafts/{id}/changes/{changeId}", async (string id, string changeId, ScheduleDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
@@ -152,6 +206,63 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerOrAbove);
     }
+
+    /// <summary>
+    /// Turns "this cell should end up like this" into the create/update/delete the draft
+    /// needs, against published data. The client's locally-minted id is discarded when the
+    /// cell already holds a published row: the planner edited that row, whatever the grid
+    /// called it while the draft was open.
+    /// </summary>
+    private static void SyncAssignment(DraftSession session, SyncChangeItem item, DatasetIndex index, DateTimeOffset now)
+    {
+        var before = index.AssignmentsByCell.GetValueOrDefault(item.Key);
+        var after = DeserializeAfter<Assignment>(item);
+
+        if (after is not null)
+        {
+            if (DraftService.AssignmentKeyOf(after) != item.Key)
+            {
+                throw new DraftDomainException("KEY_MISMATCH",
+                    $"Payload describes cell {DraftService.AssignmentKeyOf(after)}, not {item.Key}.");
+            }
+            if (before is not null)
+            {
+                after.Id = before.Id;
+                after.Version = before.Version;
+            }
+        }
+
+        if (before is null && after is null) return; // an empty cell that stayed empty
+        var op = before is null ? DraftOp.Create : after is null ? DraftOp.Delete : DraftOp.Update;
+        DraftService.AppendAssignmentChange(session, op, before, after, index, now);
+    }
+
+    private static void SyncAbsence(
+        DraftSession session, SyncChangeItem item, ScheduleDataset dataset, DatasetIndex index, DateTimeOffset now)
+    {
+        var before = dataset.Absences.FirstOrDefault(a => a.Id == item.Key);
+        var after = DeserializeAfter<Absence>(item);
+        if (before is null && after is null) return;
+        var op = before is null ? DraftOp.Create : after is null ? DraftOp.Delete : DraftOp.Update;
+        DraftService.AppendAbsenceChange(session, op, before, after, index, now);
+    }
+
+    private static void SyncCompDay(
+        DraftSession session, SyncChangeItem item, ScheduleDataset dataset, DatasetIndex index, DateTimeOffset now)
+    {
+        var before = dataset.CompDays.FirstOrDefault(c => c.Id == item.Key);
+        var after = DeserializeAfter<CompDayEntry>(item);
+        if (before is null && after is null) return;
+        var op = before is null ? DraftOp.Create : after is null ? DraftOp.Delete : DraftOp.Update;
+        DraftService.AppendCompDayChange(session, op, before, after, index, now);
+    }
+
+    /// <summary>An absent field and an explicit <c>null</c> mean the same thing here:
+    /// the client wants this cell/row gone.</summary>
+    private static T? DeserializeAfter<T>(SyncChangeItem item) where T : class =>
+        item.After is null || item.After.Value.ValueKind == JsonValueKind.Null
+            ? null
+            : DraftJson.DeserializeElement<T>(item.After.Value);
 
     /// <summary>
     /// One serializable transaction (ADR-0015): the plan is read fresh inside the

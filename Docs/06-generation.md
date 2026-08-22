@@ -50,15 +50,76 @@ Constraints:
 Sequence:
 
 1. load the day configuration for each date in the period;
-2. place each included person's `defaultRoleId` on their ordinary working days;
-3. rotate specialist roles by the candidate ordering;
-4. rotate weekend roles, honoring `weekendEligible` and `maxWeekendsPerQuarter`;
-5. apply holidays;
+2. **minimums first** — fill every requirement to its `min` by the candidate ordering,
+   including weekend and holiday duty;
+3. **then personal defaults** — a person carrying an explicit `defaultShiftId` gets it,
+   if the day offers that shift and it has room. An exception mechanism (ADR-0038), not
+   the norm: almost nobody has one;
+4. **then top up** — on ordinary working days only, keep filling requirements towards
+   `max` by the candidate ordering;
+5. **then the day's bulk shift** — the requirement marked `isDefault` with no `max`
+   takes everyone still free and eligible;
 6. generate comp days for the weekend and holiday work just created;
 7. return the ordered set of draft changes.
 
+**Where the team goes on an ordinary day is a property of the day, not of each person**
+([ADR-0038](adr/0038-day-configuration-owns-the-default-shift.md)). Engineers do not
+carry a default shift; they carry the shifts they cannot do. A unit that declares no bulk
+shift for its ordinary days fills them only to their minimums.
+
+**Every pass that takes people in bulk runs after every pass that needs a particular
+person**, because the scarce resource is not the shift, it is somebody free to work it.
+The same mistake is available twice: defaults used to run before minimums, and a unit
+where everyone carried `Crew` had its whole team consumed before minimums were
+considered — every specialist shift then reported "24 eligible, all already assigned to
+something else that day". The bulk pass would repeat it one floor down, since
+`AMER:Crew` sorts alphabetically before `AMER:Crew-BC` and `AMER:Lead`.
+
+**Top-up is what fills a day whose shifts have ceilings.** unit-amer's Friday
+carries `Lead-E` / `Crew-E` / `Crew-L`, which no one has as a default; without a pass
+that fills past the minimum, Friday got exactly one person per shift and read as empty.
+A `max` of null means unlimited and is *not* a top-up target: an unlimited requirement
+is claimed by the bulk pass, and only when the configuration marks it `isDefault`.
+
+Weekend and holiday configurations get their minimums and nothing more: they are duty
+rosters, and filling them to capacity would invent weekend work — and the comp days that
+come with it.
+
+Generation reads published data **plus the planner's open draft** (`draftId` on the
+request). Without it, cells filled by hand minutes earlier look empty to the generator,
+and accepting the preview overwrites the decision that was just made.
+
 Where a requirement cannot be met, generation leaves a **visible gap with a stated
 reason**. Silently under-filling is worse than an honest hole.
+
+**Selecting cells first scopes the run** (owner review — Generate otherwise always
+filled the whole visible period). The `/api/auto-populate` endpoint itself has no
+person filter; it still fills the whole unit for the given range. The client narrows
+range to the selection's earliest–latest date and drops every previewed change for a
+person outside the selection before it can reach the draft (`AutoPopulateDialog.tsx`,
+`autoPopulateScope.ts`) — nothing changes on the server for this. Gaps stay unit-wide
+in the preview even when scoped to a few people, since a gap has no person to filter
+by.
+
+## Plain-English summaries (optional)
+
+`POST /api/insights/gap-summary` explains a period's gaps, conflicts and warnings in a
+few sentences. Two layers, deliberately separate:
+
+- `IssueDigest` (Application, pure, tested) groups the validator's output by shift,
+  level and code, and counts it. This is where correctness lives.
+- `GapSummaryService` (Api) asks a model to phrase that digest, under a prompt that
+  forbids any number, name, date or cause the digest does not contain.
+
+The response carries the validator's counts alongside the prose, and the UI shows both,
+so a reader can check one against the other.
+
+Which model answers is configuration, not code: the service talks to `IChatClient`
+(Microsoft.Extensions.AI), and the `Ai` section names the provider and model
+(`"Provider": "anthropic" | "none"`), with the key coming from the provider's environment
+variable. With nothing configured the endpoint answers `503 AI_NOT_CONFIGURED` and the
+panel does not appear. Nothing in planning depends on it — the model explains the plan,
+it never decides it.
 
 ## Explainability
 

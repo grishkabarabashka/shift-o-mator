@@ -1408,7 +1408,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-thomas-foley",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-megan-sullivan",
@@ -1450,7 +1450,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-megan-sullivan",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-brian-castillo",
@@ -1496,7 +1496,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-brian-castillo",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-alison-kowalski",
@@ -1546,7 +1546,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-alison-kowalski",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-patrick-brennan",
@@ -1592,7 +1592,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-patrick-brennan",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-nicole-hoffman",
@@ -1646,7 +1646,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-nicole-hoffman",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-gregory-ramirez",
@@ -1700,7 +1700,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-gregory-ramirez",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-michael-reed",
@@ -1750,7 +1750,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-michael-reed",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-sarah-whitfield",
@@ -1808,7 +1808,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-sarah-whitfield",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-david-simmons",
@@ -1858,7 +1858,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-david-simmons",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-emily-vance",
@@ -1904,7 +1904,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-emily-vance",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-james-brooks",
@@ -1954,7 +1954,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-james-brooks",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-olivia-nash",
@@ -2012,7 +2012,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-olivia-nash",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-robert-pierce",
@@ -2058,7 +2058,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-robert-pierce",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-laura-carter",
@@ -2100,7 +2100,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-laura-carter",
-   "defaultShiftId": "AMER:Crew"
+   "defaultShiftId": null
   },
   {
    "id": "p-rohan-deshpande",
@@ -2158,7 +2158,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-rohan-deshpande",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-priya-iyer",
@@ -2216,7 +2216,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-priya-iyer",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-amit-bhatt",
@@ -2266,7 +2266,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-amit-bhatt",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-sneha-chauhan",
@@ -2332,7 +2332,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-sneha-chauhan",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-vikram-verma",
@@ -2382,7 +2382,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-vikram-verma",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-anjali-kulkarni",
@@ -2432,7 +2432,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-anjali-kulkarni",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-karan-rao",
@@ -2494,7 +2494,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-karan-rao",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-divya-nair",
@@ -2552,7 +2552,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-divya-nair",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-suresh-gokhale",
@@ -2606,7 +2606,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-suresh-gokhale",
-   "defaultShiftId": "AMER:Batch-L"
+   "defaultShiftId": null
   },
   {
    "id": "p-kevin-grant",
@@ -2668,7 +2668,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-daniel-whitmore",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-charlotte-harding",
@@ -2708,7 +2708,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-charlotte-harding",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-oliver-fletcher",
@@ -2740,7 +2740,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-oliver-fletcher",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-sophie-pemberton",
@@ -2784,7 +2784,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-sophie-pemberton",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-marcus-bennett",
@@ -2820,7 +2820,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-marcus-bennett",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-hannah-reid",
@@ -2860,7 +2860,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-hannah-reid",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-adam-ashworth",
@@ -2896,7 +2896,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-adam-ashworth",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-grace-ellis",
@@ -2932,7 +2932,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-grace-ellis",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-colin-braithwaite",
@@ -2968,7 +2968,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-colin-braithwaite",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-fiona-braithwaite",
@@ -3008,7 +3008,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-fiona-braithwaite",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-derek-braithwaite",
@@ -3044,7 +3044,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-derek-braithwaite",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-lukas-brunner",
@@ -3078,7 +3078,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-lukas-brunner",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-anna-frei",
@@ -3116,7 +3116,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-anna-frei",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-stefan-schwarz",
@@ -3154,7 +3154,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-stefan-schwarz",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-nadine-keller",
@@ -3196,7 +3196,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-nadine-keller",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-thomas-baumann",
@@ -3234,7 +3234,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-thomas-baumann",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-elena-zimmermann",
@@ -3276,7 +3276,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-elena-zimmermann",
-   "defaultShiftId": "EMEA:CH-Early"
+   "defaultShiftId": null
   },
   {
    "id": "p-neha-sane",
@@ -3312,7 +3312,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-neha-sane",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-nikhil-joshi",
@@ -3348,7 +3348,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-nikhil-joshi",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-pooja-menon",
@@ -3388,7 +3388,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-pooja-menon",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-rahul-pillai",
@@ -3424,7 +3424,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-rahul-pillai",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-meera-shetty",
@@ -3464,7 +3464,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-meera-shetty",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-priya-rao",
@@ -3500,7 +3500,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-priya-rao",
-   "defaultShiftId": "EMEA:E"
+   "defaultShiftId": null
   },
   {
    "id": "p-nathan-cole",
@@ -3568,7 +3568,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-wei-ming-tan",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-siti-ho",
@@ -3610,7 +3610,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-siti-ho",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-jason-koh",
@@ -3644,7 +3644,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-jason-koh",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-mei-ling-wong",
@@ -3686,7 +3686,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-mei-ling-wong",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-arun-lim",
@@ -3728,7 +3728,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-arun-lim",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-cheryl-ng",
@@ -3762,7 +3762,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-cheryl-ng",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-daniel-chua",
@@ -3800,7 +3800,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-daniel-chua",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-preeti-rahman",
@@ -3838,7 +3838,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-preeti-rahman",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-sneha-gokhale",
@@ -3876,7 +3876,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-sneha-gokhale",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-anjali-joshi",
@@ -3918,7 +3918,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-anjali-joshi",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-divya-pillai",
@@ -3956,7 +3956,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-divya-pillai",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-neha-deshpande",
@@ -3994,7 +3994,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-neha-deshpande",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-pooja-bhatt",
@@ -4028,7 +4028,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-pooja-bhatt",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-meera-verma",
@@ -4062,7 +4062,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-meera-verma",
-   "defaultShiftId": "APAC:M"
+   "defaultShiftId": null
   },
   {
    "id": "p-hui-xin-kumar",
@@ -4094,7 +4094,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-hui-xin-kumar",
-   "defaultShiftId": "APAC:G"
+   "defaultShiftId": null
   },
   {
    "id": "p-marcus-sharma",
@@ -4126,7 +4126,7 @@
     "maxWeekendsPerQuarter": 3
    },
    "calendarToken": "tok-p-marcus-sharma",
-   "defaultShiftId": "APAC:G"
+   "defaultShiftId": null
   },
   {
    "id": "p-curtis-aldridge",

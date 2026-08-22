@@ -2,24 +2,39 @@ import { describe, expect, it } from 'vitest';
 import {
   dateAtFraction,
   fractionOf,
+  overviewRange,
   rangeFor,
   rangeLength,
   scrubberTrack,
   stepAnchor,
+  stepOverviewAnchor,
 } from './period.ts';
 
-describe('масштаб периода', () => {
-  it('day/two-day не выравниваются, week/two-week — по понедельнику', () => {
+describe('масштаб периода (Schedule — минимум месяц, ADR-0036)', () => {
+  it('month/quarter/half-year выравниваются на 1-е число', () => {
     // 2026-09-09 — среда.
-    expect(rangeFor('day', '2026-09-09')).toEqual({ from: '2026-09-09', to: '2026-09-09' });
-    expect(rangeFor('two-day', '2026-09-09')).toEqual({ from: '2026-09-09', to: '2026-09-10' });
-    expect(rangeFor('week', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-09-13' });
-    expect(rangeFor('two-week', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-09-20' });
+    expect(rangeFor('month', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+    expect(rangeFor('quarter', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2026-11-30' });
+    expect(rangeFor('half-year', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2027-02-28' });
   });
 
   it('шаг равен длине текущего масштаба', () => {
-    expect(stepAnchor('week', '2026-09-09', 1)).toBe('2026-09-16');
     expect(stepAnchor('month', '2026-09-09', 1)).toBe('2026-10-01');
+    expect(stepAnchor('quarter', '2026-09-09', 1)).toBe('2026-12-01');
+  });
+});
+
+describe('окно Overview (1/3/7 суток, ADR-0036)', () => {
+  it('окно — span суток от якоря плюс столько же контекста с каждой стороны', () => {
+    expect(overviewRange('2026-09-09', 1)).toEqual({ from: '2026-09-08', to: '2026-09-10' });
+    expect(overviewRange('2026-09-09', 3)).toEqual({ from: '2026-09-06', to: '2026-09-14' });
+    expect(overviewRange('2026-09-09', 7)).toEqual({ from: '2026-09-02', to: '2026-09-22' });
+  });
+
+  it('шаг равен ширине видимого окна, а не окну с контекстом', () => {
+    expect(stepOverviewAnchor('2026-09-09', 1, 1)).toBe('2026-09-10');
+    expect(stepOverviewAnchor('2026-09-09', 7, 1)).toBe('2026-09-16');
+    expect(stepOverviewAnchor('2026-09-09', 3, -1)).toBe('2026-09-06');
   });
 });
 

@@ -29,11 +29,25 @@ via `GET /api/drafts/{id}` and applies changes via `POST /api/drafts/{id}/change
    creating a session for (editor, region, period), or returns the existing open
    session if one exists. A `Draft` tag appears in the global header. The draft is
    persisted server-side.
-2. **Edit.** Every cell change appends a `DraftChange` via `POST /api/drafts/{id}/changes`
-   carrying the full before and after value. Coverage and validation recompute
-   immediately server-side and reflect against published + draft on the next query.
-3. **Undo / redo.** `DELETE /api/drafts/{id}/changes/{changeId}` reverses changes in
-   order. Because each change carries both values, the inverse is free.
+2. **Edit.** The client declares the *desired state* of the cells it touched —
+   `POST /api/drafts/{id}/changes/sync`, one request per debounced batch, each item a
+   key (`personId|date` for an assignment, the row id for an absence or comp day) and
+   the value that cell should end up with. The server derives create / update / delete
+   by comparing against published data, captures the `before` snapshot itself, and keeps
+   **exactly one change per key**. Coverage and validation recompute immediately
+   server-side and reflect against published + draft on the next query.
+
+   > **Why state, not a log of operations.** The client used to send one POST per
+   > change with an op it computed locally. Repainting a cell the same draft created
+   > produced an `UPDATE` against a row that does not exist in published data yet — a
+   > 400 that aborted the rest of the batch, silently, leaving the grid showing edits
+   > the server never received. Declaring state removes the whole class: the client
+   > cannot compute the wrong op because it no longer computes one, and a retry is
+   > idempotent because the desired state is recomputed from the plan.
+
+3. **Undo / redo.** Undo is not a separate server operation: it changes the plan, and
+   the next sync sends what the affected cells became. Locally, each change carries both
+   values, so the inverse is free.
 4. **Review.** Save opens the review overlay: counts of created / modified / removed,
    a scrollable diff of old → new, and an impact summary — gaps fixed, gaps created,
    conflicts, comp-offs generated or moved.

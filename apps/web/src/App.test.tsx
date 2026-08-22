@@ -48,10 +48,9 @@ afterEach(() => {
     // не в конкретный регион, иначе тесты проверяют не то состояние, которое
     // видит пользователь при открытии.
     unitId: ALL_UNITS,
-    zoom: 'month',
-    anchor: TODAY,
+    overview: { anchor: TODAY, span: 1 },
+    schedule: { anchor: TODAY, zoom: 'month' },
     range: rangeFor('month', TODAY),
-    custom: false,
   });
 });
 
@@ -66,12 +65,22 @@ function renderApp() {
 /**
  * Приложение открывается на Overview — планирование за одной вкладкой.
  * Единица задаётся до рендера: сетка грузится под неё одним проходом.
+ *
+ * Overview и Schedule держат независимые периоды (ADR-0036) и оба пишут в
+ * общий `useUi.range`/`useSchedule.range` при монтировании: Overview
+ * — сузив до 1/3/7 суток, Schedule — до месяца. Переход между экранами на миг
+ * везёт данные под период предыдущего экрана, пока не отработает эффект и не
+ * подъедет план под новый диапазон — дожидаемся именно этого, а не только
+ * появления самой сетки.
  */
 async function renderSchedule(unitId: string = DEFAULT_UNIT) {
   useUi.setState({ unitId });
   const utils = renderApp();
   fireEvent.click(await screen.findByRole('link', { name: 'Schedule' }, { timeout: 10000 }));
   await screen.findByRole('grid', {}, { timeout: 10000 });
+  await waitFor(() => {
+    expect(useSchedule.getState().range).toEqual(useUi.getState().range);
+  });
   return utils;
 }
 
@@ -158,15 +167,19 @@ describe('оболочка', () => {
 });
 
 describe('выбор периода', () => {
-  it('масштаб меняет число колонок', async () => {
+  // Schedule планирует не короче месяца (ADR-0036) — недельного и дневного
+  // зума на этом экране больше нет; 3/6 месяцев вместо этого переключают на
+  // тепловую карту только для чтения (ADR: сетка на 90–180 колонок не влезает
+  // ни на экран, ни в бюджет отрисовки).
+  it('3 Months переключает редактируемую сетку на тепловую карту', async () => {
     await renderSchedule();
-    const monthColumns = grid().querySelectorAll('.sheet__head').length;
+    expect(grid().querySelectorAll('.sheet__head').length).toBeGreaterThan(28);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Week' }));
+    fireEvent.click(screen.getByRole('button', { name: '3 Months' }));
     await waitFor(() => {
-      expect(grid().querySelectorAll('.sheet__head').length).toBe(7);
+      expect(screen.getByText(/Read-only overview/)).toBeInTheDocument();
     });
-    expect(monthColumns).toBeGreaterThan(7);
+    expect(screen.queryByRole('grid')).toBeNull();
   });
 });
 
@@ -192,9 +205,72 @@ describe('сетка', () => {
     expect(headers).toContain('Pune');
   });
 
+  it('переключение с «всех единиц» на одну убирает группы чужих локаций', async () => {
+    // Регресс: со «всех единиц» видно City-группы обеих единиц (Chicago/New
+    // York/Pune из AMER, London из EMEA); переключение на одну единицу через
+    // сам пикер должно убрать London/EMEA, а не оставить их разделителями.
+    await renderSchedule(ALL_UNITS);
+    const headersBefore = [...grid().querySelectorAll('.sheet__group')].map((el) =>
+      el.textContent?.replace(/\d+/g, '').trim(),
+    );
+    expect(headersBefore).toContain('London');
+    expect(headersBefore).toContain('EMEA');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Planning units' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Americas' }));
+
+    await waitFor(() => {
+      expect(useSchedule.getState().unitId).toBe(DEFAULT_UNIT);
+    });
+
+    await waitFor(() => {
+      const headersAfter = [...grid().querySelectorAll('.sheet__group')].map((el) =>
+        el.textContent?.replace(/\d+/g, '').trim(),
+      );
+      expect(headersAfter).not.toContain('London');
+      expect(headersAfter).not.toContain('EMEA');
+      expect(headersAfter).toContain('Chicago');
+    });
+  });
+
+  it('после программного перехода "одна -> все -> одна" группы чужой единицы не остаются', async () => {
+    // То же самое, что делает пикер изнутри (setUnit), только без клика по
+    // Radix Popover — так сценарий проверяет реактивность данных сетки, а не
+    // механику попапа.
+    await renderSchedule();
+    useUi.getState().setUnit(ALL_UNITS);
+
+    await waitFor(() => {
+      expect(useSchedule.getState().unitId).toBe(ALL_UNITS);
+    });
+    await waitFor(() => {
+      const headers = [...grid().querySelectorAll('.sheet__group')].map((el) =>
+        el.textContent?.replace(/\d+/g, '').trim(),
+      );
+      expect(headers).toContain('London');
+    });
+
+    useUi.getState().setUnit(DEFAULT_UNIT);
+
+    await waitFor(() => {
+      expect(useSchedule.getState().unitId).toBe(DEFAULT_UNIT);
+    });
+    await waitFor(() => {
+      const headers = [...grid().querySelectorAll('.sheet__group')].map((el) =>
+        el.textContent?.replace(/\d+/g, '').trim(),
+      );
+      expect(headers).not.toContain('London');
+      expect(headers).not.toContain('EMEA');
+    });
+  });
+
+
+
   it('показывает реальные коды смен и их окна на палитре', async () => {
     await renderSchedule();
-    const palette = screen.getByRole('toolbar', { name: 'Shifts' });
+    // Палитра свёрнута по умолчанию (owner review — отжимала сетку).
+    fireEvent.click(screen.getByRole('button', { name: /Shifts/ }));
+    const palette = await screen.findByRole('toolbar', { name: 'Shifts' });
     expect(within(palette).getByText('Lead')).toBeInTheDocument();
     expect(within(palette).getByText('Batch-E')).toBeInTheDocument();
   });
@@ -341,7 +417,11 @@ describe('покрытие и нарушения', () => {
 });
 
 describe('публикация', () => {
-  it('review показывает diff и блокируется дырами', async () => {
+  // Coverage gaps не блокируют публикацию (ADR-0035, owner review): дыры
+  // остаются видны и подсвечены, но сохранять черновик они не мешают.
+  // Только неподтверждённые warning и BLOCKING-конфликты (двойное назначение,
+  // чужая/несуществующая смена) держат кнопку Publish disabled.
+  it('review показывает diff, покрытие не блокирует публикацию', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
 
@@ -351,11 +431,10 @@ describe('публикация', () => {
       expect(cellShiftId(personId, date)).toBe(shiftId);
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: /Review & publish/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Publish/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/created/)).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Publish' })).toBeDisabled();
-    expect(within(dialog).getByText(/Publication is blocked/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Publish' })).toBeEnabled();
   });
 
   it('черновик переживает закрытие review', async () => {
@@ -368,7 +447,7 @@ describe('публикация', () => {
       expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: /Review & publish/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Publish/ }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
 

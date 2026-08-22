@@ -108,7 +108,7 @@ export function AbsenceImportDialog({ open, onClose }: Props) {
   const published = useSchedule((s) => s.published);
   const index = useSchedule((s) => s.index);
   const commitAbsenceImport = useSchedule((s) => s.commitAbsenceImport);
-  const setAnchor = useUi((s) => s.setAnchor);
+  const setAnchor = useUi((s) => s.setScheduleAnchor);
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('input');

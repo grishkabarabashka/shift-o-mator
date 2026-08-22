@@ -23,7 +23,7 @@ const NAME_W = 185;
 const MIN_DAY_W = 4;
 
 export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
-  const setZoom = useUi((s) => s.setZoom);
+  const setZoom = useUi((s) => s.setScheduleZoom);
   const { rows, columns } = view;
   const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
 

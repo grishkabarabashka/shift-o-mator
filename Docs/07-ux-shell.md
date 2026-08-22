@@ -18,9 +18,10 @@ in the masthead, the global controls and page cards instead.
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Product header**, left to right: product identity; segmented **planning unit** selector
-— `ALL` plus one segment per unit, so the three regions and any cross-region team such as
-Service Transition sit side by side; an amber `✏️ Draft` tag when a draft is open; spacer;
+**Product header**, left to right: product identity; the **planning unit** picker — a
+checkbox popover holding `All planning units` plus every unit, so a planner who runs AMER
+together with Service Transition selects exactly those two (a unit is a filter, not a
+boundary — ADR-0032 — and "all or one" answered the wrong question); an amber `✏️ Draft` tag when a draft is open; spacer;
 display timezone control (hidden on small screens); user badge with avatar, display name
 and role tag.
 
@@ -35,7 +36,7 @@ provides accountability ([ADR-0020](adr/0020-planning-unit-and-region.md)).
 
 | Control | Scope | Effect |
 |---|---|---|
-| Unit selector | Overview, Schedule, People | `ALL` is a global overview; one unit is that unit's roster. **A default filter, not a boundary** — Schedule offers a "whole region" toggle, and everyone can write everywhere. |
+| Unit picker | Overview, Schedule, People | `ALL`, one unit, or any subset. **A default filter, not a boundary** — everyone can write everywhere. With more than one unit on screen the Schedule grid groups by unit first, then by the unit's own grouping, so two cities of the same name from different units cannot be confused. |
 | Display timezone | All time-bearing detail (timelines, schedule, people) | Repositions displayed windows to the chosen timezone: role time (the role's fixed window), UTC, or any configured location. Never changes stored definitions. |
 | Date range | Overview, Schedule | Back / Today / forward, zoom, presets, clickable day strip, year minimap on long ranges. |
 | Display options | Schedule | Show or hide off days and weekends; toggle gap and conflict emphasis. |

@@ -15,7 +15,7 @@
  * стоило бы делить с другими экранами.
  */
 
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { zoomSpec } from '../engine/period.ts';
 import { hasDraftChanges, useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
@@ -48,8 +48,15 @@ export function SchedulePage({ view, asOf }: Props) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [autoPopulateOpen, setAutoPopulateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const gridScroller = useRef<HTMLDivElement>(null);
+
+  // useLayoutEffect, не useEffect: с обычным эффектом первый кадр рисуется ещё
+  // овервьюшным периодом (ADR-0036 — у экранов свои периоды), и переход с
+  // Overview моргал однодневным зумом, прежде чем встать на месяц. Layout-эффект
+  // отрабатывает до отрисовки, так что промежуточного состояния не видно.
+  const enterSchedule = useUi((s) => s.enterSchedule);
+  useLayoutEffect(() => enterSchedule(), [enterSchedule]);
 
   // Зум задаёт масштаб, а не лимит показа: неделя должна растянуться на весь
   // экран, а не остаться полосой 62px-колонок в пустом пространстве. Ширина
@@ -62,8 +69,7 @@ export function SchedulePage({ view, asOf }: Props) {
       ? Math.max(MIN_CELL_W, (fillWidth - NAME_W) / view.columns.length)
       : MIN_CELL_W;
 
-  const zoom = useUi((s) => s.zoom);
-  const custom = useUi((s) => s.custom);
+  const zoom = useUi((s) => s.schedule.zoom);
   const range = useUi((s) => s.range);
   const selection = useUi((s) => s.selection);
   const openAbsenceCreate = useUi((s) => s.openAbsenceCreate);
@@ -73,6 +79,7 @@ export function SchedulePage({ view, asOf }: Props) {
   const changeCount = useSchedule((s) => s.changes.length);
   const publishing = useSchedule((s) => s.publishing);
   const pendingSync = useSchedule((s) => s.pendingSync);
+  const syncError = useSchedule((s) => s.syncError);
   const overlapping = useSchedule((s) => s.overlappingDrafts);
   const undo = useSchedule((s) => s.undo);
   const redo = useSchedule((s) => s.redo);
@@ -80,8 +87,7 @@ export function SchedulePage({ view, asOf }: Props) {
   const redoDepth = useSchedule((s) => s.redoStack.length);
   const discard = useSchedule((s) => s.discard);
 
-  // Ручной диапазон всегда редактируем: его длину выбрал сам планировщик.
-  const detail = custom || zoomSpec(zoom).detail;
+  const detail = zoomSpec(zoom).detail;
   const absenceTargets = resolveAbsenceTargets(view, selection);
 
   return (
@@ -89,9 +95,12 @@ export function SchedulePage({ view, asOf }: Props) {
       <DateRangeControl />
 
       {overlapping.length > 0 ? (
-        <div className="rounded-lg border border-accent bg-accent-soft px-3 py-2 text-[12.5px] text-accent">
+        <div
+          className="rounded-lg border border-accent bg-accent-soft px-3 py-2 text-[12.5px] text-accent"
+          title="Concurrent drafts are allowed; publication revalidates against the latest published state."
+        >
           {overlapping.length === 1
-            ? 'Another planner has an open draft for this period. Concurrent drafts are allowed; publication revalidates against the latest published state.'
+            ? 'Another planner has an open draft for this period.'
             : `${overlapping.length} other planners have open drafts for this period.`}
         </div>
       ) : null}
@@ -130,15 +139,25 @@ export function SchedulePage({ view, asOf }: Props) {
               type="button"
               className="btn btn--sm"
               onClick={() => setImportOpen(true)}
-              title="Paste or upload leave-system data: map columns, review the diff, apply as one batch"
+              title="Import absences — paste or upload leave-system data: map columns, review the diff, apply as one batch"
             >
-              Import absences…
+              Import…
             </button>
 
             <div className="ml-auto flex items-center gap-2">
               {editing ? (
                 <>
-                  {pendingSync || view.coverageStale ? (
+                  {/* Сбой синхронизации важнее индикатора «Saving…»: сетка
+                      показывает правку, сервер о ней не знает, и публиковать
+                      в этом состоянии нельзя. */}
+                  {syncError ? (
+                    <span
+                      className="rounded border border-bad bg-bad-soft px-1.5 py-0.5 text-[11px] text-bad"
+                      title={syncError}
+                    >
+                      Not saved — retrying
+                    </span>
+                  ) : pendingSync || view.coverageStale ? (
                     <span
                       className="text-[11px] text-faint"
                       title={
@@ -179,7 +198,7 @@ export function SchedulePage({ view, asOf }: Props) {
                     onClick={() => setReviewOpen(true)}
                     disabled={!dirty || publishing}
                   >
-                    {publishing ? 'Publishing…' : `Review & publish (${changeCount})`}
+                    {publishing ? 'Publishing…' : `Publish (${changeCount})`}
                   </button>
                 </>
               ) : (
@@ -212,11 +231,25 @@ export function SchedulePage({ view, asOf }: Props) {
 
           {detail ? (
             <>
-              <PlanningGrid view={view} scrollerRef={gridScroller} />
+              {/* key: смена набора единиц (в т.ч. со «всех» на одну) меняет, какие
+                  строки-разделители городов есть в сетке. Реконсиляция по ключам
+                  строк убирает лишние группы из DOM корректно (проверено тестами
+                  в App.test.tsx), но в браузере на CSS Grid с sticky-заголовками
+                  внутри изредка остаётся неперерисованный кусок картинки от
+                  удалённой строки — известный класс багов перерисовки при
+                  implicit grid + position: sticky. `key` заставляет React
+                  пересобрать DOM сетки целиком при смене области вместо точечного
+                  патча, тем самым гарантируя чистую перерисовку — то же самое,
+                  что чинит переход на экран заново. */}
+              <PlanningGrid
+                key={view.unitIds.join(',')}
+                view={view}
+                scrollerRef={gridScroller}
+              />
               <CoverageStrip view={view} syncWith={gridScroller} />
             </>
           ) : (
-            <HeatmapGrid view={view} />
+            <HeatmapGrid key={view.unitIds.join(',')} view={view} />
           )}
         </section>
 

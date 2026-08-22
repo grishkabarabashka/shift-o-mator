@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "vitest.explorer",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp"
+  ]
+}

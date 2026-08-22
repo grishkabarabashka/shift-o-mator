@@ -783,29 +783,32 @@ export function draftChangeFromWire(w: WireDraftChange): DraftChange {
 }
 
 /** For `POST /api/drafts/{id}/changes`: `entityId` + wire-shaped `after`/`before`. */
-export function draftChangeToWireBody(change: DraftChange): {
+/**
+ * Тело одного элемента `POST /api/drafts/{id}/changes/sync`.
+ *
+ * Ни `op`, ни `entityId` здесь нет намеренно: операцию выводит сервер, сверяя
+ * ключ с опубликованными данными, а локально придуманный id назначения ему не
+ * нужен — он подставит свой, если в ячейке уже лежит опубликованная строка.
+ */
+export function syncItemToWireBody(item: {
+  readonly targetType: DraftChange['targetType'];
+  readonly key: string;
+  readonly after: Assignment | Absence | CompDayEntry | null;
+}): {
   readonly targetType: string;
-  readonly op: string;
-  readonly entityId: string;
+  readonly key: string;
   readonly after: unknown;
 } {
-  const entity = change.after ?? change.before;
-  const entityId = entity ? (entity as { id: string }).id : '';
   const after =
-    change.op === 'DELETE'
+    item.after === null
       ? null
-      : change.targetType === 'ASSIGNMENT'
-        ? assignmentToWire(change.after as Assignment)
-        : change.targetType === 'ABSENCE'
-          ? absenceToWire(change.after as Absence)
-          : compDayToWire(change.after as CompDayEntry);
+      : item.targetType === 'ASSIGNMENT'
+        ? assignmentToWire(item.after as Assignment)
+        : item.targetType === 'ABSENCE'
+          ? absenceToWire(item.after as Absence)
+          : compDayToWire(item.after as CompDayEntry);
 
-  return {
-    targetType: upperSnakeToCamel(change.targetType),
-    op: upperSnakeToCamel(change.op),
-    entityId,
-    after,
-  };
+  return { targetType: upperSnakeToCamel(item.targetType), key: item.key, after };
 }
 
 // ---------------------------------------------------------------------------
