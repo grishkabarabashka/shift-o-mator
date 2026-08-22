@@ -1,22 +1,24 @@
 /**
- * Единственная граница данных — ADR-0012.
+ * NOTE: The single data boundary — ADR-0012.
  *
- * Ни один компонент и ни одна функция движка не обращается к хранилищу мимо
- * этого интерфейса. Phase 5: единственная реализация — `HttpScheduleRepository`
- * (`data/httpRepository.ts`) поверх .NET API; `MemoryScheduleRepository` и
- * IndexedDB-персист удалены вместе с фикстурами (ADR: HTTP cutover).
+ * No component and no engine function reaches the store except through this
+ * interface. Phase 5: the only implementation is `HttpScheduleRepository`
+ * (`data/httpRepository.ts`) on top of the .NET API; `MemoryScheduleRepository`
+ * and the IndexedDB persistence layer were removed along with the fixtures
+ * (ADR: HTTP cutover).
  *
- * Все методы асинхронные с самого начала, даже когда данные были локальными.
- * Иначе при появлении сети всплыли бы все места, где код рассчитывал на
- * синхронность.
+ * WHY: Every method has been async from day one, even back when data was
+ * local. Otherwise, once a network showed up, every place where the code had
+ * assumed synchronous behavior would have surfaced as a bug.
  *
- * Опубликованные назначения **не пишутся напрямую** (ADR-0015): всё проходит
- * через черновик и публикацию.
+ * NOTE: Published assignments are **never written directly** (ADR-0015):
+ * everything goes through a draft and a publish.
  *
- * `exportJson`/`importJson`/`reset`/`snapshot` из MVP-версии интерфейса сняты
- * здесь: это были debug/test-удобства поверх in-memory реализации, у бэкенда
- * нет и не планируется соответствующих эндпоинтов (полный дамп датасета —
- * не операция, которую делает планировщик).
+ * NOTE: `exportJson`/`importJson`/`reset`/`snapshot` from the MVP version of
+ * the interface are removed here: those were debug/test conveniences on top
+ * of the in-memory implementation; the backend has no corresponding endpoints
+ * and none are planned (a full dataset dump isn't an operation a planner
+ * performs).
  */
 
 import type { DraftChange } from '../domain/types.ts';
@@ -38,79 +40,83 @@ import type {
   UnitId,
 } from '../domain/types.ts';
 
-/** Результат публикации: успех или список расхождений. */
+/** NOTE: Publish outcome: success or a list of conflicts. */
 export type PublishOutcome =
   | { readonly ok: true; readonly result: PublishResult }
   | { readonly ok: false; readonly conflicts: readonly PublishConflict[] };
 
-/** Черновик со своими изменениями. */
+/** NOTE: A draft with its changes. */
 export interface DraftBundle {
   readonly session: DraftSession;
   readonly changes: readonly DraftChange[];
 }
 
 /**
- * Одна синхронизируемая единица черновика: «вот чем должна кончиться эта
- * ячейка», а не «вот какую операцию я сделал».
+ * NOTE: One syncable unit of a draft: "here's what this cell should end up
+ * as", not "here's the operation I performed".
  *
- * Клиент больше не вычисляет op: раньше он выводил CREATE/UPDATE/DELETE из
- * своего локального состояния, и повторная покраска ячейки, созданной в этом
- * же черновике, уходила как UPDATE строки, которой в опубликованных данных
- * ещё нет — сервер отвечал 400, а вместе с ним терялся весь хвост батча.
- * Теперь op выводит сервер, сравнивая с опубликованным.
+ * WHY: The client no longer computes `op`. It used to derive CREATE/UPDATE/
+ * DELETE from its local state, and repainting a cell created within the same
+ * draft would go out as an UPDATE for a row that doesn't exist yet in
+ * published data — the server answered 400, and the rest of the batch was
+ * lost along with it. Now the server derives `op` by comparing against
+ * published data.
  *
- * `key` — то, о чём изменение: для назначения это ячейка `personId|date`
- * (в ячейке не бывает двух назначений), для отсутствия и отгула — id записи.
+ * `key` is what the change is about: for an assignment it's the
+ * `personId|date` cell (a cell never holds two assignments); for an absence
+ * or comp day it's the record's id.
  */
 export interface DraftSyncItem {
   readonly targetType: DraftChange['targetType'];
   readonly key: string;
-  /** Желаемое состояние; `null` — ячейка должна остаться пустой. */
+  /** NOTE: Desired state; `null` means the cell should end up empty. */
   readonly after: Assignment | Absence | CompDayEntry | null;
 }
 
 export interface ScheduleRepository {
-  /** Справочная часть: единицы планирования, локации, смены, конфигурации, люди. */
+  /** NOTE: Reference data: planning units, locations, shifts, day configurations, people. */
   loadReference(): Promise<ReferenceData>;
 
-  /** Опубликованный план за период для единицы планирования. */
+  /** NOTE: The published plan for a period, for a planning unit. */
   loadPublished(unitId: UnitId, range: DateRange): Promise<PlanData>;
 
   /**
-   * Профиль человека: eligibility с целевыми долями, доступные дни, пожелания.
+   * NOTE: A person's profile: eligibility with target shares, available days,
+   * preferences.
    *
-   * Идёт **мимо черновика** намеренно. Черновик — про план на период
-   * (ADR-0015); «Priya берёт треть Batch-L» — это не правка расписания, а
-   * настройка, которую читает автогенерация. Пропустив её через публикацию,
-   * мы связали бы изменение профиля с выпуском конкретного месяца.
+   * Deliberately goes **around the draft**. A draft is about the plan for a
+   * period (ADR-0015); "Priya takes a third of Batch-L" isn't a schedule edit,
+   * it's a setting that auto-populate reads. Routing it through publish would
+   * tie a profile change to the release of one specific month.
    */
   savePerson(person: Person): Promise<Person>;
 
   /**
-   * Подтверждение нарушения — тоже мимо черновика (как и `savePerson`), но по
-   * другой причине: это оценка уже опубликованного плана, а не его правка.
-   * Заменяет прежнюю запись с тем же `issueKey`, если она была.
+   * NOTE: Acknowledging a violation also goes around the draft (like
+   * `savePerson`), but for a different reason: it's an assessment of an
+   * already-published plan, not an edit to it. Replaces the prior record with
+   * the same `issueKey`, if there was one.
    */
   saveAcknowledgement(ack: Acknowledgement): Promise<void>;
 
-  // -- Черновики ------------------------------------------------------------
+  // -- Drafts -----------------------------------------------------------------
 
-  /** Возвращает уже открытый черновик редактора или создаёт новый. */
+  /** NOTE: Returns the editor's already-open draft, or creates a new one. */
   openDraft(unitId: UnitId, range: DateRange, editorId: PersonId): Promise<DraftBundle>;
   /**
-   * Приводит черновик к состоянию, в котором находятся перечисленные ячейки:
-   * на ключ остаётся ровно одно изменение, лишнее убирается. Идемпотентно —
-   * повтор после сетевого сбоя (и undo, который тоже просто меняет состояние
-   * ячейки) не требует отдельного «удалить изменение».
+   * NOTE: Brings the draft to the state where the listed cells end up: exactly
+   * one change remains per key, the rest is removed. Idempotent — retrying
+   * after a network failure (and undo, which also just changes a cell's
+   * state) needs no separate "delete this change" call.
    */
   syncChanges(sessionId: DraftSessionId, items: readonly DraftSyncItem[]): Promise<DraftBundle>;
-  /** Атомарно применяет черновик к опубликованным данным. */
+  /** NOTE: Atomically applies the draft to published data. */
   publishDraft(sessionId: DraftSessionId): Promise<PublishOutcome>;
-  /** Сессия сохраняется для аудита, а не удаляется. */
+  /** NOTE: The session is kept for audit, not deleted. */
   discardDraft(sessionId: DraftSessionId): Promise<void>;
   /**
-   * Чужие открытые черновики, пересекающиеся с периодом. Нужны для
-   * информационного баннера — не для блокировки.
+   * NOTE: Other people's open drafts overlapping the period. Needed for the
+   * informational banner — not for blocking.
    */
   listOverlappingDrafts(
     unitId: UnitId,
@@ -118,7 +124,7 @@ export interface ScheduleRepository {
     excludeEditorId: PersonId,
   ): Promise<readonly DraftSession[]>;
 
-  // -- Аудит и перенос ------------------------------------------------------
+  // -- Audit and history --------------------------------------------------------
 
   history(range: DateRange): Promise<readonly AssignmentHistoryEntry[]>;
 }

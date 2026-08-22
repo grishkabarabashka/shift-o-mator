@@ -1,21 +1,21 @@
 /**
- * Модель таймлайна: кто на смене в каждый момент суток.
+ * NOTE: Timeline model — who is on shift at each moment of the day.
  *
- * Это тот срез, ради которого продукт вообще перестаёт быть таблицей. Сетка
- * отвечает на вопрос «кто в какой день», и на него Excel отвечает не хуже.
- * Таймлайн отвечает на «а сейчас-то кто?» и «в какой час у нас дыра между
- * единицами планирования» — и вот этого в таблице нет и быть не может: там
- * нет времени, только даты.
+ * This is the slice the product exists for beyond being a table. The grid
+ * answers "who, on which day", and Excel answers that just as well. The
+ * timeline answers "who, right now" and "which hour has a gap between
+ * planning units" — and a table cannot express that: it has no time axis,
+ * only dates.
  *
- * Оси — абсолютное время (UTC), потому что смысл имеет только оно. Смена
- * несёт собственное абсолютное окно в собственной таймзоне (ADR-0001), и
- * `Crew` 09:00–18:00 America/Chicago — это одно и то же абсолютное окно
- * независимо от того, в какой зоне на него смотрят. Перевод в зону
- * отображения делает слой вида.
+ * The axis is absolute time (UTC), because that is the only thing with
+ * meaning. A shift carries its own absolute window in its own timezone
+ * (ADR-0001), and `Crew` 09:00-18:00 America/Chicago is the same absolute
+ * window regardless of which zone views it. Conversion to a display zone
+ * happens in the view layer.
  *
- * Передача смены (handover) не отдельная сущность: это пересечение окон двух
- * единиц планирования. Хранить его отдельно значило бы дать ему разойтись с
- * действительностью в первый же переход на летнее время.
+ * A handover is not a separate entity: it's the intersection of two
+ * planning units' windows. Storing it separately would let it drift from
+ * reality at the first daylight-saving transition.
  */
 
 import { DateTime } from 'luxon';
@@ -48,15 +48,15 @@ export interface TimelineBlock {
   readonly required: number;
   readonly filled: number;
   readonly level: CoverageLevel;
-  /** Смена требуется, но не поставлен никто: показывается пунктирной дырой. */
+  /** NOTE: Shift is required but nobody is staffed on it: rendered as a dashed gap. */
   readonly empty: boolean;
   /**
-   * Подстрока внутри дорожки единицы планирования.
+   * NOTE: Sub-row within the planning unit's lane.
    *
-   * В AMER восемь смен идут в одном и том же окне 09:00–18:00. Нарисованные
-   * в одну строку, они кладутся друг на друга, и видна только последняя —
-   * дорожка показывает одну смену вместо восьми. Блоки раскладываются жадно:
-   * каждый занимает первую подстроку, где ни с чем не пересекается.
+   * AMER runs eight shifts in the same 09:00-18:00 window. Drawn on one row,
+   * they'd stack on top of each other and only the last would show — the
+   * lane would display one shift instead of eight. Blocks are packed
+   * greedily: each takes the first sub-row it doesn't overlap with.
    */
   readonly row: number;
 }
@@ -65,10 +65,10 @@ export interface TimelineLane {
   readonly unitId: UnitId;
   readonly unitName: string;
   readonly blocks: readonly TimelineBlock[];
-  /** Объединённое окно присутствия единицы; `undefined` — единица не работает. */
+  /** NOTE: Union of the unit's presence windows; `undefined` means the unit isn't working. */
   readonly span: UtcInterval | undefined;
   readonly gaps: number;
-  /** Сколько подстрок понадобилось, чтобы блоки не наехали друг на друга. */
+  /** NOTE: How many sub-rows were needed so blocks don't overlap. */
   readonly rowCount: number;
 }
 
@@ -80,11 +80,11 @@ export interface Handover {
 
 export interface TimelineDay {
   readonly date: IsoDate;
-  /** Ось: от первого начала до последнего конца, выровнено по часу. */
+  /** NOTE: Axis from the first start to the last end, rounded to the hour. */
   readonly axis: UtcInterval;
   readonly lanes: readonly TimelineLane[];
   readonly handovers: readonly Handover[];
-  /** Сколько человек на смене в каждом часе оси. */
+  /** NOTE: Headcount on shift in each hour of the axis. */
   readonly headcountByHour: readonly number[];
 }
 
@@ -175,7 +175,7 @@ export function buildTimelineDay({
       try {
         interval = shiftInterval(shift, date);
       } catch {
-        // Некорректное окно смены — забота валидатора, не таймлайна.
+        // NOTE: A malformed shift window is the validator's concern, not the timeline's.
         continue;
       }
 
@@ -208,8 +208,8 @@ export function buildTimelineDay({
     });
   }
 
-  // Единицы выстраиваются по началу присутствия — так лента читается слева
-  // направо как «сутки следуют за солнцем», а не в алфавитном порядке кодов.
+  // NOTE: Units are ordered by the start of their presence, so the lane reads
+  // left to right as "the day follows the sun", not alphabetically by code.
   lanes.sort((a, b) => (a.span?.start ?? '~').localeCompare(b.span?.start ?? '~'));
 
   const axis = axisFor(lanes, date);
@@ -341,11 +341,10 @@ export function buildDayDetail({
 }
 
 /**
- * Жадная раскладка по подстрокам: элемент занимает первую строку, где он ни с
- * чем не пересекается. Вход должен прийти отсортированным по началу — тогда
- * результат минимален по числу строк для интервального графа. Общая для
- * блоков смен и персональных баров — обе раскладки решают одну и ту же
- * геометрическую задачу.
+ * NOTE: Greedy sub-row packing: an item takes the first row it doesn't
+ * overlap with. Input must arrive sorted by start — then the result is
+ * minimal in row count for an interval graph. Shared by shift blocks and
+ * personal bars — both layouts solve the same geometric problem.
  */
 function packRows<T extends { interval: UtcInterval }>(items: readonly T[]): (T & { row: number })[] {
   const rowEnds: string[] = [];
@@ -369,9 +368,9 @@ function unionOf(intervals: readonly UtcInterval[]): UtcInterval | undefined {
 }
 
 /**
- * Ось всегда покрывает как минимум сутки в UTC: иначе день, в котором работает
- * одна единица планирования, рисовался бы во всю ширину и выглядел бы как
- * круглосуточное покрытие.
+ * NOTE: The axis always covers at least one UTC day: otherwise a day where
+ * only one planning unit works would render across the full width and look
+ * like round-the-clock coverage.
  */
 function axisFor(lanes: readonly { span: UtcInterval | undefined }[], date: IsoDate): UtcInterval {
   const dayStart = DateTime.fromISO(`${date}T00:00:00`, { zone: 'utc' });
@@ -396,13 +395,13 @@ function ceilHour(instant: IsoInstant): IsoInstant {
 }
 
 /**
- * Только REGION-единицы участвуют в передаче смены — сама передача существует
- * только между ними (follow-the-sun: AMER → EMEA → APAC → AMER).
- * CROSS_REGION-единица вроде unit-st пересекается по времени с региональными
- * соседями почти всегда, но это не передача: её собственное покрытие по
- * регионам (ST:AMER/ST:EMEA/ST:APAC) — внутреннее дело самой этой единицы,
- * рисуется в её собственной дорожке, и штриховка «эта единица сдаёт смену
- * той» здесь была бы неправдой (owner review).
+ * NOTE: Only REGION units participate in shift handover — handover only
+ * exists between them (follow-the-sun: AMER -> EMEA -> APAC -> AMER). A
+ * CROSS_REGION unit like unit-st overlaps in time with its regional
+ * neighbors almost always, but that's not a handover: its own per-region
+ * coverage (ST:AMER/ST:EMEA/ST:APAC) is that unit's own internal matter,
+ * drawn in its own lane, and shading "this unit hands off to that one" here
+ * would misrepresent it (owner review).
  */
 function regionLanesFor<T extends { unitId: UnitId }>(
   lanes: readonly T[],
@@ -412,11 +411,12 @@ function regionLanesFor<T extends { unitId: UnitId }>(
 }
 
 /**
- * Передача смены — пересечение окон соседних по времени единиц планирования.
+ * NOTE: A handover is the intersection of the windows of time-adjacent
+ * planning units.
  *
- * Соседних, а не всех пар: пересечение APAC и AMER (если оно есть) — это не
- * передача, а совпадение краёв суток, и подписывать его «handover» значило бы
- * врать про процесс.
+ * Adjacent, not every pair: the intersection of APAC and AMER (if any) is
+ * not a handover but a coincidence of day boundaries, and labeling it
+ * "handover" would misrepresent the process.
  */
 function handoversOf(
   lanes: readonly { unitId: UnitId; span: UtcInterval | undefined }[],
@@ -438,8 +438,8 @@ function handoversOf(
   return handovers;
 }
 
-/** Голов на смене в каждом часе оси. Веса приходят от вызывающей стороны:
- * блок несёт `people.length`, персональный бар — всегда 1. */
+/** NOTE: Headcount on shift in each hour of the axis. Weights come from the
+ * caller: a block carries `people.length`, a personal bar is always 1. */
 function headcountOf(
   items: readonly { interval: UtcInterval; weight: number }[],
   axis: UtcInterval,
@@ -459,25 +459,25 @@ function headcountOf(
 }
 
 // ---------------------------------------------------------------------------
-// Непрерывный период: время по горизонтали, единицы планирования друг под другом
+// Continuous range: time runs horizontally, planning units stack vertically
 // ---------------------------------------------------------------------------
 
 /**
- * Многодневный таймлайн с **одной** осью времени.
+ * NOTE: Multi-day timeline with a **single** time axis.
  *
- * Первая версия рисовала каждый день отдельным блоком со своей осью, один под
- * другим. Это читается как отчёт, а не как лента: чтобы понять, что смена
- * APAC в понедельник кончается ровно там, где начинается EMEA, приходилось
- * сравнивать два процента в двух разных системах координат.
+ * The first version drew each day as its own block with its own axis,
+ * stacked one under the other. That reads as a report, not a strip: to see
+ * that APAC's Monday shift ends exactly where EMEA's begins, you had to
+ * compare two percentages in two different coordinate systems.
  *
- * Здесь одна непрерывная ось на весь период, дни — вертикальные линии на ней,
- * а единицы планирования стоят друг под другом. Тогда передача смены между
- * ними читается как стык, а не как совпадение чисел, и промотка вправо — это
- * промотка времени.
+ * Here there is one continuous axis for the whole range, days are vertical
+ * lines on it, and planning units stack under each other. Then a handover
+ * between them reads as a seam, not a coincidence of numbers, and scrolling
+ * right is scrolling through time.
  */
 export interface RangeDay {
   readonly date: IsoDate;
-  /** Доля начала дня на оси, 0…1. */
+  /** NOTE: Fraction of the axis where the day starts, 0..1. */
   readonly left: number;
   readonly width: number;
 }
@@ -486,7 +486,7 @@ export interface TimelineRangeBlock extends TimelineBlock {
   readonly date: IsoDate;
 }
 
-/** Сводка покрытия за день — то, что видно в свёрнутом заголовке единицы. */
+/** NOTE: Per-day coverage summary — what shows in a unit's collapsed header. */
 export interface DayCoverage {
   readonly date: IsoDate;
   readonly filled: number;
@@ -530,9 +530,9 @@ export function buildTimelineRange({
   coverageCells,
   index,
 }: TimelineRangeInput): TimelineRange {
-  // Собирается из посуточной модели, а не параллельно ей: правила про окна
-  // смен, дыры и передачи смены должны быть одни и те же, иначе таймлайн и
-  // drill-down начнут расходиться в частных случаях.
+  // NOTE: Built from the per-day model, not in parallel with it: the rules
+  // for shift windows, gaps, and handovers must stay identical, or the
+  // timeline and the drill-down would start disagreeing on edge cases.
   const days = dates.map((date) =>
     buildTimelineDay({ date, unitIds, assignments, coverageCells, index }),
   );
@@ -546,8 +546,9 @@ export function buildTimelineRange({
     for (const lane of day.lanes) {
       const bucket = byUnit.get(lane.unitId) ?? { name: lane.unitName, blocks: [] };
       for (const block of lane.blocks) {
-        // Пустая и не требуемая смена не занимает строку: иначе редко
-        // используемая смена раздувает дорожку на весь период ради пустоты.
+        // NOTE: An empty, non-required shift doesn't occupy a row: otherwise
+        // a rarely used shift would inflate the lane across the whole range
+        // for nothing.
         if (block.empty && block.level !== 'GAP') continue;
         bucket.blocks.push({ ...block, date: day.date });
       }
@@ -573,8 +574,8 @@ export function buildTimelineRange({
     };
   });
 
-  // Единицы упорядочены по началу первой смены за период — лента читается
-  // сверху вниз как «сутки следуют за солнцем».
+  // NOTE: Units are ordered by the start of their first shift in the range —
+  // the strip reads top to bottom as "the day follows the sun".
   lanes.sort((a, b) =>
     (a.blocks[0]?.interval.start ?? '~').localeCompare(b.blocks[0]?.interval.start ?? '~'),
   );
@@ -596,19 +597,19 @@ export function buildTimelineRange({
 }
 
 // ---------------------------------------------------------------------------
-// Непрерывный период, персональные полосы: тот же день-детализация, но на
-// всю ширину периода вместо одних суток.
+// Continuous range, personal bars: the same day-detail view, but spanning
+// the full range instead of a single day.
 // ---------------------------------------------------------------------------
 
 /**
- * `buildDayDetail` для одного дня отвечает «кем именно закрыта смена» —
- * каждое назначение своей полосой вместо счётчика. Дашборд раньше показывал
- * период через `buildTimelineRange`, то есть агрегированными блоками смен —
- * тот вид, который и не нравился: в свёрнутом состоянии он не отличался от
- * развёрнутого достаточно, а в развёрнутом всё равно прятал людей за числом.
- * Разворачивая период этой функцией, лента дашборда получает ту же
- * грамматику, что и день-детализация, просто на несколько дней сразу — те же
- * полосы, те же дыры, те же передачи смены, одна ось.
+ * NOTE: For a single day, `buildDayDetail` answers "who exactly is covering
+ * the shift" — each assignment gets its own bar instead of a count. The
+ * dashboard used to show a range via `buildTimelineRange`, i.e. aggregated
+ * shift blocks — the view that didn't work well: collapsed it wasn't
+ * distinct enough from expanded, and expanded it still hid people behind a
+ * number. Extending day-detail to a range with this function gives the
+ * dashboard strip the same grammar as day-detail, just across several days
+ * at once — the same bars, the same gaps, the same handovers, one axis.
  */
 export interface DayDetailRangeBar extends DayDetailBar {
   readonly date: IsoDate;
@@ -642,8 +643,8 @@ export function buildDayDetailRange({
   coverageCells,
   index,
 }: TimelineRangeInput): DayDetailRange {
-  // Собирается из посуточной модели, как и `buildTimelineRange` — те же
-  // правила про окна смен и дыры, никакой отдельной копии.
+  // NOTE: Built from the per-day model, same as `buildTimelineRange` — the
+  // same rules for shift windows and gaps, no separate copy.
   const days = dates.map((date) => buildDayDetail({ date, unitIds, assignments, coverageCells, index }));
 
   const axis = axisOverDays(days, dates);
@@ -684,8 +685,9 @@ export function buildDayDetailRange({
     };
   });
 
-  // Тот же порядок, что у агрегированной ленты — по началу первой смены за
-  // период, иначе одна и та же единица прыгала бы местами между двумя видами.
+  // NOTE: Same ordering as the aggregated strip — by the start of the first
+  // shift in the range, otherwise the same unit would jump places between
+  // the two views.
   lanes.sort((a, b) => (a.bars[0]?.interval.start ?? '~').localeCompare(b.bars[0]?.interval.start ?? '~'));
 
   return {
@@ -703,9 +705,9 @@ export function buildDayDetailRange({
 }
 
 /**
- * Ось выравнивается по границам суток UTC, даже если смена выходит за них.
- * Иначе вертикальные линии дней разъезжаются с подписями, и вся сетка времени
- * перестаёт быть сеткой.
+ * NOTE: The axis aligns to UTC day boundaries even when a shift extends
+ * beyond them. Otherwise the vertical day lines drift from their labels, and
+ * the whole time grid stops being a grid.
  */
 function axisOverDays(days: readonly { axis: UtcInterval }[], dates: readonly IsoDate[]): UtcInterval {
   const first = dates[0];
@@ -721,10 +723,10 @@ function axisOverDays(days: readonly { axis: UtcInterval }[], dates: readonly Is
   for (const day of days) {
     const dayStart = DateTime.fromISO(day.axis.start, { zone: 'utc' });
     const dayEnd = DateTime.fromISO(day.axis.end, { zone: 'utc' });
-    // Сравнивать надо сам момент, а округлять — уже результат. Округление
-    // перед сравнением съедало расширение: смена, кончающаяся в 10:00
-    // следующих суток, давала ту же полночь, что и граница периода, и ось
-    // обрезала её.
+    // WHY: Compare the raw instant, round only the result. Rounding before
+    // comparing swallowed the extension: a shift ending at 10:00 the next
+    // day produced the same midnight as the range boundary, and the axis
+    // clipped it.
     if (dayStart < start) start = dayStart.startOf('day');
     if (dayEnd > end) end = ceilDay(dayEnd);
   }
@@ -771,7 +773,7 @@ function dailyCoverage(
   return result;
 }
 
-/** Доля момента на оси, 0…1 — для абсолютного позиционирования блоков. */
+/** NOTE: Fraction of a moment on the axis, 0..1 — for absolute positioning of blocks. */
 export function positionOf(axis: UtcInterval, instant: IsoInstant): number {
   const start = Date.parse(axis.start);
   const total = Date.parse(axis.end) - start;
@@ -786,10 +788,10 @@ export interface HourTick {
 }
 
 /**
- * Часовые метки на оси — общие для дневной детализации и для Overview на
- * масштабе «день»/«2 дня», где ось занимает весь экран и без часов читается
- * как одна безликая полоса. 3-часовой шаг внутри суток, 6-часовой на более
- * длинной оси — иначе метки наезжают друг на друга.
+ * NOTE: Hour ticks on the axis — shared between day-detail and Overview at
+ * the "1 day"/"2 day" zoom, where the axis fills the whole screen and reads
+ * as one featureless strip without them. A 3-hour step within a day, 6-hour
+ * on a longer axis — otherwise ticks would overlap.
  */
 export function hourTicks(axis: UtcInterval, zone: string): HourTick[] {
   const start = Date.parse(axis.start);

@@ -1,16 +1,16 @@
 /**
  * @vitest-environment jsdom
  *
- * Дымовые тесты оболочки и экрана планирования — реворкнуто на HTTP (Phase 5
- * step 6). Раньше гоняли `App` против `MemoryScheduleRepository` и ~700 строк
- * `domain/fixtures.ts`, оба удалены с переходом на HTTP. Здесь — MSW
- * (`testUtils/mockApi.ts`) перехватывает реальные `fetch()`, и компактный
- * фикстур-датасет (`testUtils/mockDataset.ts`) с двумя единицами (AMER, EMEA).
+ * Smoke tests for the shell and the planning screen — reworked onto HTTP (Phase
+ * 5 step 6). Used to run `App` against `MemoryScheduleRepository` and ~700
+ * lines of `domain/fixtures.ts`, both removed with the move to HTTP. Here, MSW
+ * (`testUtils/mockApi.ts`) intercepts real `fetch()` calls, and a compact
+ * fixture dataset (`testUtils/mockDataset.ts`) carries two units (AMER, EMEA).
  *
- * Проверяются контракты, а не разметка: сетка строится из единицы, правка сама
- * открывает черновик и не трогает опубликованные данные, пикер предлагает
- * только смены этого дня, покрытие и нарушения пересчитываются, публикация
- * блокируется дырами.
+ * Contracts are verified, not markup: the grid is built from the unit, an edit
+ * opens the draft by itself and doesn't touch published data, the picker
+ * offers only that day's shifts, coverage and violations recompute, and
+ * publish is blocked by gaps.
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -44,9 +44,9 @@ afterEach(() => {
     issueFilter: 'ALL',
     absenceDraft: undefined,
     compDayDraft: undefined,
-    // Дефолт приложения — «все единицы» (ADR-0020): сбрасываемся в него, а
-    // не в конкретный регион, иначе тесты проверяют не то состояние, которое
-    // видит пользователь при открытии.
+    // NOTE: the app default is "all units" (ADR-0020) — reset to that, not to
+    // a specific region, otherwise tests would verify a state other than what
+    // the user sees on open.
     unitId: ALL_UNITS,
     overview: { anchor: TODAY, span: 1 },
     schedule: { anchor: TODAY, zoom: 'month' },
@@ -63,15 +63,14 @@ function renderApp() {
 }
 
 /**
- * Приложение открывается на Overview — планирование за одной вкладкой.
- * Единица задаётся до рендера: сетка грузится под неё одним проходом.
+ * NOTE: the app opens on Overview — planning is one tab away. The unit is set
+ * before render, so the grid loads under it in a single pass.
  *
- * Overview и Schedule держат независимые периоды (ADR-0036) и оба пишут в
- * общий `useUi.range`/`useSchedule.range` при монтировании: Overview
- * — сузив до 1/3/7 суток, Schedule — до месяца. Переход между экранами на миг
- * везёт данные под период предыдущего экрана, пока не отработает эффект и не
- * подъедет план под новый диапазон — дожидаемся именно этого, а не только
- * появления самой сетки.
+ * Overview and Schedule hold independent periods (ADR-0036) and both write to
+ * the shared `useUi.range`/`useSchedule.range` on mount: Overview narrowing to
+ * 1/3/7 days, Schedule to a month. Switching screens briefly carries data under
+ * the previous screen's period until the effect runs and the plan catches up
+ * to the new range — we wait for exactly that, not just for the grid to appear.
  */
 async function renderSchedule(unitId: string = DEFAULT_UNIT) {
   useUi.setState({ unitId });
@@ -96,7 +95,7 @@ function cellAt(personId: string, date: string): HTMLElement {
   return cell;
 }
 
-/** Человек единицы, умеющий Cover, и его свободный будний день. */
+/** A unit person eligible for Cover, and their free weekday. */
 function freeCoverCell(): { personId: string; date: string; shiftId: string } {
   const state = useSchedule.getState();
   const shift = state.reference?.shifts.find((s) => s.unitId === DEFAULT_UNIT && s.code === 'Cover');
@@ -124,8 +123,8 @@ function cellShiftId(personId: string, date: string): string | undefined {
   return assignment?.content.kind === 'SHIFT' ? assignment.content.shiftId : undefined;
 }
 
-describe('оболочка', () => {
-  it('открывается на Overview и даёт перейти во все разделы', async () => {
+describe('shell', () => {
+  it('opens on Overview and lets you navigate to every section', async () => {
     renderApp();
     expect(
       await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 }),
@@ -134,21 +133,21 @@ describe('оболочка', () => {
     for (const name of ['Overview', 'Schedule', 'People', 'Settings']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
-    // Дашборд и таймлайн больше не отдельные вкладки.
+    // NOTE: dashboard and timeline are no longer separate tabs.
     expect(screen.queryByRole('link', { name: 'Timeline' })).toBeNull();
   });
 
-  it('Overview показывает единицы сразу, без выбора одной из них', async () => {
+  it('Overview shows all units at once, with no need to pick one', async () => {
     renderApp();
     await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 });
 
-    // ALL по умолчанию: в ленте должны быть дорожки обеих единиц мока.
+    // NOTE: ALL by default — the lane should carry both mock units' tracks.
     for (const unit of ['Americas', 'EMEA']) {
       expect(screen.getAllByText(unit).length).toBeGreaterThan(0);
     }
   });
 
-  it('People считает нагрузку и долг по отгулам', async () => {
+  it('People computes workload and comp-day debt', async () => {
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'People' }, { timeout: 10000 }));
     const table = await screen.findByRole('table');
@@ -156,7 +155,7 @@ describe('оболочка', () => {
     expect(within(table).getByText('Comp owed')).toBeInTheDocument();
   });
 
-  it('Settings показывает реальные коды смен единицы', async () => {
+  it('Settings shows the unit\'s real shift codes', async () => {
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Shifts' }));
@@ -166,12 +165,12 @@ describe('оболочка', () => {
   });
 });
 
-describe('выбор периода', () => {
-  // Schedule планирует не короче месяца (ADR-0036) — недельного и дневного
-  // зума на этом экране больше нет; 3/6 месяцев вместо этого переключают на
-  // тепловую карту только для чтения (ADR: сетка на 90–180 колонок не влезает
-  // ни на экран, ни в бюджет отрисовки).
-  it('3 Months переключает редактируемую сетку на тепловую карту', async () => {
+describe('period selection', () => {
+  // NOTE: Schedule never plans shorter than a month (ADR-0036) — week and day
+  // zoom no longer exist on this screen; 3/6 months instead switch to a
+  // read-only heatmap (ADR: a 90-180 column grid fits neither the screen nor
+  // the render budget).
+  it('3 Months switches the editable grid to the heatmap', async () => {
     await renderSchedule();
     expect(grid().querySelectorAll('.sheet__head').length).toBeGreaterThan(28);
 
@@ -183,8 +182,8 @@ describe('выбор периода', () => {
   });
 });
 
-describe('сетка', () => {
-  it('рисует людей единицы и дни месяца', async () => {
+describe('grid', () => {
+  it('renders the unit\'s people and the days of the month', async () => {
     await renderSchedule();
     const cells = grid().querySelectorAll('[role="gridcell"]');
     const people = useSchedule
@@ -195,7 +194,7 @@ describe('сетка', () => {
     expect(cells.length).toBe((people?.length ?? 0) * 31);
   });
 
-  it('группирует по локации, как задано в единице', async () => {
+  it('groups by location, as configured on the unit', async () => {
     await renderSchedule();
     const headers = [...grid().querySelectorAll('.sheet__group')].map((el) =>
       el.textContent?.replace(/\d+/g, '').trim(),
@@ -205,10 +204,11 @@ describe('сетка', () => {
     expect(headers).toContain('Pune');
   });
 
-  it('переключение с «всех единиц» на одну убирает группы чужих локаций', async () => {
-    // Регресс: со «всех единиц» видно City-группы обеих единиц (Chicago/New
-    // York/Pune из AMER, London из EMEA); переключение на одну единицу через
-    // сам пикер должно убрать London/EMEA, а не оставить их разделителями.
+  it('switching from "all units" to one removes groups from other locations', async () => {
+    // NOTE: regression — "all units" shows City groups from both units
+    // (Chicago/New York/Pune from AMER, London from EMEA); switching to a
+    // single unit via the picker itself should remove London/EMEA, not leave
+    // them behind as dividers.
     await renderSchedule(ALL_UNITS);
     const headersBefore = [...grid().querySelectorAll('.sheet__group')].map((el) =>
       el.textContent?.replace(/\d+/g, '').trim(),
@@ -233,10 +233,10 @@ describe('сетка', () => {
     });
   });
 
-  it('после программного перехода "одна -> все -> одна" группы чужой единицы не остаются', async () => {
-    // То же самое, что делает пикер изнутри (setUnit), только без клика по
-    // Radix Popover — так сценарий проверяет реактивность данных сетки, а не
-    // механику попапа.
+  it('after a programmatic "one -> all -> one" transition, no groups from another unit remain', async () => {
+    // WHY: does the same thing the picker does internally (setUnit), just
+    // without clicking through the Radix Popover — so the scenario tests the
+    // grid data's reactivity, not the popup's mechanics.
     await renderSchedule();
     useUi.getState().setUnit(ALL_UNITS);
 
@@ -266,9 +266,9 @@ describe('сетка', () => {
 
 
 
-  it('показывает реальные коды смен и их окна на палитре', async () => {
+  it('shows real shift codes and their windows on the palette', async () => {
     await renderSchedule();
-    // Палитра свёрнута по умолчанию (owner review — отжимала сетку).
+    // NOTE: the palette is collapsed by default (owner review — it was squeezing the grid).
     fireEvent.click(screen.getByRole('button', { name: /Shifts/ }));
     const palette = await screen.findByRole('toolbar', { name: 'Shifts' });
     expect(within(palette).getByText('Lead')).toBeInTheDocument();
@@ -276,8 +276,8 @@ describe('сетка', () => {
   });
 });
 
-describe('черновик', () => {
-  it('правка сама открывает черновик — режим Edit искать не нужно', async () => {
+describe('draft', () => {
+  it('an edit opens the draft by itself — no need to look for an Edit mode', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
     expect(useSchedule.getState().session).toBeUndefined();
@@ -291,7 +291,7 @@ describe('черновик', () => {
     expect(useSchedule.getState().session).toBeDefined();
   });
 
-  it('правка в черновике не трогает опубликованные данные', async () => {
+  it('an edit in the draft does not touch published data', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
     const publishedBefore = useSchedule.getState().published?.assignments.length;
@@ -305,7 +305,7 @@ describe('черновик', () => {
     expect(useSchedule.getState().published?.assignments.length).toBe(publishedBefore);
   });
 
-  it('Ctrl+Z возвращает правку', async () => {
+  it('Ctrl+Z reverts an edit', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 
@@ -322,8 +322,8 @@ describe('черновик', () => {
   });
 });
 
-describe('пикер назначения', () => {
-  it('открывается правым кликом и в режиме чтения', async () => {
+describe('assignment picker', () => {
+  it('opens on right-click, even in read-only mode', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
     expect(useSchedule.getState().session).toBeUndefined();
@@ -332,31 +332,31 @@ describe('пикер назначения', () => {
     expect(await screen.findByRole('menu')).toBeInTheDocument();
   });
 
-  it('предлагает только смены конфигурации этого дня', async () => {
+  it('offers only shifts from this day\'s configuration', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 
     fireEvent.contextMenu(cellAt(personId, date));
     const menu = await screen.findByRole('menu');
 
-    // Пятничные смены в понедельник–четверг не предлагаются, и наоборот
+    // NOTE: Friday shifts aren't offered Monday-Thursday, and vice versa
     // (fixture: weekday config runs Lead, friday config runs Lead-E).
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (weekday === 5) expect(within(menu).queryByText('Lead')).toBeNull();
     else expect(within(menu).queryByText('Lead-E')).toBeNull();
   });
 
-  it('никогда не предлагает смены другой единицы', async () => {
+  it('never offers a shift from another unit', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 
     fireEvent.contextMenu(cellAt(personId, date));
     const menu = await screen.findByRole('menu');
-    // `M` — смена EMEA.
+    // NOTE: `M` is an EMEA shift.
     expect(within(menu).queryByText('M')).toBeNull();
   });
 
-  it('ставит смену из меню', async () => {
+  it('sets a shift from the menu', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
 
@@ -369,7 +369,7 @@ describe('пикер назначения', () => {
     });
   });
 
-  it('ставит маркер `0`, отличный от пустой ячейки', async () => {
+  it('sets the `0` marker, distinct from an empty cell', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 
@@ -386,8 +386,8 @@ describe('пикер назначения', () => {
   });
 });
 
-describe('покрытие и нарушения', () => {
-  it('полоса покрытия показывает факт против минимума', async () => {
+describe('coverage and violations', () => {
+  it('the coverage strip shows actual against minimum', async () => {
     await renderSchedule();
     const strip = screen.getByRole('group', { name: 'Coverage' });
     const cells = within(strip).getAllByRole('button');
@@ -395,7 +395,7 @@ describe('покрытие и нарушения', () => {
     expect(cells.some((cell) => /^\d+\/\d+$/.test(cell.textContent ?? ''))).toBe(true);
   });
 
-  it('различает дыру и покрытие впритык', async () => {
+  it('distinguishes a gap from coverage right at the edge', async () => {
     await renderSchedule();
     const strip = screen.getByRole('group', { name: 'Coverage' });
     const levels = new Set(
@@ -403,11 +403,11 @@ describe('покрытие и нарушения', () => {
         .getAllByRole('button')
         .map((cell) => cell.dataset.level),
     );
-    // Пустой мок-план: ничего не заполнено, значит каждая требуемая роль — дыра.
+    // NOTE: an empty mock plan — nothing filled in, so every required role is a gap.
     expect(levels.has('GAP')).toBe(true);
   });
 
-  it('панель нарушений разводит дыры и конфликты', async () => {
+  it('the issues panel separates gaps from conflicts', async () => {
     await renderSchedule();
     const panel = screen.getByRole('complementary', { name: 'Issues' });
     expect(within(panel).getByRole('button', { name: /Gaps/ })).toBeInTheDocument();
@@ -416,12 +416,12 @@ describe('покрытие и нарушения', () => {
   });
 });
 
-describe('публикация', () => {
-  // Coverage gaps не блокируют публикацию (ADR-0035, owner review): дыры
-  // остаются видны и подсвечены, но сохранять черновик они не мешают.
-  // Только неподтверждённые warning и BLOCKING-конфликты (двойное назначение,
-  // чужая/несуществующая смена) держат кнопку Publish disabled.
-  it('review показывает diff, покрытие не блокирует публикацию', async () => {
+describe('publish', () => {
+  // NOTE: coverage gaps don't block publishing (ADR-0035, owner review) — gaps
+  // stay visible and highlighted, but they don't stop saving the draft. Only
+  // unacknowledged warnings and BLOCKING conflicts (double assignment, an
+  // unknown/wrong-unit shift) keep the Publish button disabled.
+  it('review shows the diff; coverage does not block publishing', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
 
@@ -437,7 +437,7 @@ describe('публикация', () => {
     expect(within(dialog).getByRole('button', { name: 'Publish' })).toBeEnabled();
   });
 
-  it('черновик переживает закрытие review', async () => {
+  it('the draft survives closing review', async () => {
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 

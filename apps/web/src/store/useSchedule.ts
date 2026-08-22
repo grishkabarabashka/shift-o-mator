@@ -1,11 +1,11 @@
 /**
- * Состояние экрана планирования.
+ * NOTE: State for the planning screen.
  *
- * Опубликованные данные и черновик разделены (ADR-0015): `published` — то, что
- * видят все, `draft` — упорядоченные изменения текущего редактора. Сетка
- * показывает `published + draft`, но публикуется только явным действием.
+ * Published data and the draft are kept apart (ADR-0015): `published` is what
+ * everyone sees, `draft` is the current editor's ordered changes. The grid
+ * shows `published + draft`, but publishing only happens on an explicit action.
  *
- * Undo/redo получается из того, что каждое изменение несёт `before` и `after`.
+ * NOTE: Undo/redo falls out of every change carrying a `before` and an `after`.
  */
 
 import { create } from 'zustand';
@@ -51,7 +51,7 @@ import { isWeekendIn } from '../engine/dates.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-/** Ячейка сетки: пара (человек, дата). */
+/** NOTE: Grid cell: a (person, date) pair. */
 export interface CellRef {
   readonly personId: PersonId;
   readonly date: IsoDate;
@@ -66,19 +66,19 @@ export interface ScheduleState {
   currentUserId: PersonId | undefined;
 
   reference: ReferenceData | undefined;
-  /** Опубликованные данные — то, что видят все. */
+  /** NOTE: Published data — what everyone sees. */
   published: PlanData | undefined;
-  /** Опубликованные плюс применённый черновик — то, что рисует сетка. */
+  /** NOTE: Published plus the applied draft — what the grid renders. */
   plan: PlanData | undefined;
   index: DatasetIndex | undefined;
 
   session: DraftSession | undefined;
   changes: DraftChange[];
-  /** Изменения, отменённые undo и доступные для redo. */
+  /** NOTE: Changes undone and available for redo. */
   redoStack: DraftChange[][];
-  /** Батчи для undo: одно действие пользователя — один батч. */
+  /** NOTE: Batches for undo: one user action is one batch. */
   undoStack: DraftChange[][];
-  /** Чужие открытые черновики на тот же период — информационный баннер. */
+  /** NOTE: Other people's open drafts for the same period — informational banner. */
   overlappingDrafts: readonly DraftSession[];
 
   publishing: boolean;
@@ -95,12 +95,12 @@ export interface ScheduleState {
   pendingSync: boolean;
 
   /**
-   * Почему правки не доехали до черновика, если не доехали.
+   * NOTE: Why edits didn't make it to the draft, if they didn't.
    *
-   * Раньше сбой синхронизации уходил в `console.error` и больше нигде не
-   * проявлялся: сетка показывала правку как сделанную, сервер о ней не знал,
-   * и расходились они молча — до публикации, которая сохраняла половину.
-   * Теперь это видимое состояние, и публикация при нём не идёт.
+   * WHY: A sync failure used to go only to `console.error` and show up nowhere
+   * else: the grid displayed the edit as done, the server didn't know about
+   * it, and the two silently diverged — until publish, which saved half.
+   * Now this is visible state, and publish is blocked while it's set.
    */
   syncError: string | undefined;
 
@@ -113,15 +113,15 @@ export interface ScheduleState {
   setAbsences: (absences: readonly Absence[]) => void;
   setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => void;
   acknowledge: (issueKey: string, comment: string) => Promise<void>;
-  /** Профиль человека — справочные данные, идут мимо черновика. */
+  /** NOTE: A person's profile — reference data, goes around the draft. */
   savePerson: (person: Person) => Promise<void>;
-  /** Ставит результат превью auto-populate в черновик, открывая его при нужде. */
+  /** NOTE: Stages the auto-populate preview result into the draft, opening it if needed. */
   commitAutoPopulate: (result: AutoPopulateResult) => Promise<void>;
-  /** Ставит импорт отсутствий в черновик одним батчем — Undo откатывает его целиком. */
+  /** NOTE: Stages an absence import into the draft as one batch — Undo rolls it all back. */
   commitAbsenceImport: (changes: readonly DraftChange[]) => Promise<void>;
   undo: () => void;
   redo: () => void;
-  /** Досылает всё, что ещё ждёт дебаунса, и дожидается уже летящего запроса. */
+  /** NOTE: Flushes everything still waiting on the debounce and awaits any already in flight. */
   flushNow: () => Promise<void>;
   publish: () => Promise<PublishOutcome | undefined>;
   discard: () => Promise<void>;
@@ -145,12 +145,12 @@ function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
 }
 
 /**
- * Ключ синхронизации: о чём изменение, а не какое оно.
+ * NOTE: Sync key: what the change is about, not what kind of change it is.
  *
- * Для назначения это ячейка (в ней не бывает двух назначений), для отсутствия
- * и отгула — id записи. Двадцать правок одной ячейки — двадцать версий одного
- * решения; на сервер уходит последняя, а не лента операций поверх состояния,
- * которого там нет.
+ * For an assignment it's the cell (a cell never holds two assignments); for
+ * an absence or comp day it's the record's id. Twenty edits to one cell are
+ * twenty versions of one decision; the server gets the last one, not a tape
+ * of operations over a state it doesn't have.
  */
 type SyncKey = string;
 
@@ -164,11 +164,11 @@ function syncKeyOf(change: DraftChange): SyncKey | undefined {
 }
 
 /**
- * Снимает с плана желаемое состояние по каждому ключу.
+ * NOTE: Reads the desired state off the plan for each key.
  *
- * Индексы строятся один раз на батч, а не поиск на ключ: покраска диапазона
- * даёт сотню ключей на плане в пару тысяч назначений (CLAUDE.md: сетка —
- * место, чувствительное к производительности).
+ * WHY: The indexes are built once per batch, not looked up per key: painting
+ * a range produces a hundred keys against a plan of a couple thousand
+ * assignments (CLAUDE.md: the grid is performance-sensitive).
  */
 function syncItemsFor(keys: readonly SyncKey[], plan: PlanData): DraftSyncItem[] {
   const assignments = new Map(plan.assignments.map((a) => [cellKey(a.personId, a.date), a]));
@@ -219,7 +219,7 @@ function dateRangeOfChanges(changes: readonly DraftChange[]): DateRange | undefi
 }
 
 const SYNC_DEBOUNCE_MS = 400;
-/** Пауза перед повтором после сбоя — дольше дебаунса: это уже не батчинг. */
+/** NOTE: Pause before a retry after a failure — longer than the debounce: this is no longer batching. */
 const SYNC_RETRY_MS = 2000;
 const SYNC_MAX_RETRIES = 3;
 
@@ -236,10 +236,10 @@ export const useSchedule = create<ScheduleState>((set, get) => {
   // call sites (setCell, setCells, commitAutoPopulate, absence import…) that
   // all route through `commit()` below.
   //
-  // Очередь хранит **ключи**, а не изменения: что бы ни случилось с ячейкой
-  // после правки — вторая покраска, undo, откат всего батча, — на сервер
-  // уходит её состояние на момент отправки. Поэтому повтор после сбоя
-  // безопасен и не требует помнить, что именно не долетело.
+  // NOTE: The queue holds **keys**, not changes: whatever happens to a cell
+  // after the edit — a second paint, undo, rolling back the whole batch —
+  // what goes to the server is its state at send time. So a retry after a
+  // failure is safe and doesn't need to remember what exactly didn't land.
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
   let inFlight: Promise<void> | undefined;
   let dirtyKeys = new Set<SyncKey>();
@@ -256,7 +256,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
    */
   let loadSeq = 0;
 
-  /** In-flight `startDraft`, чтобы параллельные правки не открыли две сессии. */
+  /** NOTE: In-flight `startDraft`, so concurrent edits don't open two sessions. */
   let opening: Promise<void> | undefined;
 
   /**
@@ -304,13 +304,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
   }
 
   /**
-   * Отправляет текущее состояние всех «грязных» ключей одним запросом.
+   * NOTE: Sends the current state of every "dirty" key in one request.
    *
-   * Провал возвращает ключи в очередь, а не теряет их: состояние
-   * пересчитывается из плана заново, так что повтор ничего не задваивает.
-   * После `SYNC_MAX_RETRIES` подряд повторы прекращаются — дальше это уже не
-   * сетевая икота, а отказ, который планировщик должен увидеть; `syncError`
-   * остаётся и держит публикацию.
+   * WHY: A failure puts the keys back in the queue instead of losing them:
+   * state is recomputed from the plan each time, so a retry never duplicates
+   * anything. After `SYNC_MAX_RETRIES` in a row, retries stop — past that
+   * point it's no longer a network hiccup but a failure the planner needs to
+   * see; `syncError` stays set and blocks publish.
    */
   async function runFlush(sessionId: string): Promise<void> {
     flushTimer = undefined;
@@ -351,7 +351,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     }
   }
 
-  /** Fire-and-forget обёртка: держит ссылку, чтобы `flushNow` мог дождаться. */
+  /** NOTE: Fire-and-forget wrapper: keeps a reference so `flushNow` can await it. */
   function flush(sessionId: string): void {
     const run = runFlush(sessionId).finally(() => {
       if (inFlight === run) inFlight = undefined;
@@ -371,7 +371,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     flushTimer = setTimeout(() => flush(sessionId), SYNC_DEBOUNCE_MS);
   }
 
-  /** Снимает всё запланированное — черновик закрыт или период сменился. */
+  /** NOTE: Clears everything queued up — the draft closed or the period changed. */
   function cancelSync(): void {
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = undefined;
@@ -379,7 +379,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     pendingRange = undefined;
     consecutiveFailures = 0;
   }
-  /** Пересобирает `plan` и индекс из опубликованного плюс черновик. */
+  /** NOTE: Rebuilds `plan` and the index from published plus the draft. */
   function recompute(
     reference: ReferenceData,
     published: PlanData,
@@ -390,8 +390,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
   }
 
   /**
-   * Применяет батч изменений: обновляет черновик, стеки и производные данные.
-   * Пустые батчи игнорируются, иначе Ctrl+Z станет непредсказуемым.
+   * NOTE: Applies a batch of changes: updates the draft, the stacks, and
+   * derived data. Empty batches are ignored, otherwise Ctrl+Z would become
+   * unpredictable.
    */
   function commit(
     incoming: readonly DraftChange[],
@@ -420,7 +421,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     if (sessionId) queueForSync(sessionId, meaningful);
   }
 
-  /** Строит изменения ячеек, отбрасывая невозможные. */
+  /** NOTE: Builds cell changes, dropping impossible ones. */
   function cellChanges(
     cells: readonly CellRef[],
     content: Assignment['content'] | null,
@@ -450,7 +451,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       const location = index.locations.get(person.locationId);
 
       if (content.kind === 'SHIFT') {
-        // Смена всегда берётся из единицы человека: чужая не попадёт.
+        // NOTE: A shift is always taken from the person's own unit — one from elsewhere never matches.
         const shift = index.shifts.get(content.shiftId);
         if (!shift || shift.unitId !== person.unitId) continue;
         if (before?.content.kind === 'SHIFT' && before.content.shiftId === content.shiftId) continue;
@@ -464,8 +465,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         date: cell.date,
         unitId: person.unitId,
         content,
-        // Выходной по календарю локации человека, а не роли (ADR-0002) — та же
-        // проверка, что использует автогенерация для сгенерированных ячеек.
+        // NOTE: A day off follows the person's location calendar, not the
+        // shift (ADR-0002) — the same check auto-populate uses for generated cells.
         isWeekend: location ? isWeekendIn(cell.date, location) : (before?.isWeekend ?? false),
         source: 'MANUAL',
         version: before?.version ?? 0,
@@ -539,8 +540,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
         const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
 
-        // Пока нет аутентификации: первый включённый человек единицы. При
-        // `ALL` единицы нет — берём любого менеджера.
+        // NOTE: No authentication yet: the first included person in the unit.
+        // With `ALL` there's no single unit — take any manager.
         const inScope = (p: (typeof reference.people)[number]): boolean =>
           scopeIncludes(unitId, p.unitId);
         const currentUserId =
@@ -573,10 +574,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async startDraft() {
-      // Любая правка открывает черновик сама (ADR-0023), и две быстрые правки
-      // подряд обе видят `session === undefined`. Без этой блокировки они
-      // открывали две сессии: первая партия правок уезжала в ту, что тут же
-      // затиралась второй, публиковалась вторая — и часть правок пропадала.
+      // NOTE: Any edit opens the draft by itself (ADR-0023), and two quick
+      // edits in a row both see `session === undefined`. Without this guard
+      // they'd open two sessions: the first batch of edits went into one that
+      // got immediately overwritten by the second, the second got published —
+      // and part of the edits vanished.
       if (opening) return opening;
       const { unitId, range, currentUserId, session } = get();
       if (!unitId || !range || !currentUserId || session) return;
@@ -635,8 +637,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         ...state.reference,
         people: state.reference.people.map((p) => (p.id === saved.id ? saved : p)),
       };
-      // Индекс пересобирается: eligibility и целевые доли читают валидатор и
-      // подбор ролей, и они должны увидеть правку сразу.
+      // NOTE: The index is rebuilt: the validator and role-picker read
+      // eligibility and target shares, and they need to see the edit right away.
       set({ reference, index: buildIndex(datasetOf(reference, state.plan)) });
     },
 
@@ -645,10 +647,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       if (!get().session) await get().startDraft();
 
       const now = new Date().toISOString();
-      // Пересчитываем seq заново: превью считалось чистой функцией со своим
-      // локальным счётчиком, а порядок в самом черновике задаёт store —
-      // иначе следующая правка мышью получила бы более ранний seq, чем
-      // сгенерированные до неё изменения, и undo пошёл бы не в том порядке.
+      // NOTE: The seq is recomputed from scratch: the preview was computed as
+      // a pure function with its own local counter, while the store sets the
+      // order within the draft itself — otherwise the next mouse edit would
+      // get an earlier seq than changes generated before it, and undo would
+      // run in the wrong order.
       const changes = result.changes.map((change) =>
         change.targetType === 'ASSIGNMENT'
           ? assignmentChange(null, change.after as Assignment, nextSeq(), now)
@@ -662,24 +665,24 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       if (!get().session) await get().startDraft();
 
       const now = new Date().toISOString();
-      // Тот же приём, что у commitAutoPopulate: чужой seq из превью
-      // отбрасывается, стор нумерует заново своим счётчиком.
+      // NOTE: Same trick as commitAutoPopulate: the foreign seq from the
+      // preview is discarded, the store renumbers with its own counter.
       const resequenced = changes.map((change) =>
         change.targetType === 'ABSENCE'
           ? absenceChange(change.before, change.after, nextSeq(), now)
           : change,
       );
-      // Один вызов commit — один батч в undoStack: планировщик откатывает
-      // весь импорт одним Undo, не по записи.
+      // NOTE: One commit call is one batch in undoStack: the planner rolls
+      // back the whole import with a single Undo, not record by record.
       commit(resequenced);
     },
 
     async acknowledge(issueKey, comment) {
       const { currentUserId, plan, reference, published } = get();
       if (!plan || !reference || !published) return;
-      // Подтверждения не проходят через черновик: они относятся к оценке
-      // плана, а не к самому плану — но, как и правки, обязаны пережить
-      // перезагрузку, поэтому идут в репозиторий напрямую (ADR-0012).
+      // NOTE: Acknowledgements don't go through the draft: they're an
+      // assessment of the plan, not the plan itself — but, like edits, they
+      // must survive a reload, so they go straight to the repository (ADR-0012).
       const ack: Acknowledgement = {
         issueKey,
         comment,
@@ -717,11 +720,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         redoStack: [...state.redoStack, batch],
       });
 
-      // Undo — это тоже просто новое состояние ячеек, а не отдельная операция
-      // «удалить изменение с сервера»: помечаем те же ключи, и ближайший флаш
-      // отправит то, чем ячейки стали. Дошло ли отменяемое изменение до
-      // сервера, знать не нужно — раньше эта развилка была источником
-      // рассинхрона.
+      // NOTE: Undo is also just a new cell state, not a separate "delete this
+      // change from the server" operation: we mark the same keys, and the
+      // next flush sends whatever the cells became. Whether the undone
+      // change had reached the server doesn't need to be known — that
+      // distinction used to be a source of desync.
       const sessionId = state.session?.id;
       if (sessionId) queueForSync(sessionId, batch);
     },
@@ -742,11 +745,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         clearTimeout(flushTimer);
         flushTimer = undefined;
       }
-      // Сначала дождаться уже летящего запроса, потом отправить остаток: между
-      // ними могли добавиться ключи, и порядок здесь именно такой.
+      // NOTE: Wait for whatever's already in flight first, then send the
+      // rest: keys could have been added in between, and the order here is deliberate.
       await inFlight;
       if (dirtyKeys.size > 0) {
-        consecutiveFailures = 0; // явное действие пользователя — попытка с чистого листа
+        consecutiveFailures = 0; // NOTE: An explicit user action — a fresh attempt.
         await runFlush(sessionId);
       }
     },
@@ -755,9 +758,10 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       const { session, unitId, range } = get();
       if (!session || !unitId || !range) return undefined;
 
-      // Публикуется то, что лежит на сервере, а не то, что нарисовано в сетке.
-      // Без этого клик по Publish в пределах дебаунса публиковал черновик без
-      // последних правок — ровно тот случай, когда «сохранилась часть ячеек».
+      // NOTE: What gets published is what's on the server, not what's painted
+      // on the grid. Without this, clicking Publish within the debounce
+      // window would publish a draft missing the latest edits — exactly the
+      // "part of the cells were saved" case.
       await get().flushNow();
       const syncError = get().syncError;
       if (syncError) {
@@ -769,7 +773,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       try {
         const outcome = await scheduleRepository.publishDraft(session.id);
         if (!outcome.ok) {
-          // Черновик сохраняется целиком: провал публикации ничего не теряет.
+          // NOTE: The draft is kept in full: a failed publish loses nothing.
           set({ publishing: false, conflicts: outcome.conflicts });
           return outcome;
         }
@@ -807,8 +811,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
     async discard() {
       const state = get();
-      // Снять очередь до запроса: иначе отложенный флаш проснётся уже после
-      // discard и попробует писать в закрытую сессию.
+      // NOTE: Clear the queue before the request: otherwise a delayed flush
+      // would wake up after discard and try to write to a closed session.
       cancelSync();
       if (state.session) await scheduleRepository.discardDraft(state.session.id);
       if (!state.reference || !state.published) return;
@@ -828,12 +832,12 @@ export const useSchedule = create<ScheduleState>((set, get) => {
   };
 });
 
-/** Есть ли несохранённые правки. */
+/** NOTE: Whether there are unsaved edits. */
 export function hasDraftChanges(state: ScheduleState): boolean {
   return state.changes.length > 0;
 }
 
-/** Идёт ли редактирование. */
+/** NOTE: Whether editing is in progress. */
 export function isEditing(state: ScheduleState): boolean {
   return state.session !== undefined;
 }

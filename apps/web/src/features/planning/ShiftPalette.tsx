@@ -1,18 +1,19 @@
 /**
- * Палитра смен единицы планирования. Выбранная смена включает paint-режим:
- * дальше её достаточно протянуть мышью по ячейкам. Основной путь назначения —
- * контекстное меню ячейки (GridCell); палитра — быстрый путь для массовой
- * раскраски.
+ * NOTE: Planning unit's shift palette. Picking a shift turns on paint mode:
+ * from there it's enough to drag across cells with the mouse. The main
+ * assignment path is the cell context menu (GridCell); the palette is the
+ * fast path for bulk coloring.
  *
- * Время смены подписано прямо на чипе — это и есть ответ на главную проблему
- * текущего Excel: код смены больше не нужно помнить (ADR-0001).
+ * The shift's time is printed right on the chip — that's the answer to the
+ * main problem with the current Excel sheet: you no longer need to memorize
+ * the shift code (ADR-0001).
  *
- * Phase 8 UX fix: раньше палитра показывала смены всех регионов
- * вперемешку (почти тридцать чипов), потому что `coverageRoles` собирался по
- * всем видимым единицам сразу. Теперь `shifts` приходит уже отфильтрованным
- * выбранной единицей планирования (`SchedulePage` передаёт `view.coverageShifts`
- * только когда конкретная единица выбрана); при `ALL_UNITS` смены остаются
- * сгруппированными по единице, а не по бывшему региону.
+ * Phase 8 UX fix: the palette used to show shifts from all regions mixed
+ * together (nearly thirty chips), because `coverageRoles` was assembled
+ * across all visible units at once. Now `shifts` arrives already filtered by
+ * the selected planning unit (`SchedulePage` passes `view.coverageShifts`
+ * only when one specific unit is selected); under `ALL_UNITS` shifts stay
+ * grouped by unit rather than by the former region.
  */
 
 import type { IsoDate, Shift } from '../../domain/types.ts';
@@ -21,14 +22,14 @@ import { useUi, type DisplayZone } from '../../store/useUi.ts';
 
 interface Props {
   readonly shifts: readonly Shift[];
-  /** Дата, на которую пересчитывается окно: от неё зависит DST. */
+  /** NOTE: Date the window is recomputed for: DST depends on it. */
   readonly referenceDate: IsoDate;
 }
 
 /**
- * Окно смены в выбранной таймзоне отображения. При `shift` показывается как
- * задано; в остальных случаях пересчитывается через UTC, поэтому переход на
- * летнее время учитывается сам.
+ * NOTE: The shift's window in the selected display timezone. Under `shift`
+ * it's shown as configured; otherwise it's recomputed via UTC, so the switch
+ * to daylight saving is handled automatically.
  */
 function windowLabel(shift: Shift, date: IsoDate, zone: DisplayZone): string {
   if (zone === 'shift') return `${shift.start}–${shift.end}`;
@@ -45,9 +46,9 @@ export function ShiftPalette({ shifts, referenceDate }: Props) {
   const setActiveShift = useUi((s) => s.setActiveShift);
   const displayZone = useUi((s) => s.displayZone);
 
-  // Со всеми единицами сразу (`ALL_UNITS`) в палитре оказываются смены
-  // нескольких единиц планирования — без разделителя список читается как
-  // случайный набор кодов.
+  // NOTE: With all units at once (`ALL_UNITS`), the palette ends up with
+  // shifts from several planning units — without a separator the list reads
+  // like a random set of codes.
   const byUnit = new Map<string, Shift[]>();
   for (const shift of shifts) {
     const bucket = byUnit.get(shift.unitId);

@@ -3,32 +3,32 @@ import { formatUnitScope, isAllUnits, scopeIncludes, unitsInScope } from './unit
 
 const ALL = ['unit-amer', 'unit-emea', 'unit-apac', 'unit-st'];
 
-describe('область единиц планирования', () => {
-  it('«все» разворачивается в полный список', () => {
+describe('planning unit scope', () => {
+  it('"all" expands to the full list', () => {
     expect(unitsInScope('ALL', ALL)).toEqual(ALL);
     expect(isAllUnits('ALL')).toBe(true);
   });
 
-  it('набор сохраняет порядок справочника, а не порядок клика', () => {
-    // Иначе `unit-st,unit-amer` и `unit-amer,unit-st` — два разных ключа кэша
-    // при одном и том же смысле.
+  it('the set keeps the reference order, not the click order', () => {
+    // NOTE: Otherwise `unit-st,unit-amer` and `unit-amer,unit-st` would be two
+    // different cache keys for the same meaning.
     expect(unitsInScope('unit-st,unit-amer', ALL)).toEqual(['unit-amer', 'unit-st']);
     expect(formatUnitScope(['unit-st', 'unit-amer'], ALL)).toBe('unit-amer,unit-st');
   });
 
-  it('полный набор сворачивается в «все»', () => {
+  it('the full set collapses to "all"', () => {
     expect(formatUnitScope(ALL, ALL)).toBe('ALL');
   });
 
-  it('пустой выбор — это «все», а не пустой экран', () => {
+  it('an empty selection is "all", not an empty screen', () => {
     expect(formatUnitScope([], ALL)).toBe('ALL');
   });
 
-  it('неизвестная единица не оставляет экран пустым', () => {
+  it('an unknown unit does not leave the screen empty', () => {
     expect(unitsInScope('unit-gone', ALL)).toEqual(ALL);
   });
 
-  it('вхождение проверяется по набору, а не по равенству строк', () => {
+  it('membership is checked against the set, not string equality', () => {
     expect(scopeIncludes('unit-amer,unit-st', 'unit-st')).toBe(true);
     expect(scopeIncludes('unit-amer,unit-st', 'unit-emea')).toBe(false);
     expect(scopeIncludes('ALL', 'unit-emea')).toBe(true);

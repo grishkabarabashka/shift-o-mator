@@ -107,11 +107,11 @@ public static class Validator
         int blocking = 0, gaps = 0, conflicts = 0, warning = 0, info = 0, unacknowledged = 0;
         foreach (var issue in issues)
         {
-            // Категория считается независимо от уровня: конфликт остаётся конфликтом,
-            // даже когда он подтверждаемый, а не блокирующий (ADR-0024). Дыра —
-            // тоже: CoverageGap стал INFO (ADR-0035), но по-прежнему считается
-            // дырой по коду, не по уровню — иначе счётчик обнулился бы вместе с
-            // блокировкой.
+            // NOTE: Category is counted independently of level: a conflict stays a
+            // conflict even once it's acknowledgeable rather than blocking (ADR-0024).
+            // Same for a gap — CoverageGap became INFO (ADR-0035), but it's still
+            // counted as a gap by code, not by level, or the counter would have
+            // dropped to zero along with the blocking status.
             if (issue.Category == IssueCategory.Conflict) conflicts++;
             if (issue.Code == IssueCode.CoverageGap) gaps++;
 
@@ -133,7 +133,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Покрытие
+    // SECTION: Coverage
     // -------------------------------------------------------------------------
 
     private static List<IssueDraft> CheckCoverage(ValidateParams p)
@@ -146,7 +146,7 @@ public static class Validator
 
             if (cell.Level == CoverageLevel.Gap)
             {
-                // INFO, не BLOCKING (ADR-0035, owner review): gaps are shown and
+                // NOTE: INFO, not BLOCKING (ADR-0035, owner review): gaps are shown and
                 // highlighted everywhere, but a real gap in a real roster is a
                 // decision to publish and keep working on, not data the system
                 // gets to refuse to save. Stays Category.Gap — it's still a gap,
@@ -157,7 +157,8 @@ public static class Validator
             }
             else if (cell.Level == CoverageLevel.Thin)
             {
-                // INFO, не WARNING: работа впритык — норма, а не отклонение.
+                // NOTE: INFO, not WARNING — working right at the minimum is normal,
+                // not a deviation.
                 drafts.Add(new IssueDraft(IssueLevel.Info, IssueCategory.Gap, IssueCode.CoverageThin,
                     $"{code}{label}: {cell.Actual} assigned, exactly at the minimum — no slack", cell.Date, ShiftId: cell.ShiftId));
             }
@@ -171,7 +172,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Назначения
+    // SECTION: Assignments
     // -------------------------------------------------------------------------
 
     private static List<Assignment> UnitAssignments(ValidateParams p) =>
@@ -224,8 +225,9 @@ public static class Validator
             }
             else if (!person.Eligibility.Any(e => e.ShiftId == shift.Id))
             {
-                // Не блокер: аврал закрывают тем, кто есть, и осознанный отход от
-                // eligibility допустим, если он подтверждён (ADR-0024).
+                // NOTE: Not a blocker — a crunch gets covered by whoever's available,
+                // and a deliberate departure from eligibility is fine once
+                // acknowledged (ADR-0024).
                 drafts.Add(new IssueDraft(IssueLevel.Warning, IssueCategory.Conflict, IssueCode.ShiftNotEligible,
                     $"{person.DisplayName}: shift {shift.Code} is outside their eligibility", assignment.Date, person.Id, shift.Id));
             }
@@ -243,16 +245,17 @@ public static class Validator
             var absence = absencesByPerson.GetValueOrDefault(person.Id)?.FirstOrDefault(a => assignment.Date >= a.From && assignment.Date <= a.To);
             if (absence is not null)
             {
-                // Не блокер: человек выходит в свой отпуск, либо запись устарела —
-                // оба случая разрешает планировщик, а не валидатор.
+                // NOTE: Not a blocker — either the person is coming in during their
+                // own leave, or the record is stale; the planner resolves both cases,
+                // not the validator.
                 drafts.Add(new IssueDraft(IssueLevel.Warning, IssueCategory.Conflict, IssueCode.AssignedDuringAbsence,
                     $"{person.DisplayName}: assigned during {AbsenceLabel(absence.Type)}", assignment.Date, person.Id, shift.Id));
             }
 
             if (blockingCompDays.ContainsKey(key))
             {
-                // Не блокер: отгул переносится, запись остаётся видимой — comp day
-                // не сгорает (ADR-0007).
+                // NOTE: Not a blocker — the comp day gets rescheduled, the record
+                // stays visible; a comp day never expires (ADR-0007).
                 drafts.Add(new IssueDraft(IssueLevel.Warning, IssueCategory.Conflict, IssueCode.AssignedDuringCompDay,
                     $"{person.DisplayName}: assigned on a confirmed comp day", assignment.Date, person.Id, shift.Id));
             }
@@ -281,7 +284,7 @@ public static class Validator
     };
 
     // -------------------------------------------------------------------------
-    // Отдых и дни подряд
+    // SECTION: Rest and consecutive days
     // -------------------------------------------------------------------------
 
     private record DatedInterval(DateOnly Date, UtcInterval Interval);
@@ -369,7 +372,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Нагрузка по выходным
+    // SECTION: Weekend load
     // -------------------------------------------------------------------------
 
     private const int QuarterWindowDays = 91;
@@ -409,7 +412,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Лимиты одновременных отсутствий
+    // SECTION: Concurrent-absence limits
     // -------------------------------------------------------------------------
 
     private record AbsenceSpan(string PersonId, AbsenceType? Type, bool IsCompDay, DateOnly From, DateOnly To, int Workdays);
@@ -432,7 +435,7 @@ public static class Validator
                 DateHelpers.CountWorkdays(absence.From, absence.To, location, p.Index)));
         }
 
-        // Подтверждённый отгул занимает человека так же, как отпуск.
+        // NOTE: A confirmed comp day occupies the person the same way vacation does.
         foreach (var entry in p.CompDays)
         {
             if (!CompDayBlocksAssignment(entry)) continue;
@@ -491,7 +494,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Целевые доли ролей
+    // SECTION: Target role shares
     // -------------------------------------------------------------------------
 
     private const int MinAssignmentsForShare = 5;
@@ -533,7 +536,7 @@ public static class Validator
     }
 
     // -------------------------------------------------------------------------
-    // Отгулы
+    // SECTION: Comp days
     // -------------------------------------------------------------------------
 
     private static List<IssueDraft> CheckCompDays(ValidateParams p)

@@ -20,8 +20,9 @@ var connectionString = builder.Configuration.GetConnectionString("Schedule")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Schedule");
 builder.Services.AddInfrastructure(connectionString);
 
-// Пояснения поверх плана (/api/insights/*). Ключа может не быть — сервис это знает и
-// отвечает 503 AI_NOT_CONFIGURED, не роняя остальное приложение.
+// NOTE: prose insights over the plan (/api/insights/*). The API key may be missing —
+// the service knows this and returns 503 AI_NOT_CONFIGURED instead of crashing the
+// rest of the app.
 builder.Services.AddSingleton(ShiftOMator.Api.Insights.ChatModel.FromConfiguration(builder.Configuration));
 builder.Services.AddScoped<ShiftOMator.Api.Insights.GapSummaryService>();
 
@@ -110,9 +111,9 @@ app.MapShiftsAdminEndpoints();
 app.MapDayConfigurationsAdminEndpoints();
 app.MapPeopleAdminEndpoints();
 
-// Справочные данные — всегда (защищено идемпотентной проверкой в FixtureSeeder).
-// Демо-план (назначения/отпуска/отгулы) — только по явному флагу: первый прод не
-// должен подниматься с выдуманными сменами.
+// NOTE: reference data is always seeded (guarded by an idempotency check in
+// FixtureSeeder). The demo plan (assignments/absences/comp days) only goes in behind
+// an explicit flag — the first production run must not come up with made-up shifts.
 var includeDemoData = args.Contains("--seed-demo") || builder.Configuration.GetValue<bool>("Seed:IncludeDemoData");
 using (var scope = app.Services.CreateScope())
 {

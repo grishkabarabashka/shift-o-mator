@@ -16,8 +16,8 @@ import {
   weekdayOf,
 } from './dates.ts';
 
-describe('календарная арифметика', () => {
-  it('перечисляет период включительно', () => {
+describe('calendar arithmetic', () => {
+  it('enumerates a range inclusively', () => {
     expect(eachDate({ from: '2026-08-01', to: '2026-08-04' })).toEqual([
       '2026-08-01',
       '2026-08-02',
@@ -26,22 +26,22 @@ describe('календарная арифметика', () => {
     ]);
   });
 
-  it('возвращает пустой список для перевёрнутого периода', () => {
+  it('returns an empty list for an inverted range', () => {
     expect(eachDate({ from: '2026-08-04', to: '2026-08-01' })).toEqual([]);
   });
 
-  it('считает дни в обе стороны', () => {
+  it('counts days in both directions', () => {
     expect(addDays('2026-08-01', -2)).toBe('2026-07-30');
     expect(daysBetween('2026-08-01', '2026-08-31')).toBe(30);
   });
 
-  it('нумерует дни недели по ISO', () => {
-    expect(weekdayOf('2026-08-15')).toBe(6); // суббота
-    expect(weekdayOf('2026-08-17')).toBe(1); // понедельник
+  it('numbers weekdays per ISO', () => {
+    expect(weekdayOf('2026-08-15')).toBe(6); // Saturday
+    expect(weekdayOf('2026-08-17')).toBe(1); // Monday
   });
 });
 
-describe('календарь локации', () => {
+describe('location calendar', () => {
   const index = buildIndex(
     makeDataset({
       holidays: [
@@ -51,63 +51,63 @@ describe('календарь локации', () => {
     }),
   );
 
-  it('считает выходным субботу и воскресенье', () => {
+  it('treats Saturday and Sunday as weekend', () => {
     expect(isNonWorkingDayIn('2026-08-15', nyLocation, index)).toBe(true);
     expect(isNonWorkingDayIn('2026-08-17', nyLocation, index)).toBe(false);
   });
 
-  it('праздник привязан к локации, а не к стране', () => {
-    // 7 сентября — праздник в Нью-Йорке и обычный понедельник в Пуне.
+  it('ties a holiday to the location, not the country', () => {
+    // September 7 is a holiday in New York and an ordinary Monday in Pune.
     expect(isHolidayIn('2026-09-07', nyLocation, index)).toBe(true);
     expect(isHolidayIn('2026-09-07', puneLocation, index)).toBe(false);
-    // 15 августа — праздник в Индии и обычная суббота в США.
+    // August 15 is a holiday in India and an ordinary Saturday in the US.
     expect(isHolidayIn('2026-08-15', puneLocation, index)).toBe(true);
     expect(isHolidayIn('2026-08-15', nyLocation, index)).toBe(false);
   });
 
-  it('считает рабочие дни без выходных и праздников', () => {
+  it('counts working days excluding weekends and holidays', () => {
     expect(countWorkdays({ from: '2026-09-07', to: '2026-09-13' }, nyLocation, index)).toBe(4);
     expect(countWorkdays({ from: '2026-09-07', to: '2026-09-13' }, puneLocation, index)).toBe(5);
   });
 
-  it('перечисляет праздники локации в периоде', () => {
+  it('lists a location\'s holidays within the range', () => {
     expect(holidaysIn({ from: '2026-08-01', to: '2026-12-31' }, nyLocation, index)).toEqual([
       '2026-09-07',
     ]);
     expect(holidaysIn({ from: '2026-08-01', to: '2026-12-31' }, puneLocation, index)).toEqual([
       '2026-08-15',
     ]);
-    // За пределами периода не попадает.
+    // Outside the range, it is excluded.
     expect(holidaysIn({ from: '2026-10-01', to: '2026-12-31' }, puneLocation, index)).toEqual([]);
   });
 });
 
-describe('окно смены', () => {
-  it('переводит локальное окно роли в UTC', () => {
-    // Лето: Нью-Йорк на UTC−4, значит 07:00 локальных — это 11:00 UTC.
+describe('shift window', () => {
+  it('converts a shift\'s local window to UTC', () => {
+    // Summer: New York is UTC-4, so 07:00 local is 11:00 UTC.
     expect(shiftInterval(leadShift, '2026-08-17')).toEqual({
       start: '2026-08-17T11:00:00Z',
       end: '2026-08-17T19:00:00Z',
     });
   });
 
-  it('сдвигается вместе с переходом на зимнее время', () => {
-    // То же локальное окно даёт другой UTC-интервал — ради этого окно и
-    // хранится как локальное время в именованной таймзоне.
+  it('shifts along with the transition to standard time', () => {
+    // The same local window yields a different UTC interval — this is exactly
+    // why the window is stored as local time in a named timezone.
     expect(shiftInterval(leadShift, '2026-12-15')).toEqual({
       start: '2026-12-15T12:00:00Z',
       end: '2026-12-15T20:00:00Z',
     });
   });
 
-  it('уводит конец ночной смены на следующий день', () => {
+  it('pushes a night shift\'s end to the next day', () => {
     expect(shiftInterval(nightShift, '2026-08-17')).toEqual({
       start: '2026-08-18T02:00:00Z',
       end: '2026-08-18T10:00:00Z',
     });
   });
 
-  it('применяет разовое переопределение времени', () => {
+  it('applies a one-off time override', () => {
     const interval = shiftInterval(leadShift, '2026-08-17', {
       start: '08:00',
       end: '16:00',
@@ -116,7 +116,7 @@ describe('окно смены', () => {
     expect(interval.start).toBe('2026-08-17T12:00:00Z');
   });
 
-  it('ночная смена принадлежит дате начала, но у человека из Пуны это уже завтра', () => {
+  it('belongs to its start date, but for someone in Pune that is already tomorrow', () => {
     expect(localDateOf(shiftInterval(leadShift, '2026-08-17').start, 'Asia/Kolkata')).toBe(
       '2026-08-17',
     );
@@ -126,22 +126,22 @@ describe('окно смены', () => {
   });
 });
 
-describe('интервалы', () => {
-  it('считает отдых между сменами', () => {
+describe('intervals', () => {
+  it('counts rest time between shifts', () => {
     const first = shiftInterval(leadShift, '2026-08-17');
     const second = shiftInterval(leadShift, '2026-08-18');
     expect(restHoursBetween(first, second)).toBe(16);
   });
 
-  it('видит нехватку отдыха после ночной смены', () => {
-    // Ночь 16-го кончается в 06:00 по Нью-Йорку 17-го, дневная начинается
-    // в 07:00 того же дня: один час вместо одиннадцати.
+  it('detects insufficient rest after a night shift', () => {
+    // The night shift on the 16th ends at 06:00 New York time on the 17th;
+    // the day shift starts at 07:00 the same day: one hour instead of eleven.
     const night = shiftInterval(nightShift, '2026-08-16');
     const day = shiftInterval(leadShift, '2026-08-17');
     expect(restHoursBetween(night, day)).toBe(1);
   });
 
-  it('находит пересечение интервалов для зон overlap', () => {
+  it('finds the intersection of overlapping intervals', () => {
     const emea = { start: '2026-08-17T06:00:00Z', end: '2026-08-17T14:00:00Z' };
     const amer = { start: '2026-08-17T11:00:00Z', end: '2026-08-17T19:00:00Z' };
     expect(intersectIntervals(emea, amer)).toEqual({
@@ -150,7 +150,7 @@ describe('интервалы', () => {
     });
   });
 
-  it('возвращает undefined, если пересечения нет', () => {
+  it('returns undefined when there is no intersection', () => {
     const a = { start: '2026-08-17T06:00:00Z', end: '2026-08-17T10:00:00Z' };
     const b = { start: '2026-08-17T11:00:00Z', end: '2026-08-17T19:00:00Z' };
     expect(intersectIntervals(a, b)).toBeUndefined();

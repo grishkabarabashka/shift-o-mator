@@ -1,27 +1,27 @@
 /**
- * Выбор видимого периода на Schedule — три способа выбрать одно и то же.
+ * NOTE: Visible period selection on Schedule — three ways to pick the same thing.
  *
- * Schedule планирует не короче месяца (ADR-0036, owner review): дневной и
- * недельный зум там бессмысленны — сетка держит минимум 30×N ячеек, и три
- * органа управления живут в одной карточке:
+ * Schedule never plans shorter than a month (ADR-0036, owner review): day and
+ * week zoom would be pointless there — the grid holds a minimum of 30xN
+ * cells — and three controls live in one card:
  *
- *   1. **Шаг и масштаб** — «следующий месяц», «покажи квартал». Дискретно и
- *      предсказуемо; основной путь.
- *   2. **Полоса дней** — клик по дню делает его началом периода той же
- *      ширины (owner review: не обязательно 1-е число месяца — конец
- *      подстраивается под уже выбранную длину).
- *   3. **Шкала года** — то же самое, но «примерно вот сюда»: окно той же
- *      ширины двигается целиком, не привязываясь к границам месяцев.
+ *   1. **Step and zoom** — "next month," "show a quarter." Discrete and
+ *      predictable; the main path.
+ *   2. **Day strip** — clicking a day makes it the start of a period of the
+ *      same width (owner review: not necessarily the 1st of the month — the
+ *      end adjusts to the already-selected length).
+ *   3. **Year scrubber** — the same thing, but "roughly here": a window of
+ *      the same width moves as a whole, not snapped to month boundaries.
  *
- * Все три пишут в `useUi.schedule`, а арифметику периода целиком держит
- * `engine/period.ts` — иначе «следующий месяц» из стрелки и «следующий
- * месяц» со шкалы разъехались бы на день. Сами полоса и шкала — общий
- * `PeriodStrip.tsx`, тот же, что использует Overview.
+ * All three write to `useUi.schedule`, and all period arithmetic lives in
+ * `engine/period.ts` — otherwise "next month" from the arrow and "next month"
+ * from the scrubber would drift apart by a day. The strip and scrubber
+ * themselves are the shared `PeriodStrip.tsx`, the same one Overview uses.
  *
- * Полоса дней и шкала года сворачиваемы (CLAUDE.md: панель периода занимает
- * слишком много вертикального места) — шаг/масштаб и текущий диапазон
- * остаются видны всегда, сворачивается только вспомогательный способ
- * перейти к произвольному месяцу.
+ * The day strip and year scrubber are collapsible (CLAUDE.md: the period
+ * panel takes up too much vertical space) — step/zoom and the current range
+ * stay visible always; only the auxiliary way to jump to an arbitrary month
+ * collapses.
  */
 
 import { useState } from 'react';
@@ -41,10 +41,10 @@ export function DateRangeControl() {
   const length = rangeLength(range);
   const containsToday = TODAY >= range.from && TODAY <= range.to;
 
-  // Сколько чипов помещается без обрезки — а не фиксированный лимит,
-  // молчаливо прячущий хвост дат за правым краем. Пока ширина не измерена
-  // (первый кадр), полоса не рисуется вовсе: лучше кадр пустоты, чем неверное
-  // число чипов, тут же перерисованное.
+  // NOTE: How many chips fit without clipping — not a fixed limit that
+  // silently hides a tail of dates past the right edge. Until the width is
+  // measured (first frame), the strip doesn't render at all: better a frame
+  // of emptiness than a wrong chip count that immediately re-renders.
   const [stripRef, stripWidth] = useElementWidth<HTMLDivElement>();
   const chipSlots = chipSlotsFor(stripWidth);
   const [pickerOpen, setPickerOpen] = useState(false);

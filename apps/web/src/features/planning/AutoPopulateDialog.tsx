@@ -1,20 +1,21 @@
 /**
- * Generate / Auto-populate — заполнение периода одним прогоном (Docs/06).
+ * NOTE: Generate / Auto-populate — fills a period in one run (Docs/06).
  *
- * Результат — превью, а не мгновенная правка: планировщик видит, сколько
- * поставлено и что осталось дырой с причиной, и явно принимает или
- * отбрасывает. Принятие ставит изменения в черновик тем же путём, что и
- * обычная правка ячейки, — публикация и review ничего не знают про их
- * происхождение.
+ * The result is a preview, not an instant edit: the planner sees how much got
+ * placed and what's left as a gap with a reason, and explicitly accepts or
+ * discards it. Accepting puts the changes into the draft the same way an
+ * ordinary cell edit does — publish and review know nothing about their
+ * origin.
  *
- * Одна единица планирования и не больше 92 дней — то же ограничение, что и на бэкенд-
- * эндпоинте (`Docs/12-architecture.md`); здесь оно проверяется на клиенте до
- * прогона, а не после.
+ * One planning unit and no more than 92 days — the same limit as the backend
+ * endpoint (`Docs/12-architecture.md`); it's checked on the client before the
+ * run here, not after.
  *
- * Выделение в сетке сужает прогон (owner review: раньше Generate всегда брал
- * весь видимый период целиком). Бэкенд-эндпоинт людей не фильтрует — сужение
- * по людям происходит на клиенте, отбрасыванием из превью изменений на тех,
- * кто не входит в выделение, до того как что-либо попадает в черновик.
+ * A grid selection narrows the run (owner review: Generate used to always
+ * take the whole visible period). The backend endpoint doesn't filter by
+ * people — narrowing by people happens on the client, by dropping from the
+ * preview any changes for people outside the selection, before anything
+ * reaches the draft.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -76,8 +77,9 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
     if (!plan || !unitId || tooLong) return;
     setRunning(true);
     try {
-      // Досылаем то, что ещё висит в дебаунсе: генерация читает черновик с
-      // сервера, и не долетевшая правка для неё — пустая ячейка.
+      // NOTE: Flush whatever is still pending in the debounce: generation
+      // reads the draft from the server, and an edit that hasn't landed yet
+      // is an empty cell to it.
       await flushNow();
       const result = await runAutoPopulate({
         unitId,

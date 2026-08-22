@@ -1,25 +1,25 @@
 /**
- * Сетка планирования: строки — люди, колонки — дни.
+ * NOTE: Planning grid — rows are people, columns are days. Hand-built by design (ADR-0014):
+ * rectangular selection, paint mode, clipboard, and full keyboard control all require it.
  *
- * Написана руками намеренно (ADR-0014): нужны выделение прямоугольником,
- * paint-режим, буфер обмена и полный контроль над клавиатурой.
+ * Three ways to assign a shift, from obvious to fast:
  *
- * Три пути назначения, от очевидного к быстрому:
+ *   right-click          picker with the roles for **this day** and **this person**
+ *   palette + click      paint by dragging
+ *   role hotkey          applies to the whole selection
  *
- *   правый клик       пикер с ролями **этого дня** для **этого человека**
- *   палитра + клик    раскраска протаскиванием
- *   хоткей роли       на всё выделение
- *
- * Дополнительно:
- *   стрелки            перемещение, с Shift — расширение выделения
- *   Home / End         начало и конец строки
- *   Delete / Backspace очистить
- *   Ctrl+C / Ctrl+V    копировать и вставить диапазон
- *   Ctrl+Z / Ctrl+Y    отмена и повтор
- *
- * Производительность: контекстное меню одно на всю сетку, а `PersonRow`
- * мемоизирован по примитивам выделения. Передавать сюда объект `bounds` нельзя —
- * он меняет идентичность на каждое движение мыши и обнуляет мемоизацию.
+ * Additional keys:
+ *   arrows               move focus; Shift extends the selection
+ *   Home / End           start and end of the row
+ *   Delete / Backspace   clear
+ *   Ctrl+C / Ctrl+V      copy and paste a range
+ *   Ctrl+Z / Ctrl+Y      undo and redo
+ */
+
+/**
+ * WHY: There is one context menu for the whole grid, and `PersonRow` is memoized on selection
+ * primitives. Never pass a `bounds` object down here — it changes identity on every mouse move
+ * and defeats the memoization.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
@@ -36,10 +36,10 @@ import { cellKey, type DayColumn, type GridRow, type PlanningView } from './useP
 interface Props {
   readonly view: PlanningView;
   /**
-   * Скроллер сетки наружу: за ним по горизонтали следует полоса покрытия.
-   * Держать её в этом же контейнере не вышло — ограничить её высоту, не сломав
-   * прилипание, там невозможно, а без ограничения шестнадцать ролевых строк
-   * вытесняют сам ростер.
+   * WHY: External scroller ref — the coverage strip follows it horizontally. Keeping the strip
+   * inside this same container didn't work: its height can't be constrained without breaking
+   * sticky positioning, and without that constraint sixteen role rows push the roster itself
+   * off screen.
    */
   readonly scrollerRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -103,12 +103,10 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   }, [bounds, personRows, columns]);
 
   /**
-   * Любая правка сама открывает черновик (ADR-0023).
-   *
-   * Явный режим Edit был бы ровно той стеной, о которую бьётся новый
-   * пользователь: он кликает по ячейке, ничего не происходит, и понять почему
-   * неоткуда. Черновик остаётся — он виден по бейджу Draft и панели действий,
-   * — но входить в него вручную не нужно.
+   * NOTE: Any edit opens the draft by itself (ADR-0023). An explicit Edit mode would be exactly
+   * the wall a new user hits: they click a cell, nothing happens, and there's no way to tell
+   * why. The draft still exists — visible via the Draft badge and the action panel — there's
+   * just no need to enter it manually.
    */
   const withDraft = useCallback(
     async (apply: () => void) => {
@@ -119,18 +117,14 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   );
 
   /**
-   * Правка проходит всегда (ADR-0024).
+   * NOTE: An edit always goes through (ADR-0024). This used to silently drop cells covered by
+   * an absence or a confirmed comp day — the planner clicked and nothing happened, the same
+   * defect as a disabled right-click. Yet "someone comes in during their own leave" happens
+   * constantly in practice. Now the assignment is recorded, the validator raises a CONFLICT,
+   * the cell turns red, and publishing requires a confirmation with a comment.
    *
-   * Раньше здесь отбрасывались ячейки, закрытые отпуском или подтверждённым
-   * отгулом. Отбрасывались молча — планировщик кликал, и не происходило
-   * ничего: тот же дефект, что и с выключенным правым кликом. При этом сама
-   * ситуация «человек вышел в свой отпуск» встречается в жизни постоянно.
-   * Теперь назначение записывается, валидатор поднимает CONFLICT, ячейка
-   * краснеет, а публикация требует подтверждения с комментарием.
-   *
-   * Единственный оставшийся фильтр — раскраска протаскиванием: массово
-   * заливать роль поверх чужих отпусков никто не собирался, это была бы не
-   * правка, а промах мыши на двадцать ячеек.
+   * The one filter that remains is paint-by-dragging: nobody intends to bulk-fill a role over
+   * other people's absences — that would be a twenty-cell mouse slip, not an edit.
    */
   const applyShift = useCallback(
     (cells: readonly CellRef[], shiftId: ShiftId | null, respectBlocks = false) => {
@@ -150,7 +144,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   );
 
   // -------------------------------------------------------------------------
-  // Мышь
+  // NOTE: Mouse handling.
   // -------------------------------------------------------------------------
 
   useEffect(() => {
@@ -160,7 +154,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     return () => window.removeEventListener('mouseup', stop);
   }, [painting]);
 
-  /** Ячейка под курсором по DOM: один обработчик на сетку вместо 2480. */
+  /** WHY: Cell under the cursor resolved via DOM lookup — one handler for the whole grid instead of 2480. */
   const cellAtEvent = useCallback((event: React.MouseEvent): CellRef | undefined => {
     const node = (event.target as HTMLElement).closest<HTMLElement>('[data-cell]');
     const personId = node?.dataset['person'];
@@ -169,8 +163,8 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   }, []);
 
   const onMouseDown = (event: React.MouseEvent) => {
-    // Правая кнопка не должна ни рисовать, ни сбрасывать выделение: её работа —
-    // открыть пикер, что делает отдельный обработчик contextmenu.
+    // NOTE: The right button must neither paint nor clear the selection — its job is to open
+    // the picker, handled separately by the contextmenu listener.
     if (event.button !== 0) return;
     const cell = cellAtEvent(event);
     if (!cell) return;
@@ -194,7 +188,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     if (!cell) return;
     event.preventDefault();
 
-    // Клик внутри выделения работает по всему выделению; мимо — переносит его.
+    // NOTE: A click inside the selection acts on the whole selection; a click outside moves it.
     const inSelection = selectedCells.some(
       (selected) => selected.personId === cell.personId && selected.date === cell.date,
     );
@@ -235,7 +229,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
 
   const closePicker = useCallback(() => setPicker(undefined), []);
 
-  /** Пункты пикера действуют на выделение, если клик был внутри него. */
+  /** NOTE: Picker items act on the selection when the click landed inside it. */
   const pickerCells = useCallback((): CellRef[] => {
     if (!picker) return [];
     return picker.affected > 1
@@ -244,7 +238,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
   }, [picker, selectedCells]);
 
   // -------------------------------------------------------------------------
-  // Клавиатура
+  // Keyboard
   // -------------------------------------------------------------------------
 
   const moveFocus = useCallback(
@@ -277,7 +271,7 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     setClipboard(grid);
   }, [bounds, personRows, columns, view, setClipboard]);
 
-  /** Вставка тайлится от левого верхнего угла выделения. */
+  /** NOTE: Paste tiles from the top-left corner of the selection. */
   const pasteClipboard = useCallback(() => {
     if (!clipboard || !bounds) return;
     const byShift = new Map<ShiftId | null, CellRef[]>();
@@ -377,8 +371,8 @@ export function PlanningGrid({ view, scrollerRef }: Props) {
     });
   }, [selection.focus]);
 
-  // Приход из дашборда по дыре: у неё есть только дата, поэтому прокручиваем
-  // к колонке, а не к ячейке.
+  // NOTE: Arriving from the dashboard via a gap only carries a date, so we scroll
+  // to the column, not to a cell.
   useEffect(() => {
     if (!highlightDate) return;
     wrapRef.current
@@ -503,8 +497,8 @@ function ColumnHead({
       title={column.holidayName ? `${column.date} · ${column.holidayName}` : column.date}
     >
       <span className="sheet__head-wd">{column.weekdayLabel}</span>
-      {/* Вход в day drill-down по заголовку колонки.
-          Не data-cell — делегирующий обработчик мыши на грид его не тронет. */}
+      {/* NOTE: Entry point to the day drill-down via the column header.
+          Not data-cell, so the grid's delegated mouse handler leaves it alone. */}
       <Link
         to={`/schedule/day/${column.date}`}
         className="sheet__head-num sheet__head-num--link"
@@ -529,9 +523,9 @@ function GroupRow({
 }) {
   return (
     <>
-      {/* Уровень задан данными, отступ — представлением: вложенная группа
-          сдвигается и теряет насыщенность, чтобы единица читалась как рамка,
-          а локация внутри неё — как её часть. */}
+      {/* NOTE: Level comes from the data, indentation is presentation only: a nested
+          group shifts and loses saturation so the unit reads as a frame and the
+          location inside it as part of that frame. */}
       <div className="sheet__group" data-level={level}>
         <span className="truncate">{label}</span>
         <span className="sheet__group-count">{count}</span>
@@ -598,5 +592,5 @@ const PersonRow = memo(function PersonRow({
   );
 });
 
-/** Общая пустая ссылка: иначе каждая ячейка без нарушений ломала бы memo. */
+/** WHY: Shared empty reference — otherwise every violation-free cell would break memo. */
 const EMPTY_ISSUES: readonly never[] = [];

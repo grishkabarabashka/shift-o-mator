@@ -1,12 +1,12 @@
 /**
- * Текущий момент, обновляемый раз в минуту.
+ * NOTE: current moment, refreshed once a minute.
  *
- * Маркер «сейчас» на таймлайне обязан двигаться: замерший на времени загрузки
- * страницы, он врёт тем убедительнее, чем дольше вкладка открыта, — а именно
- * по нему дежурный отвечает на вопрос «кто на смене».
+ * The "now" marker on the timeline must move: frozen at page-load time, it
+ * lies more convincingly the longer the tab stays open — and it's exactly
+ * what the on-duty person reads to answer "who's on shift."
  *
- * Раз в минуту, а не чаще: шаг оси — час, и более частый тик перерисовывал бы
- * дорожки без единого видимого пикселя разницы.
+ * Once a minute, not more often: the axis step is an hour, and a faster tick
+ * would just redraw the lanes without a single visible pixel of difference.
  */
 
 import { useEffect, useState } from 'react';

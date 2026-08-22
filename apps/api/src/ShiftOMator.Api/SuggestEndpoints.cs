@@ -39,9 +39,9 @@ public static class SuggestEndpoints
 
             var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
 
-            // Генерация смотрит на план глазами планировщика: опубликованное плюс его
-            // открытый черновик. Иначе уже расставленные вручную ячейки для неё пусты, и
-            // принятое превью затирает их.
+            // NOTE: generation sees the plan through the planner's eyes — published plus
+            // their own open draft. Otherwise cells already placed by hand would look
+            // empty to it, and accepting the preview would overwrite them.
             DraftSession? draft = null;
             if (!string.IsNullOrEmpty(req.DraftId))
             {

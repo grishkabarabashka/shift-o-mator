@@ -17,7 +17,7 @@ async function loadStore() {
   await useSchedule.getState().startDraft();
 }
 
-/** Первый человек единицы, умеющий роль с этим кодом. */
+/** NOTE: The first person in the unit eligible for a role with this code. */
 function personWithShift(code: string) {
   const { reference } = useSchedule.getState();
   const shift = reference?.shifts.find((r) => r.unitId === DEFAULT_UNIT && r.code === code);
@@ -37,7 +37,7 @@ function cellShiftId(personId: string, date: string): string | undefined {
   return assignment?.content.kind === 'SHIFT' ? assignment.content.shiftId : undefined;
 }
 
-/** Свободные будни человека — датасет тестов не заполнен, любой будний день свободен. */
+/** NOTE: A person's free weekdays — the test dataset is empty, so any weekday is free. */
 function freeDates(personId: string, count: number): string[] {
   const dates: string[] = [];
   for (let day = 1; day <= 31 && dates.length < count; day += 1) {
@@ -55,19 +55,19 @@ function freeDate(personId: string): string {
   return freeDates(personId, 1)[0] as string;
 }
 
-describe('загрузка', () => {
+describe('loading', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('поднимает справочник, опубликованный план и индекс', () => {
+  it('loads reference data, the published plan, and the index', () => {
     const state = useSchedule.getState();
     expect(state.status).toBe('ready');
     expect(state.reference?.people.length).toBeGreaterThan(0);
     expect(state.index?.shifts.size).toBeGreaterThan(0);
   });
 
-  it('открытый черновик пуст, план равен опубликованному', () => {
+  it('an opened draft is empty, the plan equals published', () => {
     const state = useSchedule.getState();
     expect(state.session).toBeDefined();
     expect(state.changes).toHaveLength(0);
@@ -75,12 +75,12 @@ describe('загрузка', () => {
   });
 });
 
-describe('правка ячеек', () => {
+describe('cell edits', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('ставит роль в ячейку', () => {
+  it('puts a role in a cell', () => {
     const { shift, person } = personWithShift('Cover');
     expect(shift && person).toBeTruthy();
     if (!shift || !person) return;
@@ -90,7 +90,7 @@ describe('правка ячеек', () => {
     expect(cellShiftId(person.id, date)).toBe(shift.id);
   });
 
-  it('правка не трогает опубликованные данные', () => {
+  it('an edit does not touch published data', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
@@ -102,7 +102,7 @@ describe('правка ячеек', () => {
     expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
   });
 
-  it('в ячейке остаётся одно назначение', () => {
+  it('a cell keeps exactly one assignment', () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
     const shifts = useSchedule
@@ -121,7 +121,7 @@ describe('правка ячеек', () => {
     expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
   });
 
-  it('не принимает смену чужой единицы', () => {
+  it('rejects a shift from a different unit', () => {
     const { person } = personWithShift('Cover');
     const foreignShift = useSchedule
       .getState()
@@ -133,7 +133,7 @@ describe('правка ячеек', () => {
     expect(cellShiftId(person.id, date)).toBeUndefined();
   });
 
-  it('ставит маркер ростера', () => {
+  it('sets a roster marker', () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
     const date = freeDate(person.id);
@@ -145,7 +145,7 @@ describe('правка ячеек', () => {
     expect(assignment?.content).toEqual({ kind: 'MARKER', marker: 'OFF' });
   });
 
-  it('красит диапазон одним батчем', () => {
+  it('paints a range as one batch', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
 
@@ -161,12 +161,12 @@ describe('правка ячеек', () => {
   });
 });
 
-describe('undo и redo', () => {
+describe('undo and redo', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('возвращает и повторяет правку', () => {
+  it('undoes and redoes an edit', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
@@ -179,7 +179,7 @@ describe('undo и redo', () => {
     expect(cellShiftId(person.id, date)).toBe(shift.id);
   });
 
-  it('новая правка обнуляет стек повтора', () => {
+  it('a new edit clears the redo stack', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const [first, second] = freeDates(person.id, 2);
@@ -192,13 +192,13 @@ describe('undo и redo', () => {
     expect(useSchedule.getState().redoStack).toHaveLength(0);
   });
 
-  it('отмена на пустом стеке ничего не ломает', () => {
+  it('undo on an empty stack breaks nothing', () => {
     const snapshot = useSchedule.getState().plan;
     useSchedule.getState().undo();
     expect(useSchedule.getState().plan).toBe(snapshot);
   });
 
-  it('правка, ничего не меняющая, в стек не попадает', () => {
+  it('an edit that changes nothing does not enter the stack', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
 
@@ -210,12 +210,12 @@ describe('undo и redo', () => {
   });
 });
 
-describe('отсутствия', () => {
+describe('absences', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('setAbsences создаёт несколько записей одним батчем undo', () => {
+  it('setAbsences creates several records as one undo batch', () => {
     const people = useSchedule
       .getState()
       .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isIncluded)
@@ -245,19 +245,19 @@ describe('отсутствия', () => {
     ).toHaveLength(0);
   });
 
-  it('пустой список не создаёт шаг отмены', () => {
+  it('an empty list does not create an undo step', () => {
     const before = useSchedule.getState().undoStack.length;
     useSchedule.getState().setAbsences([]);
     expect(useSchedule.getState().undoStack).toHaveLength(before);
   });
 });
 
-describe('синхронизация с сервером (debounce)', () => {
+describe('server sync (debounce)', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('правка помечает pendingSync и снимает его после флаша', async () => {
+  it('an edit sets pendingSync and clears it after the flush', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
@@ -276,12 +276,12 @@ describe('синхронизация с сервером (debounce)', () => {
   });
 });
 
-describe('публикация', () => {
+describe('publish', () => {
   beforeEach(async () => {
     await loadStore();
   });
 
-  it('публикует черновик и очищает его', async () => {
+  it('publishes the draft and clears it', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
@@ -303,13 +303,14 @@ describe('публикация', () => {
   });
 
   /**
-   * Регрессы «сохранилась только часть ячеек».
+   * NOTE: Regression tests for "only part of the cells were saved".
    *
-   * Все три когда-то ломались одинаково: клиент слал по POST на изменение,
-   * первая же 400-ка обрывала батч, а остаток правок не уходил никогда и
-   * молча. Публикация после этого сохраняла ровно то, что успело долететь.
+   * All three used to break the same way: the client sent one POST per
+   * change, the first 400 broke the batch, and the rest of the edits never
+   * went out — silently. Publishing after that saved exactly what had made
+   * it through.
    */
-  it('публикует последнюю правку ячейки, перекрашенной внутри черновика', async () => {
+  it('publishes the latest edit of a cell repainted within the draft', async () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
     const shifts = useSchedule
@@ -321,8 +322,8 @@ describe('публикация', () => {
     useSchedule.getState().setCell(person.id, date, shifts[0]?.id ?? null);
     useSchedule.getState().setCell(person.id, date, shifts[1]?.id ?? null);
 
-    // Две правки одной ячейки — одно решение: в черновике на сервере лежит
-    // ровно одно изменение, а не CREATE плюс UPDATE несуществующей строки.
+    // NOTE: Two edits to one cell are one decision: the draft on the server
+    // holds exactly one change, not a CREATE plus an UPDATE of a nonexistent row.
     await useSchedule.getState().flushNow();
     const sessionId = useSchedule.getState().session?.id;
     expect(sessionId ? mockBackend.sessions.get(sessionId)?.changes : undefined).toHaveLength(1);
@@ -332,13 +333,13 @@ describe('публикация', () => {
     expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
   });
 
-  it('публикует правку, сделанную прямо перед нажатием Publish', async () => {
+  it('publishes an edit made right before pressing Publish', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
 
-    // Никакого ожидания дебаунса: ровно то, что делает планировщик, когда
-    // красит ячейку и сразу жмёт Publish.
+    // NOTE: No waiting for the debounce: exactly what the planner does when
+    // painting a cell and immediately hitting Publish.
     useSchedule.getState().setCell(person.id, date, shift.id);
     const outcome = await useSchedule.getState().publish();
 
@@ -346,7 +347,7 @@ describe('публикация', () => {
     expect(cellShiftId(person.id, date)).toBe(shift.id);
   });
 
-  it('очищенная и снова закрашенная опубликованная ячейка публикуется повторно', async () => {
+  it('a published cell that is cleared and repainted publishes again', async () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
     const shifts = useSchedule
@@ -367,7 +368,7 @@ describe('публикация', () => {
     expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
   });
 
-  it('отменённая правка не публикуется', async () => {
+  it('an undone edit is not published', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
@@ -383,7 +384,7 @@ describe('публикация', () => {
     expect(cellShiftId(person.id, date)).toBeUndefined();
   });
 
-  it('отмена черновика возвращает опубликованное состояние', async () => {
+  it('discarding the draft restores the published state', async () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);

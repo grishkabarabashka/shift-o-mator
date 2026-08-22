@@ -1,10 +1,11 @@
 /**
- * Форма конфигурации MSAL — заготовка на будущее, сейчас никуда не подключена.
+ * NOTE: MSAL configuration shape — a placeholder for the future, not wired up
+ * to anything yet.
  *
- * Реальная интеграция Entra ID (`@azure/msal-browser`/`@azure/msal-react`) — не
- * Phase 4; это только типизированная форма, которую тот код будет ждать, чтобы
- * переключение `Auth:Mode` на сервере с `Stub` на `EntraId` не стало сюрпризом на
- * клиенте, когда до этого дойдёт очередь.
+ * Real Entra ID integration (`@azure/msal-browser`/`@azure/msal-react`) is not
+ * Phase 4; this is only the typed shape that code will expect, so that flipping
+ * `Auth:Mode` on the server from `Stub` to `EntraId` isn't a surprise on the
+ * client when its turn comes.
  */
 
 export interface MsalConfig {

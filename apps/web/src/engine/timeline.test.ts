@@ -43,9 +43,9 @@ function fakeCoverage(dates: readonly IsoDate[], assignments: readonly Assignmen
 }
 
 /**
- * Lead 07:00–15:00 и Night 22:00–06:00+1 в America/New_York. Пересекающиеся
- * окна нужны, чтобы проверить раскладку по подстрокам, а переход через
- * полночь — чтобы ось расширялась за границы суток.
+ * NOTE: Lead 07:00-15:00 and Night 22:00-06:00+1 in America/New_York.
+ * Overlapping windows are needed to test sub-row packing, and the
+ * midnight crossing to test that the axis extends beyond a single day.
  */
 const dayConfig = makeDayConfig({
   id: 'dc-all',
@@ -90,8 +90,8 @@ function setup(assignments = [
   return { index, coverageCells, assignments };
 }
 
-describe('непрерывный таймлайн периода', () => {
-  it('строит одну ось на весь период, выровненную по суткам', () => {
+describe('continuous range timeline', () => {
+  it('builds a single day-aligned axis for the whole range', () => {
     const { index, coverageCells, assignments } = setup();
     const timeline = buildTimelineRange({
       dates: DATES,
@@ -101,12 +101,12 @@ describe('непрерывный таймлайн периода', () => {
       index,
     });
 
-    // Ось начинается ровно в полночь первого дня.
+    // The axis starts exactly at midnight of the first day.
     expect(timeline.axis.start.startsWith('2026-09-07T00:00')).toBe(true);
     expect(timeline.days).toHaveLength(3);
 
-    // Дни идут подряд и покрывают ось без разрывов: без этого вертикальные
-    // линии дней разъезжаются с подписями.
+    // Days run consecutively and cover the axis without gaps: without this
+    // the vertical day lines would drift from their labels.
     for (let i = 1; i < timeline.days.length; i += 1) {
       const previous = timeline.days[i - 1]!;
       const current = timeline.days[i]!;
@@ -114,7 +114,7 @@ describe('непрерывный таймлайн периода', () => {
     }
   });
 
-  it('ось расширяется под смену, переходящую через полночь', () => {
+  it('the axis extends to fit a shift crossing midnight', () => {
     const { index, coverageCells, assignments } = setup();
     const timeline = buildTimelineRange({
       dates: DATES,
@@ -124,14 +124,14 @@ describe('непрерывный таймлайн периода', () => {
       index,
     });
 
-    // Night заканчивается 06:00 следующего дня по NY — это выходит за
-    // последние сутки диапазона в UTC, и ось обязана это вместить.
+    // Night ends at 06:00 the next day in NY time — that falls outside the
+    // range's last UTC day, and the axis must accommodate it.
     const last = timeline.lanes[0]?.blocks.at(-1);
     expect(last).toBeDefined();
     expect(last!.interval.end <= timeline.axis.end).toBe(true);
   });
 
-  it('пересекающиеся смены раскладываются по разным подстрокам', () => {
+  it('overlapping shifts are laid out on different sub-rows', () => {
     const overlapping = [
       makeAssignment('p-alice', leadShift.id, '2026-09-07'),
       makeAssignment('p-bob', leadShift.id, '2026-09-07'),
@@ -147,11 +147,11 @@ describe('непрерывный таймлайн периода', () => {
 
     const bars = detail.lanes[0]?.bars.filter((bar) => bar.kind === 'assigned') ?? [];
     expect(bars).toHaveLength(2);
-    // Одно и то же окно на двоих: класть их в одну строку значит показать одного.
+    // The same window for both: packing them into one row would show only one.
     expect(new Set(bars.map((bar) => bar.row)).size).toBe(2);
   });
 
-  it('свёрнутая сводка считает покрытие по каждому дню', () => {
+  it('the collapsed summary tallies coverage per day', () => {
     const { index, coverageCells, assignments } = setup();
     const timeline = buildTimelineRange({
       dates: DATES,
@@ -163,23 +163,23 @@ describe('непрерывный таймлайн периода', () => {
 
     const daily = timeline.lanes[0]?.daily ?? [];
     expect(daily.map((day) => day.date)).toEqual(DATES);
-    // Первый день закрыт обеими ролями, следующие пустые.
+    // The first day is covered by both roles, the following days are empty.
     expect(daily[0]?.level).not.toBe('GAP');
     expect(daily[1]?.level).toBe('GAP');
   });
 
-  it('позиция момента на оси монотонна', () => {
+  it('position of a moment on the axis is monotonic', () => {
     const axis = { start: '2026-09-07T00:00:00.000Z', end: '2026-09-10T00:00:00.000Z' };
     expect(positionOf(axis, '2026-09-07T00:00:00.000Z')).toBe(0);
     expect(positionOf(axis, '2026-09-08T12:00:00.000Z')).toBeCloseTo(0.5, 5);
     expect(positionOf(axis, '2026-09-10T00:00:00.000Z')).toBe(1);
-    // Выходящее за ось прижимается к краю, а не уезжает за него.
+    // Anything outside the axis clamps to the edge instead of running past it.
     expect(positionOf(axis, '2026-09-30T00:00:00.000Z')).toBe(1);
   });
 });
 
-describe('персональные полосы на весь период (Overview reuses the day view)', () => {
-  it('каждое назначение — своя полоса, с датой, на общей оси периода', () => {
+describe('personal bars for the whole range (Overview reuses the day view)', () => {
+  it('each assignment is its own bar, dated, on the shared range axis', () => {
     const { index, coverageCells, assignments } = setup();
     const range = buildDayDetailRange({
       dates: DATES,
@@ -194,11 +194,12 @@ describe('персональные полосы на весь период (Over
     expect(bars.every((bar) => bar.date === '2026-09-07')).toBe(true);
   });
 
-  it('дыры на разных днях не путаются друг с другом ключом', () => {
-    // Регрессия: ключ дырной полосы внутри одного дня — `gap-${shiftId}`.
-    // Без даты в ключе тот же непокрытый Lead на второй и третий день
-    // получал тот же React key, что и на первый — React ругался на
-    // дублирующиеся ключи, и полосы могли схлопнуться в одну.
+  it('gaps on different days do not collide by key', () => {
+    // WHY: Regression — a gap bar's key within a single day is
+    // `gap-${shiftId}`. Without the date in the key, the same uncovered Lead
+    // on the second and third day got the same React key as the first —
+    // React complained about duplicate keys, and the bars could collapse
+    // into one.
     const { index, coverageCells, assignments } = setup();
     const range = buildDayDetailRange({
       dates: DATES,
@@ -213,7 +214,7 @@ describe('персональные полосы на весь период (Over
     expect(new Set(gapKeys).size).toBe(gapKeys.length);
   });
 
-  it('свёрнутая сводка совпадает с агрегированным таймлайном день-в-день', () => {
+  it('the collapsed summary matches the aggregated timeline day for day', () => {
     const { index, coverageCells, assignments } = setup();
     const aggregate = buildTimelineRange({
       dates: DATES,
@@ -230,8 +231,8 @@ describe('персональные полосы на весь период (Over
       index,
     });
 
-    // Обе ленты делят один и тот же `dailyCoverage` — свёрнутый вид должен
-    // читаться одинаково, каким бы видом ни был развёрнутый.
+    // Both strips share the same `dailyCoverage` — the collapsed view must
+    // read the same regardless of which expanded view is behind it.
     expect(perPerson.lanes[0]?.daily).toEqual(aggregate.lanes[0]?.daily);
   });
 });

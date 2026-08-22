@@ -1,12 +1,13 @@
 /**
- * Тонкий fetch-клиент поверх сгенерированного `schema.d.ts`.
+ * NOTE: A thin fetch client on top of the generated `schema.d.ts`.
  *
- * Не типизирует тела ответов через `schema.d.ts` — минимальные API бэкенда
- * возвращают анонимные объекты без `.Produces<T>()`, поэтому OpenAPI-документ
- * не несёт response-схем (см. `scripts/generate-api-schema.mjs`). Пути,
- * параметры запроса и тела запросов типизированы через `paths` из схемы; тела
- * ответов типизируются вручную в `src/api/mapping.ts` — там уже есть богатые
- * доменные типы (`domain/types.ts`), которые бэкендовые DTO и так зеркалят.
+ * WHY: Response bodies aren't typed via `schema.d.ts` — the backend's minimal
+ * APIs return anonymous objects without `.Produces<T>()`, so the OpenAPI
+ * document carries no response schemas (see `scripts/generate-api-schema.mjs`).
+ * Paths, query parameters, and request bodies are typed via `paths` from the
+ * schema; response bodies are typed by hand in `src/api/mapping.ts`, which
+ * already has rich domain types (`domain/types.ts`) that the backend DTOs
+ * mirror anyway.
  */
 
 export const API_BASE_URL: string =
@@ -34,10 +35,10 @@ async function parseBody(res: Response): Promise<unknown> {
 }
 
 /**
- * Стаб-аутентификация (Phase 4) не требует заголовка — `StubAuthenticationHandler`
- * выдаёт фиксированную identity на каждый запрос без чтения токена. Место для
- * `Authorization: Bearer` — здесь, когда `Auth:Mode` на сервере переключится на
- * `EntraId` (см. `src/auth/AuthProvider.tsx`).
+ * NOTE: Stub auth (Phase 4) needs no header — `StubAuthenticationHandler` issues
+ * a fixed identity on every request without reading a token. This is where
+ * `Authorization: Bearer` belongs once the server's `Auth:Mode` switches to
+ * `EntraId` (see `src/auth/AuthProvider.tsx`).
  */
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {

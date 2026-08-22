@@ -1,12 +1,12 @@
 /**
- * Полоса дней и шкала года — общие для Schedule (`DateRangeControl`) и
- * Overview (`OverviewPeriodControl`).
+ * NOTE: Day strip and year scrubber — shared by Schedule (`DateRangeControl`)
+ * and Overview (`OverviewPeriodControl`).
  *
- * Обе читают одно и то же: `range` — что подсветить как «текущее» (и вокруг
- * чего добавить контекст на полосе дней), `onPick` — куда переносит клик по
- * дате. Что значит «перенос» — своё у каждого экрана (Schedule выравнивает
- * на месяц, Overview просто переставляет якорь и центрируется), но сами эти
- * два виджета об этом не знают.
+ * Both read the same things: `range` — what to highlight as "current" (and
+ * what to add context around on the day strip), `onPick` — where a click on a
+ * date moves things to. What "moving" means is each screen's own business
+ * (Schedule aligns to a month, Overview just repositions the anchor and
+ * recenters), but these two widgets themselves don't know that.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,23 +15,24 @@ import { parseDate } from '../../engine/dates.ts';
 import { dateAtFraction, formatRange, fractionOf, monthTicks, rangeLength, scrubberTrack } from '../../engine/period.ts';
 import { TODAY } from '../../store/useUi.ts';
 
-/** Минимальная ширина чипа плюс зазор между ними — из `.day-chip` в theme.css. */
+/** NOTE: Minimum chip width plus the gap between chips — from `.day-chip` in theme.css. */
 const MIN_CHIP_W = 30;
 const CHIP_GAP = 3;
 
-/** Сколько чипов минимальной ширины помещается в измеренную ширину, без обрезки. */
+/** NOTE: How many minimum-width chips fit in the measured width without clipping. */
 export function chipSlotsFor(containerWidth: number): number {
   if (containerWidth <= 0) return 0;
   return Math.max(1, Math.floor((containerWidth + CHIP_GAP) / (MIN_CHIP_W + CHIP_GAP)));
 }
 
 /**
- * Дни периода плюс симметричный контекст по краям, ровно до `chipCount`.
+ * NOTE: The period's days plus symmetric context at the edges, up to exactly
+ * `chipCount`.
  *
- * Контекст — не украшение: без дней соседнего периода по краям кликать было
- * бы некуда — период внутри и так уже целиком показан, а контекстные чипы —
- * единственный способ шагнуть за его границу одним кликом по полосе, а не
- * стрелкой.
+ * The context isn't decoration: without days from the neighboring period at
+ * the edges there'd be nowhere to click — the period itself is already shown
+ * in full, and the context chips are the only way to step past its boundary
+ * with one click on the strip, rather than an arrow.
  */
 function stripDays(range: DateRange, chipCount: number): IsoDate[] {
   const context = Math.max(0, chipCount - rangeLength(range));
@@ -85,7 +86,7 @@ export function DayStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Шкала года
+// Year scrubber
 // ---------------------------------------------------------------------------
 
 export function Scrubber({

@@ -18,7 +18,7 @@ public class ValidatorTests
             new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 0, Max = 1, IsDefault = true },
         ]);
 
-    // Пять будних дней подряд, чтобы минимум был закрыт и не мешал.
+    // NOTE: Five consecutive weekdays, so the minimum is covered and stays out of the way.
     private static readonly List<DateOnly> FilledWeek =
         [.. Enumerable.Range(7, 5).Select(d => new DateOnly(2026, 9, d))];
 
@@ -63,8 +63,9 @@ public class ValidatorTests
         }
     }
 
-    /// <summary>Конфликты не блокируют публикацию (ADR-0024) — требуют подтверждения.
-    /// Блокирующими остались только записи, невозможные ни при каком решении.</summary>
+    /// <summary>NOTE: Conflicts don't block publication (ADR-0024) — they need
+    /// acknowledgement. Only records impossible under any decision stay
+    /// blocking.</summary>
     public class AcknowledgeableConflicts
     {
         [Fact]
@@ -110,8 +111,8 @@ public class ValidatorTests
         [Fact]
         public void Two_assignments_the_same_day_stay_blocking_ids_differ()
         {
-            // Это не решение планировщика, а невозможная запись: ровно одно
-            // назначение на (человек, дата) — жёсткое ограничение модели.
+            // NOTE: Not a planner decision but an impossible record: exactly one
+            // assignment per (person, date) is a hard model constraint.
             var person = MakePerson("p-1", eligibility:
             [
                 new ShiftEligibility { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 0.5 },
@@ -186,7 +187,8 @@ public class ValidatorTests
         [Fact]
         public void A_role_outside_this_days_configuration()
         {
-            // Выходных в конфигурации нет вовсе — суббота роли не предполагает.
+            // NOTE: There's no weekend configuration at all — Saturday doesn't
+            // provide for this role.
             var person = MakePerson("p-1");
             var issues = IssuesFor(new Scenario { People = [person], Assignments = [MakeAssignment("p-1", LeadRole.Id, new DateOnly(2026, 9, 12))] });
             Assert.Contains(IssueCode.ShiftNotInDayConfig, Codes(issues));
@@ -203,8 +205,9 @@ public class ValidatorTests
         [Fact]
         public void A_role_pool_limit_catches_what_the_region_counter_misses()
         {
-            // Четверо в регионе, двое умеют Lead. Оба в длинном отпуске: по региону
-            // лимит 3 не превышен, по пулу Lead — превышен. ADR-0010.
+            // NOTE: Four people in the region, two can do Lead. Both on long leave:
+            // the region-wide limit of 3 isn't exceeded, but the Lead pool limit is.
+            // ADR-0010.
             var people = new List<Person>
             {
                 MakePerson("p-lead-1"),
@@ -249,7 +252,8 @@ public class ValidatorTests
         [Fact]
         public void Thin_coverage_is_a_signal_not_a_blocker()
         {
-            // Работа ровно по минимуму — норма этого ростера, а не отклонение.
+            // NOTE: Working right at the minimum is the norm for this roster, not a
+            // deviation.
             var issues = IssuesFor(new Scenario { Assignments = [.. FilledWeek.Select(d => MakeAssignment("p-1", LeadRole.Id, d))] });
             var issue = FirstOf(issues, IssueCode.CoverageThin);
             Assert.Equal(IssueLevel.Info, issue?.Level);
@@ -312,9 +316,9 @@ public class ValidatorTests
         [Fact]
         public void Sorts_violations_by_level()
         {
-            // Дыра сама по себе больше не BLOCKING (ADR-0035) — только двойное
-            // назначение и чужая/несуществующая смена остались невозможными
-            // ни при каком решении.
+            // NOTE: A gap by itself is no longer BLOCKING (ADR-0035) — only a double
+            // assignment and a foreign/nonexistent shift remain impossible under any
+            // decision.
             var person = MakePerson("p-1", eligibility:
             [
                 new ShiftEligibility { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 0.5 },
@@ -342,17 +346,18 @@ public class ValidatorTests
             var summary = Validator.Summarize(issues, new HashSet<string>());
             Assert.True(summary.Gaps > 0);
             Assert.True(summary.Conflicts > 0);
-            // Дыра больше не блокирует (ADR-0035): в этом сценарии единственный
-            // непокрытый минимум — она сама, поэтому blocking здесь пуст, хотя
-            // gaps и conflicts оба посчитаны.
+            // NOTE: A gap no longer blocks (ADR-0035): in this scenario the only
+            // uncovered minimum is the gap itself, so blocking is empty here even
+            // though gaps and conflicts are both counted.
             Assert.Equal(0, summary.Blocking);
         }
 
         [Fact]
         public void An_unacknowledged_warning_never_blocks_publication()
         {
-            // Перебор максимума — настоящее предупреждение: три человека на роли
-            // с max 2, при этом минимум закрыт и блокеров нет.
+            // NOTE: Exceeding the maximum is a genuine warning: three people on a
+            // role with max 2, while the minimum is covered and there are no
+            // blockers.
             var people = new List<Person> { MakePerson("p-1"), MakePerson("p-2"), MakePerson("p-3") };
             var assignments = new List<Assignment>();
             assignments.AddRange(people.Select(p => MakeAssignment(p.Id, LeadRole.Id, new DateOnly(2026, 9, 9))));

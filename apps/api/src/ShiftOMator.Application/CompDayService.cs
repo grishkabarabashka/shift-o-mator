@@ -109,7 +109,7 @@ public static class CompDayService
         var liveAssignmentIds = new HashSet<string>();
         var added = new List<CompDayEntry>();
 
-        // Порядок обхода фиксирован: результат не должен зависеть от порядка входа.
+        // NOTE: Traversal order is fixed — the result must not depend on input order.
         var ordered = p.Assignments.OrderBy(a => a.Date).ThenBy(a => a.Id, StringComparer.Ordinal);
 
         foreach (var assignment in ordered)
@@ -152,8 +152,7 @@ public static class CompDayService
         return new ProposeResult([.. p.Existing, .. added], added, orphaned);
     }
 
-    // -------------------------------------------------------------------------
-    // Баланс и возраст
+    // SECTION: Balance and age
     // -------------------------------------------------------------------------
 
     public record CompDayBalance(

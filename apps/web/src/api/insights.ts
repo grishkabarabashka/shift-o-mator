@@ -1,14 +1,15 @@
 /**
- * Пояснения поверх плана — то, что модель формулирует, а не решает.
+ * NOTE: Explanations layered on top of the plan — what the model phrases, not
+ * what it decides.
  *
- * Счётчики в ответе приходят от валидатора, текст — от модели, и в интерфейсе
- * они показываются рядом: читатель может сверить одно с другим. Это не
- * украшение, а условие, на котором такой панели вообще есть место в
- * инструменте планирования.
+ * The counters in the response come from the validator, the text from the
+ * model, and the UI shows them side by side: the reader can check one against
+ * the other. That's not decoration, it's the condition under which a panel
+ * like this gets to exist in a planning tool at all.
  *
- * Фича необязательная: без ключа на сервере эндпоинт отвечает 503
- * `AI_NOT_CONFIGURED`, и панель просто не показывается. Ничто в планировании от
- * неё не зависит.
+ * NOTE: The feature is optional: without a key configured on the server, the
+ * endpoint answers 503 `AI_NOT_CONFIGURED` and the panel simply doesn't show.
+ * Nothing in planning depends on it.
  */
 
 import { apiPost, ApiError } from './client.ts';
@@ -21,12 +22,12 @@ export interface GapSummary {
   readonly conflicts: number;
   readonly warnings: number;
   readonly blocking: number;
-  /** null, когда модель не вызывалась — в периоде нечего объяснять. */
+  /** NOTE: null when the model wasn't called — nothing to explain in the period. */
   readonly model: string | null;
   readonly generatedAt: string;
 }
 
-/** Почему саммари нет: «не настроено» и «сломалось» — разные сообщения. */
+/** NOTE: Why the summary is missing: "not configured" and "broke" are different messages. */
 export type GapSummaryFailure = 'NOT_CONFIGURED' | 'UNAVAILABLE';
 
 export class GapSummaryError extends Error {

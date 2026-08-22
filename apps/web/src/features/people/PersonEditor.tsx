@@ -1,17 +1,17 @@
 /**
- * Редактор профиля инженера: доли ролей, доступные дни, пожелания.
+ * NOTE: Engineer profile editor: role shares, available days, preferences.
  *
- * Это вход в автогенерацию. Целевая доля — не отчётность: она задаёт, какую
- * часть смен человека система должна отдавать этой роли, и без неё
- * автоподстановка распределяет роли ровно, чего в жизни не бывает — кто-то
- * тянет батчи, кто-то ведёт смену.
+ * This is the input to auto-population. Target share is not a reporting metric: it
+ * sets what portion of a person's shifts the system should hand to that role, and
+ * without it auto-populate would spread roles evenly, which never happens in
+ * practice — someone carries the batches, someone else leads the shift.
  *
- * Доли задаются **в процентах и нормализуются к 100** (ADR-0006 держит их как
- * доли 0…1). Планировщик думает «Priya — треть Batch-L», а не «0.33», и
- * набранная от руки сумма 95% или 110% не должна ничего ломать: показываем
- * фактический итог и нормализуем при сохранении.
+ * Shares are entered **as percentages and normalized to 100** (ADR-0006 keeps them
+ * internally as 0…1 fractions). A planner thinks "Priya is a third of Batch-L," not
+ * "0.33," and a hand-entered total of 95% or 110% must not break anything: we show
+ * the actual total and normalize on save.
  *
- * Пишется мимо черновика: это настройка, а не правка расписания (ADR-0015).
+ * Writes bypass the draft: this is configuration, not a schedule edit (ADR-0015).
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -35,7 +35,7 @@ interface Props {
 }
 
 interface DraftState {
-  /** Проценты, не доли: так их вводит человек. */
+  /** NOTE: Percentages, not fractions: this is how a person enters them. */
   readonly shares: ReadonlyMap<string, number>;
   readonly available: ReadonlySet<Weekday>;
   readonly avoids: ReadonlySet<Weekday>;
@@ -58,8 +58,8 @@ export function PersonEditor({ person, unitShifts, onClose }: Props) {
   const [draft, setDraft] = useState<DraftState>(() => initialState(person));
   const [saving, setSaving] = useState(false);
 
-  // Переключение человека в таблице должно сбрасывать несохранённую правку,
-  // иначе доли Priya молча уедут в профиль Karan.
+  // WHY: Switching the selected person in the table must reset any unsaved edit,
+  // otherwise Priya's shares silently drift into Karan's profile.
   useEffect(() => setDraft(initialState(person)), [person]);
 
   const total = useMemo(
@@ -245,8 +245,8 @@ function WeekdayRow({
 }
 
 /**
- * Проценты обратно в доли. Нормализация к сумме, а не к 100: планировщик
- * задаёт соотношение, и 30/30/30 должно значить то же, что 33/33/33.
+ * NOTE: Percentages back to fractions. Normalization is to the sum, not to 100: the
+ * planner sets a ratio, and 30/30/30 must mean the same thing as 33/33/33.
  */
 function applyTo(person: Person, draft: DraftState): Person {
   const total = [...draft.shares.values()].reduce((sum, value) => sum + value, 0);

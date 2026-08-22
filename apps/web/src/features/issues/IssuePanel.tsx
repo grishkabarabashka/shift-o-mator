@@ -1,17 +1,14 @@
 /**
- * Панель нарушений.
- *
- * Клик по строке ведёт в соответствующую ячейку сетки — без этого список
- * нарушений превращается в декорацию.
- *
- * Дыры и конфликты разведены по разным спискам намеренно (ADR-0009): дыра
- * чинится назначением кого-то, конфликт — снятием или исправлением назначения.
- * Это разные действия, и сваливать их в один поток «ошибок» значит заставлять
- * планировщика каждый раз читать текст, чтобы понять, что вообще делать.
- *
- * Предупреждение снимается только осознанно: с комментарием, который остаётся
- * в плане. Через полгода видно, сколько раз и почему приходилось выходить за
- * рамки.
+ * NOTE: Issues panel. Clicking a row jumps to the corresponding grid cell —
+ * without that, the issue list is just decoration.
+ * NOTE: Gaps and conflicts are kept in separate lists deliberately (ADR-0009):
+ * a gap is fixed by assigning someone, a conflict by removing or correcting an
+ * assignment. These are different actions, and lumping them into one "errors"
+ * stream would force the planner to read the text every time just to know what
+ * to do.
+ * NOTE: A warning is only cleared deliberately, with a comment that stays in
+ * the plan. Six months later it shows how often and why the rule had to be
+ * broken.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -42,14 +39,13 @@ const BUCKETS: ReadonlyArray<{ id: Bucket; label: string; hint: string }> = [
 ];
 
 /**
- * Категория решает раньше уровня.
- *
- * Конфликт перестал быть блокирующим (ADR-0024), дыра тоже (ADR-0035), но обе
- * по-прежнему чинятся иначе, чем прочие предупреждения: дыра — назначением
- * кого-то, конфликт — снятием или исправлением назначения. Если раскладывать
- * по уровню, обе растворятся среди прочих сигналов, и разделение, ради
- * которого ADR-0009 их развёл, пропадёт. `isCoverageGap` — по коду, не по
- * уровню, чтобы не зависеть от того, что CoverageGap теперь INFO.
+ * NOTE: Category decides before level. A conflict stopped being blocking
+ * (ADR-0024), and so did a gap (ADR-0035), but both are still fixed
+ * differently from other warnings: a gap by assigning someone, a conflict by
+ * removing or correcting an assignment. Sorting by level alone would dissolve
+ * both into the general signal stream, erasing the separation ADR-0009
+ * introduced them for. `isCoverageGap` checks by code, not level, so it
+ * doesn't depend on CoverageGap now being INFO.
  */
 function bucketOf(issue: Issue): Bucket {
   if (issue.category === 'CONFLICT') return 'CONFLICT';
@@ -75,8 +71,8 @@ export function IssuePanel({ view }: Props) {
     return map;
   }, [view.issues]);
 
-  // Свёрнутый вид считается один раз на изменение списка, а не на каждое
-  // раскрытие корзины: за месяц по единице сюда приходит пара сотен нарушений.
+  // NOTE: The collapsed view is computed once per list change, not on every
+  // bucket expand: a month for one unit brings a couple hundred issues here.
   const groups = useMemo(() => {
     const map = new Map<Bucket, IssueGroup[]>();
     for (const bucket of BUCKETS) {
@@ -205,11 +201,10 @@ export function IssuePanel({ view }: Props) {
 }
 
 /**
- * Одна находка: «Cover — uncovered · 12 days», раскрывается в даты.
- *
- * Группа из одного нарушения показывается сразу строкой, без раскрывашки: жать
- * на треугольник ради одной строки под ним — работа, которую интерфейс придумал
- * себе сам.
+ * NOTE: One finding: "Cover — uncovered · 12 days", expands into dates.
+ * NOTE: A group of a single issue is shown directly as a row, no disclosure
+ * triangle: clicking a triangle to reveal one row underneath is work the
+ * interface invented for itself.
  */
 function IssueGroupRow({
   group,
@@ -285,7 +280,7 @@ function IssueGroupRow({
   );
 }
 
-/** Отдельное нарушение — ровно то, чем строка списка была до группировки. */
+/** NOTE: A single issue — exactly what the list row was before grouping. */
 function IssueRow({
   issue,
   acknowledged,
@@ -310,8 +305,8 @@ function IssueRow({
         ) : null}
         <span className="text-[12px] leading-snug">{issue.message}</span>
       </span>
-      {/* По уровню, а не по корзине: конфликт лежит в своей корзине, но
-          подтверждается так же. */}
+      {/* NOTE: By level, not by bucket: a conflict sits in its own bucket but
+          is acknowledged the same way. */}
       {issue.level === 'WARNING' ? (
         <span
           className="mt-0.5 block text-[10.5px]"

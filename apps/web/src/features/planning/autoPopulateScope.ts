@@ -1,10 +1,10 @@
 /**
- * Селектнутые ячейки в сетке как границы для Generate — owner review: без
- * этого «Generate» всегда прогонял весь видимый месяц целиком, и заполнить
- * только несколько человек на несколько дней было нечем. Тот же приём, что
- * `resolveAbsenceTargets` для `+ Absence` — прямоугольник выделения даёт
- * крайние даты и список людей, только здесь одна общая дата от–до, а не
- * запись на каждого.
+ * NOTE: Selected grid cells act as bounds for Generate — owner review: without
+ * this, "Generate" always ran over the whole visible month, with no way to
+ * fill just a few people for a few days. Same trick as `resolveAbsenceTargets`
+ * for `+ Absence` — the selection rectangle gives the outer dates and the
+ * list of people, only here it's one shared from-to date rather than a
+ * per-person record.
  */
 
 import type { DateRange, IsoDate, PersonId, UnitId } from '../../domain/types.ts';

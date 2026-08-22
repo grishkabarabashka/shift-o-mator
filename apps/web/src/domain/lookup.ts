@@ -1,6 +1,6 @@
 /**
- * Индексы по датасету. Чистые функции движка получают их аргументом, чтобы не
- * пересобирать `Map` на каждый день периода.
+ * NOTE: Dataset indexes. Pure engine functions receive these as an argument so
+ * they don't rebuild a `Map` for every day of the period.
  */
 
 import type {
@@ -29,10 +29,10 @@ export interface DatasetIndex {
   readonly shiftsByUnit: ReadonlyMap<UnitId, readonly Shift[]>;
   readonly peopleByUnit: ReadonlyMap<UnitId, readonly Person[]>;
   readonly dayConfigsByUnit: ReadonlyMap<UnitId, readonly DayConfiguration[]>;
-  /** Праздничные даты по ключу календаря. */
+  /** NOTE: Holiday dates by calendar key. */
   readonly holidayDates: ReadonlyMap<HolidayCalendarKey, ReadonlySet<IsoDate>>;
   readonly holidayNames: ReadonlyMap<string, string>;
-  /** Праздники по локации: локация → множество дат. */
+  /** NOTE: Holidays by location: location -> set of dates. */
   readonly holidaysByLocation: ReadonlyMap<LocationId, ReadonlySet<IsoDate>>;
   readonly absencesByPerson: ReadonlyMap<PersonId, readonly Absence[]>;
   readonly compDaysByPerson: ReadonlyMap<PersonId, readonly CompDayEntry[]>;
@@ -61,7 +61,7 @@ export function holidayKey(calendarKey: HolidayCalendarKey, date: IsoDate): stri
   return `${calendarKey}|${date}`;
 }
 
-/** Ключ ячейки сетки. */
+/** NOTE: Grid cell key. */
 export function cellKey(personId: PersonId, date: IsoDate): string {
   return `${personId}|${date}`;
 }
@@ -94,8 +94,8 @@ export function buildIndex(data: ScheduleDataset): DatasetIndex {
     }
   }
 
-  // Локации без собственных праздников всё равно должны иметь запись,
-  // иначе поиск по локации вернёт undefined вместо пустого множества.
+  // NOTE: Locations without their own holidays still need an entry,
+  // otherwise a lookup by location returns undefined instead of an empty set.
   for (const location of data.locations) {
     if (!holidaysByLocation.has(location.id)) holidaysByLocation.set(location.id, new Set());
   }
@@ -126,7 +126,7 @@ export function buildIndex(data: ScheduleDataset): DatasetIndex {
   };
 }
 
-/** Достаёт сущность или бросает — используется там, где отсутствие означает баг. */
+/** NOTE: Gets an entity or throws — used where absence means a bug. */
 export function mustGet<K, V>(map: ReadonlyMap<K, V>, key: K, what: string): V {
   const value = map.get(key);
   if (value === undefined) throw new Error(`${what} not found: ${String(key)}`);

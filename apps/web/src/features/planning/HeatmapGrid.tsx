@@ -1,13 +1,14 @@
 /**
- * Компактный вид длинных периодов: человек — строка, день — точка.
+ * NOTE: Compact view for long periods: a person is a row, a day is a dot.
  *
- * Три и шесть месяцев — это 90–180 колонок; редактируемая сетка на таком
- * масштабе не помещается ни на экран, ни в бюджет отрисовки, и главное — на
- * ней нечего делать мышью. Здесь отвечают на другие вопросы: где сидят блоки
- * отпусков, кто месяцами не стоял в выходные, ровно ли размазаны роли.
+ * Three and six months are 90-180 columns; an editable grid at that scale
+ * fits neither the screen nor the render budget, and more importantly there's
+ * nothing to do with a mouse on it. This view answers different questions:
+ * where the vacation blocks sit, who hasn't had a weekend off in months,
+ * whether roles are evenly spread.
  *
- * Поэтому вид только на чтение, а цвет берётся у роли: те же цвета, что в
- * сетке, People и таймлайне.
+ * Hence read-only, and color comes from the role: the same colors as the
+ * grid, People, and the timeline.
  */
 
 import { useMemo } from 'react';
@@ -19,7 +20,7 @@ import type { GridRow, PlanningView } from './usePlanningView.ts';
 import { STATUS_LABEL } from './GridCell.tsx';
 
 const NAME_W = 185;
-/** Пол для точки: меньше не различить, даже глядя специально. */
+/** NOTE: Floor for the dot size: below this it can't be told apart even looking on purpose. */
 const MIN_DAY_W = 4;
 
 export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
@@ -27,7 +28,7 @@ export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
   const { rows, columns } = view;
   const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
 
-  /** Заголовки месяцев: недельные группы на 180 колонках нечитаемы. */
+  /** NOTE: Month headers: weekly groups over 180 columns would be unreadable. */
   const months = useMemo(() => {
     const out: { key: string; label: string; span: number }[] = [];
     for (const column of columns) {
@@ -39,8 +40,8 @@ export function HeatmapGrid({ view }: { readonly view: PlanningView }) {
     return out;
   }, [columns]);
 
-  // Тот же приём, что у сетки: зум растягивает точки под ширину экрана вместо
-  // фиксированных 7px, с полом там, где точка иначе стала бы линией.
+  // NOTE: Same trick as the grid: zoom stretches dots to fill screen width
+  // instead of a fixed 7px, with a floor where a dot would otherwise become a line.
   const dayW =
     columns.length > 0 ? Math.max(MIN_DAY_W, (fillWidth - NAME_W) / columns.length) : MIN_DAY_W;
   const template = `var(--name-w) repeat(${columns.length}, ${dayW}px)`;

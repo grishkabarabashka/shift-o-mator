@@ -25,8 +25,8 @@ function setup(overrides: Parameters<typeof makeDataset>[0] = {}) {
 
 const MAPPING: ColumnMapping = { 0: 'personId', 1: 'personName', 2: 'type', 3: 'from', 4: 'to' };
 
-describe('парсинг вставленной таблицы', () => {
-  it('различает вставку из таблицы (tab) и csv-файл (запятая)', () => {
+describe('parsing a pasted table', () => {
+  it('distinguishes a spreadsheet paste (tab) from a CSV file (comma)', () => {
     expect(parseDelimited('E100\tAlice\tVacation\n E200 \tBob\tSick')).toEqual([
       ['E100', 'Alice', 'Vacation'],
       ['E200', 'Bob', 'Sick'],
@@ -37,7 +37,7 @@ describe('парсинг вставленной таблицы', () => {
     ]);
   });
 
-  it('пропускает пустые строки', () => {
+  it('skips blank lines', () => {
     expect(parseDelimited('a,b\n\n c,d \n')).toEqual([
       ['a', 'b'],
       ['c', 'd'],
@@ -45,34 +45,34 @@ describe('парсинг вставленной таблицы', () => {
   });
 });
 
-describe('гибкий разбор дат', () => {
-  it('принимает ISO и день-первым, отклоняет мусор', () => {
+describe('flexible date parsing', () => {
+  it('accepts ISO and day-first, rejects garbage', () => {
     expect(parseFlexibleDate('2026-08-04')).toBe('2026-08-04');
     expect(parseFlexibleDate('4/8/2026')).toBe('2026-08-04');
     expect(parseFlexibleDate('04.08.2026')).toBe('2026-08-04');
-    expect(parseFlexibleDate('31/02/2026')).toBeUndefined(); // 31 февраля не существует
+    expect(parseFlexibleDate('31/02/2026')).toBeUndefined(); // February 31 doesn't exist
     expect(parseFlexibleDate('not a date')).toBeUndefined();
   });
 });
 
-describe('применение маппинга колонок к строкам', () => {
-  it('нормализует тип по словарю синонимов, одна дата = один день', () => {
+describe('applying column mapping to rows', () => {
+  it('normalizes the type via the synonym dictionary, one date = one day', () => {
     const table = [['E100', 'Alice', 'annual leave', '2026-08-10', '']];
     const [row] = mapRows(table, MAPPING, false);
     expect(row?.type).toBe('VACATION');
     expect(row?.from).toBe('2026-08-10');
-    expect(row?.to).toBe('2026-08-10'); // нет столбца "to" — однодневное отсутствие
+    expect(row?.to).toBe('2026-08-10'); // no "to" column — a single-day absence
     expect(row?.error).toBeUndefined();
   });
 
-  it('переставляет местами перепутанные from/to, не обрезая диапазон', () => {
+  it('swaps a reversed from/to pair instead of clipping the range', () => {
     const table = [['E100', 'Alice', 'sick', '2026-08-10', '2026-08-05']];
     const [row] = mapRows(table, MAPPING, false);
     expect(row?.from).toBe('2026-08-05');
     expect(row?.to).toBe('2026-08-10');
   });
 
-  it('без человека или без читаемой даты строка помечается ошибкой, а не отбрасывается', () => {
+  it('flags a row with no person or no readable date as an error instead of dropping it', () => {
     const table = [
       ['', '', 'sick', '2026-08-10', ''],
       ['E100', 'Alice', 'sick', 'garbage', ''],
@@ -82,7 +82,7 @@ describe('применение маппинга колонок к строкам
     expect(rows[1]?.error).toContain('unreadable date');
   });
 
-  it('пропускает строку заголовка, когда она есть', () => {
+  it('skips the header row when present', () => {
     const table = [
       ['Employee ID', 'Name', 'Type', 'From', 'To'],
       ['E100', 'Alice', 'sick', '2026-08-10', ''],
@@ -93,8 +93,8 @@ describe('применение маппинга колонок к строкам
   });
 });
 
-describe('угадывание маппинга по заголовку', () => {
-  it('распознаёт обычные заголовки, неизвестные столбцы игнорирует', () => {
+describe('guessing the mapping from the header', () => {
+  it('recognizes common headers, ignores unknown columns', () => {
     const header = ['Employee ID', 'Full Name', 'Leave Type', 'From', 'To', 'Comment', 'Department'];
     expect(guessColumnMapping(header)).toEqual({
       0: 'personId',
@@ -108,8 +108,8 @@ describe('угадывание маппинга по заголовку', () => 
   });
 });
 
-describe('сопоставление людей', () => {
-  it('находит по employeeId точно', () => {
+describe('matching people', () => {
+  it('finds an exact employeeId match', () => {
     const index = setup();
     const [row] = mapRows([['E100', '', 'sick', '2026-08-10', '']], MAPPING, false);
     const [match] = matchPeople([row!], index, new Map());
@@ -117,7 +117,7 @@ describe('сопоставление людей', () => {
     expect(match?.suggestions).toHaveLength(0);
   });
 
-  it('без employeeId предлагает совпадения по имени, не решает за планировщика', () => {
+  it('without an employeeId, suggests name matches instead of deciding for the planner', () => {
     const index = setup();
     const [row] = mapRows([['', 'Alice Johnsen', 'sick', '2026-08-10', '']], MAPPING, false);
     const [match] = matchPeople([row!], index, new Map());
@@ -125,14 +125,14 @@ describe('сопоставление людей', () => {
     expect(match?.suggestions[0]?.personId).toBe('p-alice');
   });
 
-  it('точное совпадение по имени резолвится сразу', () => {
+  it('an exact name match resolves immediately', () => {
     const index = setup();
     const [row] = mapRows([['', 'Bob Smith', 'sick', '2026-08-10', '']], MAPPING, false);
     const [match] = matchPeople([row!], index, new Map());
     expect(match?.personId).toBe('p-bob');
   });
 
-  it('запомненное решение планировщика применяется без повторного вопроса', () => {
+  it("applies the planner's remembered decision without asking again", () => {
     const index = setup();
     const [row] = mapRows([['', 'Al Johnson', 'sick', '2026-08-10', '']], MAPPING, false);
     const remembered = new Map([['al johnson', 'p-alice']]);
@@ -141,8 +141,8 @@ describe('сопоставление людей', () => {
   });
 });
 
-describe('диф с уже существующими отсутствиями', () => {
-  it('классифицирует add/update/unchanged и различает их корректно', () => {
+describe('diffing against existing absences', () => {
+  it('classifies add/update/unchanged correctly', () => {
     const index = setup();
     const existing: Absence[] = [
       {
@@ -177,7 +177,7 @@ describe('диф с уже существующими отсутствиями',
     expect(byPerson.get('p-alice|2026-08-20')).toBe('add');
   });
 
-  it('строки без разрешённого человека попадают в unresolved, не в rows', () => {
+  it('rows with no resolved person land in unresolved, not in rows', () => {
     const index = setup();
     const table = [['', 'Someone Unknown', 'sick', '2026-08-10', '']];
     const rows = mapRows(table, MAPPING, false);
@@ -187,7 +187,7 @@ describe('диф с уже существующими отсутствиями',
     expect(diff.unresolved).toHaveLength(1);
   });
 
-  it('пропавшую запись помечает "gone", только если период импорта её покрывает', () => {
+  it('flags a missing record as "gone" only when the import range covers it', () => {
     const index = setup();
     const existing: Absence[] = [
       {
@@ -207,8 +207,8 @@ describe('диф с уже существующими отсутствиями',
         source: 'IMPORT',
       },
     ];
-    // Импорт покрывает весь август (включая диапазон abs-old) — запись за
-    // ноябрь вне зоны видимости этого экспорта и не должна выглядеть отменённой.
+    // The import covers all of August (including abs-old's range) — the
+    // November record is outside this export's scope and must not look canceled.
     const table = [['E200', '', 'sick', '2026-08-01', '2026-08-31']];
     const rows = mapRows(table, MAPPING, false);
     const matches = matchPeople(rows, index, new Map());
@@ -217,7 +217,7 @@ describe('диф с уже существующими отсутствиями',
     expect(diff.gone.map((g) => g.absence.id)).toEqual(['abs-old']);
   });
 
-  it('отсутствия, введённые вручную, никогда не считаются "gone"', () => {
+  it('manually entered absences are never considered "gone"', () => {
     const index = setup();
     const existing: Absence[] = [
       {
@@ -237,8 +237,8 @@ describe('диф с уже существующими отсутствиями',
   });
 });
 
-describe('влияние на опубликованные назначения', () => {
-  it('находит опубликованные роли, попадающие в новый или изменённый диапазон', () => {
+describe('impact on published assignments', () => {
+  it('finds published roles falling within a new or changed range', () => {
     const index = setup();
     const published = [
       makeAssignment('p-alice', 'r-lead', '2026-08-11'),
@@ -271,8 +271,8 @@ describe('влияние на опубликованные назначения'
   });
 });
 
-describe('построение изменений черновика', () => {
-  it('каждая строка несёт importBatchId и обновлённый lastSeenInImportAt', () => {
+describe('building draft changes', () => {
+  it('each row carries importBatchId and an updated lastSeenInImportAt', () => {
     const rows = [
       {
         rowIndex: 0,
@@ -300,7 +300,7 @@ describe('построение изменений черновика', () => {
     expect(change.after?.lastSeenInImportAt).toBe('2026-08-15T00:00:00Z');
   });
 
-  it('только подтверждённые "gone" записи удаляются', () => {
+  it('only confirmed "gone" records get removed', () => {
     const gone = [
       {
         absence: {
@@ -340,8 +340,8 @@ describe('построение изменений черновика', () => {
   });
 });
 
-describe('свежесть данных об отсутствиях', () => {
-  it('берёт самый поздний lastSeenInImportAt', () => {
+describe('absence data freshness', () => {
+  it('takes the most recent lastSeenInImportAt', () => {
     const absences: Absence[] = [
       {
         id: 'a',

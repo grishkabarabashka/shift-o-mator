@@ -1,10 +1,9 @@
 /**
- * Черновик как упорядоченный список изменений — ADR-0015.
+ * NOTE: A draft is an ordered list of changes — ADR-0015.
  *
- * Каждое изменение несёт и предыдущее, и новое значение. Из этого почти
- * бесплатно получается undo/redo (обратное изменение — то же самое с
- * переставленными `before`/`after`) и экран сравнения при конфликте
- * публикации.
+ * Every change carries both the previous and the new value. That gets
+ * undo/redo almost for free (the inverse change is the same thing with
+ * `before`/`after` swapped) and the publish-conflict comparison screen.
  */
 
 import type {
@@ -31,7 +30,7 @@ function opFor(before: unknown | null, after: unknown | null): DraftOp {
 }
 
 // ---------------------------------------------------------------------------
-// Конструкторы
+// Constructors
 // ---------------------------------------------------------------------------
 
 export function assignmentChange(
@@ -62,7 +61,7 @@ export function compDayChange(
 }
 
 // ---------------------------------------------------------------------------
-// Применение
+// Application
 // ---------------------------------------------------------------------------
 
 function replaceById<T extends { id: string }>(
@@ -79,7 +78,7 @@ function replaceById<T extends { id: string }>(
 export function applyChange(plan: PlanData, change: DraftChange): PlanData {
   switch (change.targetType) {
     case 'ASSIGNMENT': {
-      // Ячейка — пара (человек, дата), и в ней не больше одного назначения.
+      // NOTE: A cell is a (person, date) pair, holding at most one assignment.
       const anchor = change.after ?? change.before;
       if (!anchor) return plan;
       const assignments = plan.assignments.filter(
@@ -100,7 +99,7 @@ export function applyChanges(plan: PlanData, changes: readonly DraftChange[]): P
 }
 
 // ---------------------------------------------------------------------------
-// Обращение
+// Inversion
 // ---------------------------------------------------------------------------
 
 export function invertChange(change: DraftChange): DraftChange {
@@ -117,7 +116,7 @@ export function invertChange(change: DraftChange): DraftChange {
   }
 }
 
-/** Изменения, отменяющие переданные. Порядок обратный. */
+/** NOTE: Changes that undo the given ones. Order is reversed. */
 export function invertAll(changes: readonly DraftChange[]): DraftChange[] {
   return [...changes]
     .sort((a, b) => b.seq - a.seq)
@@ -125,10 +124,10 @@ export function invertAll(changes: readonly DraftChange[]): DraftChange[] {
 }
 
 // ---------------------------------------------------------------------------
-// Прочее
+// Misc
 // ---------------------------------------------------------------------------
 
-/** Изменение, которое ничего не меняет. */
+/** NOTE: A change that changes nothing. */
 export function isNoop(change: DraftChange): boolean {
   if (change.before === null && change.after === null) return true;
   if (change.targetType === 'ASSIGNMENT' && change.before && change.after) {
@@ -141,7 +140,7 @@ export function isNoop(change: DraftChange): boolean {
   return false;
 }
 
-/** Сводка для экрана review. */
+/** NOTE: Summary for the review screen. */
 export interface ChangeSummary {
   readonly created: number;
   readonly updated: number;

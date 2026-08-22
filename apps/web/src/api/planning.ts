@@ -119,8 +119,8 @@ export async function runAutoPopulate(params: {
   readonly range: DateRange;
   readonly lockedAssignmentIds: ReadonlySet<string>;
   readonly actorId: PersonId;
-  /** Открытый черновик планировщика: генерация должна видеть уже
-   * расставленные вручную ячейки, иначе принятое превью их затрёт. */
+  /** NOTE: The planner's open draft: generation must see cells already placed
+   * by hand, otherwise accepting the preview would overwrite them. */
   readonly draftId?: string | undefined;
 }): Promise<AutoPopulateResult> {
   const wire = await apiPost<WireAutoPopulateResult>('/api/auto-populate', {

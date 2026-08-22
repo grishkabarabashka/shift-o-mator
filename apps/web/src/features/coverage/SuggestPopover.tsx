@@ -1,13 +1,11 @@
 /**
- * Suggest — ранжированные кандидаты на конкретную дыру (Docs/06-generation.md).
- *
- * Открывается с красной клетки полосы покрытия. Список — та же функция
- * ранжирования, что использует авто-заполнение, только на одну ячейку и с
- * ручным подтверждением: выбор кандидата ставит роль через обычный путь
- * записи (`setCells`) и сразу открывает черновик, если его ещё нет.
- *
- * Если кандидатов нет, список объясняет почему — «3 eligible, 2 on leave,
- * 1 not available this weekday», а не пустая рамка.
+ * NOTE: Suggest — ranked candidates for a specific gap (Docs/06-generation.md).
+ * NOTE: Opens from a red cell on the coverage strip. The list reuses the same
+ * ranking function auto-populate uses, just for one cell and with manual
+ * confirmation: picking a candidate assigns the role through the normal write
+ * path (`setCells`) and opens the draft right away if there isn't one yet.
+ * NOTE: When there are no candidates, the list explains why — "3 eligible, 2 on
+ * leave, 1 not available this weekday" — instead of an empty box.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';

@@ -1,11 +1,12 @@
 /**
- * Работа с датами и временем. Правила зафиксированы в Docs/02-time.md:
+ * NOTE: Date and time handling. Rules are fixed in Docs/02-time.md:
  *
- * - всё хранится в UTC как полуоткрытые интервалы `[start, end)`;
- * - окно смены задано локальным временем в именованной таймзоне роли, а не
- *   UTC-смещением — это даёт корректное поведение на переходах DST;
- * - ни одна функция здесь не вызывает `DateTime.now()` внутри себя: текущее
- *   время передаётся параметром, иначе тесты зависят от дня запуска.
+ * - everything is stored in UTC as half-open intervals `[start, end)`;
+ * - a shift's window is given in local time in the shift's named timezone,
+ *   not as a UTC offset — this gives correct behavior across DST transitions;
+ * - no function here calls `DateTime.now()` internally: the current time is
+ *   always passed in as a parameter, otherwise tests would depend on the day
+ *   they run.
  */
 
 import { DateTime, Interval } from 'luxon';
@@ -48,12 +49,12 @@ export function weekdayOf(date: IsoDate): Weekday {
   return parseDate(date).weekday as Weekday;
 }
 
-/** Календарная разница в днях: `to - from`. */
+/** NOTE: Calendar difference in days: `to - from`. */
 export function daysBetween(from: IsoDate, to: IsoDate): number {
   return parseDate(to).diff(parseDate(from), 'days').days;
 }
 
-/** Все даты периода включительно. */
+/** NOTE: All dates in the range, inclusive. */
 export function eachDate(range: DateRange): IsoDate[] {
   const result: IsoDate[] = [];
   let cursor = parseDate(range.from);
@@ -75,7 +76,7 @@ export function rangesOverlap(a: DateRange, b: DateRange): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Календарь локации
+// Location calendar
 // ---------------------------------------------------------------------------
 
 export function isWeekendIn(date: IsoDate, location: Location): boolean {
@@ -83,8 +84,9 @@ export function isWeekendIn(date: IsoDate, location: Location): boolean {
 }
 
 /**
- * Праздник по локации. Проверка идёт по конкретной локации, а не по ключу
- * календаря: две локации одной страны могут иметь разный набор дат.
+ * NOTE: Holiday check by location. The check goes by the specific location, not
+ * by calendar key: two locations in the same country can have different
+ * holiday sets.
  */
 export function isHolidayIn(date: IsoDate, location: Location, index: DatasetIndex): boolean {
   return index.holidaysByLocation.get(location.id)?.has(date) ?? false;
@@ -99,8 +101,8 @@ export function holidayNameIn(
 }
 
 /**
- * Нерабочий день по календарю локации. Именно эта проверка порождает
- * начисление comp day — см. ADR-0002 и ADR-0007.
+ * NOTE: Non-working day per the location's calendar. This exact check is what
+ * triggers comp day accrual — see ADR-0002 and ADR-0007.
  */
 export function isNonWorkingDayIn(
   date: IsoDate,
@@ -110,7 +112,7 @@ export function isNonWorkingDayIn(
   return isWeekendIn(date, location) || isHolidayIn(date, location, index);
 }
 
-/** Число рабочих дней в периоде по календарю локации, обе границы включительно. */
+/** NOTE: Number of working days in the range per the location's calendar, both bounds inclusive. */
 export function countWorkdays(
   range: DateRange,
   location: Location,
@@ -123,7 +125,7 @@ export function countWorkdays(
   return count;
 }
 
-/** Все праздники локации, попадающие в период. */
+/** NOTE: All of a location's holidays that fall within the range. */
 export function holidaysIn(
   range: DateRange,
   location: Location,
@@ -135,7 +137,7 @@ export function holidaysIn(
 }
 
 // ---------------------------------------------------------------------------
-// Окно смены
+// Shift window
 // ---------------------------------------------------------------------------
 
 function timeOfDayParts(value: string): { hour: number; minute: number } {
@@ -149,10 +151,11 @@ function timeOfDayParts(value: string): { hour: number; minute: number } {
 }
 
 /**
- * Интервал смены в UTC.
+ * NOTE: Shift interval in UTC.
  *
- * Дата трактуется в таймзоне смены (ADR-0001). Если окно переходит через
- * полночь, конец приходится на следующий календарный день той же таймзоны.
+ * The date is interpreted in the shift's timezone (ADR-0001). If the window
+ * crosses midnight, the end falls on the next calendar day in that same
+ * timezone.
  */
 export function shiftInterval(
   shift: Shift,
@@ -181,7 +184,7 @@ export function intervalHours(interval: UtcInterval): number {
   return DateTime.fromISO(interval.end).diff(DateTime.fromISO(interval.start), 'hours').hours;
 }
 
-/** Часы между концом одной смены и началом другой. Отрицательные — пересечение. */
+/** NOTE: Hours between the end of one shift and the start of another. Negative means overlap. */
 export function restHoursBetween(earlier: UtcInterval, later: UtcInterval): number {
   return DateTime.fromISO(later.start).diff(DateTime.fromISO(earlier.end), 'hours').hours;
 }
@@ -190,7 +193,7 @@ export function intervalsOverlap(a: UtcInterval, b: UtcInterval): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
-/** Пересечение двух интервалов или `undefined`, если его нет. */
+/** NOTE: Intersection of two intervals, or `undefined` if there is none. */
 export function intersectIntervals(a: UtcInterval, b: UtcInterval): UtcInterval | undefined {
   if (!intervalsOverlap(a, b)) return undefined;
   return {
@@ -200,30 +203,30 @@ export function intersectIntervals(a: UtcInterval, b: UtcInterval): UtcInterval 
 }
 
 // ---------------------------------------------------------------------------
-// Отображение
+// Display
 // ---------------------------------------------------------------------------
 
 export function formatInZone(instant: IsoInstant, zone: IanaZone, format = 'HH:mm'): string {
   return DateTime.fromISO(instant, { zone }).toFormat(format);
 }
 
-/** Локальная дата момента в указанной таймзоне. */
+/** NOTE: Local date of an instant in the given timezone. */
 export function localDateOf(instant: IsoInstant, zone: IanaZone): IsoDate {
   return toIsoDate(DateTime.fromISO(instant, { zone }));
 }
 
-/** Период из N дней, начиная с указанной даты. */
+/** NOTE: A range of N days, starting from the given date. */
 export function rangeOfDays(from: IsoDate, days: number): DateRange {
   return { from, to: addDays(from, days - 1) };
 }
 
-/** Календарный месяц, содержащий указанную дату. */
+/** NOTE: The calendar month containing the given date. */
 export function monthRange(date: IsoDate): DateRange {
   const dt = parseDate(date);
   return { from: toIsoDate(dt.startOf('month')), to: toIsoDate(dt.endOf('month')) };
 }
 
-/** Luxon-интервал для шкалы timeline. */
+/** NOTE: Luxon interval for the timeline scale. */
 export function toLuxonInterval(interval: UtcInterval): Interval {
   return Interval.fromDateTimes(
     DateTime.fromISO(interval.start),

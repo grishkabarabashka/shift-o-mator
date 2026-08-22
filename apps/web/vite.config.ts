@@ -13,13 +13,14 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    // Движок и данные тестируются в node — jsdom нужен только компонентам,
-    // они помечены докблоком `@vitest-environment jsdom`.
+    // NOTE: engine and data logic is tested under node — jsdom is only needed for
+    // components, which opt in via the `@vitest-environment jsdom` docblock.
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
-    // jsdom-рендер в этой песочнице заметно и неравномерно медленнее обычного —
-    // дефолтные 5с иногда не хватает на первый монтаж Radix-компонентов.
+    // NOTE: jsdom rendering in this sandbox is noticeably and unevenly slower than
+    // usual — the default 5s timeout sometimes isn't enough for the first mount of
+    // Radix components.
     testTimeout: 15000,
   },
 });

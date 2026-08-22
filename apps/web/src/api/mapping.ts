@@ -784,11 +784,12 @@ export function draftChangeFromWire(w: WireDraftChange): DraftChange {
 
 /** For `POST /api/drafts/{id}/changes`: `entityId` + wire-shaped `after`/`before`. */
 /**
- * Тело одного элемента `POST /api/drafts/{id}/changes/sync`.
+ * NOTE: Body of one item for `POST /api/drafts/{id}/changes/sync`.
  *
- * Ни `op`, ни `entityId` здесь нет намеренно: операцию выводит сервер, сверяя
- * ключ с опубликованными данными, а локально придуманный id назначения ему не
- * нужен — он подставит свой, если в ячейке уже лежит опубликованная строка.
+ * Neither `op` nor `entityId` is here on purpose: the server derives the
+ * operation by comparing the key against published data, and it doesn't need a
+ * locally invented assignment id — it substitutes its own if the cell already
+ * holds a published row.
  */
 export function syncItemToWireBody(item: {
   readonly targetType: DraftChange['targetType'];

@@ -1,8 +1,8 @@
 /**
- * Конструкторы минимальных датасетов для тестов движка.
+ * NOTE: Constructors for minimal datasets used by engine tests.
  *
- * Фикстуры для этого не годятся: они большие и меняются, а тест должен
- * проверять одно правило на данных, которые целиком видны в самом тесте.
+ * Fixtures don't fit here: they are large and change over time, while a test
+ * should verify one rule against data that is entirely visible in the test itself.
  */
 
 import type {
@@ -91,7 +91,7 @@ export const nightShift: Shift = {
   editableTime: false,
 };
 
-/** Будни Пн–Пт, обе смены без требований — тест добавляет свои. */
+/** NOTE: Weekdays Mon-Fri, both shifts with no requirements — the test adds its own. */
 export function makeDayConfig(
   overrides: Partial<DayConfiguration> & Pick<DayConfiguration, 'id' | 'key'>,
 ): DayConfiguration {

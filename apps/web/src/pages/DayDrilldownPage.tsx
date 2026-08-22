@@ -1,16 +1,15 @@
 /**
- * Day drill-down: один день, час за часом, каждый назначенный человек — своя
- * полоса.
+ * NOTE: Day drill-down — one day, hour by hour, each assigned person its own lane.
  *
- * Overview отвечает «закрыта ли смена» и сворачивает всех исполнителей в
- * счётчик. Этот экран — детализация одного дня: закрыта чем именно, кем. Та
- * же визуальная грамматика — ось, дорожки по единицам планирования, пунктирные
- * дыры, полосы передачи смены, маркер NOW, — но без агрегации.
+ * Overview answers "is the shift covered" and collapses every assignee into a
+ * count. This screen is the detail view for one day: covered by exactly what,
+ * by whom. Same visual grammar — axis, lanes per planning unit, dashed gaps,
+ * shift-handover bars, the NOW marker — but without aggregation.
  *
- * Вход — по заголовку колонки в сетке или из строки «Attention required» на
- * Overview. Сам экран не редактирует: правка остаётся в сетке, единственном
- * месте, где стоит логика пикера, — здесь только переход туда с уже выбранным
- * днём.
+ * Entry is via a column header in the grid or the "Attention required" row on
+ * Overview. The screen itself does not edit: editing stays in the grid, the
+ * only place the picker logic lives — this is only a jump there with the day
+ * already selected.
  */
 
 import { useMemo } from 'react';

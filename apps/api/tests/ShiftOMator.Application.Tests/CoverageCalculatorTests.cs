@@ -42,7 +42,7 @@ public class CoverageCalculatorTests
         [Fact]
         public void A_zero_minimum_never_reads_thin()
         {
-            // Роль с min 0 всегда «закрыта»; называть это впритык бессмысленно.
+            // NOTE: a role with min 0 is always "covered"; calling it thin would be meaningless.
             Assert.Equal(CoverageLevel.Ok, CoverageCalculator.Level(0, 0));
         }
     }
@@ -159,7 +159,7 @@ public class CoverageCalculatorTests
                 assignments: [MakeAssignment("p-1", shadow.Id, new DateOnly(2026, 9, 8))]);
             var cells = CoverageCalculator.Compute(TestUnit.Id, new DateOnly(2026, 9, 8), new DateOnly(2026, 9, 8), data.Assignments, BuildIndex(data));
 
-            // Клетка для Shadow не создаётся, и назначение никуда не засчитывается.
+            // NOTE: no cell is created for Shadow, and the assignment counts toward nothing.
             Assert.Single(cells);
             Assert.Equal(LeadRole.Id, cells[0].ShiftId);
             Assert.Equal(0, cells[0].Actual);
@@ -171,7 +171,7 @@ public class CoverageCalculatorTests
             var summary = CoverageCalculator.Summarize(CoverageFor(
                 ("p-1", "2026-09-09"), ("p-2", "2026-09-09"), ("p-3", "2026-09-10")));
             Assert.Equal(7, summary.Total);
-            Assert.Equal(1, summary.Thin); // 10-е: один при минимуме один
+            Assert.Equal(1, summary.Thin); // NOTE: the 10th — one against a minimum of one.
             Assert.Equal(5, summary.Gaps);
         }
 

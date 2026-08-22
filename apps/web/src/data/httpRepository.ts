@@ -134,13 +134,13 @@ export class HttpScheduleRepository implements ScheduleRepository {
   }
 
   /**
-   * Одним запросом на весь батч, а не POST на изменение.
+   * WHY: One request for the whole batch, instead of a POST per change.
    *
-   * Прежний цикл `for (…) await post(…)` разваливался ровно посередине: первая
-   * же ошибка обрывала цикл, остальные правки не уходили никогда, и планировщик
-   * узнавал об этом только после публикации — «часть ячеек сохранилась». Теперь
-   * это один вызов: либо сервер принял весь набор, либо не принял ничего и
-   * вызывающий может повторить.
+   * The old `for (…) await post(…)` loop would fall apart right in the
+   * middle: the first error broke the loop, the rest of the edits never went
+   * out, and the planner only found out after publishing — "part of the
+   * cells were saved". Now it's a single call: either the server accepts the
+   * whole set, or it accepts nothing and the caller can retry.
    */
   async syncChanges(
     sessionId: DraftSessionId,

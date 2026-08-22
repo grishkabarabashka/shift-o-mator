@@ -1,13 +1,14 @@
 /**
- * People: ростер, справедливость нагрузки и баланс отгулов.
+ * NOTE: People — roster, workload fairness, and comp-day balances.
  *
- * Отвечает на «кто в команде, что человек умеет, сколько отработал и сколько
- * ему должны». Последнее — не отчётность: отгул, о котором забыли, обнаружится
- * заявлением на увольнение, а не письмом.
+ * Answers "who is on the team, what can each person do, how much have they
+ * worked, and how much is owed to them." That last part is not reporting: a
+ * forgotten comp day surfaces as a resignation letter, not a memo.
  *
- * Дефолтной смены в карточке нет (ADR-0038): у инженера её больше не бывает —
- * есть смены, которые он не умеет, и они видны как eligibility в профиле. Куда
- * идут все остальные, говорит конфигурация дня, а не запись о человеке.
+ * There is no default shift in the card (ADR-0038): an engineer no longer has
+ * one — they have shifts they can't do, shown as eligibility in the profile.
+ * Where everyone else goes is decided by the day configuration, not a record
+ * on the person.
  */
 
 import { useMemo, useState } from 'react';
@@ -70,8 +71,8 @@ export function PeoplePage({ view, asOf }: Props) {
           (absence) => absence.from <= range.to && absence.to >= range.from,
         ).length;
 
-        // Порог старения задаёт единица планирования: отгул не сгорает, но
-        // слишком долго висящий подсвечивается (ADR-0007).
+        // NOTE: the aging threshold is set per planning unit — a comp day never
+        // expires, but one outstanding too long gets highlighted (ADR-0007).
         const agingDays =
           index.units.get(person.unitId)?.compOffPolicy.agingThresholdDays ?? 14;
         const comps = index.compDaysByPerson.get(person.id) ?? [];
@@ -118,8 +119,9 @@ export function PeoplePage({ view, asOf }: Props) {
 
   const selected = stats.find((entry) => entry.person.id === selectedId);
 
-  // Ориентир справедливости — среднее по видимому ростеру. Абсолютной нормы
-  // нет: она зависит от того, сколько выходных попало в период.
+  // NOTE: the fairness reference is the average across the visible roster —
+  // there's no absolute norm, since it depends on how many weekends fell in
+  // the period.
   const avgWeekends =
     stats.length > 0 ? stats.reduce((sum, entry) => sum + entry.weekends, 0) / stats.length : 0;
 
@@ -143,8 +145,8 @@ export function PeoplePage({ view, asOf }: Props) {
             <thead>
               <tr>
                 <th>Name</th>
-                {/* Со всеми единицами сразу локации мало: Pune и Chicago в
-                    одном списке ничего не говорят о том, чьи это правила. */}
+                {/* NOTE: with all units shown at once, location alone isn't enough —
+                    Pune and Chicago in one list say nothing about whose rules apply. */}
                 <th>Unit</th>
                 <th>Location</th>
                 <th className="text-right">Worked</th>
@@ -267,8 +269,8 @@ function PersonPanel({
         </button>
       </header>
 
-      {/* Что было и что должно быть — разные вопросы: факт за период против
-          настройки, которую читает автогенерация. */}
+      {/* NOTE: what happened vs. what should happen are different questions —
+          actuals for the period vs. the configuration auto-populate reads. */}
       <div className="border-b border-line px-4 py-2">
         <div className="segmented w-full">
           {(['Activity', 'Profile'] as const).map((item) => (

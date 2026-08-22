@@ -1,5 +1,5 @@
 /**
- * Производные данные экрана планирования.
+ * NOTE: Derived data for the planning screen.
  *
  * Coverage, issues and resolved day configurations are server-computed now
  * (Phase 5 — `dayConfig`/`coverage`/`validate` engines deleted, ported to
@@ -15,8 +15,8 @@
  * when computed locally — the server already supports this exactly for that
  * reason ("GET /api/schedule taking draftId ... without publishing anything").
  *
- * Phase 8 deleted `Region`: единица планирования — единственная ось (rows
- * *and* coverage both scope by unit now, no separate region resolution step).
+ * Phase 8 deleted `Region`: planning unit is the single axis now (rows *and*
+ * coverage both scope by unit, no separate region resolution step).
  * `groupBy: 'REGION'` survives in the wire enum but has no seed data using it
  * (`Person` no longer carries a region) — it falls back to grouping by
  * location here rather than being a dead branch that throws.
@@ -49,7 +49,7 @@ import { eachDate, holidayNameIn, isNonWorkingDayIn } from '../../engine/dates.t
 import { summarizeIssues } from '../../engine/issues.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 
-/** Строка сетки: либо заголовок группы, либо человек. */
+/** NOTE: A grid row is either a group header or a person. */
 export type GridRow =
   | {
       readonly kind: 'group';
@@ -57,10 +57,10 @@ export type GridRow =
       readonly label: string;
       readonly count: number;
       /**
-       * 1 — единица планирования, 2 — группировка внутри неё (локация,
-       * категория). Уровень появляется, только когда на экране больше одной
-       * единицы: тогда без него Chicago и Pune из разных единиц стоят в одном
-       * списке, и по строке не видно, чьи правила к ней применяются.
+       * NOTE: 1 = planning unit, 2 = grouping within it (location, category).
+       * The level only appears when the screen shows more than one unit:
+       * without it, Chicago and Pune from different units would sit in one
+       * list with no way to tell which rules apply to which row.
        */
       readonly level: 1 | 2;
     }
@@ -76,7 +76,7 @@ export interface DayColumn {
   readonly date: IsoDate;
   readonly weekdayLabel: string;
   readonly dayLabel: string;
-  /** Нерабочий по календарю первичной локации единицы. */
+  /** NOTE: Non-working per the unit's primary location calendar. */
   readonly isNonWorking: boolean;
   readonly isToday: boolean;
   readonly holidayName: string | undefined;
@@ -87,7 +87,7 @@ export interface PlanningView {
   readonly ready: boolean;
   readonly rows: readonly GridRow[];
   readonly columns: readonly DayColumn[];
-  /** Единицы планирования, попадающие в текущий вид. Обычно одна. */
+  /** NOTE: Planning units included in the current view. Usually one. */
   readonly unitIds: readonly UnitId[];
   readonly projection: CellProjection;
   readonly coverageCells: readonly CoverageCell[];
@@ -98,15 +98,15 @@ export interface PlanningView {
   readonly issuesByCell: ReadonlyMap<string, readonly Issue[]>;
   readonly acknowledged: ReadonlySet<string>;
   readonly issueSummary: ReturnType<typeof summarizeIssues>;
-  /** Идёт ли ещё фоновая пересборка coverage/issues после правки (Phase 5 step 5). */
+  /** NOTE: Whether a background coverage/issues recompute after an edit is still in flight (Phase 5 step 5). */
   readonly coverageStale: boolean;
   readonly cellAt: (personId: PersonId, date: IsoDate) => CellValue;
-  /** Смены, доступные человеку в этот день: конфигурация дня ∩ eligibility. */
+  /** NOTE: Shifts available to the person on this day: day configuration ∩ eligibility. */
   readonly shiftsFor: (personId: PersonId, date: IsoDate) => readonly Shift[];
   /**
-   * Остальные смены единицы человека — путь для осознанного отступления от
-   * правила (ADR-0024). Держатся отдельным списком, потому что основной
-   * список пикера ценен именно тем, что короткий.
+   * NOTE: The rest of the person's unit shifts — the path for a deliberate
+   * departure from the rule (ADR-0024). Kept as a separate list because the
+   * main picker list is valuable precisely for being short.
    */
   readonly otherShiftsFor: (personId: PersonId, date: IsoDate) => readonly Shift[];
   readonly shiftById: (shiftId: ShiftId) => Shift | undefined;
@@ -150,9 +150,9 @@ const EMPTY_VIEW: PlanningView = {
 
 export { cellKey };
 
-/** Люди, попадающие в строки: выбранные единицы, либо все (ADR-0020). */
+/** NOTE: People included in the rows: the selected units, or all of them (ADR-0020). */
 function selectPeople(scope: string, index: DatasetIndex): Person[] {
-  // `ALL` — не единица, а её отсутствие: фильтра нет (ADR-0020).
+  // NOTE: `ALL` is not a unit but its absence: there is no filter (ADR-0020).
   if (isAllUnits(scope)) {
     return [...index.people.values()].filter((p) => p.isIncluded);
   }
@@ -165,9 +165,9 @@ function groupKeyOf(person: Person, groupBy: string, index: DatasetIndex): strin
   switch (groupBy) {
     case 'ORG_CATEGORY':
       return person.orgCategory.replace('_', ' ');
-    // 'REGION' переживает как значение перечисления на проводе, но данных под
-    // него больше нет — Person не несёт региона. Падаем к локации, а не
-    // бросаем на неизвестном groupBy.
+    // NOTE: 'REGION' survives as a wire enum value but has no data behind it
+    // anymore — Person no longer carries a region. Fall back to location
+    // instead of throwing on an unknown groupBy.
     case 'REGION':
     default:
       return index.locations.get(person.locationId)?.name ?? person.locationId;
@@ -187,9 +187,9 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
 
   return useMemo<PlanningView>(() => {
     if (!unitId || !range || !reference || !plan || !index || !schedule) return EMPTY_VIEW;
-    // Область из одной единицы — это её собственная группировка; из нескольких
-    // (или «все») — своей группировки у сводного вида нет, и внешним уровнем
-    // становится сама единица (см. сборку строк ниже).
+    // NOTE: A scope of one unit uses its own grouping; a scope of several (or
+    // "all") has no grouping of its own for the combined view, so the unit
+    // itself becomes the outer level (see row assembly below).
     const scopedUnitIds = unitsInScope(unitId, [...index.units.keys()]);
     const unit = scopedUnitIds.length === 1 ? index.units.get(scopedUnitIds[0] as UnitId) : undefined;
     if (scopedUnitIds.length === 0) return EMPTY_VIEW;
@@ -200,12 +200,12 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
     const people = selectPeople(unitId, index);
     const unitIds = [...new Set(people.map((p) => p.unitId))].sort();
 
-    // --- Строки ------------------------------------------------------------
+    // --- Rows ----------------------------------------------------------------
     //
-    // Единица планирования — внешний уровень, и только когда их несколько.
-    // Со всеми единицами сразу список локаций перемешивался: Chicago (AMER)
-    // стоял рядом с Chicago (ST), и по строке не было видно, чьи правила к ней
-    // применяются — а правила висят именно на единице (ADR-0032).
+    // NOTE: Planning unit is the outer level, and only when there is more than
+    // one. With all units combined, the location list used to get mixed up:
+    // Chicago (AMER) sat next to Chicago (ST), with no way to tell from the row
+    // which rules applied — and rules attach to the unit (ADR-0032).
     const rows: GridRow[] = [];
     const byUnit = new Map<UnitId, Person[]>();
     for (const person of people) {
@@ -257,19 +257,19 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
           count: members.length,
           level: 1,
         });
-        // Внутри единицы действует её собственная группировка, а не общая:
-        // у ST она может отличаться от AMER, и это её правило.
+        // NOTE: Within a unit, its own grouping applies, not a shared one:
+        // ST can differ from AMER, and that's its own rule.
         pushGroup(members, index.units.get(memberUnitId)?.groupBy ?? 'LOCATION', 2);
       }
     } else {
       pushGroup(people, groupBy, 1);
     }
 
-    // --- Резолв конфигурации дня (сервер) -----------------------------------
-    // `GET /api/schedule` несёт только id/key/label резолвнутой конфигурации на
-    // дату — полный список смен (`shiftRequirements`) остаётся в справочнике
-    // (`reference.dayConfigurations`), сервер лишь говорит, какая версия
-    // применяется на эту дату (ADR-0021).
+    // --- Day configuration resolution (server) --------------------------------
+    // NOTE: `GET /api/schedule` only carries the id/key/label of the resolved
+    // configuration for a date — the full shift list (`shiftRequirements`)
+    // stays in the reference data (`reference.dayConfigurations`); the server
+    // just says which version applies on that date (ADR-0021).
     const dayConfigById = new Map(reference.dayConfigurations.map((c) => [c.id, c]));
     const resolvedByUnitDate = new Map<string, (typeof schedule.dayConfigurations)[number]>();
     for (const resolved of schedule.dayConfigurations) {
@@ -280,9 +280,9 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       return resolved ? dayConfigById.get(resolved.dayConfigurationId) : undefined;
     };
 
-    // --- Колонки -----------------------------------------------------------
-    // Тип дня берётся из первой единицы в виде: при одной единице это точно,
-    // при нескольких заголовок всё равно показывает только выходные.
+    // --- Columns ---------------------------------------------------------------
+    // NOTE: The day type is taken from the first unit in the view: with one
+    // unit this is exact; with several, the header only shows weekends anyway.
     const headerUnitId = unitIds[0];
     const headerUnit = headerUnitId ? index.units.get(headerUnitId) : undefined;
     const headerLocation = headerUnit ? index.locations.get(headerUnit.primaryLocationId) : undefined;
@@ -301,7 +301,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       };
     });
 
-    // --- Проекция ячеек (оптимистичная, из Zustand) -------------------------
+    // --- Cell projection (optimistic, from Zustand) -----------------------------
     const projection = projectCells({
       range,
       absences: plan.absences,
@@ -309,7 +309,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       index,
     });
 
-    // --- Покрытие и нарушения: сервер ----------------------------------------
+    // --- Coverage and issues: server --------------------------------------------
     const coverageCells = schedule.coverage;
     const issues = schedule.issues;
 
@@ -333,7 +333,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
 
     const acknowledged = new Set(schedule.acknowledgedIssueKeys);
 
-    // --- Доступные смены ----------------------------------------------------
+    // --- Available shifts --------------------------------------------------------
     const shiftsFor = (personId: PersonId, date: IsoDate): readonly Shift[] => {
       const person = index.people.get(personId);
       if (!person) return [];
@@ -346,7 +346,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
         .filter((shift): shift is Shift => shift !== undefined);
     };
 
-    /** Всё остальное, что вообще существует в единице человека. */
+    /** NOTE: Everything else that exists at all in the person's unit. */
     const otherShiftsFor = (personId: PersonId, date: IsoDate): readonly Shift[] => {
       const person = index.people.get(personId);
       if (!person) return [];

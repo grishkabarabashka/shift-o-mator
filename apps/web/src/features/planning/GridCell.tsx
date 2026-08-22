@@ -1,19 +1,19 @@
 /**
- * Одна ячейка сетки.
+ * WHY: One grid cell, deliberately dumb and memoized: up to two and a half
+ * thousand cells on screen, and anything extra in one multiplies by that
+ * count. The context menu lives once for the whole grid (`AssignmentPicker`);
+ * selection arrives as boolean props, so rows outside the selection don't
+ * re-render at all.
  *
- * Намеренно тупая и мемоизированная: ячеек на экране до двух с половиной тысяч,
- * и всё, что в ней есть лишнего, умножается на это число. Контекстное меню
- * живёт одно на всю сетку (`AssignmentPicker`), выделение приходит булевыми
- * пропами — так строки вне выделения не перерисовываются вовсе.
- *
- * Что показывать, решает проекция (`engine/cellValue.ts`), а не этот компонент:
- * приоритет «смена > отсутствие > отгул > праздник > маркер» живёт в одном месте.
+ * NOTE: What to show is decided by the projection (`engine/cellValue.ts`), not
+ * this component: the "shift > absence > comp day > holiday > marker"
+ * priority lives in one place.
  */
 
 import { memo } from 'react';
 import type { CellStatus, CellValue, IsoDate, Issue, PersonId, Shift } from '../../domain/types.ts';
 
-/** Подписи статусов повторяют то, что было в исходной таблице. */
+/** NOTE: Status labels repeat what the original spreadsheet used. */
 export const STATUS_LABEL: Record<CellStatus, string> = {
   OFF: 'Off',
   NOT_SCHEDULED: '0',
@@ -60,7 +60,7 @@ function GridCellInner({
       ? 'WARNING'
       : undefined;
 
-  // Отпуск и подтверждённый отгул закрывают день; праздник и Off — нет.
+  // NOTE: Vacation and a confirmed comp day close out the day; holiday and Off don't.
   const locked =
     status === 'VACATION' || status === 'SICK' || status === 'OTHER' || status === 'COMP_OFF';
 
@@ -88,7 +88,7 @@ function GridCellInner({
       ) : status ? (
         <span className="cell__status">{STATUS_LABEL[status]}</span>
       ) : value.kind === 'EMPTY' && value.proposedCompDay ? (
-        // Предложенный отгул — подсказка пунктиром, день ещё свободен.
+        // NOTE: A proposed comp day is a dashed hint — the day is still free.
         <span className="cell__hint">C-Off?</span>
       ) : null}
     </div>

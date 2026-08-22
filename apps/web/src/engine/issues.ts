@@ -1,11 +1,13 @@
 /**
- * Сводки по уже посчитанным нарушениям — факт про экран, а не про план.
+ * NOTE: Summaries over already-computed issues — a fact about the screen,
+ * not about the plan.
  *
- * Сами нарушения теперь считает сервер (`GET /api/schedule`, Phase 5); эти
- * три функции остаются в TS, потому что они не решают, что является
- * нарушением, а только агрегируют готовый список для панели и кнопки
- * Publish. Раньше жили в `engine/validate.ts` вместе с самим движком
- * валидации — тот файл удалён вместе с портом на бэкенд.
+ * Issues themselves are now computed server-side (`GET /api/schedule`,
+ * Phase 5); these three functions stay in TS because they don't decide what
+ * counts as an issue, only aggregate the finished list for the panel and the
+ * Publish button. They used to live in `engine/validate.ts` alongside the
+ * validation engine itself — that file was deleted along with the port to
+ * the backend.
  */
 
 import type { Acknowledgement, Issue } from '../domain/types.ts';
@@ -15,26 +17,27 @@ export function acknowledgedKeys(acks: readonly Acknowledgement[]): Set<string> 
 }
 
 /**
- * Настоящая непокрытая дыра — не `CoverageThin` (тот держится ровно на
- * минимуме, а не ниже него; CLAUDE.md §11, ADR-0034).
+ * NOTE: A genuine uncovered gap — not `CoverageThin` (that one holds exactly
+ * at the minimum, not below it; CLAUDE.md §11, ADR-0034).
  *
- * По коду, не по уровню: `COVERAGE_GAP` — теперь `INFO`, не `BLOCKING`
- * (ADR-0035, owner review — дыры не должны мешать сохранять черновик), но
- * по смыслу остаётся дырой и должна считаться и подсвечиваться как раньше.
+ * By code, not by level: `COVERAGE_GAP` is now `INFO`, not `BLOCKING`
+ * (ADR-0035, owner review — gaps must not block saving a draft), but it
+ * remains a gap in meaning and must still be counted and highlighted as
+ * before.
  */
 export function isCoverageGap(issue: Issue): boolean {
   return issue.code === 'COVERAGE_GAP';
 }
 
 /**
- * Можно ли публиковать: нет BLOCKING (ADR-0037, owner review — то же
- * рассуждение, что и для дыр в ADR-0035: неподтверждённый warning — сигнал,
- * а не невозможные данные, и требовать подтверждения перед сохранением
- * значит стопорить планировщика по мелочам). Подтверждение с комментарием
- * остаётся доступным и осмысленным — это запись «почему мы вышли за рамки»,
- * — но больше не условие публикации. Единственное, что всё ещё блокирует:
- * двойное назначение и смена, которой не существует или которая принадлежит
- * другой единице.
+ * NOTE: Whether publishing is allowed: no BLOCKING issues (ADR-0037, owner
+ * review — the same reasoning as for gaps in ADR-0035: an unacknowledged
+ * warning is a signal, not corrupt data, and requiring acknowledgement
+ * before saving would stall the planner over minor things). Acknowledging
+ * with a comment stays available and meaningful — it's a record of "why we
+ * went outside the rule" — but is no longer a precondition for publishing.
+ * The only things that still block: a double assignment, and a shift that
+ * doesn't exist or belongs to a different unit.
  */
 export function canPublish(issues: readonly Issue[]): boolean {
   return !issues.some((issue) => issue.level === 'BLOCKING');
@@ -61,10 +64,10 @@ export function summarizeIssues(
   let unacknowledgedWarnings = 0;
 
   for (const issue of issues) {
-    // Категория считается независимо от уровня: конфликт остаётся конфликтом,
-    // даже когда он подтверждаемый, а не блокирующий (ADR-0024). Дыра — тоже:
-    // по коду, не по уровню — `isCoverageGap` не зависит от того, что
-    // CoverageGap стал INFO (ADR-0035).
+    // NOTE: Category is tallied independently of level: a conflict stays a
+    // conflict even when it's acknowledgeable rather than blocking
+    // (ADR-0024). Same for a gap: by code, not by level — `isCoverageGap`
+    // doesn't depend on CoverageGap having become INFO (ADR-0035).
     if (issue.category === 'CONFLICT') conflicts += 1;
     if (isCoverageGap(issue)) gaps += 1;
 

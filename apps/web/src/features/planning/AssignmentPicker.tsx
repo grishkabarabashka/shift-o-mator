@@ -1,17 +1,17 @@
 /**
- * Плавающий пикер назначения — единственный на всю сетку.
+ * WHY: Floating assignment picker — the only one for the whole grid.
  *
- * Раньше каждая ячейка несла собственный `ContextMenu.Root` с порталом. При
- * 80 людях на 31 день это 2480 корней меню, каждый со своей подпиской на
- * dismissable-слой и фокус: сетка проседала на любом движении выделения, а
- * причина выглядела как «тормозит таблица».
+ * Each cell used to carry its own `ContextMenu.Root` with a portal. At 80
+ * people over 31 days that's 2480 menu roots, each with its own dismissable-
+ * layer and focus subscription: the grid bogged down on any selection
+ * movement, and the cause looked like "the table is slow."
  *
- * Здесь один экземпляр, смонтированный на уровне сетки и позиционируемый по
- * курсору. Ячейка снова становится обычным `div`.
+ * NOTE: Here there's one instance, mounted at the grid level and positioned
+ * by the cursor. The cell goes back to being a plain `div`.
  *
- * Пикер намеренно работает и в режиме чтения: правый клик по ячейке — самый
- * очевидный жест, и упираться в «сначала нажмите Edit» пользователь не должен.
- * Выбор пункта сам открывает черновик (см. `withDraft` в PlanningGrid).
+ * The picker deliberately works in read mode too: a right-click on a cell is
+ * the most obvious gesture, and the user shouldn't have to hit "Edit" first.
+ * Picking an item opens the draft by itself (see `withDraft` in PlanningGrid).
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -24,23 +24,23 @@ export interface PickerTarget {
   readonly date: IsoDate;
   readonly value: CellValue;
   readonly shifts: readonly Shift[];
-  /** Смены единицы вне конфигурации дня или eligibility — путь для отступления. */
+  /** NOTE: Unit shifts outside the day configuration or eligibility — the path for a departure from the rule. */
   readonly otherShifts: readonly Shift[];
   /**
-   * Ячейка закрыта отпуском или подтверждённым отгулом.
+   * NOTE: The cell is closed out by vacation or a confirmed comp day.
    *
-   * Раньше это выключало пункты меню. Больше нет (ADR-0024): назначение
-   * записывается, а конфликт подсвечивается и подтверждается. Флаг остался,
-   * чтобы **предупредить заранее** — отказ без объяснения был хуже.
+   * This used to disable the menu items. No longer (ADR-0024): the assignment
+   * gets recorded and the conflict is highlighted and acknowledged. The flag
+   * stayed to **warn in advance** — a refusal with no explanation was worse.
    */
   readonly locked: boolean;
   readonly lockReason: string | undefined;
-  /** Id назначения, которое можно закрепить от автогенерации — только если оно есть. */
+  /** NOTE: Id of the assignment that can be locked against auto-generation — only when one exists. */
   readonly assignmentId: string | undefined;
   readonly generationLocked: boolean;
   readonly x: number;
   readonly y: number;
-  /** Сколько ячеек получит выбранное значение. >1 — правый клик по выделению. */
+  /** NOTE: How many cells will receive the picked value. >1 means a right-click on a selection. */
   readonly affected: number;
 }
 
@@ -69,8 +69,8 @@ export function AssignmentPicker({
   const [pos, setPos] = useState({ left: target.x, top: target.y });
   const [showOther, setShowOther] = useState(false);
 
-  // Переворот у края экрана считается после монтирования: до измерения
-  // настоящей высоты списка смен любая оценка была бы враньём.
+  // NOTE: The flip at the screen edge is computed after mount: before the
+  // actual height of the shift list is measured, any estimate would be a lie.
   useLayoutEffect(() => {
     const box = ref.current?.getBoundingClientRect();
     if (!box) return;
@@ -92,8 +92,8 @@ export function AssignmentPicker({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
-    // Скролл закрывает: меню привязано к точке экрана, а не к ячейке, и
-    // «уехавшее» меню указывало бы не на ту дату.
+    // NOTE: Scroll closes it: the menu is pinned to a screen point, not to
+    // the cell, and a menu left behind would point at the wrong date.
     window.addEventListener('mousedown', onDown, true);
     window.addEventListener('keydown', onKey);
     window.addEventListener('resize', onClose);

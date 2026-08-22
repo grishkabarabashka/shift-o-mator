@@ -1,9 +1,9 @@
 /**
- * Тонкая обёртка над Radix — единственная точка замены при переезде на
- * корпоративную библиотеку компонентов (ADR-0013).
+ * NOTE: thin wrapper over Radix — the single point of replacement when
+ * migrating to the corporate component library (ADR-0013).
  *
- * Radix отвечает за поведение, доступность и фокус-менеджмент; внешний вид
- * целиком свой и задан переменными в styles.css.
+ * Radix handles behavior, accessibility, and focus management; the visuals
+ * are entirely our own, driven by variables in styles.css.
  */
 
 import * as RadixSelect from '@radix-ui/react-select';

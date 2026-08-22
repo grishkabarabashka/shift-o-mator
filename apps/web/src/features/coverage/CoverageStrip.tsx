@@ -1,16 +1,13 @@
 /**
- * Полоса покрытия под сеткой.
- *
- * По умолчанию — **одна** строка `filled/required` на день.
- * Первая версия рисовала строку на каждую роль: в AMER их шестнадцать, полоса
- * занимала пол-экрана и вытесняла сам ростер. Ответ на вопрос «где дыра» стоил
- * ответа на вопрос «кто работает», а это плохой обмен.
- *
- * Детализация по ролям открывается по требованию и ограничена по высоте.
- *
- * Горизонтальный скролл синхронизируется с сеткой программно. В общем
- * скролл-контейнере полоса либо перекрывала строки, либо ограничение её высоты
- * ломало прилипание; отдельный контейнер с синхронизацией предсказуем.
+ * NOTE: Coverage strip below the grid. Defaults to a **single** `filled/required`
+ * row per day.
+ * WHY: The first version drew a row per role — AMER has sixteen, and the strip
+ * took up half the screen and crowded out the roster itself. Answering "where's
+ * the gap" cost the answer to "who's working", a bad trade.
+ * NOTE: Per-role detail opens on demand and is height-limited.
+ * WHY: Horizontal scroll is synced with the grid programmatically. In a shared
+ * scroll container the strip either overlapped rows or its height cap broke
+ * sticky positioning; a separate container with sync is predictable.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -23,7 +20,7 @@ import { SuggestPopover, type SuggestTarget } from './SuggestPopover.tsx';
 
 interface Props {
   readonly view: PlanningView;
-  /** Скроллер сетки, за которым полоса следует по горизонтали. */
+  /** NOTE: Grid scroller that the strip follows horizontally. */
   readonly syncWith: React.RefObject<HTMLDivElement | null>;
 }
 

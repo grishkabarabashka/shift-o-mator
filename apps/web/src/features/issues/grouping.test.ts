@@ -3,7 +3,7 @@ import type { DatasetIndex } from '../../domain/lookup.ts';
 import type { Issue, IssueCode } from '../../domain/types.ts';
 import { dateSpanLabel, groupIssues } from './grouping.ts';
 
-/** Ровно те два справочника, из которых группировка берёт имена. */
+/** Exactly the two lookups grouping pulls names from. */
 const index = {
   shifts: new Map([['AMER:Cover', { code: 'Cover' }]]),
   people: new Map([['p-anna', { displayName: 'Anna Petrova' }]]),
@@ -20,8 +20,8 @@ function issue(over: Partial<Issue> & { key: string }): Issue {
   } as Issue;
 }
 
-describe('свёртка нарушений', () => {
-  it('одна и та же находка на разные даты — одна группа', () => {
+describe('issue collapsing', () => {
+  it('the same finding on different dates collapses into one group', () => {
     const groups = groupIssues(
       [
         issue({ key: 'a', date: '2026-09-04', shiftId: 'AMER:Cover' }),
@@ -38,7 +38,7 @@ describe('свёртка нарушений', () => {
     expect(groups[0]?.dates).toEqual(['2026-09-04', '2026-09-11', '2026-09-18']);
   });
 
-  it('разные коды на одном предмете не сливаются', () => {
+  it('different codes on the same subject do not merge', () => {
     const groups = groupIssues(
       [
         issue({ key: 'a', date: '2026-09-04', shiftId: 'AMER:Cover' }),
@@ -51,7 +51,7 @@ describe('свёртка нарушений', () => {
     expect(groups).toHaveLength(2);
   });
 
-  it('человек называется именем, смена — кодом', () => {
+  it('a person is named, a shift is coded', () => {
     const groups = groupIssues(
       [issue({ key: 'a', date: '2026-09-04', personId: 'p-anna', code: 'WEEKEND_LOAD_EXCEEDED' })],
       index,
@@ -61,7 +61,7 @@ describe('свёртка нарушений', () => {
     expect(groups[0]?.subject).toBe('Anna Petrova');
   });
 
-  it('самая частая находка идёт первой', () => {
+  it('the most frequent finding comes first', () => {
     const groups = groupIssues(
       [
         issue({ key: 'a', date: '2026-09-04', personId: 'p-anna', code: 'WEEKEND_LOAD_EXCEEDED' }),
@@ -76,7 +76,7 @@ describe('свёртка нарушений', () => {
     expect(groups[0]?.issues).toHaveLength(2);
   });
 
-  it('подтверждённые предупреждения не считаются требующими внимания', () => {
+  it('acknowledged warnings do not count as needing attention', () => {
     const groups = groupIssues(
       [
         issue({ key: 'a', date: '2026-09-04', shiftId: 'AMER:Cover' }),
@@ -89,7 +89,7 @@ describe('свёртка нарушений', () => {
     expect(groups[0]?.unacknowledged).toBe(1);
   });
 
-  it('подпись диапазона дат', () => {
+  it('date range caption', () => {
     expect(dateSpanLabel(['2026-09-04'])).toBe('09/04');
     expect(dateSpanLabel(['2026-09-04', '2026-09-25'])).toBe('09/04 – 09/25');
     expect(dateSpanLabel([])).toBe('');

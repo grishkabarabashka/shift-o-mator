@@ -73,10 +73,11 @@ public sealed class ChatModel
             }
 
             default:
-                // Другой провайдер — это ссылка на его пакет и ветка здесь; всё, что
-                // выше по стеку, работает с IChatClient и не меняется. Молча падать в
-                // «выключено» нельзя: конфиг просили, значит опечатку в нём надо
-                // показать, а не проглотить.
+                // NOTE: a different provider is just a reference to its package plus a
+                // branch here — everything further up the stack works against IChatClient
+                // and stays unchanged. Silently falling back to "disabled" isn't
+                // acceptable: a config was requested, so a typo in it must surface, not
+                // be swallowed.
                 throw new InvalidOperationException(
                     $"Unknown Ai:Provider '{options.Provider}'. Supported: anthropic, none.");
         }

@@ -23,7 +23,7 @@ draft.
 ## Decision
 
 **`CoverageGap` moves from `BLOCKING` to `INFO`.** Category stays `GAP` — it is
-still a gap, chinится the same way (assign someone), counted the same way in every
+still a gap, fixed the same way (assign someone), counted the same way in every
 summary — only the severity that used to block publication changes.
 
 ```

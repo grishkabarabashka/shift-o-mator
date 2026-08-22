@@ -1,10 +1,10 @@
 /**
- * Корень приложения: загрузка данных, маршруты, общая оболочка.
+ * NOTE: application root — data loading, routes, the shared shell.
  *
- * Данные грузятся один раз на (единица × период) и раздаются всем экранам через
- * `usePlanningView`. Каждый экран, считающий покрытие заново, — это лишние
- * секунды на переключении вкладки и, что хуже, шанс показать на дашборде не то
- * же самое, что в сетке.
+ * Data loads once per (unit × period) and is handed to every screen through
+ * `usePlanningView`. Any screen that recomputes coverage on its own costs extra
+ * seconds on tab switch and, worse, risks showing something on the dashboard
+ * that disagrees with the grid.
  */
 
 import { useEffect } from 'react';
@@ -54,7 +54,7 @@ export function App() {
                 <Route path="/schedule/day/:date" element={<DayDrilldownPage view={view} now={now} />} />
                 <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                {/* Дашборд и таймлайн слились в Overview — старые ссылки живут. */}
+                {/* NOTE: dashboard and timeline merged into Overview — old links still resolve. */}
                 <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
                 <Route path="/timeline" element={<Navigate to="/overview" replace />} />
                 <Route path="*" element={<Navigate to="/overview" replace />} />

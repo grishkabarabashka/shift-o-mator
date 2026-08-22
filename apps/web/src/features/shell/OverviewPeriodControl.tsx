@@ -1,13 +1,13 @@
 /**
- * Выбор видимого периода на Overview — тот же виджет, что на Schedule
- * (день-полоса + шкала года, `PeriodStrip.tsx`), только с тремя зумами
- * (1/3/7 суток) вместо семи и без произвольного диапазона (ADR-0036).
+ * NOTE: Visible period selection on Overview — the same widget as Schedule's
+ * (day strip + year scrubber, `PeriodStrip.tsx`), just with three zooms
+ * (1/3/7 days) instead of seven, and no arbitrary range (ADR-0036).
  *
- * Клик по дню или по шкале не меняет масштаб — он переставляет якорь
- * (`setOverviewAnchor`), и лента таймлайна сама центрируется на нём
- * (`OverviewPage`'s scroll-to-anchor effect). Непрерывная горизонтальная
- * промотка ленты остаётся отдельным, независимым способом смотреть соседние
- * дни — эти два способа не мешают друг другу.
+ * Clicking a day or the scrubber doesn't change the zoom — it repositions the
+ * anchor (`setOverviewAnchor`), and the timeline strip recenters on it itself
+ * (`OverviewPage`'s scroll-to-anchor effect). Continuous horizontal scrolling
+ * of the strip remains a separate, independent way to look at neighboring
+ * days — the two don't interfere with each other.
  */
 
 import { useState } from 'react';

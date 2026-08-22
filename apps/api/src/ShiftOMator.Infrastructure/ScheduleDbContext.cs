@@ -94,8 +94,8 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.OwnsOne(x => x.TimeOverride);
-            // Ровно одно назначение на (person, date) — тот же инвариант, что и на
-            // клиенте, только здесь он не соглашение, а constraint.
+            // NOTE: exactly one assignment per (person, date) — the same invariant as on
+            // the client, except here it's not a convention but a constraint.
             e.HasIndex(x => new { x.PersonId, x.Date }).IsUnique();
         });
 

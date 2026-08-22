@@ -43,7 +43,7 @@ public class IssueDigestTests
         var line = Assert.Single(digest.Lines);
         Assert.Equal(3, line.Count);
         Assert.Equal(3, line.Dates.Count);
-        // Смена названа кодом, а не идентификатором: дайджест читают люди.
+        // NOTE: the shift is named by its code, not its id — the digest is read by people.
         Assert.Equal(LeadRole.Code, line.Subject);
         Assert.Equal(3, digest.Gaps);
         Assert.Equal(3, digest.Total);

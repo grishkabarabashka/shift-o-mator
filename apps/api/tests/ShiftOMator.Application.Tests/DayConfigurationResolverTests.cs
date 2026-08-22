@@ -14,7 +14,7 @@ public class DayConfigurationResolverTests
     private static readonly DayConfiguration Friday = MakeDayConfig(
         "dc-friday", DayConfigKey.Friday,
         weekdays: [IsoWeekday.Friday],
-        // У пятницы свой набор ролей, а не другие минимумы того же набора.
+        // NOTE: Friday has its own role set, not just different minimums on the same set.
         roleRequirements: [new ShiftRequirement { DayConfigurationId = "", ShiftId = NightRole.Id, Min = 2, IsDefault = true }]);
 
     private static readonly DayConfiguration Weekend = MakeDayConfig(
@@ -42,14 +42,14 @@ public class DayConfigurationResolverTests
         [Fact]
         public void Monday_falls_into_weekday()
         {
-            // 2026-09-07 — понедельник.
+            // NOTE: 2026-09-07 is a Monday.
             Assert.Equal("dc-weekday", DayConfigurationResolver.Resolve(TestUnit.Id, new DateOnly(2026, 9, 7), _index)?.Id);
         }
 
         [Fact]
         public void Friday_has_its_own_group_with_a_different_role_set()
         {
-            // 2026-09-11 — пятница.
+            // NOTE: 2026-09-11 is a Friday.
             var config = DayConfigurationResolver.Resolve(TestUnit.Id, new DateOnly(2026, 9, 11), _index);
             Assert.Equal("dc-friday", config?.Id);
             Assert.Equal(NightRole.Id, config?.ShiftRequirements[0].ShiftId);
@@ -64,14 +64,14 @@ public class DayConfigurationResolverTests
         [Fact]
         public void Holiday_overrides_a_weekday()
         {
-            // 2026-09-08 — вторник и праздник в календаре Нью-Йорка.
+            // NOTE: 2026-09-08 is a Tuesday and a holiday on the New York calendar.
             Assert.Equal("dc-holiday", DayConfigurationResolver.Resolve(TestUnit.Id, new DateOnly(2026, 9, 8), _index)?.Id);
         }
 
         [Fact]
         public void Holiday_status_is_judged_by_the_region_primary_location_not_the_person()
         {
-            // Праздник объявлен только для Пуны — для ростера AMER это обычный день.
+            // NOTE: the holiday is declared for Pune only — for the AMER roster it's an ordinary day.
             var puneOnly = IndexWith([MonThu, Friday, Weekend, Holiday]);
             var withPuneHoliday = BuildIndex(MakeDataset(
                 dayConfigurations: [MonThu, Friday, Weekend, Holiday],

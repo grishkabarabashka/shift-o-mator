@@ -6,7 +6,7 @@ namespace ShiftOMator.Application.Tests;
 /// <summary>Port of engine/autoPopulate.test.ts.</summary>
 public class AutoPopulateServiceTests
 {
-    // 2026-09-07 понедельник; неделя закрывается воскресеньем 2026-09-13.
+    // NOTE: 2026-09-07 is a Monday; the week closes on Sunday 2026-09-13.
     private static readonly DateOnly RangeFrom = new(2026, 9, 7);
     private static readonly DateOnly RangeTo = new(2026, 9, 13);
 
@@ -31,9 +31,9 @@ public class AutoPopulateServiceTests
             DateTimeOffset.Parse("2026-09-01T00:00:00Z")));
     }
 
-    /// <summary>Прогон на своей конфигурации дня и своём диапазоне — для случаев про
-    /// потолки и порядок проходов, где важен ровно один день и ровно один набор
-    /// требований.</summary>
+    /// <summary>NOTE: A run with its own day configuration and its own range — for
+    /// cases about ceilings and pass ordering, where exactly one day and exactly one
+    /// requirement set matter.</summary>
     private static AutoPopulateService.Result RunWith(
         List<DayConfiguration> configs, List<Person> people, DateOnly from, DateOnly to)
     {
@@ -58,7 +58,7 @@ public class AutoPopulateServiceTests
             var result = Run(people: [alice]);
 
             var weekdayCreates = result.Assignments.Where(a => a.ShiftId == LeadRole.Id).ToList();
-            // Пн–Пт этой недели — пять дней.
+            // NOTE: Mon-Fri this week is five days.
             Assert.Equal(5, weekdayCreates.Count);
             Assert.All(weekdayCreates, a => Assert.Equal("p-alice", a.PersonId));
         }
@@ -67,7 +67,7 @@ public class AutoPopulateServiceTests
         public void Does_not_touch_an_already_occupied_cell()
         {
             var alice = MakePerson("p-alice", defaultRoleId: LeadRole.Id);
-            var existing = MakeAssignment("p-alice", NightRole.Id, new DateOnly(2026, 9, 8)); // вторник, уже занят
+            var existing = MakeAssignment("p-alice", NightRole.Id, new DateOnly(2026, 9, 8)); // NOTE: Tuesday, already occupied.
             var result = Run(people: [alice], assignments: [existing]);
 
             Assert.DoesNotContain(result.Assignments, a => a.PersonId == "p-alice" && a.Date == new DateOnly(2026, 9, 8));
@@ -76,7 +76,8 @@ public class AutoPopulateServiceTests
         [Fact]
         public void Does_not_touch_a_locked_cell_even_if_empty_in_another_sense()
         {
-            // Блокировка снимает роль с рассмотрения целиком — генерация не видит день.
+            // NOTE: Locking removes the role from consideration entirely — generation
+            // doesn't see the day.
             var alice = MakePerson("p-alice", defaultRoleId: LeadRole.Id);
             var locked = MakeAssignment("p-alice", LeadRole.Id, new DateOnly(2026, 9, 7), id: "as-locked");
             var result = Run(people: [alice], assignments: [locked], locked: new HashSet<string> { "as-locked" });
@@ -87,8 +88,9 @@ public class AutoPopulateServiceTests
         [Fact]
         public void A_mismatched_default_is_not_used()
         {
-            // Дефолт — ночная роль, а будняя группа требует дневную: дефолт не
-            // подходит дню, и минимум закрыть некем — eligibility нет.
+            // NOTE: The default is a night role, but the weekday group requires a day
+            // one: the default doesn't fit the day, and there's no one to close the
+            // minimum — no eligibility.
             var bob = MakePerson("p-bob", defaultRoleId: NightRole.Id,
                 eligibility: [new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 1 }]);
             var result = Run(people: [bob]);
@@ -98,9 +100,10 @@ public class AutoPopulateServiceTests
         }
 
         /// <summary>
-        /// Регресс: дефолты шли первым проходом и в единице, где у всех один и тот же
-        /// `defaultShiftId`, разбирали команду целиком — на специализированные смены
-        /// не оставалось никого, и каждая из них рапортовала дыру «все уже заняты».
+        /// WHY: Regression test — defaults used to run as the first pass, and in a
+        /// unit where everyone shared the same `defaultShiftId`, that pass consumed
+        /// the whole team: no one was left for specialized shifts, and each of them
+        /// reported a gap of "everyone already assigned."
         /// </summary>
         [Fact]
         public void A_shared_default_no_longer_starves_the_other_minimums()
@@ -158,9 +161,9 @@ public class AutoPopulateServiceTests
     }
 
     /// <summary>
-    /// Проход 3: смены дня заполняются дальше минимума — до `Max`. Без него пятница
-    /// (у которой свой набор смен, ничьим дефолтом не покрытый) получала ровно по
-    /// одному человеку на смену и оставалась пустой.
+    /// NOTE: Pass 3 — the day's shifts fill past the minimum, up to `Max`. Without it,
+    /// Friday (which has its own shift set, covered by no one's default) got exactly
+    /// one person per shift and stayed empty otherwise.
     /// </summary>
     public class TopUp
     {
@@ -212,7 +215,8 @@ public class AutoPopulateServiceTests
         [Fact]
         public void An_unlimited_requirement_that_is_not_the_days_default_stays_at_its_minimum()
         {
-            // Max = null и не IsDefault: ни цели, ни мандата собирать остальных.
+            // NOTE: Max = null and not IsDefault: neither a target nor a mandate to
+            // collect everyone else.
             var config = MakeDayConfig(
                 "dc-weekday", DayConfigKey.Weekday,
                 weekdays: [IsoWeekday.Monday],
@@ -225,8 +229,9 @@ public class AutoPopulateServiceTests
         }
 
         /// <summary>
-        /// ADR-0038: массовую смену задаёт конфигурация дня, а не профиль человека. Ни
-        /// у кого здесь нет `DefaultShiftId` — и всё равно рабочий день заполнен.
+        /// NOTE: ADR-0038: the bulk shift is set by the day configuration, not the
+        /// person's profile. No one here has a `DefaultShiftId` — and the working day
+        /// still fills.
         /// </summary>
         [Fact]
         public void The_days_default_shift_takes_everyone_still_free()
@@ -244,9 +249,9 @@ public class AutoPopulateServiceTests
         }
 
         /// <summary>
-        /// Массовая смена идёт последней. Иначе она разберёт команду раньше, чем дойдёт
-        /// очередь до смен с потолком — та же ошибка, что была у дефолтов до минимумов,
-        /// и алфавит её маскирует: `r-lead` сортируется раньше `r-night`.
+        /// WHY: The bulk shift runs last. Otherwise it would claim the team before
+        /// capped shifts got their turn — the same mistake defaults had before
+        /// minimums, masked by alphabetical order: `r-lead` sorts before `r-night`.
         /// </summary>
         [Fact]
         public void The_bulk_shift_does_not_starve_a_capped_one()
@@ -284,8 +289,9 @@ public class AutoPopulateServiceTests
         [Fact]
         public void A_weekend_gets_its_minimums_and_nothing_more()
         {
-            // Суббота: дежурство, а не рабочий день. Догрузка до Max=3 здесь
-            // придумала бы работу в выходной и отгулы за неё (ADR-0007).
+            // NOTE: Saturday is a duty roster, not a working day. Topping up to Max=3
+            // here would invent weekend work — and the comp days that come with it
+            // (ADR-0007).
             var config = MakeDayConfig(
                 "dc-weekend", DayConfigKey.Weekend,
                 weekdays: [IsoWeekday.Saturday, IsoWeekday.Sunday],
@@ -307,7 +313,7 @@ public class AutoPopulateServiceTests
             var alice = MakePerson("p-alice", eligibility: [new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 1 }]);
             var result = Run(people: [alice]);
 
-            // Сб 12, Вс 13 — единственные выходные дни диапазона.
+            // NOTE: Sat 12, Sun 13 are the only weekend days in the range.
             var weekendCreates = result.Assignments.Where(a => a.Date == new DateOnly(2026, 9, 12) || a.Date == new DateOnly(2026, 9, 13)).ToList();
             Assert.Equal(2, weekendCreates.Count);
             Assert.All(weekendCreates, a => Assert.Equal("p-alice", a.PersonId));
@@ -318,7 +324,7 @@ public class AutoPopulateServiceTests
         {
             var alice = MakePerson("p-alice",
                 eligibility: [new ShiftEligibility { PersonId = "", ShiftId = NightRole.Id, TargetShare = 1 }],
-                availableWeekdays: [IsoWeekday.Monday, IsoWeekday.Tuesday, IsoWeekday.Wednesday, IsoWeekday.Thursday, IsoWeekday.Friday]); // выходные вне доступности
+                availableWeekdays: [IsoWeekday.Monday, IsoWeekday.Tuesday, IsoWeekday.Wednesday, IsoWeekday.Thursday, IsoWeekday.Friday]); // NOTE: Weekends are outside availability.
             var result = Run(people: [alice]);
 
             var gap = result.Gaps.FirstOrDefault(g => g.ShiftId == NightRole.Id);

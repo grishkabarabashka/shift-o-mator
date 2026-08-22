@@ -1,9 +1,9 @@
 /**
- * Одна локация на часовой пояс — если несколько локаций делят зону
- * (Hartford/New York, оба America/New_York), выигрывает первичная локация
- * какого-либо юнита: это узнаваемое имя для часов, а не то, что случайно
- * оказалось первым по порядку id. Общее между AppShell (шапка) и Overview
- * (таймлайн), чтобы правило не разъехалось между двумя местами.
+ * NOTE: One location per timezone — if several locations share a zone
+ * (Hartford/New York, both America/New_York), the primary location of some
+ * unit wins: it's a recognizable name for the clock, not whatever happened
+ * to come first by id order. Shared between AppShell (header) and Overview
+ * (timeline) so the rule doesn't drift between the two places.
  */
 
 import type { Location } from '../domain/types.ts';

@@ -41,7 +41,7 @@ public static class DayConfigurationResolver
             .ToList();
         if (candidates.Count == 0) return null;
 
-        // Самая частная группа, внутри неё — самая поздняя действующая версия.
+        // NOTE: the most specific group wins; within it, the latest effective version wins.
         var best = candidates[0];
         foreach (var candidate in candidates.Skip(1))
         {

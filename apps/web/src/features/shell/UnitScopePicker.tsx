@@ -1,14 +1,14 @@
 /**
- * Выбор единиц планирования: все, одна или произвольный набор.
+ * NOTE: Planning unit selection: all, one, or any combination.
  *
- * Выпадающий список «либо все, либо одна» отвечал не на тот вопрос. Единица —
- * фильтр, а не граница (ADR-0032), и планировщик, который ведёт AMER вместе с
- * Service Transition, хочет ровно эти две: со «всеми» к ним примешиваются EMEA
- * и APAC, с «одной» вторую не видно.
+ * An "either all or one" dropdown answered the wrong question. A unit is a
+ * filter, not a boundary (ADR-0032), and a planner who runs AMER alongside
+ * Service Transition wants exactly those two: "all" mixes in EMEA and APAC,
+ * "one" hides the second unit.
  *
- * Popover с чекбоксами, а не `<select multiple>`: последний в браузере требует
- * ctrl-клика, чтобы снять один пункт, и на нём легко потерять весь набор
- * случайным кликом.
+ * A popover with checkboxes rather than `<select multiple>`: the browser's
+ * multi-select needs a ctrl-click to deselect one item, and it's easy to lose
+ * the whole selection with a stray click.
  */
 
 import * as Popover from '@radix-ui/react-popover';
@@ -34,15 +34,15 @@ export function UnitScopePicker({ units, scope, onChange }: Props) {
       : `${selected.length} units`;
 
   const toggle = (unitId: UnitId): void => {
-    // От «всех» первый же клик по чекбоксу означает «только эта»: иначе он
-    // снимал бы одну из четырёх, что почти никогда не то, чего хотят.
+    // NOTE: From "all", the first checkbox click means "only this one":
+    // otherwise it would deselect one of four, which is almost never what's wanted.
     const current = all ? allIds : selected.map((u) => u.id);
     const next = all
       ? [unitId]
       : current.includes(unitId)
         ? current.filter((id) => id !== unitId)
         : [...current, unitId];
-    // Снять последнюю — это «все», а не пустой экран.
+    // NOTE: Deselecting the last one means "all," not an empty screen.
     onChange(next.length === 0 ? ALL_UNITS : formatUnitScope(next, allIds));
   };
 

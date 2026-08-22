@@ -1,8 +1,8 @@
 /**
- * Состояние интерфейса: то, что не является данными и не сохраняется.
+ * NOTE: UI state: what isn't data and isn't persisted.
  *
- * Живёт отдельно от `useSchedule` намеренно: смешивать «данные» и «что сейчас
- * выделено» — верный способ перерисовывать сетку на каждое движение курсора.
+ * Lives apart from `useSchedule` on purpose: mixing "data" with "what's
+ * currently selected" is a sure way to repaint the grid on every cursor move.
  */
 
 import { create } from 'zustand';
@@ -30,13 +30,13 @@ import {
 import type { CellRef } from './useSchedule.ts';
 
 /**
- * Сегодня фиксируется на момент запуска. Движки принимают текущий момент
- * параметром, и `new Date()` из глубины компонента им передавать нельзя —
- * тогда два соседних вызова могли бы разойтись через полночь.
+ * WHY: "Today" is fixed at startup. Engines take the current moment as a
+ * parameter, and a `new Date()` from deep inside a component can't be passed
+ * to them — two adjacent calls could otherwise disagree across midnight.
  */
 export const TODAY: IsoDate = toIsoDate(parseDate(new Date().toISOString().slice(0, 10)));
 
-/** Таймзона отображения: своя у смены либо явно выбранная. */
+/** NOTE: Display timezone: the shift's own, or explicitly chosen. */
 export type DisplayZone = 'shift' | IanaZone;
 
 export interface Selection {
@@ -44,7 +44,7 @@ export interface Selection {
   readonly focus: CellRef | undefined;
 }
 
-/** Диапазон для одной будущей записи отсутствия: один человек, от–до. */
+/** NOTE: Range for one future absence record: one person, from-to. */
 export interface AbsenceRangeTarget {
   readonly personId: PersonId;
   readonly from: IsoDate;
@@ -52,9 +52,9 @@ export interface AbsenceRangeTarget {
 }
 
 /**
- * Черновик диалога отсутствия. `create` приходит из выделения в сетке
- * (по записи на каждого выделенного человека), `edit` — из двойного клика
- * по уже стоящей отметке.
+ * NOTE: Draft for the absence dialog. `create` comes from a grid selection
+ * (one record per selected person), `edit` comes from double-clicking an
+ * already-placed marker.
  */
 export type AbsenceDraft =
   | { readonly mode: 'create'; readonly targets: readonly AbsenceRangeTarget[] }
@@ -62,16 +62,17 @@ export type AbsenceDraft =
 
 export interface UiState {
   displayZone: DisplayZone;
-  /** Единица планирования — фильтр по умолчанию, а не граница (ADR-0020). */
+  /** NOTE: Planning unit — a default filter, not a boundary (ADR-0020). */
   unitId: string;
 
   /**
-   * Overview и Schedule хотят разное из одного и того же времени: Overview
-   * листает сутки вокруг «сейчас», Schedule — месяцы (ADR-0036). Поэтому у
-   * каждого экрана свой запоминаемый срез, а `range` — общий активный диапазон,
-   * который переписывает та страница, что смонтирована (`enterOverview` /
-   * `enterSchedule`). `range` хранится, а не вычисляется в селекторе: селектор
-   * возвращал бы новый объект на каждый вызов и перерисовывал бы всю сетку.
+   * NOTE: Overview and Schedule want different things from the same clock:
+   * Overview pages through days around "now", Schedule pages through months
+   * (ADR-0036). So each screen keeps its own remembered slice, and `range` is
+   * the shared active range, overwritten by whichever page is mounted
+   * (`enterOverview` / `enterSchedule`). `range` is stored, not computed in a
+   * selector: a selector would return a new object on every call and repaint
+   * the whole grid.
    */
   overview: { readonly anchor: IsoDate; readonly span: OverviewSpan };
   schedule: { readonly anchor: IsoDate; readonly zoom: ScheduleZoom };
@@ -80,32 +81,32 @@ export interface UiState {
   activeShiftId: ShiftId | undefined;
   selection: Selection;
   /**
-   * Колонка, к которой надо прокрутить сетку.
+   * NOTE: The column the grid should scroll to.
    *
-   * Нужна отдельно от выделения, потому что у дыры **нет человека**: никто не
-   * назначен — в этом она и состоит. Переход «почини это» из дашборда может
-   * указать только на дату, и делать вид, что он указывает на ячейку, значит
-   * подсветить случайную строку.
+   * Needed separately from selection because a gap **has no person**: nobody
+   * is assigned — that's what a gap is. A "fix this" link from the dashboard
+   * can only point at a date, and pretending it points at a cell would
+   * highlight a random row.
    */
   highlightDate: IsoDate | undefined;
   issueFilter: IssueLevel | 'ALL';
-  /** Внутренний буфер обмена: строки людей × колонки дней. */
+  /** NOTE: Internal clipboard: person rows x day columns. */
   clipboard: (ShiftId | null)[][] | undefined;
   absenceDraft: AbsenceDraft | undefined;
   compDayDraft: CompDayEntry | undefined;
   /**
-   * Назначения, закреплённые от автогенерации.
+   * NOTE: Assignments locked from auto-populate.
    *
-   * Сессионное состояние, не часть плана: замок — рабочая пометка «это уже
-   * решено, не трогай», а не факт расписания, который стоит публиковать или
-   * держать в истории.
+   * Session state, not part of the plan: a lock is a working note — "this is
+   * already decided, don't touch it" — not a schedule fact worth publishing
+   * or keeping in history.
    */
   lockedAssignmentIds: ReadonlySet<string>;
 
   setDisplayZone: (zone: DisplayZone) => void;
   setUnit: (unitId: string) => void;
 
-  /** Пересчитать активный `range` из своего среза при монтировании страницы. */
+  /** NOTE: Recompute the active `range` from this page's own slice on mount. */
   enterOverview: () => void;
   enterSchedule: () => void;
   setOverviewSpan: (span: OverviewSpan) => void;
@@ -114,8 +115,9 @@ export interface UiState {
   overviewToday: () => void;
   setScheduleZoom: (zoom: ScheduleZoom) => void;
   setScheduleAnchor: (anchor: IsoDate) => void;
-  /** Клик по дню в стрипе/шкале: делает эту дату началом периода той же
-   * длины — не привязывает к 1-му числу месяца, как `setScheduleAnchor`. */
+  /** NOTE: A click on a day in the strip/scrubber: makes that date the start
+   * of the period at the same length — unlike `setScheduleAnchor`, it doesn't
+   * snap to the 1st of the month. */
   jumpScheduleTo: (date: IsoDate) => void;
   stepSchedule: (direction: 1 | -1) => void;
   scheduleToday: () => void;
@@ -222,7 +224,7 @@ export const useUi = create<UiState>((set, get) => ({
   focusDate: (date, personId) => {
     const { selection } = get();
     const person = personId ?? selection.focus?.personId;
-    // Без человека выделять нечего — но прокрутить к колонке всё равно надо.
+    // NOTE: Without a person there's nothing to select — but the column still needs scrolling to.
     if (!person) {
       set({ highlightDate: date });
       return;
@@ -253,7 +255,7 @@ export const useUi = create<UiState>((set, get) => ({
   },
 }));
 
-/** Прямоугольник выделения в координатах (индекс строки, индекс колонки). */
+/** NOTE: Selection rectangle in (row index, column index) coordinates. */
 export function selectionBounds(
   selection: Selection,
   rowIndex: (personId: PersonId) => number,

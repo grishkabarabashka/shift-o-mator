@@ -6,7 +6,7 @@ namespace ShiftOMator.Application.Tests;
 /// <summary>Port of engine/candidates.test.ts.</summary>
 public class CandidateRankerTests
 {
-    // Понедельник — будний день для всех фикстур.
+    // NOTE: Monday — a weekday for all fixtures.
     private static readonly DateOnly Date = new(2026, 9, 7);
 
     private static (DatasetIndex Index, Person Alice, Person Bob) Setup(List<Person>? people = null)
@@ -31,7 +31,7 @@ public class CandidateRankerTests
         var result = CandidateRanker.Rank(Params(index));
 
         Assert.Empty(result.Available);
-        Assert.Empty(result.Excluded); // не в пуле вообще, не «исключён»
+        Assert.Empty(result.Excluded); // NOTE: Not in the pool at all, not "excluded".
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class CandidateRankerTests
 
         var result = CandidateRanker.Rank(Params(index, assignments));
 
-        // Bob ни разу не держал роль — он идёт первым, несмотря на алфавит.
+        // NOTE: Bob never held the role — he comes first, despite the alphabet.
         Assert.Equal(["p-bob", "p-alice"], result.Available.Select(c => c.PersonId));
         Assert.Equal(3, result.Available[1].ShiftCountLast90);
     }
@@ -97,7 +97,7 @@ public class CandidateRankerTests
     public void Assignments_outside_the_90_day_window_do_not_count()
     {
         var (index, _, _) = Setup();
-        // 95 дней до DATE — уже вне окна.
+        // NOTE: 95 days before DATE — already outside the window.
         var assignments = new List<Assignment> { MakeAssignment("p-alice", LeadRole.Id, new DateOnly(2026, 6, 4)) };
 
         var result = CandidateRanker.Rank(Params(index, assignments));
@@ -111,13 +111,13 @@ public class CandidateRankerTests
         var (index, _, _) = Setup();
         var assignments = new List<Assignment>
         {
-            MakeAssignment("p-alice", LeadRole.Id, new DateOnly(2026, 9, 1)), // 6 дней назад
-            MakeAssignment("p-bob", LeadRole.Id, new DateOnly(2026, 8, 1)),   // 37 дней назад
+            MakeAssignment("p-alice", LeadRole.Id, new DateOnly(2026, 9, 1)), // NOTE: 6 days ago.
+            MakeAssignment("p-bob", LeadRole.Id, new DateOnly(2026, 8, 1)),   // NOTE: 37 days ago.
         };
 
         var result = CandidateRanker.Rank(Params(index, assignments));
 
-        // Оба держали ровно один раз — решает давность: Bob держал давнее.
+        // NOTE: Both held it exactly once — recency decides: Bob held it longer ago.
         Assert.Equal(["p-bob", "p-alice"], result.Available.Select(c => c.PersonId));
     }
 
@@ -127,7 +127,7 @@ public class CandidateRankerTests
         var capped = MakePerson("p-eve", displayName: "Eve",
             eligibility: [new ShiftEligibility { PersonId = "", ShiftId = LeadRole.Id, TargetShare = 1, MaxPerWeek = 1 }]);
         var (index, _, _) = Setup([capped]);
-        // Уже одна смена на этой ISO-неделе (DATE — понедельник той же недели).
+        // NOTE: Already one shift this ISO week (DATE is a Monday in the same week).
         var assignments = new List<Assignment> { MakeAssignment("p-eve", LeadRole.Id, new DateOnly(2026, 9, 8)) };
 
         var result = CandidateRanker.Rank(Params(index, assignments));
@@ -140,8 +140,9 @@ public class CandidateRankerTests
     [Fact]
     public void People_already_busy_today_land_in_excluded_with_an_honest_reason()
     {
-        // Раньше такие люди пропадали без следа: единственный eligible человек,
-        // занятый другой ролью, превращал «занят» в ложное «никто не eligible».
+        // WHY: Previously such people disappeared without a trace — the only
+        // eligible person, busy with another role, turned "busy" into a false
+        // "no one is eligible".
         var (index, _, _) = Setup();
 
         var result = CandidateRanker.Rank(Params(index, excludePersonIds: new HashSet<string> { "p-alice" }));
@@ -158,6 +159,6 @@ public class CandidateRankerTests
         List<string> Run() => [.. CandidateRanker.Rank(Params(index)).Available.Select(c => c.PersonId)];
 
         Assert.Equal(Run(), Run());
-        Assert.Equal(["p-alice", "p-bob"], Run()); // алфавитный tie-break
+        Assert.Equal(["p-alice", "p-bob"], Run()); // NOTE: Alphabetical tie-break.
     }
 }

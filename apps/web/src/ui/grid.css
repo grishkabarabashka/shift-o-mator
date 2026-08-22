@@ -1,17 +1,17 @@
 /*
- * Сетка планирования, полоса покрытия и таймлайн.
+ * NOTE: the planning grid, coverage strip, and timeline.
  *
- * Здесь единственное место, где плотность важнее воздуха: 80 строк на 31
- * колонку должны читаться без прокрутки по вертикали внутри одной группы.
- * Воздух приходит от полей вокруг карточки, а не изнутри таблицы.
+ * This is the one place where density matters more than air: 80 rows by 31
+ * columns must read without vertical scrolling within a single group. Air
+ * comes from the margins around the card, not from inside the table.
  *
- * Сетка — CSS grid с липкими первой колонкой и шапкой. Липкость держится на
- * `position: sticky` внутри одного скролл-контейнера, поэтому корень сетки
- * прокручивается по обеим осям сам, а не через родителя.
+ * The grid is CSS grid with a sticky first column and header. Stickiness rests
+ * on `position: sticky` inside a single scroll container, so the grid root
+ * scrolls both axes itself rather than through a parent.
  */
 
 /* --------------------------------------------------------------------------
- * Сетка
+ * Grid
  * ----------------------------------------------------------------------- */
 
 .grid-wrap {
@@ -31,7 +31,7 @@
   user-select: none;
 }
 
-/* --- Шапка ---------------------------------------------------------------- */
+/* --- Header ----------------------------------------------------------------- */
 
 .sheet__corner,
 .sheet__head {
@@ -81,7 +81,7 @@
   line-height: 1;
 }
 
-/* Заголовок дня — вход в day drill-down. */
+/* NOTE: day header — entry point into day drill-down. */
 .sheet__head-num--link {
   color: inherit;
   text-decoration: none;
@@ -100,7 +100,7 @@
   color: var(--ink-faint);
   font-weight: 500;
 }
-/* Праздник — точка под числом: цвета выходного мало, а места на подпись нет. */
+/* NOTE: holiday — a dot under the number: the nonworking color alone isn't enough, and there's no room for a label. */
 .sheet__head[data-holiday] .sheet__head-num::after {
   content: '';
   display: block;
@@ -110,7 +110,7 @@
   border-radius: 50%;
   background: var(--warn);
 }
-/* Приход из дашборда: колонка, к которой нас привели. */
+/* NOTE: arrival from the dashboard — the column we were brought to. */
 .sheet__head[data-highlight] {
   background: var(--bad-soft);
   box-shadow: inset 0 -2px 0 var(--bad);
@@ -128,7 +128,7 @@
   font-weight: 700;
 }
 
-/* --- Группа --------------------------------------------------------------- */
+/* --- Group ------------------------------------------------------------------ */
 
 .sheet__group,
 .sheet__group-fill {
@@ -154,10 +154,10 @@
   text-transform: uppercase;
 }
 
-/* Единица планирования как внешний уровень: темнее фон и обычный вес имени
-   вместо разрядки — иначе две одинаковых серых полоски подряд читаются как
-   повтор, а не как «внутри чего мы находимся». Появляется только когда единиц
-   на экране несколько. */
+/* NOTE: planning unit as the outer level — darker background and normal name
+   weight instead of letter-spacing, otherwise two identical gray bars in a row
+   read as a repeat rather than "what we're nested inside." Appears only when
+   several units are on screen at once. */
 .sheet__group[data-level='1'],
 .sheet__group-fill[data-level='1'] {
   background: color-mix(in srgb, var(--accent) 8%, var(--surface-sunken));
@@ -181,7 +181,7 @@
   letter-spacing: 0;
 }
 
-/* --- Имя ------------------------------------------------------------------ */
+/* --- Name -------------------------------------------------------------------- */
 
 .sheet__name {
   position: sticky;
@@ -199,7 +199,7 @@
   font-weight: 500;
 }
 
-/* --- Ячейка --------------------------------------------------------------- */
+/* --- Cell -------------------------------------------------------------------- */
 
 .cell {
   position: relative;
@@ -223,7 +223,7 @@
   background: color-mix(in srgb, var(--accent) 6%, var(--surface-sunken));
 }
 
-/* Отсутствие — штриховка: заливка конкурировала бы с цветом роли. */
+/* NOTE: absence — hatching, since a solid fill would compete with the role color. */
 .cell[data-absent] {
   background-image: repeating-linear-gradient(
     45deg,
@@ -244,7 +244,7 @@
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
-/* Нарушения — рамка, а не заливка: цвет роли должен остаться читаемым. */
+/* NOTE: violations — an outline, not a fill: the role color must stay readable. */
 .cell[data-issue='BLOCKING'],
 .cell[data-conflict] {
   box-shadow: inset 0 0 0 2px var(--bad);
@@ -258,7 +258,7 @@
     inset 0 0 0 4px var(--bad-soft);
 }
 
-/* --- Содержимое ячейки ---------------------------------------------------- */
+/* --- Cell contents ------------------------------------------------------------ */
 
 .chip {
   position: relative;
@@ -279,7 +279,7 @@
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.22);
 }
 
-/* Замок от автогенерации: маленькая насечка в углу чипа. */
+/* NOTE: auto-populate lock — a small notch in the corner of the chip. */
 .chip__lock {
   position: absolute;
   top: 1px;
@@ -309,7 +309,7 @@
 }
 
 /* --------------------------------------------------------------------------
- * Полоса покрытия
+ * Coverage strip
  * ----------------------------------------------------------------------- */
 
 .cover {
@@ -368,7 +368,7 @@
   cursor: pointer;
 }
 
-/* Итоговая строка выделена: она видна всегда, детализация — по требованию. */
+/* NOTE: the totals row is highlighted — it's always visible, detail is on demand. */
 .cover__cell--total,
 .cover__label--action {
   height: 30px;
@@ -392,7 +392,7 @@
 }
 
 /* --------------------------------------------------------------------------
- * Тепловая карта длинных периодов (3 и 6 месяцев, только чтение)
+ * Heatmap for long periods (3 and 6 months, read-only)
  * ----------------------------------------------------------------------- */
 
 .heat {
@@ -441,7 +441,7 @@
 }
 
 /* --------------------------------------------------------------------------
- * Таймлайн
+ * Timeline
  * ----------------------------------------------------------------------- */
 
 .lane {
@@ -480,7 +480,7 @@
   filter: brightness(1.1);
 }
 
-/* Перекрытие передачи смены — полупрозрачная накладка поверх блоков. */
+/* NOTE: shift-handover overlap — a semi-transparent overlay on top of the blocks. */
 .lane__handover {
   position: absolute;
   top: 0;

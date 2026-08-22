@@ -48,7 +48,7 @@ public class CompDayServiceTests
         [Fact]
         public void A_holiday_outranks_the_weekday()
         {
-            // 20 августа — четверг и праздник в календаре Нью-Йорка.
+            // NOTE: August 20 is a Thursday and a holiday on the New York calendar.
             Assert.Equal(CompDayTrigger.Holiday, CompDayService.TriggerFor(new DateOnly(2026, 8, 20), Person.LocationId, _index));
         }
 
@@ -70,11 +70,11 @@ public class CompDayServiceTests
         [Fact]
         public void Saturday_gives_the_Thursday_of_the_same_week()
         {
-            // Поиск идёт наружу от даты начисления, сначала «после»:
-            //   +1 = вс 16-го — нерабочий
-            //   −1 = пт 14-го — исключён политикой
-            //   +2 = пн 17-го — исключён политикой
-            //   −2 = чт 13-го — подходит
+            // WHY: search steps outward from the accrual date, "after" first:
+            //   +1 = Sun 16th — non-working
+            //   -1 = Fri 14th — excluded by policy
+            //   +2 = Mon 17th — excluded by policy
+            //   -2 = Thu 13th — fits
             var entry = ProposeFor([("p-ny", "2026-08-15")]).Added[0];
             Assert.Equal(CompDayTrigger.Saturday, entry.Trigger);
             Assert.Equal(new DateOnly(2026, 8, 13), entry.ProposedDate);
@@ -84,7 +84,7 @@ public class CompDayServiceTests
         [Fact]
         public void Sunday_gives_the_Tuesday_of_next_week()
         {
-            // +1 = пн (исключён), −1 = сб (нерабочий), +2 = вт 18-го — подходит.
+            // WHY: +1 = Mon (excluded), -1 = Sat (non-working), +2 = Tue 18th — fits.
             var entry = ProposeFor([("p-ny", "2026-08-16")]).Added[0];
             Assert.Equal(CompDayTrigger.Sunday, entry.Trigger);
             Assert.Equal(new DateOnly(2026, 8, 18), entry.ProposedDate);
@@ -119,7 +119,7 @@ public class CompDayServiceTests
         [Fact]
         public void Two_accruals_never_land_on_the_same_day()
         {
-            // Суббота и воскресенье — два независимых события начисления.
+            // NOTE: Saturday and Sunday are two independent accrual events.
             var result = ProposeFor([("p-ny", "2026-08-15"), ("p-ny", "2026-08-16")]);
             Assert.Equal(2, result.Added.Count);
             Assert.Equal(2, result.Added.Select(e => e.ProposedDate).Distinct().Count());

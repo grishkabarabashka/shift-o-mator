@@ -1,34 +1,34 @@
 /**
- * Доменная модель shift-o-mator.
+ * NOTE: shift-o-mator domain model.
  *
- * Решения — в Docs/adr/. Ключевые для этого файла:
- *   Phase 8   Region удалён; PlanningUnit — единственная ось правил
- *   ADR-0001  смена несёт своё абсолютное время (единая сущность Shift)
- *   ADR-0016  day configuration несёт набор смен, а не только минимумы
- *   ADR-0017  Absence — диапазон, ячейка — проекция
- *   ADR-0015  черновики и публикация
- *   ADR-0021  конфигурация версионируется датой вступления
+ * Decisions live in Docs/adr/. Key ones for this file:
+ *   Phase 8   Region removed; PlanningUnit is the single rule axis
+ *   ADR-0001  a shift carries its own absolute time (unified Shift entity)
+ *   ADR-0016  a day configuration carries a shift set, not just minimums
+ *   ADR-0017  Absence is a range; the grid cell is a projection
+ *   ADR-0015  drafts and publish
+ *   ADR-0021  configuration is versioned by effective date
  *
- * Этот модуль не зависит ни от чего, кроме стандартной библиотеки.
+ * This module depends on nothing but the standard library.
  */
 
 // ---------------------------------------------------------------------------
-// Примитивы
+// Primitives
 // ---------------------------------------------------------------------------
 
-/** Календарная дата, `YYYY-MM-DD`. Трактуется в таймзоне, заданной контекстом. */
+/** NOTE: Calendar date, `YYYY-MM-DD`. Interpreted in the timezone given by context. */
 export type IsoDate = string;
 
-/** Момент времени в UTC, ISO 8601 с суффиксом `Z`. */
+/** NOTE: A moment in UTC, ISO 8601 with a `Z` suffix. */
 export type IsoInstant = string;
 
-/** Время суток `HH:mm` без даты и без таймзоны. */
+/** NOTE: Time of day `HH:mm`, no date, no timezone. */
 export type TimeOfDay = string;
 
-/** Идентификатор таймзоны IANA, например `America/New_York`. */
+/** NOTE: IANA timezone identifier, e.g. `America/New_York`. */
 export type IanaZone = string;
 
-/** День недели по ISO: 1 — понедельник, 7 — воскресенье (нумерация Luxon). */
+/** NOTE: ISO weekday: 1 = Monday, 7 = Sunday (Luxon's numbering). */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const MONDAY = 1 as const;
@@ -40,13 +40,13 @@ export type LocationId = string;
 export type UnitId = string;
 
 /**
- * Псевдо-единица «все»: фильтра по единице нет.
+ * NOTE: Pseudo-unit "all": no unit filter applied.
  *
- * Единица планирования — фильтр по умолчанию, а не граница (ADR-0020), и
- * дефолтом должно быть «вижу всех». Команда небольшая, а вопрос, ради которого
- * люди открывают этот продукт, — «закрыты ли мы глобально»; ответ на него
- * нельзя давать по одному юниту за раз. Выбор конкретной единицы сужает
- * список, а не открывает доступ.
+ * A planning unit is a default filter, not a boundary (ADR-0020), and the
+ * default should be "see everyone". The team is small, and the question people
+ * open this product for — "are we covered globally" — can't be answered one
+ * unit at a time. Picking a specific unit narrows the list; it does not gate
+ * access.
  */
 export const ALL_UNITS: UnitId = 'ALL';
 export type ShiftId = string;
@@ -57,28 +57,29 @@ export type CompDayEntryId = string;
 export type DayConfigId = string;
 export type DraftSessionId = string;
 
-/** Полуоткрытый интервал времени `[start, end)` в UTC. */
+/** NOTE: Half-open time interval `[start, end)` in UTC. */
 export interface UtcInterval {
   readonly start: IsoInstant;
   readonly end: IsoInstant;
 }
 
-/** Период, обе границы включительно. */
+/** NOTE: A period, both bounds inclusive. */
 export interface DateRange {
   readonly from: IsoDate;
   readonly to: IsoDate;
 }
 
 // ---------------------------------------------------------------------------
-// Локация и календарь
+// Location and calendar
 // ---------------------------------------------------------------------------
 
 export type HolidayCalendarKey = string;
 
 /**
- * Локация отвечает ровно за две вещи: календарь нерабочих дней и таймзону
- * отображения. Ко времени смены отношения не имеет. Многие-ко-многим с
- * PlanningUnit — Pune хостит людей трёх разных юнитов.
+ * NOTE: A location is responsible for exactly two things: the calendar of
+ * non-working days and the display timezone. Nothing to do with shift timing.
+ * Many-to-many with PlanningUnit — Pune hosts people from three different
+ * units.
  */
 export interface Location {
   readonly id: LocationId;
@@ -98,63 +99,63 @@ export interface Holiday {
 }
 
 // ---------------------------------------------------------------------------
-// Единица планирования — единственная ось правил
+// Planning unit — the single rule axis
 // ---------------------------------------------------------------------------
 
 export type CompDayTrigger = 'SATURDAY' | 'SUNDAY' | 'HOLIDAY';
 
 /**
- * Политика отгулов. Дата подбирается поиском в окне, а не фиксированным
- * смещением, и отгулы не сгорают — ADR-0007. Теперь принадлежит юниту
- * (раньше — региону).
+ * NOTE: Comp-day policy. The date is chosen by searching a window, not by a
+ * fixed offset, and comp days never expire — ADR-0007. Now belongs to the
+ * unit (previously the region).
  */
 export interface CompOffPolicy {
   readonly windowBeforeDays: number;
   readonly windowAfterDays: number;
-  /** Дни недели, на которые отгул не ставится. По умолчанию Пн и Пт. */
+  /** NOTE: Weekdays a comp day is never placed on. Mon and Fri by default. */
   readonly excludedWeekdays: readonly Weekday[];
-  /** Через сколько дней после начисления неотгуленный день подсвечивается. */
+  /** NOTE: Days after accrual before an untaken comp day is flagged. */
   readonly agingThresholdDays: number;
   readonly requiresApprovalWhenNoSlot: boolean;
 }
 
 export type UnitKind = 'REGION' | 'CROSS_REGION';
 
-/** По чему группируются строки сетки внутри единицы. */
+/** NOTE: What grid rows are grouped by within a unit. */
 export type GroupBy = 'LOCATION' | 'REGION' | 'ORG_CATEGORY';
 
 /**
- * Единица планирования — единственная ось правил (Region удалён, Phase 8):
- * задаёт, какие смены и конфигурации дня действуют, чей календарь
- * отсутствий считается, и чья политика отгулов применяется. Фильтр по
- * умолчанию для экрана, а не граница прав.
+ * NOTE: A planning unit is the single rule axis (Region removed, Phase 8): it
+ * determines which shifts and day configurations apply, whose absence
+ * calendar counts, and whose comp-day policy applies. A default filter for
+ * the screen, not an access boundary.
  */
 export interface PlanningUnit {
   readonly id: UnitId;
   readonly name: string;
   readonly kind: UnitKind;
   readonly groupBy: GroupBy;
-  /** Чей календарь праздников решает «праздник ли это для ростера». */
+  /** NOTE: Whose holiday calendar decides "is this a holiday for the roster". */
   readonly primaryLocationId: LocationId;
   readonly locationIds: readonly LocationId[];
   readonly compOffPolicy: CompOffPolicy;
 }
 
 // ---------------------------------------------------------------------------
-// Смена
+// Shift
 // ---------------------------------------------------------------------------
 
 /**
- * Единственная сущность времени: смена несёт абсолютное окно в
- * фиксированной таймзоне (Phase 8 — слияние бывших ShiftRole/ShiftDefinition).
- * Принадлежит единице планирования; глобального справочника нет.
+ * NOTE: The single time entity: a shift carries an absolute window in a fixed
+ * timezone (Phase 8 — merger of the former ShiftRole/ShiftDefinition).
+ * Belongs to a planning unit; there is no global catalog.
  */
 export interface Shift {
   readonly id: ShiftId;
   readonly unitId: UnitId;
   readonly code: string;
   readonly label: string;
-  /** Операционное назначение смены: показывается в пикере и настройках. */
+  /** NOTE: Operational purpose of the shift: shown in the picker and settings. */
   readonly description?: string;
   readonly color: string;
   readonly hotkey?: string;
@@ -168,40 +169,41 @@ export interface Shift {
 }
 
 // ---------------------------------------------------------------------------
-// Конфигурация дня
+// Day configuration
 // ---------------------------------------------------------------------------
 
 /**
- * `date` зарезервирован под событийные конфигурации и пока не реализован —
- * ADR-0008. Порядок разрешения: DATE → HOLIDAY → WEEKEND → группа будней.
+ * NOTE: `date` is reserved for event-based configurations and not yet
+ * implemented — ADR-0008. Resolution order: DATE → HOLIDAY → WEEKEND →
+ * weekday group.
  */
 export type DayConfigKey = 'weekday' | 'friday' | 'weekend' | 'holiday' | 'date';
 
 export interface ShiftRequirement {
   readonly shiftId: ShiftId;
-  /** Жёсткое требование. Ниже — дыра. Ноль — легальное состояние (ADR Phase 8):
-   * юнит может нести смену без обязательства по покрытию. */
+  /** NOTE: Hard requirement. Below this is a gap. Zero is a legal state
+   * (ADR Phase 8): a unit can carry a shift with no coverage obligation. */
   readonly min: number;
-  /** Выше — предупреждение. `undefined` = без ограничения. */
+  /** NOTE: Above this is a warning. `undefined` means no ceiling. */
   readonly max?: number;
-  /** Предлагается в пикере даже без требования. */
+  /** NOTE: Offered in the picker even without a requirement. */
   readonly isDefault: boolean;
-  /** Смена в этой группе дней идёт в другое время. */
+  /** NOTE: The shift runs at a different time within this day group. */
   readonly timingOverride?: TimeOverride;
 }
 
 /**
- * Группа дней со своим набором смен — ADR-0016. Версионируется датой
- * вступления: правило, поднятое сегодня, не перекрашивает прошлый март
+ * NOTE: A group of days with its own shift set — ADR-0016. Versioned by
+ * effective date: a rule raised today must not repaint last March
  * (ADR-0021).
  */
 export interface DayConfiguration {
   readonly id: DayConfigId;
   readonly unitId: UnitId;
   readonly key: DayConfigKey;
-  /** Для будних групп. Каждый день недели принадлежит ровно одной группе. */
+  /** NOTE: For weekday groups. Each weekday belongs to exactly one group. */
   readonly weekdays: readonly Weekday[];
-  /** Только для `key === 'date'`. */
+  /** NOTE: Only for `key === 'date'`. */
   readonly date?: IsoDate;
   readonly label?: string;
   readonly effectiveFrom: IsoDate;
@@ -209,14 +211,15 @@ export interface DayConfiguration {
 }
 
 // ---------------------------------------------------------------------------
-// Человек
+// Person
 // ---------------------------------------------------------------------------
 
 export type OrgCategory = 'SUPPORT' | 'SERVICE_TRANSITION' | 'MANAGEMENT';
 
 /**
- * Доступность смены с целевой долей вместо булева флага — ADR-0006.
- * Доля — метрика справедливости; порядок кандидатов считается отдельно.
+ * NOTE: Shift eligibility carries a target share instead of a boolean flag —
+ * ADR-0006. The share is the fairness metric; candidate ordering is computed
+ * separately.
  */
 export interface ShiftEligibility {
   readonly shiftId: ShiftId;
@@ -239,23 +242,23 @@ export interface PersonPreferences {
 }
 
 /**
- * Отдельной сущности «рабочий паттерн» нет — ADR-0005. `defaultShiftId` и
- * `availableWeekdays` читает только автогенерация. `defaultShiftId` теперь
- * единственное поле смены на человеке (Phase 8 удалил параллельный
- * `ShiftDefinition`/`defaultRoleId`): один и тот же код смены и для
- * покрытия, и для ростер-контекста.
+ * NOTE: There is no separate "work pattern" entity — ADR-0005. `defaultShiftId`
+ * and `availableWeekdays` are read only by auto-populate. `defaultShiftId` is
+ * now the only shift field on a person (Phase 8 removed the parallel
+ * `ShiftDefinition`/`defaultRoleId`): the same shift code serves both
+ * coverage and roster context.
  */
 export interface Person {
   readonly id: PersonId;
   readonly displayName: string;
   readonly initials: string;
   readonly employeeId?: string;
-  /** Чьи правила применяются и на чьём экране человек планируется. */
+  /** NOTE: Whose rules apply and whose screen this person is planned on. */
   readonly unitId: UnitId;
   readonly locationId: LocationId;
   readonly orgCategory: OrgCategory;
   readonly isActive: boolean;
-  /** Участвует ли в планировании вообще. Менеджеры: false. */
+  /** NOTE: Whether this person is planned at all. Managers: false. */
   readonly isIncluded: boolean;
   readonly eligibility: readonly ShiftEligibility[];
   readonly availableWeekdays: readonly Weekday[];
@@ -267,19 +270,19 @@ export interface Person {
 }
 
 // ---------------------------------------------------------------------------
-// Назначение
+// Assignment
 // ---------------------------------------------------------------------------
 
 export type AssignmentSource = 'MANUAL' | 'GENERATED' | 'IMPORTED';
 
-/** Разовое переопределение времени смены. */
+/** NOTE: A one-off override of a shift's time. */
 export interface TimeOverride {
   readonly start: TimeOfDay;
   readonly end: TimeOfDay;
   readonly crossesMidnight: boolean;
 }
 
-/** `OFF` — запланированный выходной (`Off`/`W-Off`). `NOT_SCHEDULED` — `0`. */
+/** NOTE: `OFF` is a scheduled day off (`Off`/`W-Off`). `NOT_SCHEDULED` is `0`. */
 export type RosterMarker = 'OFF' | 'NOT_SCHEDULED';
 
 export type AssignmentContent =
@@ -287,24 +290,24 @@ export type AssignmentContent =
   | { readonly kind: 'MARKER'; readonly marker: RosterMarker };
 
 /**
- * Ровно одно назначение на пару (человек, дата) — жёсткое ограничение.
- * On-call — обычный код смены, занимающий день, а не параллельное дежурство.
+ * NOTE: Exactly one assignment per (person, date) — a hard constraint.
+ * On-call is an ordinary shift code occupying the day, not a parallel duty.
  *
- * `date` — локальная дата смены по её таймзоне: это снимает неоднозначность
- * для смен через полночь.
+ * `date` is the shift's local date in its own timezone: this removes
+ * ambiguity for shifts crossing midnight.
  */
 export interface Assignment {
   readonly id: AssignmentId;
   readonly personId: PersonId;
   readonly date: IsoDate;
-  /** Денормализовано из юнита человека на момент записи. */
+  /** NOTE: Denormalized from the person's unit at the time of the write. */
   readonly unitId: UnitId;
   readonly content: AssignmentContent;
-  /** Выходной по календарю локации человека. */
+  /** NOTE: Whether it's a weekend by the person's location calendar. */
   readonly isWeekend: boolean;
   readonly note?: string;
   readonly source: AssignmentSource;
-  /** Токен оптимистичной блокировки. */
+  /** NOTE: Optimistic-locking token. */
   readonly version: number;
   readonly createdBy: PersonId;
   readonly createdAt: IsoInstant;
@@ -321,18 +324,18 @@ export function isWorkingAssignment(assignment: Assignment): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Отсутствие
+// Absence
 // ---------------------------------------------------------------------------
 
 /**
- * Обучение сюда не входит: тренинги в рабочее время — это смена `Cover`,
- * человек на работе и попадает в покрытие (ADR-0017).
+ * NOTE: Training is not included here: in-hours training is the `Cover`
+ * shift — the person is at work and counts toward coverage (ADR-0017).
  */
 export type AbsenceType = 'VACATION' | 'SICK' | 'OTHER';
 
 export type AbsenceSource = 'IMPORT' | 'MANUAL';
 
-/** Отпуск — диапазон, и диапазон является источником истины (ADR-0017). */
+/** NOTE: Leave is a range, and the range is the source of truth (ADR-0017). */
 export interface Absence {
   readonly id: AbsenceId;
   readonly personId: PersonId;
@@ -341,7 +344,7 @@ export interface Absence {
   readonly to: IsoDate;
   readonly source: AbsenceSource;
   readonly importBatchId?: string;
-  /** Для обнаружения записей, исчезнувших из очередной выгрузки. */
+  /** NOTE: For detecting records that dropped out of the latest export. */
   readonly lastSeenInImportAt?: IsoInstant;
   readonly syncedToHrAt?: IsoInstant;
   readonly note?: string;
@@ -351,7 +354,7 @@ export interface Absence {
 // Comp day
 // ---------------------------------------------------------------------------
 
-/** Терминального статуса «сгорел» нет: отгулы не сгорают (ADR-0007). */
+/** NOTE: There is no terminal "expired" status: comp days never expire (ADR-0007). */
 export type CompDayStatus =
   | 'PROPOSED'
   | 'SCHEDULED'
@@ -365,24 +368,24 @@ export interface CompDayEntry {
   readonly earnedForAssignmentId: AssignmentId;
   readonly earnedForDate: IsoDate;
   readonly trigger: CompDayTrigger;
-  /** Самая ранняя свободная подходящая дата в окне политики. */
+  /** NOTE: Earliest free eligible date within the policy window. */
   readonly proposedDate?: IsoDate;
   readonly actualDate?: IsoDate;
   readonly status: CompDayStatus;
   readonly syncedToHrAt?: IsoInstant;
 }
 
-/** Дата, на которую отгул реально приходится. */
+/** NOTE: The date the comp day actually falls on. */
 export function effectiveCompDayDate(entry: CompDayEntry): IsoDate | undefined {
   return entry.actualDate ?? entry.proposedDate;
 }
 
-/** Блокирует ли отгул назначение. `PROPOSED` — только предложение системы. */
+/** NOTE: Whether this comp day blocks an assignment. `PROPOSED` is only a system suggestion. */
 export function compDayBlocksAssignment(entry: CompDayEntry): boolean {
   return entry.status === 'SCHEDULED' || entry.status === 'TAKEN';
 }
 
-/** Числится ли отгул за человеком: ни отгулян, ни отклонён. */
+/** NOTE: Whether the comp day is still outstanding: neither taken nor declined. */
 export function compDayIsOutstanding(entry: CompDayEntry): boolean {
   return (
     entry.status === 'PROPOSED' ||
@@ -392,14 +395,14 @@ export function compDayIsOutstanding(entry: CompDayEntry): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Покрытие
+// Coverage
 // ---------------------------------------------------------------------------
 
 /**
- * `THIN` — минимум закрыт впритык, без запаса. Отдельное состояние, а не
- * оттенок зелёного: это самый действенный сигнал для планировщика.
- * `min = 0` всегда даёт `OK` — легальное «без обязательства покрытия»
- * (Service Transition), никогда не `GAP`/`THIN`.
+ * NOTE: `THIN` means the minimum is met with no margin. A distinct state, not
+ * a shade of green: it's the most actionable signal for the planner.
+ * `min = 0` always yields `OK` — a legal "no coverage obligation" (Service
+ * Transition), never `GAP`/`THIN`.
  */
 export type CoverageLevel = 'GAP' | 'THIN' | 'OK' | 'OVER';
 
@@ -425,7 +428,7 @@ export interface CoverageSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Лимиты одновременных отсутствий
+// Concurrent-absence limits
 // ---------------------------------------------------------------------------
 
 export type AbsenceCapacityScope =
@@ -434,7 +437,7 @@ export type AbsenceCapacityScope =
 
 export type AbsenceDurationBucket = 'SHORT' | 'LONG';
 
-/** Лимит по пулу смен важнее общего — ADR-0010. */
+/** NOTE: A shift-pool limit outranks the overall one — ADR-0010. */
 export interface AbsenceCapacityRule {
   readonly id: string;
   readonly unitId: UnitId;
@@ -443,19 +446,19 @@ export interface AbsenceCapacityRule {
   readonly longThresholdWorkdays: number;
   readonly maxConcurrent: number;
   readonly countsTypes: readonly AbsenceType[];
-  /** Учитывать ли подтверждённые отгулы наравне с отпуском. */
+  /** NOTE: Whether confirmed comp days count the same as leave. */
   readonly countsCompDays: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Валидация
+// Validation
 // ---------------------------------------------------------------------------
 
 export type IssueLevel = 'BLOCKING' | 'WARNING' | 'INFO';
 
 /**
- * Дыра — не сделана работа. Конфликт — записаны невозможные данные.
- * Чинятся по-разному и в интерфейсе не смешиваются.
+ * NOTE: A gap is work not done. A conflict is impossible data recorded.
+ * They're fixed differently and are never mixed in the UI.
  */
 export type IssueCategory = 'GAP' | 'CONFLICT' | 'FAIRNESS' | 'POLICY';
 
@@ -480,7 +483,7 @@ export type IssueCode =
   | 'COMP_DAY_PENDING_APPROVAL';
 
 export interface Issue {
-  /** Стабильный между пересчётами: по нему находится подтверждение. */
+  /** NOTE: Stable across recomputation: acknowledgements are looked up by this. */
   readonly key: string;
   readonly level: IssueLevel;
   readonly category: IssueCategory;
@@ -492,7 +495,7 @@ export interface Issue {
   readonly shiftId?: ShiftId;
 }
 
-/** Осознанное подтверждение WARNING. Хранится вместе с планом. */
+/** NOTE: A deliberate acknowledgement of a WARNING. Stored alongside the plan. */
 export interface Acknowledgement {
   readonly issueKey: string;
   readonly comment: string;
@@ -501,7 +504,7 @@ export interface Acknowledgement {
 }
 
 // ---------------------------------------------------------------------------
-// Черновик и публикация
+// Draft and publish
 // ---------------------------------------------------------------------------
 
 export type DraftStatus = 'OPEN' | 'PUBLISHED' | 'DISCARDED';
@@ -520,8 +523,8 @@ export type DraftOp = 'CREATE' | 'UPDATE' | 'DELETE';
 export type DraftTargetType = 'ASSIGNMENT' | 'ABSENCE' | 'COMP_DAY';
 
 /**
- * Каждое изменение несёт и предыдущее, и новое значение — отсюда undo/redo
- * и экран сравнения при конфликте публикации.
+ * NOTE: Every change carries both the previous and the new value — this is
+ * what makes undo/redo and the publish-conflict comparison screen possible.
  */
 export type DraftChange =
   | {
@@ -561,11 +564,12 @@ export interface PublishResult {
 }
 
 /**
- * Расхождение опубликованного и черновика при устаревшей версии.
+ * NOTE: A mismatch between the published state and the draft due to a stale
+ * version.
  *
- * Только `ASSIGNMENT` версионируется сегодня (ADR-0015 detectConflicts), но
- * тип шире намеренно — absence/comp-day конфликты появятся на бэкенде без
- * очередной правки этого интерфейса.
+ * Only `ASSIGNMENT` is versioned today (ADR-0015 detectConflicts), but the
+ * type is deliberately wider — absence/comp-day conflicts will appear from
+ * the backend without another edit to this interface.
  */
 export interface PublishConflict {
   readonly changeId: string;
@@ -576,12 +580,12 @@ export interface PublishConflict {
 }
 
 // ---------------------------------------------------------------------------
-// Аудит
+// Audit
 // ---------------------------------------------------------------------------
 
 export type HistoryAction = 'CREATED' | 'UPDATED' | 'DELETED';
 
-/** Append-only. Единственный контроль там, где нет ограничений прав. */
+/** NOTE: Append-only. The only control where there's no access boundary. */
 export interface AssignmentHistoryEntry {
   readonly id: string;
   readonly assignmentId: AssignmentId;
@@ -592,7 +596,7 @@ export interface AssignmentHistoryEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Проекция ячейки
+// Cell projection
 // ---------------------------------------------------------------------------
 
 export type CellStatus =
@@ -605,17 +609,17 @@ export type CellStatus =
   | 'OTHER';
 
 /**
- * Что показывает сетка для пары (человек, дата). Приоритет разрешается в
- * одном месте — `engine/cellValue.ts` — и больше нигде.
+ * NOTE: What the grid shows for a (person, date) pair. Precedence is
+ * resolved in exactly one place — `engine/cellValue.ts` — and nowhere else.
  */
 export type CellValue =
   | {
       readonly kind: 'SHIFT';
       readonly shiftId: ShiftId;
       readonly assignmentId: AssignmentId;
-      /** Предложенный, ещё не подтверждённый отгул на этот день. */
+      /** NOTE: A proposed, not-yet-confirmed comp day on this date. */
       readonly proposedCompDay?: CompDayEntryId;
-      /** Назначение поверх отсутствия, отгула или праздника. */
+      /** NOTE: An assignment on top of an absence, comp day, or holiday. */
       readonly conflict?: CellConflict;
     }
   | {
@@ -633,10 +637,10 @@ export type CellValue =
 export type CellConflict = 'ABSENCE' | 'COMP_DAY' | 'HOLIDAY';
 
 // ---------------------------------------------------------------------------
-// Состояние
+// State
 // ---------------------------------------------------------------------------
 
-/** Справочная часть: меняется в настройках, не при планировании. */
+/** NOTE: Reference data: changed in settings, not while planning. */
 export interface ReferenceData {
   readonly locations: readonly Location[];
   readonly holidays: readonly Holiday[];
@@ -647,7 +651,7 @@ export interface ReferenceData {
   readonly absenceCapacityRules: readonly AbsenceCapacityRule[];
 }
 
-/** Опубликованный план: то, что видят все. */
+/** NOTE: The published plan: what everyone sees. */
 export interface PlanData {
   readonly assignments: readonly Assignment[];
   readonly absences: readonly Absence[];

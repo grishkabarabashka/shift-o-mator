@@ -59,27 +59,27 @@ function compDay(status: CompDayEntry['status'], date: string): CompDayEntry {
   };
 }
 
-describe('базовые состояния', () => {
-  it('пустая ячейка — нет записанного решения', () => {
+describe('basic states', () => {
+  it('empty cell — no recorded decision', () => {
     const p = project({});
     expect(cellValueAt(p, 'p-1', '2026-09-07')).toEqual({ kind: 'EMPTY' });
   });
 
-  it('рабочая роль', () => {
+  it('working role', () => {
     const p = project({ assignments: [makeAssignment('p-1', leadShift.id, '2026-09-07')] });
     const value = cellValueAt(p, 'p-1', '2026-09-07');
     expect(value.kind).toBe('SHIFT');
     if (value.kind === 'SHIFT') expect(value.shiftId).toBe(leadShift.id);
   });
 
-  it('маркер Off — не отсутствие и не пусто', () => {
+  it('Off marker — neither absence nor empty', () => {
     const p = project({
       assignments: [makeAssignment('p-1', { kind: 'MARKER', marker: 'OFF' }, '2026-09-07')],
     });
     expect(cellValueAt(p, 'p-1', '2026-09-07')).toMatchObject({ kind: 'STATUS', status: 'OFF' });
   });
 
-  it('`0` отличается и от Off, и от пустой ячейки', () => {
+  it('`0` differs from both Off and an empty cell', () => {
     const p = project({
       assignments: [
         makeAssignment('p-1', { kind: 'MARKER', marker: 'NOT_SCHEDULED' }, '2026-09-07'),
@@ -92,7 +92,7 @@ describe('базовые состояния', () => {
     expect(cellValueAt(p, 'p-1', '2026-09-10')).toEqual({ kind: 'EMPTY' });
   });
 
-  it('отпуск занимает весь диапазон', () => {
+  it('a vacation occupies the whole range', () => {
     const p = project({ absences: [vacation] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toEqual({ kind: 'EMPTY' });
     for (const date of ['2026-09-09', '2026-09-10', '2026-09-11']) {
@@ -101,12 +101,12 @@ describe('базовые состояния', () => {
     expect(cellValueAt(p, 'p-1', '2026-09-12')).toEqual({ kind: 'EMPTY' });
   });
 
-  it('праздник по локации человека', () => {
+  it("holiday by the person's location", () => {
     const p = project({ holidays: [holiday] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toMatchObject({ kind: 'STATUS', status: 'PH' });
   });
 
-  it('подтверждённый отгул', () => {
+  it('confirmed comp day', () => {
     const p = project({ compDays: [compDay('SCHEDULED', '2026-09-10')] });
     expect(cellValueAt(p, 'p-1', '2026-09-10')).toMatchObject({
       kind: 'STATUS',
@@ -114,7 +114,7 @@ describe('базовые состояния', () => {
     });
   });
 
-  it('предложенный отгул день не занимает', () => {
+  it('a proposed comp day does not occupy the day', () => {
     const p = project({ compDays: [compDay('PROPOSED', '2026-09-10')] });
     const value = cellValueAt(p, 'p-1', '2026-09-10');
     expect(value.kind).toBe('EMPTY');
@@ -122,8 +122,8 @@ describe('базовые состояния', () => {
   });
 });
 
-describe('приоритет — рабочая роль выигрывает и даёт конфликт', () => {
-  it('назначение поверх отпуска', () => {
+describe('precedence — a working role wins and produces a conflict', () => {
+  it('an assignment over a vacation', () => {
     const p = project({
       assignments: [makeAssignment('p-1', leadShift.id, '2026-09-10')],
       absences: [vacation],
@@ -133,7 +133,7 @@ describe('приоритет — рабочая роль выигрывает и
     if (value.kind === 'SHIFT') expect(value.conflict).toBe('ABSENCE');
   });
 
-  it('назначение поверх подтверждённого отгула', () => {
+  it('an assignment over a confirmed comp day', () => {
     const p = project({
       assignments: [makeAssignment('p-1', leadShift.id, '2026-09-10')],
       compDays: [compDay('SCHEDULED', '2026-09-10')],
@@ -143,7 +143,7 @@ describe('приоритет — рабочая роль выигрывает и
     if (value.kind === 'SHIFT') expect(value.conflict).toBe('COMP_DAY');
   });
 
-  it('работа в праздник — это норма, но помечается', () => {
+  it('working on a holiday is normal, but flagged', () => {
     const p = project({
       assignments: [makeAssignment('p-1', leadShift.id, '2026-09-08')],
       holidays: [holiday],
@@ -153,7 +153,7 @@ describe('приоритет — рабочая роль выигрывает и
     if (value.kind === 'SHIFT') expect(value.conflict).toBe('HOLIDAY');
   });
 
-  it('отпуск перебивает праздник', () => {
+  it('vacation overrides a holiday', () => {
     const overlapping: Absence = { ...vacation, from: '2026-09-08', to: '2026-09-08' };
     const p = project({ absences: [overlapping], holidays: [holiday] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toMatchObject({
@@ -162,7 +162,7 @@ describe('приоритет — рабочая роль выигрывает и
     });
   });
 
-  it('праздник информативнее маркера Off', () => {
+  it('a holiday is more informative than the Off marker', () => {
     const p = project({
       assignments: [makeAssignment('p-1', { kind: 'MARKER', marker: 'OFF' }, '2026-09-08')],
       holidays: [holiday],
@@ -171,25 +171,25 @@ describe('приоритет — рабочая роль выигрывает и
   });
 });
 
-describe('нерабочие дни', () => {
-  it('выходные и праздники локации помечены', () => {
+describe('non-working days', () => {
+  it('weekends and location holidays are flagged', () => {
     const p = project({ holidays: [holiday] });
-    expect(p.nonWorkingByCell.has('p-1|2026-09-12')).toBe(true); // суббота
-    expect(p.nonWorkingByCell.has('p-1|2026-09-13')).toBe(true); // воскресенье
-    expect(p.nonWorkingByCell.has('p-1|2026-09-08')).toBe(true); // праздник
+    expect(p.nonWorkingByCell.has('p-1|2026-09-12')).toBe(true); // Saturday
+    expect(p.nonWorkingByCell.has('p-1|2026-09-13')).toBe(true); // Sunday
+    expect(p.nonWorkingByCell.has('p-1|2026-09-08')).toBe(true); // holiday
     expect(p.nonWorkingByCell.has('p-1|2026-09-09')).toBe(false);
   });
 });
 
-describe('блокировка назначения', () => {
-  it('отпуск, больничный и подтверждённый отгул блокируют', () => {
+describe('blocking an assignment', () => {
+  it('vacation, sick leave, and a confirmed comp day block', () => {
     expect(isBlocked({ kind: 'STATUS', status: 'VACATION' })).toBe(true);
     expect(isBlocked({ kind: 'STATUS', status: 'SICK' })).toBe(true);
     expect(isBlocked({ kind: 'STATUS', status: 'COMP_OFF' })).toBe(true);
   });
 
-  it('Off, `0` и праздник — не блокируют', () => {
-    // На них можно поставить смену: выходной переставляется, в праздник работают.
+  it('Off, `0`, and a holiday do not block', () => {
+    // NOTE: a shift can still be placed on these — a day off gets rescheduled, a holiday can be worked.
     expect(isBlocked({ kind: 'STATUS', status: 'OFF' })).toBe(false);
     expect(isBlocked({ kind: 'STATUS', status: 'NOT_SCHEDULED' })).toBe(false);
     expect(isBlocked({ kind: 'STATUS', status: 'PH' })).toBe(false);

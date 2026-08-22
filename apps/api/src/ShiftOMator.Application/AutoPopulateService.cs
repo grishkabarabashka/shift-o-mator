@@ -72,8 +72,8 @@ public static class AutoPopulateService
         var dates = DateHelpers.EachDate(p.RangeFrom, p.RangeTo).ToList();
         var locked = p.Assignments.Where(a => p.LockedAssignmentIds.Contains(a.Id)).Select(CellKey).ToHashSet();
 
-        // Рабочая копия назначений: растёт по ходу прогона, чтобы справедливость и
-        // давность на пятницу уже видели то, что сгенерировано в понедельник.
+        // NOTE: Working copy of assignments, growing as the run proceeds, so that
+        // fairness and recency for Friday already see what was generated on Monday.
         var working = new List<Assignment>(p.Assignments);
         var occupied = working.Select(CellKey).ToHashSet();
 
@@ -134,13 +134,13 @@ public static class AutoPopulateService
             return null;
         }
 
-        // Выходные и праздники — дежурство, а не рабочий день: их закрывают только
-        // минимумы. Дефолты и догрузка туда не идут, иначе генерация сама придумает
-        // работу в выходной и отгулы за неё.
+        // NOTE: Weekends and holidays are a duty roster, not an ordinary working day:
+        // only minimums cover them. Defaults and top-up skip them, or generation would
+        // invent weekend work — and the comp days that come with it.
         static bool IsDutyRoster(DayConfiguration config) =>
             config.Key is DayConfigKey.Weekend or DayConfigKey.Holiday;
 
-        // --- 1. Минимумы ------------------------------------------------------------
+        // SECTION: 1. Minimums
 
         foreach (var date in dates)
         {
@@ -157,7 +157,7 @@ public static class AutoPopulateService
             }
         }
 
-        // --- 2. Дефолты -------------------------------------------------------------
+        // SECTION: 2. Personal defaults
 
         foreach (var date in dates)
         {
@@ -173,9 +173,9 @@ public static class AutoPopulateService
                 if (!person.Eligibility.Any(e => e.ShiftId == person.DefaultShiftId)) continue;
 
                 var requirement = config.ShiftRequirements.FirstOrDefault(r => r.ShiftId == person.DefaultShiftId);
-                if (requirement is null) continue; // сегодня эта смена не выставляется
-                // Потолок держит и дефолт: если чей-то дефолт — Lead с max=1, вторым его
-                // никто не получает.
+                if (requirement is null) continue; // NOTE: This shift isn't offered today.
+                // NOTE: The ceiling constrains defaults too: if someone's default is Lead
+                // with max=1, no one gets it as a second Lead.
                 if (requirement.Max is int max && FilledOn(date, requirement.ShiftId) >= max) continue;
 
                 var blocked = CandidateRanker.AvailabilityBlockReason(person, date, weekday, p.Absences, p.CompDays);
@@ -185,7 +185,7 @@ public static class AutoPopulateService
             }
         }
 
-        // --- 3. Догрузка до потолка на обычных рабочих днях --------------------------
+        // SECTION: 3. Top-up towards the ceiling on ordinary working days
 
         foreach (var date in dates)
         {
@@ -194,21 +194,22 @@ public static class AutoPopulateService
 
             foreach (var requirement in config.ShiftRequirements.OrderBy(r => r.ShiftId, StringComparer.Ordinal))
             {
-                // Null Max — «сколько угодно»: цель заполнения из этого не следует,
-                // такую смену разбирает проход 4.
+                // NOTE: A null Max means "as many as show up" — no fill target follows
+                // from that, and pass 4 handles such a requirement instead.
                 if (requirement.Max is not int max) continue;
-                // Недобор выше минимума — не дыра: свободная ёмкость, а не невыполненное
-                // обязательство. Причину сюда возвращает FillTowards, и мы её отбрасываем.
+                // NOTE: Falling short above the minimum isn't a gap — it's spare
+                // capacity, not an unmet obligation. FillTowards returns the reason
+                // here, and we discard it.
                 _ = FillTowards(date, requirement, max);
             }
         }
 
-        // --- 4. Массовая смена дня ---------------------------------------------------
+        // SECTION: 4. The day's bulk shift
         //
-        // Идёт последней, и это не деталь: `AMER:Crew` в алфавите стоит перед
-        // `AMER:Crew-BC` и `AMER:Lead`, так что смешай её с потолочными — и она забрала
-        // бы людей раньше, чем до тех дошла очередь. Та же ошибка, из-за которой дефолты
-        // когда-то съедали команду до минимумов, только этажом ниже.
+        // WHY: Runs last, and that's not incidental — `AMER:Crew` sorts alphabetically
+        // before `AMER:Crew-BC` and `AMER:Lead`, so mixing it into the top-up pass
+        // would let it claim people before their turn came up. The same mistake that
+        // once let defaults consume the team before minimums, one floor down.
 
         foreach (var date in dates)
         {
@@ -219,13 +220,14 @@ public static class AutoPopulateService
                 .Where(r => r.Max is null && r.IsDefault)
                 .OrderBy(r => r.ShiftId, StringComparer.Ordinal))
             {
-                // Ни минимума, ни потолка — «сюда идут все остальные». Заполняется, пока
-                // есть свободные и подходящие: int.MaxValue здесь не число, а «до конца».
+                // NOTE: No minimum, no ceiling — "everyone else goes here." Fills as
+                // long as there are free and eligible people: int.MaxValue here isn't a
+                // count, it means "to the end."
                 _ = FillTowards(date, requirement, int.MaxValue);
             }
         }
 
-        // --- Отгулы за только что созданные выходные/праздничные смены -------------
+        // SECTION: Comp days for the weekend/holiday shifts just created
 
         var generatedIds = generated.Select(a => a.Id).ToHashSet();
         var compResult = CompDayService.Propose(new CompDayService.ProposeParams(

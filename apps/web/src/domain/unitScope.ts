@@ -1,20 +1,20 @@
 /**
- * Какие единицы планирования сейчас на экране.
+ * NOTE: Which planning units are currently on screen.
  *
- * Единица — фильтр, а не граница (ADR-0032), и фильтр этот перестал быть
- * «одна или все»: планировщику, который ведёт AMER и ST, нужны обе и не нужны
- * остальные. Набор задаётся одной строкой — `ALL`, один id, либо несколько
- * через запятую, — потому что она же уезжает в `unitId` запроса, служит ключом
- * кэша TanStack Query и живёт в `useUi.unitId`. Массив в этих трёх местах
- * означал бы три места, где надо договариваться о порядке и сравнении; строка
- * сравнивается сама.
+ * A unit is a filter, not a boundary (ADR-0032), and that filter is no longer
+ * "one or all": a planner who runs both AMER and ST needs exactly those two, not
+ * the rest. The set is a single string — `ALL`, one id, or several comma-joined —
+ * because that same string goes straight into the request's `unitId`, serves as
+ * the TanStack Query cache key, and lives in `useUi.unitId`. An array in these
+ * three places would mean three places to agree on ordering and comparison;
+ * a string compares itself.
  *
- * Разбор и сборка живут здесь и только здесь — грамматика у строки одна.
+ * Parsing and building live here and only here — the string has one grammar.
  */
 
 import { ALL_UNITS, type UnitId } from './types.ts';
 
-/** Строка области видимости: `ALL`, `unit-amer` или `unit-amer,unit-st`. */
+/** NOTE: Scope string: `ALL`, `unit-amer`, or `unit-amer,unit-st`. */
 export type UnitScope = string;
 
 export function isAllUnits(scope: UnitScope): boolean {
@@ -22,27 +22,27 @@ export function isAllUnits(scope: UnitScope): boolean {
 }
 
 /**
- * Единицы, попадающие в область. `ALL` разворачивается в `allUnitIds` —
- * вызывающему почти всегда нужен именно список, а не признак «все».
+ * NOTE: Units that fall within the scope. `ALL` expands to `allUnitIds` — the
+ * caller almost always needs the actual list, not an "is it all" flag.
  */
 export function unitsInScope(scope: UnitScope, allUnitIds: readonly UnitId[]): UnitId[] {
   if (isAllUnits(scope)) return [...allUnitIds];
   const named = new Set(scope.split(',').filter(Boolean));
   const known = allUnitIds.filter((id) => named.has(id));
-  // Область, не совпавшая ни с чем (переименовали единицу, старая ссылка), —
-  // это «все», а не пустой экран: пустой экран выглядит как поломка.
+  // NOTE: A scope that matched nothing (a unit was renamed, this is a stale
+  // reference) means "all", not an empty screen: an empty screen reads as broken.
   return known.length > 0 ? known : [...allUnitIds];
 }
 
-/** Входит ли единица в область. */
+/** NOTE: Whether a unit falls within the scope. */
 export function scopeIncludes(scope: UnitScope, unitId: UnitId): boolean {
   return isAllUnits(scope) || scope.split(',').includes(unitId);
 }
 
 /**
- * Собирает область из выбранных единиц. Полный набор сворачивается в `ALL`:
- * иначе «все» и «все перечисленные» были бы разными ключами кэша при
- * одинаковом смысле.
+ * NOTE: Builds a scope from the selected units. The full set collapses to
+ * `ALL`: otherwise "all" and "all of them listed out" would be different cache
+ * keys for the same meaning.
  */
 export function formatUnitScope(selected: readonly UnitId[], allUnitIds: readonly UnitId[]): UnitScope {
   const unique = allUnitIds.filter((id) => selected.includes(id));

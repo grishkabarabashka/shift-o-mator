@@ -56,7 +56,7 @@ public static class IssueDigest
                 g.Count(),
                 [.. g.Where(i => i.Date is not null).Select(i => i.Date!.Value).Distinct().OrderBy(d => d)],
                 g.First().Message))
-            // Худшее и самое частое — первым: это порядок, в котором на них смотрят.
+            // NOTE: worst and most frequent first — that's the order people look at them in.
             .OrderByDescending(l => Severity(l.Level))
             .ThenByDescending(l => l.Count)
             .ThenBy(l => l.Subject, StringComparer.Ordinal)

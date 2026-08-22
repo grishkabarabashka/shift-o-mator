@@ -1,43 +1,43 @@
 /*
- * Дизайн-токены и база.
+ * NOTE: design tokens and base styles.
  *
- * Один принцип: **воздушный хром, плотные данные.** Шапка, навигация, карточки
- * и панели дышат; сама сетка остаётся компактной — в ней 80 × 31 значений, и
- * растягивать её значит заставить планировщика скроллить вместо чтения.
+ * One principle: **airy chrome, dense data.** The header, navigation, cards,
+ * and panels breathe; the grid itself stays compact — 80 x 31 values in it,
+ * and stretching it would force the planner to scroll instead of read.
  *
- * Цвет несёт смысл и только его: зелёный — норма, янтарный —
- * внимание, красный — дыра или конфликт, синий — выделение и текущий диапазон,
- * серый — нерабочее. Ничего декоративного.
+ * Color carries meaning and only meaning: green is normal, amber is
+ * attention, red is a gap or conflict, blue is selection and the current
+ * range, gray is nonworking. Nothing decorative.
  *
- * Переменные объявлены в `:root`, а `@theme inline` лишь ссылается на них —
- * поэтому тёмная тема меняет одно место, а не таблицу утилит.
+ * Variables are declared in `:root`, and `@theme inline` only references
+ * them — so dark mode changes one place, not a table of utilities.
  */
 
 @import 'tailwindcss';
 
 :root {
-  /* Поверхности */
+  /* Surfaces */
   --canvas: #f5f6f8;
   --surface: #ffffff;
   --surface-sunken: #f0f2f5;
   --surface-hover: #f4f7fd;
 
-  /* Границы */
+  /* Borders */
   --line: #e4e7ec;
   --line-strong: #cdd3db;
 
-  /* Текст */
+  /* Text */
   --ink: #101828;
   --ink-muted: #667085;
   --ink-faint: #98a2b3;
 
-  /* Акцент */
+  /* Accent */
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-ink: #ffffff;
 
-  /* Семантика покрытия и нарушений */
+  /* Coverage and violation semantics */
   --ok: #15803d;
   --ok-soft: #e7f6ec;
   --warn: #b45309;
@@ -45,7 +45,7 @@
   --bad: #b42318;
   --bad-soft: #fdecea;
 
-  /* Размеры сетки (ADR-0014) */
+  /* Grid dimensions (ADR-0014) */
   --row-h: 28px;
   --cell-w: 62px;
   --name-w: 185px;
@@ -130,7 +130,7 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Фокус виден всегда — подавленный нативный фокус сетки считается дефектом. */
+  /* NOTE: focus is always visible — a suppressed native grid focus ring counts as a defect. */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -155,14 +155,14 @@
 }
 
 @layer components {
-  /* --- Карточка ---------------------------------------------------------- */
+  /* --- Card ---------------------------------------------------------------- */
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
   }
 
-  /* --- Кнопки ------------------------------------------------------------ */
+  /* --- Buttons ------------------------------------------------------------ */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -224,7 +224,7 @@
     justify-content: center;
   }
 
-  /* --- Пилюли и бейджи --------------------------------------------------- */
+  /* --- Pills and badges ---------------------------------------------------- */
   .pill {
     display: inline-flex;
     align-items: center;
@@ -273,7 +273,7 @@
     color: var(--accent-ink);
   }
 
-  /* --- Поля ввода -------------------------------------------------------- */
+  /* --- Input fields -------------------------------------------------------- */
   .field {
     height: 32px;
     padding: 0 10px;
@@ -290,7 +290,7 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
-  /* --- Выпадающий список --------------------------------------------------- */
+  /* --- Dropdown -------------------------------------------------------------- */
   .select {
     display: inline-flex;
     align-items: center;
@@ -344,7 +344,7 @@
     font-weight: 600;
   }
 
-  /* --- Всплывающие слои -------------------------------------------------- */
+  /* --- Popover layers -------------------------------------------------------- */
   .popover {
     min-width: 200px;
     padding: 5px;
@@ -401,7 +401,7 @@
     background: var(--line);
   }
 
-  /* --- Чип роли в палитре -------------------------------------------------- */
+  /* --- Role chip in the palette ------------------------------------------------ */
   .role-chip {
     display: inline-flex;
     align-items: center;
@@ -445,7 +445,7 @@
     text-transform: uppercase;
   }
 
-  /* --- Вкладки раздела ---------------------------------------------------- */
+  /* --- Section tabs ---------------------------------------------------------- */
   .tab {
     position: relative;
     padding: 7px 13px 9px;
@@ -464,7 +464,7 @@
     color: var(--accent);
     font-weight: 600;
   }
-  /* Подчёркивание выходит за нижнюю границу шапки и «сшивает» её с полотном. */
+  /* NOTE: the underline extends past the header's bottom border and "stitches" it to the canvas. */
   .tab.active::after {
     content: '';
     position: absolute;
@@ -476,7 +476,7 @@
     background: var(--accent);
   }
 
-  /* --- Сегментированный переключатель ------------------------------------ */
+  /* --- Segmented toggle ------------------------------------------------------ */
   .segmented {
     display: inline-flex;
     padding: 2px;
@@ -506,10 +506,10 @@
     box-shadow: 0 1px 2px rgb(16 24 40 / 0.1);
   }
 
-  /* --- Полоса дней -------------------------------------------------------- */
-  /* Число чипов уже подобрано под ширину контейнера (DateRangeControl), так
-     что растягиваем их равномерно вместо фиксированной ширины со скроллом —
-     иначе полоса опять могла бы обрезать хвост дат. */
+  /* --- Day strip -------------------------------------------------------------- */
+  /* WHY: the chip count is already sized to the container width
+     (DateRangeControl), so we stretch them evenly instead of a fixed width
+     with scrolling — otherwise the strip could again clip the tail of dates. */
   .day-chip {
     display: flex;
     flex: 1 1 0;
@@ -548,23 +548,23 @@
     background: var(--accent);
     color: var(--accent-ink);
   }
-  /* Сегодня — контур, а не заливка: он должен читаться и внутри выделения. */
+  /* NOTE: today — an outline, not a fill: it must stay readable inside a selection too. */
   .day-chip[data-today='true'] {
     border-color: var(--bad);
   }
-  /* Нежелательный день в профиле: янтарь, а не синий — это не выбор, а отказ. */
+  /* NOTE: an undesired day in the profile — amber, not blue: this is a refusal, not a choice. */
   .day-chip[data-warn='true'] {
     background: var(--warn-soft);
     color: var(--warn);
     border-color: var(--warn);
   }
-  /* Клик-клик: первый клик ждёт второй — контур поверх заливки выбора. */
+  /* NOTE: click-click — the first click waits for the second: an outline on top of the selection fill. */
   .day-chip[data-anchor='true'] {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
   }
 
-  /* --- Шкала года --------------------------------------------------------- */
+  /* --- Year scrubber --------------------------------------------------------- */
   .scrub {
     position: relative;
     height: 30px;
@@ -627,7 +627,7 @@
     right: -5px;
   }
 
-  /* --- Модальные окна ----------------------------------------------------- */
+  /* --- Modal dialogs ----------------------------------------------------------- */
   .overlay {
     position: fixed;
     inset: 0;
@@ -657,7 +657,7 @@
     letter-spacing: -0.01em;
   }
 
-  /* --- Простая таблица ---------------------------------------------------- */
+  /* --- Plain table ---------------------------------------------------------- */
   .rows {
     width: 100%;
     border-collapse: collapse;

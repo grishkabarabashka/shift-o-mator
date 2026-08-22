@@ -1,16 +1,16 @@
 /**
- * Review & publish — ADR-0015.
+ * NOTE: Review & publish — ADR-0015.
  *
- * Ничего не становится публичным без этого экрана: счётчики, построчный diff
- * старое → новое, влияние на покрытие. Публикация атомарна; при расхождении
- * версий показывается сравнение, а черновик **сохраняется целиком**.
+ * Nothing becomes public without this screen: counts, a line-by-line
+ * old-to-new diff, coverage impact. Publish is atomic; on a version mismatch
+ * a comparison is shown and the draft **is kept intact**.
  *
- * Список изменений группируется по человеку — на черновике в полсотни правок
- * плоская лента спанов читалась как одна строка текста (owner review). Ни
- * `dialog--wide`, ни `review__*` классов в CSS не было — диалог рисовался
- * узким, без колонок и без прокрутки списка, выдавливая кнопки за край;
- * здесь только `.overlay`/`.dialog` и Tailwind, как в остальном приложении
- * (ADR-0022).
+ * The change list groups by person — on a draft with fifty-odd edits, a flat
+ * ribbon of spans read as one unbroken line of text (owner review). Neither
+ * `dialog--wide` nor any `review__*` classes existed in CSS — the dialog
+ * rendered narrow, with no columns and no list scrolling, pushing the buttons
+ * off the edge; here it's just `.overlay`/`.dialog` and Tailwind, like the
+ * rest of the app (ADR-0022).
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -42,7 +42,7 @@ export function ReviewDialog({ view, open, onClose }: Props) {
 
   const onPublish = async (): Promise<void> => {
     const outcome = await publish();
-    // Закрываем только при успехе: конфликт нужно показать здесь же.
+    // NOTE: Close only on success: a conflict needs to be shown right here.
     if (outcome?.ok) onClose();
   };
 
@@ -73,8 +73,8 @@ export function ReviewDialog({ view, open, onClose }: Props) {
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2">
-            {/* Дыры не блокируют публикацию (ADR-0035) — этот чип информационный,
-                не предупреждение об отказе. */}
+            {/* NOTE: Gaps don't block publication (ADR-0035) — this chip is
+                informational, not a rejection warning. */}
             <Pill tone={gaps > 0 ? 'warn' : 'ok'}>
               {gaps} coverage {gaps === 1 ? 'gap' : 'gaps'} will stay after publishing
             </Pill>
@@ -156,7 +156,7 @@ function Pill({
 }
 
 // ---------------------------------------------------------------------------
-// Группировка по человеку
+// Grouping by person
 // ---------------------------------------------------------------------------
 
 interface PersonGroup {

@@ -1,15 +1,15 @@
 /**
- * Саммари по нарушениям за период — текстом, поверх той же панели нарушений.
- *
- * По кнопке, а не само: запрос стоит денег и времени, а планировщик открывает
- * этот экран десятки раз за день. Сгенерированное держится до смены периода или
- * единицы — тогда оно сбрасывается, потому что относилось к другому плану.
- *
- * Рядом с текстом всегда стоят счётчики из валидатора. Текст пишет модель,
- * числа — движок; показывать их вместе значит дать возможность сверить одно с
- * другим, не уходя с экрана. Без этого панель пришлось бы принимать на веру.
- *
- * Если ключ на сервере не настроен, карточка не показывается совсем.
+ * NOTE: Plain-English summary of this period's issues, layered over the same
+ * issues panel.
+ * NOTE: On-demand via a button, not automatic: the request costs money and
+ * time, and a planner opens this screen dozens of times a day. The generated
+ * text is kept until the period or unit changes, then reset because it
+ * described a different plan.
+ * NOTE: The counters from the validator always sit next to the text. The
+ * model writes the text, the engine computes the numbers; showing both
+ * together lets one be checked against the other without leaving the screen.
+ * Without that, the panel would have to be taken on faith.
+ * NOTE: If no key is configured on the server, the card doesn't show at all.
  */
 
 import { useEffect, useState } from 'react';
@@ -29,8 +29,8 @@ export function GapSummaryCard({ unitId, range, issueCount }: Props) {
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Саммари относится к конкретному (единица, период): при их смене прежний
-  // текст говорит уже не о том, что на экране.
+  // NOTE: The summary belongs to a specific (unit, period): when either
+  // changes, the old text no longer describes what's on screen.
   useEffect(() => {
     setSummary(undefined);
     setError(undefined);
@@ -47,8 +47,8 @@ export function GapSummaryCard({ unitId, range, issueCount }: Props) {
       );
     } catch (caught) {
       if (caught instanceof GapSummaryError && caught.kind === 'NOT_CONFIGURED') {
-        // Развёртывание без доступа к модели — это не ошибка экрана: карточка
-        // просто исчезает и больше не спрашивает.
+        // NOTE: A deployment without model access isn't a screen error: the
+        // card just disappears and stops asking.
         setUnavailable(true);
         return;
       }
@@ -78,7 +78,7 @@ export function GapSummaryCard({ unitId, range, issueCount }: Props) {
       {summary ? (
         <>
           <p className="mt-2 whitespace-pre-wrap text-[12px] leading-[1.45]">{summary.summary}</p>
-          {/* Числа рядом с текстом — их считал валидатор, не модель. */}
+          {/* NOTE: Numbers next to the text — computed by the validator, not the model. */}
           <p className="mt-2 text-[11px] text-faint">
             From {summary.gaps} gaps, {summary.conflicts} conflicts, {summary.warnings} warnings
             {summary.blocking > 0 ? `, ${summary.blocking} blocking` : ''}

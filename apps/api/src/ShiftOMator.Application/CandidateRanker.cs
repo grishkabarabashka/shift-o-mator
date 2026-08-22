@@ -22,7 +22,7 @@ namespace ShiftOMator.Application;
 public static class CandidateRanker
 {
     private const int FairnessWindowDays = 90;
-    private const int WeekendLoadWindowDays = 84; // 12 недель — окно из примера в Docs/06.
+    private const int WeekendLoadWindowDays = 84; // NOTE: 12 weeks — the window from the example in Docs/06.
 
     public record Candidate(
         string PersonId, string Name, int ShiftCountLast90, int? DaysSinceLastHeld,
@@ -58,7 +58,8 @@ public static class CandidateRanker
 
         foreach (var person in pool)
         {
-            // Занят другой ролью в этот же день — не «не eligible» (см. класс doc).
+            // NOTE: Busy with another role that same day — not "not eligible" (see the
+            // class doc).
             if (p.ExcludePersonIds?.Contains(person.Id) == true)
             {
                 excluded.Add(new ExcludedCandidate(person.Id, person.DisplayName, "already assigned to something else that day"));
@@ -112,13 +113,15 @@ public static class CandidateRanker
         }
 
         available = [.. available
-            // Меньше — важнее: сначала кто реже держал роль в окне.
+            // NOTE: Fewer is better — whoever held the role less often in the window
+            // ranks first.
             .OrderBy(c => c.ShiftCountLast90)
-            // Дальше — кто держал её давнее (или никогда): недавний держатель отодвигается.
+            // NOTE: Next, whoever held it longer ago (or never) — a recent holder is
+            // pushed down.
             .ThenByDescending(c => c.DaysSinceLastHeld ?? int.MaxValue)
-            // Предупреждения понижают, но не исключают.
+            // NOTE: Warnings demote, but don't exclude.
             .ThenBy(c => c.Warnings.Count)
-            // Устойчивый порядок на полном равенстве.
+            // NOTE: Stable order on a full tie.
             .ThenBy(c => c.PersonId, StringComparer.Ordinal)];
 
         var teamWeekendAverage = weekendLoads.Count > 0 ? Math.Round(weekendLoads.Average(), 1) : 0;

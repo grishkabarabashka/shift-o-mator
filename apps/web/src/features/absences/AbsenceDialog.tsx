@@ -1,13 +1,11 @@
 /**
- * Ручной ввод и правка отсутствий.
+ * NOTE: Manual entry and editing of absences. Creation comes either from a grid
+ * selection (`SelectionToolbar`) — one record per selected person, all in a single
+ * batch patch — or from a single cell's context menu (`GridCell`). Editing starts from
+ * a double-click or a menu item on an existing marker.
  *
- * Создание приходит либо из выделения в сетке (SelectionToolbar) — по одной
- * записи на каждого выделенного человека, все одним патчем-батчем, — либо из
- * контекстного меню одной ячейки (GridCell). Правка — с двойного клика или
- * пункта меню на уже стоящей отметке.
- *
- * `COMP_DAY` в список типов не входит: отгул — это `CompDayEntry` с балансом
- * (ADR-0007), а не отсутствие; он редактируется через CompDayDialog.
+ * `COMP_DAY` is not in the type list: a comp day is a `CompDayEntry` with a balance
+ * (ADR-0007), not an absence; it is edited through `CompDayDialog`.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -42,7 +40,7 @@ function buildCreated(target: AbsenceRangeTarget, type: AbsenceType, note: strin
   };
 }
 
-/** Правка держит поля происхождения (`source`, импорт) нетронутыми. */
+/** NOTE: Editing keeps origin fields (`source`, import) untouched. */
 function buildUpdated(base: Absence, type: AbsenceType, note: string): Absence {
   return {
     id: base.id,

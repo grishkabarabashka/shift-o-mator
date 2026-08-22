@@ -1,16 +1,14 @@
 /**
- * Сворачивание списка нарушений в находки.
- *
- * Плоский список — это то, что валидатор насчитал, а не то, что планировщик
- * может прочесть: за месяц по единице набирается двести с лишним строк, и «Cover
- * недобран» двенадцать раз выглядит как двенадцать разных проблем. Находка одна:
- * Cover недобран, двенадцать дней. Даты — подробность, за которой лезут, когда
- * решили этим заняться.
- *
- * Правило группировки то же, что у `IssueDigest` на бэке (Docs/06): ключ —
- * (код, предмет), где предмет — смена, человек или сама единица. Одинаково
- * здесь и там намеренно: панель и текстовое саммари обязаны говорить об одном и
- * том же, иначе саммари не с чем сверять.
+ * NOTE: Collapses the flat issue list into findings.
+ * NOTE: The flat list is what the validator counted, not what a planner can
+ * read: a month for one unit adds up to two hundred-plus rows, and "Cover
+ * understaffed" twelve times looks like twelve different problems. It's one
+ * finding: Cover understaffed, twelve days. Dates are a detail you drill into
+ * once you've decided to act on it.
+ * NOTE: The grouping rule matches `IssueDigest` on the backend (Docs/06): key
+ * is (code, subject), where subject is a shift, a person, or the unit itself.
+ * Matching deliberately — the panel and the text summary must describe the
+ * same thing, or there's nothing for the summary to be checked against.
  */
 
 import type { DatasetIndex } from '../../domain/lookup.ts';
@@ -18,20 +16,20 @@ import type { Issue, IssueCode, IsoDate } from '../../domain/types.ts';
 
 export interface IssueGroup {
   readonly key: string;
-  /** «Cover», «Anna Petrova» — в словах читателя, не идентификатором. */
+  /** NOTE: "Cover", "Anna Petrova" — in the reader's words, not an identifier. */
   readonly subject: string;
-  /** «understaffed», «rostered while absent» — что именно с ним не так. */
+  /** NOTE: "understaffed", "rostered while absent" — exactly what's wrong with it. */
   readonly what: string;
   readonly issues: readonly Issue[];
   readonly dates: readonly IsoDate[];
-  /** Есть ли ещё неподтверждённые предупреждения — по ним группа и «горит». */
+  /** NOTE: Count of still-unacknowledged warnings — this is what makes the group "hot". */
   readonly unacknowledged: number;
 }
 
 /**
- * Короткая формулировка на код. Сообщение самого нарушения сюда не годится: оно
- * несёт дату и цифры этого конкретного дня, а заголовок группы должен быть
- * одинаков для всех её дней.
+ * NOTE: Short wording per code. The issue's own message doesn't fit here: it
+ * carries the date and numbers for that specific day, while the group header
+ * must be the same across all its days.
  */
 const WHAT: Record<IssueCode, string> = {
   COVERAGE_GAP: 'uncovered',
@@ -88,12 +86,13 @@ export function groupIssues(
           .length,
       };
     })
-    // Самое частое первым: одна дыра на двенадцать дней важнее двенадцати разных
-    // на один. Внутри равенства — по алфавиту, чтобы порядок не плясал.
+    // NOTE: Most frequent first: one gap over twelve days matters more than
+    // twelve different ones over one. Ties break alphabetically so the order
+    // doesn't jitter.
     .sort((a, b) => b.issues.length - a.issues.length || a.subject.localeCompare(b.subject));
 }
 
-/** «Sep 4 – Sep 25» или «Sep 4» — подпись под заголовком группы. */
+/** NOTE: "Sep 4 – Sep 25" or "Sep 4" — the caption under a group header. */
 export function dateSpanLabel(dates: readonly IsoDate[]): string {
   if (dates.length === 0) return '';
   const short = (date: IsoDate) => date.slice(5).replace('-', '/');

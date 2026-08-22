@@ -1,19 +1,18 @@
 /**
- * Проекция ячейки: что сетка показывает для пары (человек, дата) — ADR-0017.
+ * NOTE: Cell projection: what the grid shows for a (person, date) pair — ADR-0017.
  *
- * Приоритет определён здесь и больше нигде. Порядок, первое совпадение
- * выигрывает:
+ * Priority is defined here and nowhere else. In order, first match wins:
  *
- *   1. назначение с рабочей ролью — человека можно поставить и на праздник,
- *      и на выходной, и это должно перебивать любой нерабочий сигнал;
- *   2. отсутствие, покрывающее дату;
- *   3. подтверждённый отгул (`SCHEDULED` или `TAKEN`);
- *   4. праздник по календарю локации человека → `PH`;
- *   5. маркер ростера → `OFF` / `NOT_SCHEDULED`;
- *   6. иначе пусто.
+ *   1. an assignment with a working role — a person can be scheduled on a
+ *      holiday or a weekend, and this must override any non-working signal;
+ *   2. an absence covering the date;
+ *   3. a confirmed comp day off (`SCHEDULED` or `TAKEN`);
+ *   4. a holiday per the person's location calendar → `PH`;
+ *   5. a roster marker → `OFF` / `NOT_SCHEDULED`;
+ *   6. otherwise empty.
  *
- * Когда срабатывает правило 1, а сработало бы и одно из 2–4, ячейка несёт
- * конфликт: это невозможные данные, а не просто перекрытие.
+ * When rule 1 fires and one of rules 2-4 would also have fired, the cell
+ * carries a conflict: this is impossible data, not just an overlap.
  */
 
 import { cellKey, type DatasetIndex } from '../domain/lookup.ts';
@@ -49,15 +48,15 @@ export interface CellProjectionInput {
 }
 
 export interface CellProjection {
-  /** `personId|date` → значение ячейки. Пустые ячейки в карту не попадают. */
+  /** NOTE: `personId|date` -> cell value. Empty cells never make it into the map. */
   readonly byCell: ReadonlyMap<string, CellValue>;
-  /** Даты, нерабочие по календарю локации человека. */
+  /** NOTE: Dates that are non-working per the person's location calendar. */
   readonly nonWorkingByCell: ReadonlySet<string>;
 }
 
 /**
- * Строит проекцию на весь период разом. Точечный расчёт на каждую ячейку дал
- * бы 80 × 31 независимых обходов отсутствий.
+ * NOTE: Builds the projection for the whole range at once. Computing each cell
+ * individually would mean 80 x 31 independent scans over absences.
  */
 export function projectCells(input: CellProjectionInput): CellProjection {
   const { range, absences, compDays, index } = input;
@@ -66,7 +65,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
 
   const dates = eachDate(range);
 
-  // --- 5. Маркеры и 1. рабочие смены ---------------------------------------
+  // --- 5. Markers, and 1. working shifts ------------------------------------
   for (const [key, assignment] of index.assignmentsByCell) {
     if (!rangeContains(range, assignment.date)) continue;
     if (assignment.content.kind === 'SHIFT') {
@@ -84,7 +83,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
     }
   }
 
-  // --- 4. Праздники по локации человека -----------------------------------
+  // --- 4. Holidays per the person's location ---------------------------------
   for (const person of index.people.values()) {
     const location = index.locations.get(person.locationId);
     if (!location) continue;
@@ -102,13 +101,13 @@ export function projectCells(input: CellProjectionInput): CellProjection {
       } else if (!existing || existing.kind === 'EMPTY') {
         byCell.set(key, { kind: 'STATUS', status: 'PH' });
       } else if (existing.kind === 'STATUS' && existing.assignmentId !== undefined) {
-        // Праздник информативнее маркера «Off».
+        // NOTE: A holiday is more informative than an "Off" marker.
         byCell.set(key, { kind: 'STATUS', status: 'PH', assignmentId: existing.assignmentId });
       }
     }
   }
 
-  // --- 3. Подтверждённые отгулы -------------------------------------------
+  // --- 3. Confirmed comp days off ---------------------------------------
   const proposedByCell = new Map<string, string>();
   for (const entry of compDays) {
     const date = effectiveCompDayDate(entry);
@@ -116,7 +115,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
     const key = cellKey(entry.personId, date);
 
     if (!compDayBlocksAssignment(entry)) {
-      // Предложение рисуется подсказкой и день не занимает.
+      // NOTE: A proposal is rendered as a hint and does not occupy the day.
       if (entry.status === 'PROPOSED') proposedByCell.set(key, entry.id);
       continue;
     }
@@ -129,7 +128,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
     }
   }
 
-  // --- 2. Отсутствия — перебивают праздник и отгул ------------------------
+  // --- 2. Absences — override holiday and comp day off -----------------------
   for (const absence of absences) {
     for (const date of eachDate({ from: absence.from, to: absence.to })) {
       if (!rangeContains(range, date)) continue;
@@ -147,7 +146,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
     }
   }
 
-  // --- Предложенные отгулы поверх пустых ячеек ----------------------------
+  // --- Proposed comp days off, layered over empty cells -----------------------
   for (const [key, compDayId] of proposedByCell) {
     const existing = byCell.get(key);
     if (!existing) byCell.set(key, { kind: 'EMPTY', proposedCompDay: compDayId });
@@ -157,7 +156,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
   return { byCell, nonWorkingByCell };
 }
 
-/** Значение одной ячейки. Пустая ячейка возвращается как `EMPTY`. */
+/** NOTE: Value of a single cell. An empty cell is returned as `EMPTY`. */
 export function cellValueAt(
   projection: CellProjection,
   personId: PersonId,
@@ -166,7 +165,7 @@ export function cellValueAt(
   return projection.byCell.get(cellKey(personId, date)) ?? { kind: 'EMPTY' };
 }
 
-/** Занят ли день человека чем-то, что мешает поставить смену. */
+/** NOTE: Whether the person's day is occupied by something that prevents scheduling a shift. */
 export function isBlocked(value: CellValue): boolean {
   if (value.kind !== 'STATUS') return false;
   return (

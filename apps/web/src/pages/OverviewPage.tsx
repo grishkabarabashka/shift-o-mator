@@ -1,25 +1,26 @@
 /**
- * Overview — дашборд и таймлайн одним экраном.
+ * NOTE: Overview — dashboard and timeline in one screen.
  *
- * Отвечает на один вопрос: кто на смене сейчас и в ближайшие дни, и есть ли
- * дыры. Открывается отцентрованным на «сейчас» и остаётся там до тех пор,
- * пока планировщик сам не проскроллит — три фиксированных зума (1/3/7 суток
- * на всю измеренную ширину) и непрерывная горизонтальная промотка вместо
- * произвольного диапазона (ADR-0036, owner review).
+ * Answers one question: who is on shift now and in the coming days, and are
+ * there any gaps. Opens centered on "now" and stays there until the planner
+ * scrolls it themselves — three fixed zooms (1/3/7 days across the full
+ * measured width) and continuous horizontal panning instead of an arbitrary
+ * range (ADR-0036, owner review).
  *
- * Один экран трёх слоёв, сверху вниз по убыванию срочности:
+ * One screen, three layers, top to bottom in decreasing order of urgency:
  *
- *   1. период + компактная строка цифр;
- *   2. **одна непрерывная лента времени**, единицы планирования друг под другом.
- *      Часовая ось — по строке на каждую затронутую локацию (owner review: время
- *      разное в каждом городе, и это должно быть видно сразу, без клика по
- *      шапке); шкала on-shift, наоборот, одна общая на все юниты сразу;
- *   3. ничего ниже: страница не скроллится вертикально, лента доедает всю
- *      оставшуюся высоту.
+ *   1. period + a compact row of numbers;
+ *   2. **one continuous timeline**, planning units stacked on top of each
+ *      other. The hour axis gets one row per affected location (owner
+ *      review: time differs in each city, and that must be visible at a
+ *      glance, without clicking the header); the on-shift scale, by
+ *      contrast, is one shared scale across all units at once;
+ *   3. nothing below that: the page doesn't scroll vertically, the timeline
+ *      eats all the remaining height.
  *
- * Лента всегда развёрнута — полосы по людям, как в day-drilldown, а не суточная
- * клетка «занято/нужно»: владелец предпочёл читать «кем именно» с одного взгляда,
- * без клика внутрь.
+ * The timeline is always expanded — per-person bars, as in day-drilldown,
+ * rather than a per-day "filled/required" cell: the owner preferred reading
+ * "who exactly" at a glance, without clicking in.
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -46,12 +47,12 @@ import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 const ROW_H = 22;
 const HEADCOUNT_H = 24;
-/** Строка «filled/required» над лентой каждого юнита. */
+/** NOTE: "filled/required" row above each unit's timeline. */
 const COVERAGE_ROW_H = 16;
-/** Высота дня-заголовка + одной строки часовой оси. */
+/** NOTE: Height of the day header plus one row of the hour axis. */
 const DAY_HEADER_H = 26;
 const ZONE_ROW_H = 22;
-/** Пол ширины окна на первый кадр, пока ResizeObserver ещё не отчитался. */
+/** NOTE: Floor for the window width on the first frame, before ResizeObserver reports in. */
 const MIN_WINDOW_PX = 320;
 
 interface Props {
@@ -73,8 +74,8 @@ export function OverviewPage({ view, now }: Props) {
   const index = useSchedule((s) => s.index);
   const reference = useSchedule((s) => s.reference);
 
-  // Тот же приём, что на Schedule: период ставится до отрисовки, иначе первый
-  // кадр приходит с чужим (месячным) периодом.
+  // NOTE: Same trick as on Schedule — the period is set before paint,
+  // otherwise the first frame arrives with the wrong (month) period.
   useLayoutEffect(() => enterOverview(), [enterOverview]);
 
   const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null);
@@ -86,9 +87,9 @@ export function OverviewPage({ view, now }: Props) {
 
   const dates = useMemo(() => eachDate(range), [range]);
 
-  // Каждая локация за юнитами, показанными на экране, — «сейчас» читается
-  // одинаково независимо от того, покрытие какого юнита сейчас смотрят, а не
-  // только глобально выбранного в шапке.
+  // NOTE: Every location behind the units shown on screen — "now" reads the
+  // same regardless of which unit's coverage is currently being viewed, not
+  // just the one globally selected in the header.
   const nowClocks = useMemo(() => {
     if (!reference) return [];
     const locationIds = new Set<string>();
@@ -113,17 +114,18 @@ export function OverviewPage({ view, now }: Props) {
   }, [dates, plan, index, view.unitIds, view.coverageCells]);
 
   const zone = displayZone === 'shift' ? 'UTC' : displayZone;
-  // Видимое окно — ровно `span` суток на всю измеренную ширину; окно вокруг
-  // него (`overviewRange`) добавляет столько же контекста по краям для
-  // непрерывной промотки, не растягивая суточную ширину.
+  // NOTE: The visible window is exactly `span` days across the full measured
+  // width; the window around it (`overviewRange`) adds the same amount of
+  // context on each edge for continuous panning, without stretching the
+  // per-day width.
   const dayPx = Math.max(MIN_WINDOW_PX, fillWidth) / overviewSpan;
   const width = dates.length * dayPx;
   const axisTop = DAY_HEADER_H + nowClocks.length * ZONE_ROW_H;
 
-  // Центрируем на «сейчас», когда оно попадает в окно, иначе на полдень
-  // якоря — маунт, смена периода и явный «Today» решают заново; тик часов
-  // (раз в минуту) намеренно не триггерит это, иначе лента уползала бы
-  // из-под курсора.
+  // NOTE: Center on "now" when it falls inside the window, otherwise on the
+  // anchor's midday — mount, a period change, and an explicit "Today" all
+  // re-decide this; the clock tick (once a minute) deliberately does not
+  // trigger it, otherwise the timeline would crawl out from under the cursor.
   useEffect(() => {
     if (!scrollNode || !timeline || width === 0) return;
     const nowInside = now >= timeline.axis.start && now <= timeline.axis.end;
@@ -148,7 +150,7 @@ export function OverviewPage({ view, now }: Props) {
 
   const people = view.rows.filter((row) => row.kind === 'person').length;
 
-  /** Дыра указывает только на день — у неё нет человека, в этом её суть. */
+  /** NOTE: a gap points only to a day — it has no person, that's the point. */
   const goToIssue = (issue: Issue) => {
     if (!issue.date) return;
     setScheduleAnchor(issue.date);
@@ -176,9 +178,9 @@ export function OverviewPage({ view, now }: Props) {
         {!timeline || timeline.lanes.length === 0 ? (
           <p className="p-4 text-[13px] text-muted">Nothing scheduled in this period.</p>
         ) : (
-          /* Один вертикальный скроллер на гуттер и ленту вместе — раздельные
-             overflow-y на двух соседних блоках расходятся при прокрутке.
-             Горизонтально скроллится только сама лента, не имена. */
+          /* WHY: one vertical scroller for the gutter and the lane together —
+             separate overflow-y on two adjacent blocks drifts out of sync while
+             scrolling. Only the lane itself scrolls horizontally, not the names. */
           <div className="flex min-h-0 flex-1 overflow-y-auto">
             <div className="w-[170px] shrink-0 border-r border-line">
               <div style={{ height: DAY_HEADER_H }} className="border-b border-line" />
@@ -268,11 +270,11 @@ function DayHeader({ timeline }: { readonly timeline: DayDetailRange }) {
 }
 
 /**
- * Одна ось на локацию, друг под другом — время разное в каждом из наших
- * городов, и это должно быть видно сразу, без клика по шапке (owner review).
- * Подпись локации сдвинута в левый гуттер (owner review — раньше висела
- * поверх делений в промативаемой части, что выглядело сбито); здесь только
- * часовые деления, выровненные по тем же строкам.
+ * NOTE: one axis per location, stacked — time differs across our cities, and
+ * that must be visible at a glance, without clicking the header (owner review).
+ * The location label was moved into the left gutter (owner review — it used to
+ * float over the ticks in the scrollable part, which looked misaligned); only
+ * the hour ticks remain here, aligned to the same rows.
  */
 function MultiZoneAxis({
   axis,
@@ -302,8 +304,8 @@ function MultiZoneAxis({
 }
 
 /**
- * "Сейчас" — разное время в каждой локации. Один бейдж над лентой, на
- * вертикальной линии `.lane__now`, со временем каждой затронутой локации.
+ * NOTE: "now" is a different time in each location. One badge above the lane,
+ * on the `.lane__now` vertical line, showing the time for each affected location.
  */
 function NowClocks({
   axis,
@@ -417,10 +419,10 @@ function LaneBody({
 }
 
 /**
- * Сводка «filled/required» по дню над лентой — вернули после owner review:
- * дыры/переполнения должны читаться числом на юнит с одного взгляда, не
- * только цветом полос ниже. Та же цветовая грамматика, что у `CoverageStrip`
- * на Schedule (`--ok`/`--warn`/`--bad`).
+ * NOTE: per-day "filled/required" summary above the lane — brought back after
+ * owner review: gaps/overfills must read as a number per unit at a glance, not
+ * only via the color of the bars below. Same color grammar as `CoverageStrip`
+ * on Schedule (`--ok`/`--warn`/`--bad`).
  */
 function DailyCoverageRow({
   days,
@@ -467,8 +469,9 @@ function coverageRowStyle(level: DayCoverage['level']): React.CSSProperties {
   }
 }
 
-/** Одна общая шкала on-shift под всеми лентами, а не одна на юнит — лейн с
- * пиком 2 и лейн с пиком 20 иначе рисовались бы неотличимо (owner review). */
+/** NOTE: one shared on-shift scale under all lanes, not one per unit — a lane
+ * peaking at 2 and a lane peaking at 20 would otherwise render indistinguishably
+ * (owner review). */
 function HeadcountStrip({ headcountByHour }: { readonly headcountByHour: readonly number[] }) {
   const peak = Math.max(1, ...headcountByHour);
   const hourWidth = 100 / Math.max(1, headcountByHour.length);
@@ -522,9 +525,9 @@ function Stat({ label, value }: { readonly label: string; readonly value: number
   );
 }
 
-/** Gaps/Conflicts — было отдельным блоком "Attention required", занимавшим
- * вертикальную полосу целиком; теперь чип в шапке со всплывающим списком
- * (owner review: страница не должна скроллиться вертикально). */
+/** NOTE: Gaps/Conflicts used to be a separate "Attention required" block that
+ * took up a full vertical strip; now a chip in the header with a popover list
+ * (owner review: the page must not scroll vertically). */
 function IssueStat({
   label,
   issues,

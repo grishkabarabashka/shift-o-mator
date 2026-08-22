@@ -1,10 +1,10 @@
 /**
- * Оболочка приложения: шапка продукта, навигация и контекстные переключатели.
+ * NOTE: App shell: product header, navigation, and contextual switches.
  *
- * Общая шапка с названием, переключателями и бейджем пользователя, под ней —
- * горизонтальные вкладки. Ровно один экран активен, контекст (единица,
- * таймзона отображения) живёт в шапке и переживает переход между вкладками:
- * планировщик не выбирает единицу заново, прыгая с Overview в расписание.
+ * A shared header with the name, switches, and a user badge, with horizontal
+ * tabs below it. Exactly one screen is active; the context (unit, display
+ * timezone) lives in the header and survives switching tabs: the planner
+ * doesn't re-pick the unit when jumping from Overview to the schedule.
  */
 
 import type { ReactNode } from 'react';
@@ -26,8 +26,8 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  // Дашборд и таймлайн — один экран: оба отвечали на вопрос «закрыты ли мы»,
-  // разделение стоило перехода и не давало ничего.
+  // NOTE: Dashboard and timeline are one screen: both answered "are we
+  // covered?", and splitting them cost a navigation without buying anything.
   { to: '/overview', label: 'Overview' },
   { to: '/schedule', label: 'Schedule' },
   { to: '/people', label: 'People' },
@@ -98,8 +98,8 @@ function ProductHeader() {
       <div className="h-6 w-px shrink-0 bg-line" />
 
       <div className="flex shrink-0 items-center gap-2">
-        {/* Единица — фильтр, а не граница (ADR-0020): выбирается любой набор,
-            «все» — значение по умолчанию. */}
+        {/* NOTE: A unit is a filter, not a boundary (ADR-0020): any combination
+            can be selected, "all" is the default. */}
         <UnitScopePicker units={units} scope={unitId} onChange={setUnit} />
       </div>
 

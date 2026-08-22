@@ -43,8 +43,8 @@ public static class InsightsEndpoints
                 if (draft is null) return Results.NotFound(new ErrorResponse("DRAFT_NOT_FOUND", $"Draft {req.DraftId} does not exist."));
             }
 
-            // Планировщик спрашивает про то, что видит на экране, — значит про
-            // опубликованное плюс свой черновик, как и /api/schedule.
+            // NOTE: the planner is asking about what they see on screen — that means
+            // published plus their own draft, same as /api/schedule.
             var (assignments, absences, compDays) = DraftOverlay.Apply(dataset, draft);
             var overlaid = new ScheduleDataset
             {
@@ -72,7 +72,7 @@ public static class InsightsEndpoints
             var digest = IssueDigest.Build(
                 req.UnitId, req.From, req.To, issues, Validator.AcknowledgedKeys(dataset.Acknowledgements), index);
 
-            // Пустой период не стоит вызова модели: ответ известен заранее.
+            // NOTE: an empty period isn't worth a model call — the answer is known in advance.
             if (digest.Total == 0)
             {
                 return Results.Ok(new GapSummaryResponse(
@@ -90,8 +90,8 @@ public static class InsightsEndpoints
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Модель недоступна — это не отказ экрана: счётчики и панель нарушений
-                // на месте, нет только текста.
+                // NOTE: the model being unavailable isn't a screen failure — the counters
+                // and the issues panel are still there, only the prose text is missing.
                 return Results.Json(
                     new ErrorResponse("AI_UNAVAILABLE", ex.Message),
                     statusCode: StatusCodes.Status502BadGateway);

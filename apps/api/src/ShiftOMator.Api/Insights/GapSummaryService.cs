@@ -56,8 +56,8 @@ public sealed class GapSummaryService(ChatModel model)
                 new ChatMessage(ChatRole.System, SystemPrompt),
                 new ChatMessage(ChatRole.User, IssueDigest.Render(digest)),
             ],
-            // Кратко по построению: промпт требует максимум пять пунктов, и потолок
-            // здесь — страховка от расползания, а не ограничение содержания.
+            // NOTE: brevity is built in by the prompt, which caps it at five bullets — the
+            // limit here is insurance against sprawl, not a content restriction.
             new ChatOptions { MaxOutputTokens = 2000 },
             ct);
 

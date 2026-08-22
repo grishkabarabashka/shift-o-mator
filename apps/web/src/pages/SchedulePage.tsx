@@ -1,18 +1,18 @@
 /**
- * Экран планирования.
+ * NOTE: Planning screen.
  *
- * Раскладка сверху вниз: выбор периода → действия над черновиком → палитра
- * смен → сетка с прилипшей полосой покрытия. Панель нарушений справа.
+ * Top-to-bottom layout: period picker -> draft actions -> shift palette ->
+ * grid with a stuck-to-it coverage strip. The issues panel sits on the right.
  *
- * Сетка и полоса покрытия живут в одном скролл-контейнере — иначе при
- * горизонтальной прокрутке колонки покрытия разъезжаются с колонками дней, и
- * «2/3» оказывается под чужой датой.
+ * The grid and coverage strip live in one scroll container — otherwise,
+ * during horizontal scrolling, the coverage columns drift out of alignment
+ * with the day columns, and "2/3" ends up under the wrong date.
  *
- * Палитра смен дублирует пикер по правому клику и на узких экранах отъедала
- * заметную полосу по высоте (CLAUDE.md) — она сворачиваема, свёрнутое
- * состояние держится в этом компоненте, не в глобальном сторе: это чисто
- * видовая настройка экрана, не часть черновика или UI-состояния, которое
- * стоило бы делить с другими экранами.
+ * The shift palette duplicates the right-click picker, and on narrow screens
+ * it ate a noticeable strip of vertical space (CLAUDE.md) — it is
+ * collapsible, and the collapsed state lives in this component, not in the
+ * global store: it is purely a view setting for this screen, not part of the
+ * draft or UI state that would be worth sharing with other screens.
  */
 
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -34,8 +34,8 @@ import { DateRangeControl } from '../features/shell/DateRangeControl.tsx';
 import { resolveAbsenceTargets } from '../features/absences/selection.ts';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
-/** Из `--name-w`/`--cell-w` в theme.css — колонка имени и пол, ниже которого
- * ячейка становится нечитаемой. */
+/** NOTE: From `--name-w`/`--cell-w` in theme.css — the name column and the
+ * floor below which a cell becomes unreadable. */
 const NAME_W = 185;
 const MIN_CELL_W = 40;
 
@@ -51,18 +51,20 @@ export function SchedulePage({ view, asOf }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const gridScroller = useRef<HTMLDivElement>(null);
 
-  // useLayoutEffect, не useEffect: с обычным эффектом первый кадр рисуется ещё
-  // овервьюшным периодом (ADR-0036 — у экранов свои периоды), и переход с
-  // Overview моргал однодневным зумом, прежде чем встать на месяц. Layout-эффект
-  // отрабатывает до отрисовки, так что промежуточного состояния не видно.
+  // WHY: useLayoutEffect, not useEffect — with a regular effect the first
+  // frame still renders with Overview's period (ADR-0036 — each screen has
+  // its own period), and coming from Overview flashed a one-day zoom before
+  // settling on a month. A layout effect runs before paint, so the
+  // intermediate state is never visible.
   const enterSchedule = useUi((s) => s.enterSchedule);
   useLayoutEffect(() => enterSchedule(), [enterSchedule]);
 
-  // Зум задаёт масштаб, а не лимит показа: неделя должна растянуться на весь
-  // экран, а не остаться полосой 62px-колонок в пустом пространстве. Ширина
-  // ячейки — это то, что осталось после имени, поделенное на число колонок, с
-  // полом в MIN_CELL_W. Меряется на общем предке сетки и полосы покрытия и
-  // пишется одной CSS-переменной, чтобы обе не могли разъехаться.
+  // NOTE: Zoom sets the scale, not a display limit — a week should stretch
+  // to fill the whole screen, not sit as a strip of 62px columns in empty
+  // space. Cell width is what's left after the name column, divided by the
+  // number of columns, floored at MIN_CELL_W. It is measured on the common
+  // ancestor of the grid and the coverage strip and written as a single CSS
+  // variable, so the two can never drift apart.
   const [fillRef, fillWidth] = useElementWidth<HTMLElement>();
   const cellWidth =
     view.columns.length > 0
@@ -147,9 +149,9 @@ export function SchedulePage({ view, asOf }: Props) {
             <div className="ml-auto flex items-center gap-2">
               {editing ? (
                 <>
-                  {/* Сбой синхронизации важнее индикатора «Saving…»: сетка
-                      показывает правку, сервер о ней не знает, и публиковать
-                      в этом состоянии нельзя. */}
+                  {/* NOTE: A sync failure outranks the "Saving..." indicator —
+                      the grid shows the edit, the server doesn't know about it
+                      yet, and publishing in this state is not allowed. */}
                   {syncError ? (
                     <span
                       className="rounded border border-bad bg-bad-soft px-1.5 py-0.5 text-[11px] text-bad"
@@ -231,16 +233,16 @@ export function SchedulePage({ view, asOf }: Props) {
 
           {detail ? (
             <>
-              {/* key: смена набора единиц (в т.ч. со «всех» на одну) меняет, какие
-                  строки-разделители городов есть в сетке. Реконсиляция по ключам
-                  строк убирает лишние группы из DOM корректно (проверено тестами
-                  в App.test.tsx), но в браузере на CSS Grid с sticky-заголовками
-                  внутри изредка остаётся неперерисованный кусок картинки от
-                  удалённой строки — известный класс багов перерисовки при
-                  implicit grid + position: sticky. `key` заставляет React
-                  пересобрать DOM сетки целиком при смене области вместо точечного
-                  патча, тем самым гарантируя чистую перерисовку — то же самое,
-                  что чинит переход на экран заново. */}
+              {/* WHY: key — changing the set of units (including "all" to one)
+                  changes which city-divider rows exist in the grid. Row-key
+                  reconciliation correctly removes the stray groups from the DOM
+                  (verified by tests in App.test.tsx), but in the browser, on a
+                  CSS Grid with sticky headers inside it, an unrepainted scrap of
+                  a removed row occasionally remains — a known class of repaint
+                  bugs with implicit grid + position: sticky. `key` forces React
+                  to rebuild the grid's DOM wholesale on scope change instead of
+                  patching it in place, which guarantees a clean repaint — the
+                  same thing that leaving and re-entering the screen fixes. */}
               <PlanningGrid
                 key={view.unitIds.join(',')}
                 view={view}

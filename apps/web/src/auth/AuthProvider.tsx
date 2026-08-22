@@ -1,16 +1,16 @@
 /**
- * Клиентский шов аутентификации (Phase 4 бэкенда — см. `api/.../Auth/`).
+ * NOTE: client-side authentication seam (backend Phase 4 — see `api/.../Auth/`).
  *
- * Зеркалит фиксированную identity, которую в режиме `Auth:Mode=Stub` отдаёт
- * `GET /api/auth/me`: personId, displayName и роль (Viewer | Planner | Admin) без
- * реального похода в сеть. Phase 5 подключит его к живому `GET /api/auth/me`
- * (сейчас `memoryRepository`/фикстуры ещё не срезаны — контекст остаётся
- * заглушкой намеренно, а не временно забытой заготовкой).
+ * Mirrors the fixed identity that `GET /api/auth/me` returns in `Auth:Mode=Stub`
+ * mode: personId, displayName, and role (Viewer | Planner | Admin), with no
+ * actual network round trip. Phase 5 will wire this to the live `GET /api/auth/me`
+ * (right now `memoryRepository`/fixtures haven't been cut over yet — this context
+ * is a stub deliberately, not a forgotten placeholder).
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-/** Совпадает с `ShiftOMator.Domain.AppRole` — иерархия Viewer < Planner < Admin. */
+/** NOTE: matches `ShiftOMator.Domain.AppRole` — hierarchy Viewer < Planner < Admin. */
 export type AppRole = 'Viewer' | 'Planner' | 'Admin';
 
 export interface AuthIdentity {
@@ -19,8 +19,8 @@ export interface AuthIdentity {
   readonly role: AppRole;
 }
 
-// Совпадает с `StubAuthenticationHandler` на сервере — тот же personId/displayName/role,
-// чтобы клиентская заглушка и серверная не разошлись молча.
+// NOTE: matches `StubAuthenticationHandler` on the server — the same
+// personId/displayName/role, so the client stub and the server one don't silently drift apart.
 const STUB_IDENTITY: AuthIdentity = {
   personId: 'p-planner',
   displayName: 'Planner (stub)',

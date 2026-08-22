@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 
-// jsdom не реализует то, чем пользуются прокрутка сетки и Radix.
+// NOTE: jsdom doesn't implement APIs the grid's scrolling and Radix rely on.
 if (typeof Element !== 'undefined') {
   Element.prototype.scrollIntoView ??= function scrollIntoView() {
     // no-op

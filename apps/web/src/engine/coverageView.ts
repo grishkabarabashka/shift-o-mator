@@ -1,11 +1,11 @@
 /**
- * Агрегация уже посчитанных ячеек покрытия для интерфейса.
+ * NOTE: Aggregation of already-computed coverage cells for the UI.
  *
- * Само покрытие теперь считает сервер (`GET /api/schedule`, Phase 5); эти
- * функции не решают, дыра это или нет, а только индексируют и суммируют
- * готовые `CoverageCell[]` для грида и полосы покрытия. Раньше жили в
- * `engine/coverage.ts` вместе с самим движком расчёта — тот файл удалён
- * вместе с портом на бэкенд.
+ * Coverage itself is now computed server-side (`GET /api/schedule`, Phase
+ * 5); these functions don't decide whether something is a gap, only index
+ * and sum the finished `CoverageCell[]` for the grid and the coverage strip.
+ * They used to live in `engine/coverage.ts` alongside the calculation engine
+ * itself — that file was deleted along with the port to the backend.
  */
 
 import type { CoverageCell, ShiftId } from '../domain/types.ts';
@@ -29,14 +29,14 @@ export function summarizeCoverage(cells: readonly CoverageCell[]): CoverageSumma
   return { gaps, thin, over, total: cells.length };
 }
 
-/** Индекс клеток для быстрого доступа из грида: `date|shiftId`. */
+/** NOTE: Cell index for fast lookup from the grid: `date|shiftId`. */
 export function indexCoverage(cells: readonly CoverageCell[]): Map<string, CoverageCell> {
   const map = new Map<string, CoverageCell>();
   for (const cell of cells) map.set(`${cell.date}|${cell.shiftId}`, cell);
   return map;
 }
 
-/** Смены, встречающиеся в расчёте, в порядке первого появления. */
+/** NOTE: Shifts appearing in the calculation, in order of first occurrence. */
 export function shiftsInCoverage(cells: readonly CoverageCell[]): ShiftId[] {
   const seen = new Set<ShiftId>();
   const result: ShiftId[] = [];

@@ -1,12 +1,11 @@
 /**
- * Подтверждение и перенос отгула.
+ * NOTE: Confirming and rescheduling a comp day. The system only proposes a date per
+ * policy (ADR-0007); here the planner confirms the proposal (`PROPOSED` →
+ * `SCHEDULED`), reschedules the date, marks it taken, or declines it. A confirmed
+ * comp day then blocks assignment.
  *
- * Система только предлагает дату по политике (ADR-0007); здесь планировщик
- * подтверждает предложение (`PROPOSED` → `SCHEDULED`), переносит дату,
- * отмечает отгуленным или отклоняет. Подтверждённый отгул после этого
- * блокирует назначение.
- *
- * Отгулы не сгорают: вместо срока — возраст и порог подсветки.
+ * Comp days never expire: instead of a deadline there is an age and a
+ * highlight threshold.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
@@ -16,8 +15,9 @@ import { daysBetween } from '../../engine/dates.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 
-/** Возраст начисления в днях на дату отсчёта. Раньше жила в `engine/compDays.ts`
- * вместе с самим движком начисления — тот файл удалён вместе с портом на бэкенд. */
+/** WHY: Accrual age in days as of the reference date. This used to live in
+ * `engine/compDays.ts` alongside the accrual engine itself — that file was removed
+ * along with the port to the backend. */
 function compDayAge(entry: CompDayEntry, asOf: IsoDate): number {
   return daysBetween(entry.earnedForDate, asOf);
 }
@@ -31,7 +31,7 @@ const STATUS_LABEL: Record<CompDayStatus, string> = {
 };
 
 interface Props {
-  /** Сегодняшняя дата: движок не читает часы сам. */
+  /** NOTE: Today's date: the engine does not read the clock itself. */
   readonly asOf: string;
 }
 

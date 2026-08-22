@@ -1,7 +1,7 @@
 /**
- * Превращает текущее выделение в сетке в список диапазонов для создания
- * отсутствий: одна запись на каждого выделенного человека, границы дат — по
- * крайним колонкам выделения.
+ * NOTE: Turns the current grid selection into a list of ranges for creating
+ * absences: one record per selected person, date bounds taken from the
+ * selection's outermost columns.
  */
 
 import type { IsoDate, PersonId } from '../../domain/types.ts';
