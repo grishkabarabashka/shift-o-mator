@@ -175,12 +175,15 @@ export function MyCalendarPage() {
   if (!reference || !selfId) return null;
 
   return (
-    /* WHY the row is centred and the calendar is measured (ADR-0056): a month stretched to
+    /* WHY the row is centred and the calendar is measured (ADR-0057): a month stretched to
        a 1920px card gives a day box 230px wide and 76px tall, which is a shape no calendar
        has ever had — the week reads as a row of banners rather than a grid. A month wants
        to be roughly as wide as it is tall. Only the planning grid earns the full width,
        and it earns it by having eighty rows and a horizontal axis. */
-    <div className="flex h-full min-h-0 justify-center gap-4 p-4">
+    /* Stacks below `lg`: the calendar's own floor is 340px and the sidebar is a fixed 280,
+       which together overflow a phone before any gap is counted. Stacked, the sidebar
+       becomes what it reads as anyway — a summary above the months. */
+    <div className="flex h-full min-h-0 flex-col items-center gap-4 overflow-y-auto p-4 lg:flex-row lg:items-stretch lg:justify-center lg:overflow-hidden">
       <div
         ref={scroller}
         className="card w-[clamp(340px,40vw,560px)] shrink-0 overflow-y-auto shadow-elev-2"

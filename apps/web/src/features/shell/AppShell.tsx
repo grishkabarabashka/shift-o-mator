@@ -17,6 +17,7 @@ import { absenceFreshness } from '../../engine/absenceImport.ts';
 import { daysBetween, formatInZone, parseDate } from '../../engine/dates.ts';
 import { dedupeLocationsByZone } from '../../engine/locationClocks.ts';
 import { skyPhase, type SkyPhase } from '../../engine/timeline.ts';
+import { useMediaQuery, BREAKPOINT } from '../../ui/useMediaQuery.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { useNow } from '../../ui/useNow.ts';
@@ -55,7 +56,7 @@ const NAV_ITEMS: readonly NavItem[] = [
 ];
 
 export function AppShell({ children }: { readonly children: ReactNode }) {
-  // Focus mode (ADR-0056). While a draft is open the chrome steps back so the grid is the
+  // Focus mode (ADR-0057). While a draft is open the chrome steps back so the grid is the
   // brightest thing on screen. Deliberately restrained: colour drains out of the header and
   // the tabs, and nothing moves, collapses or becomes unreachable — a planner mid-edit is
   // the last person who should have to hunt for a control that quietly went away.
@@ -203,7 +204,7 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
  * Location clocks — one per location actually in play, and **the display-timezone
  * picker**: click a clock to read every time in that zone.
  *
- * Each clock carries its own sky (ADR-0056): night is deep and cold, dawn and dusk are
+ * Each clock carries its own sky (ADR-0057): night is deep and cold, dawn and dusk are
  * warm, daytime is light. WHY: the question these exist to answer is "who is awake right
  * now", and as four identical grey pills that question was answered by reading four
  * numbers and subtracting. The phase comes from `skyPhase`, which shares its definition of
@@ -242,15 +243,26 @@ function LocationClockStrip({
   const displayZone = useUi((s) => s.displayZone);
   const setDisplayZone = useUi((s) => s.setDisplayZone);
   const clocks = dedupeLocationsByZone(locations, primaryLocationIds);
+  const roomForAll = useMediaQuery(BREAKPOINT.xl);
 
   if (clocks.length === 0) return null;
 
+  // Narrow: the strip becomes the selected clock with the rest behind it. This used to be
+  // `hidden lg:flex` — the control that governs how time reads on every screen simply
+  // vanished below 1024px, which is not a responsive design but the lack of one.
+  if (!roomForAll) {
+    return (
+      <CollapsedClocks
+        clocks={clocks}
+        now={now}
+        displayZone={displayZone}
+        setDisplayZone={setDisplayZone}
+      />
+    );
+  }
+
   return (
-    <div
-      className="hidden items-center gap-1.5 lg:flex"
-      role="radiogroup"
-      aria-label="Display timezone"
-    >
+    <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Display timezone">
       <button
         type="button"
         className="clock clock--abstract"
@@ -284,6 +296,89 @@ function LocationClockStrip({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * The clock strip when there is no room for the strip.
+ *
+ * Shows the zone currently being read, in its own sky, and puts the others one click away.
+ * The point is that the *choice* survives the narrow viewport — what is lost is the
+ * at-a-glance comparison of four skies, which is a luxury; being unable to say "show me
+ * this in Sydney time" is not.
+ */
+function CollapsedClocks({
+  clocks,
+  now,
+  displayZone,
+  setDisplayZone,
+}: {
+  readonly clocks: readonly Location[];
+  readonly now: string;
+  readonly displayZone: string;
+  readonly setDisplayZone: (zone: string) => void;
+}) {
+  const selected = clocks.find((location) => location.timeZone === displayZone);
+  const phase = selected ? skyPhase(now, selected.timeZone) : undefined;
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className={`clock${selected ? '' : ' clock--abstract'}`}
+          {...(phase ? { 'data-phase': phase } : {})}
+          aria-label="Display timezone"
+          title="Choose which timezone every time on screen is read in"
+        >
+          {selected ? (
+            <>
+              <span>{selected.name}</span>
+              <span className="clock__time">{formatInZone(now, selected.timeZone)}</span>
+            </>
+          ) : (
+            'Shift time'
+          )}
+          <span aria-hidden>▾</span>
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content align="end" sideOffset={6} className="popover">
+          <div className="menu-label">Read every time in</div>
+          <div
+            className="flex flex-col gap-1 p-1"
+            role="radiogroup"
+            aria-label="Display timezone"
+          >
+            <button
+              type="button"
+              className="clock clock--abstract w-full justify-between"
+              role="radio"
+              aria-checked={displayZone === 'shift'}
+              data-active={displayZone === 'shift'}
+              onClick={() => setDisplayZone('shift')}
+            >
+              Shift time
+            </button>
+            {clocks.map((location) => (
+              <button
+                key={location.timeZone}
+                type="button"
+                className="clock w-full justify-between"
+                role="radio"
+                aria-checked={displayZone === location.timeZone}
+                data-active={displayZone === location.timeZone}
+                data-phase={skyPhase(now, location.timeZone)}
+                onClick={() => setDisplayZone(location.timeZone)}
+              >
+                <span>{location.name}</span>
+                <span className="clock__time">{formatInZone(now, location.timeZone)}</span>
+              </button>
+            ))}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 

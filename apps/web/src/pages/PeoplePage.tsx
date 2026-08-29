@@ -17,6 +17,7 @@ import { eachDate } from '../engine/dates.ts';
 import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import { PersonEditor } from '../features/people/PersonEditor.tsx';
+import { PageHeader } from '../ui/PageHeader.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 interface Props {
@@ -127,17 +128,15 @@ export function PeoplePage({ view, asOf }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 p-4">
-      <header className="flex items-center gap-3">
-        <h1 className="text-[22px] font-semibold tracking-tight">People</h1>
-        <span className="pill">{filtered.length}</span>
+      <PageHeader title="People" context={`${filtered.length} in view`}>
         <input
-          className="field ml-auto w-[260px]"
+          className="field w-[min(260px,60vw)]"
           placeholder="Search name, employee ID, unit, location or shift"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           aria-label="Search people"
         />
-      </header>
+      </PageHeader>
 
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="card min-w-0 flex-1 overflow-auto">

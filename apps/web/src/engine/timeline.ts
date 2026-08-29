@@ -822,7 +822,7 @@ const NIGHT_UNTIL = 6;
 export type SkyPhase = 'night' | 'dawn' | 'day' | 'dusk';
 
 /**
- * The sky over one location, right now (ADR-0056).
+ * The sky over one location, right now (ADR-0057).
  *
  * The header clocks are painted with this, so "which office is awake" is answered by
  * looking rather than by subtracting hours in your head.

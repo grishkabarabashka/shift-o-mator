@@ -27,6 +27,7 @@ import { CompDayDialog } from '../features/compdays/CompDayDialog.tsx';
 import { CellHistoryPanel } from '../features/planning/CellHistoryPanel.tsx';
 import { useCapabilities } from '../auth/useCapabilities.ts';
 import { CoverageStrip } from '../features/coverage/CoverageStrip.tsx';
+import { useMediaQuery, BREAKPOINT } from '../ui/useMediaQuery.ts';
 import { IssuePanel } from '../features/issues/IssuePanel.tsx';
 import { AutoPopulateDialog } from '../features/planning/AutoPopulateDialog.tsx';
 import { HeatmapGrid } from '../features/planning/HeatmapGrid.tsx';
@@ -53,6 +54,10 @@ export function SchedulePage({ view, asOf }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const gridScroller = useRef<HTMLDivElement>(null);
+
+  // The issue panel is a column when there is room for one and a drawer when there is not.
+  const roomForPanel = useMediaQuery(BREAKPOINT.lg);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   // WHY: useLayoutEffect, not useEffect — with a regular effect the first
   // frame still renders with Overview's period (ADR-0036 — each screen has
@@ -185,6 +190,20 @@ export function SchedulePage({ view, asOf }: Props) {
               </button>
             ) : null}
 
+            {!roomForPanel ? (
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => setPanelOpen(true)}
+                aria-expanded={panelOpen}
+              >
+                Attention
+                {view.issues.length > 0 ? (
+                  <span className="pill pill--warn">{view.issues.length}</span>
+                ) : null}
+              </button>
+            ) : null}
+
             <div className="ml-auto flex items-center gap-2">
               {editing ? (
                 <>
@@ -301,7 +320,24 @@ export function SchedulePage({ view, asOf }: Props) {
           )}
         </section>
 
-        <IssuePanel view={view} />
+        {/* Wide: a column beside the grid, read against it. Narrow: a drawer, because
+            290px of fixed panel out of a 700px viewport leaves the grid too little to be
+            worth showing — and the panel is the thing you consult, while the grid is the
+            thing you work in. It is never removed, only moved. */}
+        {roomForPanel ? (
+          <IssuePanel view={view} />
+        ) : panelOpen ? (
+          <>
+            <div
+              className="overlay"
+              role="presentation"
+              onClick={() => setPanelOpen(false)}
+            />
+            <div className="fixed inset-y-0 right-0 z-[71] flex w-[min(320px,90vw)] p-2">
+              <IssuePanel view={view} onClose={() => setPanelOpen(false)} />
+            </div>
+          </>
+        ) : null}
       </div>
 
       <CellHistoryPanel />

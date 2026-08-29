@@ -53,7 +53,7 @@ export function RequestsPage({ view }: { readonly view: PlanningView }) {
   const inbox = useRequests('inbox');
 
   return (
-    /* Measured and centred (ADR-0056). This screen is a form of small fields and three
+    /* Measured and centred (ADR-0057). This screen is a form of small fields and three
        short lists; run to 1920px it put a 150px date input at one end of the monitor and
        its label at the other, and every list row became a line of text with a hundred
        characters of white space after it. Settings already does this at 1200px — a form is

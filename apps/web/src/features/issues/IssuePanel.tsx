@@ -23,6 +23,9 @@ import { dateSpanLabel, groupIssues, type IssueGroup } from './grouping.ts';
 
 interface Props {
   readonly view: PlanningView;
+  /** Present only when the panel has been moved into a drawer on a narrow viewport. Its
+   *  presence is also what tells the panel it no longer owns its own width. */
+  readonly onClose?: () => void;
 }
 
 type Bucket = 'GAP' | 'CONFLICT' | 'WARNING' | 'INFO';
@@ -53,7 +56,7 @@ function bucketOf(issue: Issue): Bucket {
   return issue.level === 'WARNING' ? 'WARNING' : 'INFO';
 }
 
-export function IssuePanel({ view }: Props) {
+export function IssuePanel({ view, onClose }: Props) {
   const select = useUi((s) => s.select);
   const focusDate = useUi((s) => s.focusDate);
   const acknowledge = useSchedule((s) => s.acknowledge);
@@ -94,10 +97,21 @@ export function IssuePanel({ view }: Props) {
   };
 
   return (
-    <aside className="card flex w-[290px] shrink-0 flex-col overflow-hidden" aria-label="Issues">
+    /* `w-full` inside a drawer, `w-[290px]` as a column: the width is the parent's business
+       when the panel has been moved into a fixed shell, and the panel's own when it is one
+       of two things sharing a row. */
+    <aside
+      className={`card flex shrink-0 flex-col overflow-hidden ${onClose ? 'w-full' : 'w-[290px]'}`}
+      aria-label="Issues"
+    >
       <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <h2 className="text-[13px] font-semibold">Attention</h2>
         <span className="text-[11.5px] text-faint">{view.issues.length} total</span>
+        {onClose ? (
+          <button type="button" className="btn btn--sm btn--ghost" onClick={onClose}>
+            Close
+          </button>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

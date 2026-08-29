@@ -63,7 +63,7 @@
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
 
-  /* --- Elevation ladder (ADR-0056) -------------------------------------------
+  /* --- Elevation ladder (ADR-0057) -------------------------------------------
    *
    * Every card used to wear the same single shadow, so the period control, the stat row
    * and the grid itself carried equal weight and nothing was foreground. These are five
@@ -122,7 +122,7 @@
   --space-7: 24px;
   --space-8: 32px;
 
-  /* --- Sky (ADR-0056) ---------------------------------------------------------
+  /* --- Sky (ADR-0057) ---------------------------------------------------------
    *
    * The clocks in the header carry the state of their own sky, so "which office is awake"
    * is answered by looking rather than by subtracting hours.
@@ -468,7 +468,7 @@
     color: var(--accent-ink);
   }
 
-  /* --- Location clocks (ADR-0056) --------------------------------------------
+  /* --- Location clocks (ADR-0057) --------------------------------------------
    *
    * The signature element. These were four flat pills of identical grey, which made the
    * one question they exist to answer — who is awake right now — something you worked out
@@ -859,7 +859,7 @@
     transition: filter 200ms;
   }
 
-  /* --- Focus mode (ADR-0056) --------------------------------------------------
+  /* --- Focus mode (ADR-0057) --------------------------------------------------
    *
    * While a draft is open, colour drains out of the chrome. The grid is already the
    * brightest and busiest thing on the page; what stops it *reading* that way is a header
