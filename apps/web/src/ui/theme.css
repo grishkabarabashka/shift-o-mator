@@ -63,6 +63,83 @@
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
 
+  /* --- Elevation ladder (ADR-0056) -------------------------------------------
+   *
+   * Every card used to wear the same single shadow, so the period control, the stat row
+   * and the grid itself carried equal weight and nothing was foreground. These are five
+   * rungs, and the rule that makes them mean something is: **exactly one surface per
+   * screen sits on `--elev-2`** — the one the screen exists for. Everything else rests at
+   * 1 or lower, and 3/4 belong to things that float above the page entirely.
+   *
+   * Each rung is a contact shadow plus a soft one: a single blur reads as fog, while the
+   * tight shadow is what tells the eye the edge is off the page. */
+  --elev-0: inset 0 1px 2px rgb(16 24 40 / 0.06);
+  --elev-1: 0 1px 2px rgb(16 24 40 / 0.04);
+  --elev-2:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 8px 20px -10px rgb(16 24 40 / 0.20);
+  --elev-3:
+    0 2px 6px -2px rgb(16 24 40 / 0.12),
+    0 10px 30px -8px rgb(16 24 40 / 0.22);
+  --elev-4: 0 24px 60px -12px rgb(16 24 40 / 0.35);
+
+  /* --- Type scale -------------------------------------------------------------
+   *
+   * Was a dozen arbitrary literals (10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14.5, 15,
+   * 16, 18, 22px) chosen one component at a time. Eight steps, each with the line height
+   * and tracking that suits it — large text tightens, small text opens up, because the
+   * same tracking at 22px and 10px is wrong at one end or the other. */
+  /* NOTE: named `--fs-*` rather than `--text-*` on purpose. `@theme inline` below exports
+     the Tailwind `text-*` family from these, and a theme entry that references a `:root`
+     property of its own name is a circular reference that silently resolves to nothing. */
+  --fs-2xs: 10.5px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-base: 13px;
+  --fs-md: 13.5px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+
+  /* --- Radii ------------------------------------------------------------------
+   * Was ten values set per component (btn 7, field 7, popover 9, card 10, dialog 12).
+   * A scale of five; the odd pixel each one moves is what makes them a family. */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-full: 999px;
+
+  /* Rhythm. Applied by the components this phase touches; older literal paddings migrate
+     as they are next edited rather than in one churning sweep. */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* --- Sky (ADR-0056) ---------------------------------------------------------
+   *
+   * The clocks in the header carry the state of their own sky, so "which office is awake"
+   * is answered by looking rather than by subtracting hours.
+   *
+   * WHY this is a separate family and not the semantic palette: the doctrine at the top of
+   * this file is that colour carries meaning and only meaning — amber is attention, red is
+   * a gap. A warm sunset drawn in `--warn` would read as a warning about Chicago. Sky
+   * colours never appear anywhere a semantic colour can, and vice versa. */
+  --sky-night: linear-gradient(160deg, #22305a, #16203c);
+  --sky-night-ink: #dbe4f7;
+  --sky-dawn: linear-gradient(160deg, #f8cba6, #ee9f8b);
+  --sky-dawn-ink: #4a2418;
+  --sky-day: linear-gradient(160deg, #e8f3ff, #c8e0fa);
+  --sky-day-ink: #1c3049;
+  --sky-dusk: linear-gradient(160deg, #8d72b2, #d98b7a);
+  --sky-dusk-ink: #2a1830;
+
   color-scheme: light dark;
 }
 
@@ -92,6 +169,37 @@
     --warn-soft: #2b2110;
     --bad: #f87171;
     --bad-soft: #2e1514;
+
+    /* Elevation inverts its mechanism rather than its values. A drop shadow on a #0b0e13
+       canvas is invisible — there is no light for it to block. In the dark the thing that
+       says "this is above that" is a lit top edge, so every rung leads with an inset
+       highlight and the shadow only deepens the separation underneath. */
+    --elev-0: inset 0 1px 3px rgb(0 0 0 / 0.45);
+    --elev-1:
+      inset 0 1px 0 rgb(255 255 255 / 0.04),
+      0 1px 2px rgb(0 0 0 / 0.5);
+    --elev-2:
+      inset 0 1px 0 rgb(255 255 255 / 0.07),
+      0 1px 2px rgb(0 0 0 / 0.6),
+      0 10px 24px -12px rgb(0 0 0 / 0.9);
+    --elev-3:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 12px 32px -8px rgb(0 0 0 / 0.75);
+    --elev-4:
+      inset 0 1px 0 rgb(255 255 255 / 0.09),
+      0 28px 64px -12px rgb(0 0 0 / 0.85);
+
+    /* Dimmer skies. The light-theme values are lit for a white masthead and glow like
+       lamps against a dark one — the phase has to stay readable without becoming the
+       brightest thing in the chrome. */
+    --sky-night: linear-gradient(160deg, #1b2540, #121a2e);
+    --sky-night-ink: #b9c6e2;
+    --sky-dawn: linear-gradient(160deg, #7d4a33, #5a3626);
+    --sky-dawn-ink: #f3d6c4;
+    --sky-day: linear-gradient(160deg, #2a4666, #1e3350);
+    --sky-day-ink: #cfe2f7;
+    --sky-dusk: linear-gradient(160deg, #4a3560, #6b4242);
+    --sky-dusk-ink: #e9d5dd;
   }
 }
 
@@ -122,6 +230,49 @@
 
   --font-sans: var(--font-ui);
   --font-mono: var(--font-mono);
+
+  /* Sky is exported so a phase can be set from JSX by data attribute or class without
+     each consumer restating the gradient. */
+  --color-sky-night-ink: var(--sky-night-ink);
+  --color-sky-dawn-ink: var(--sky-dawn-ink);
+  --color-sky-day-ink: var(--sky-day-ink);
+  --color-sky-dusk-ink: var(--sky-dusk-ink);
+
+  /* The scale, as utilities: `text-md`, `rounded-lg`, `shadow-elev-2`. Screens still hold
+     arbitrary literals (`text-[13.5px]`) from before the scale existed; those migrate as
+     each screen is edited, and new code has no reason to invent a size. */
+  --text-2xs: var(--fs-2xs);
+  --text-2xs--line-height: 1.3;
+  --text-2xs--letter-spacing: 0.06em;
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: 1.35;
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: 1.4;
+  --text-base: var(--fs-base);
+  --text-base--line-height: 1.45;
+  --text-md: var(--fs-md);
+  --text-md--line-height: 1.4;
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: 1.35;
+  --text-lg--letter-spacing: -0.01em;
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: 1.3;
+  --text-xl--letter-spacing: -0.015em;
+  --text-2xl: var(--fs-2xl);
+  --text-2xl--line-height: 1.25;
+  --text-2xl--letter-spacing: -0.02em;
+
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+
+  --shadow-elev-0: var(--elev-0);
+  --shadow-elev-1: var(--elev-1);
+  --shadow-elev-2: var(--elev-2);
+  --shadow-elev-3: var(--elev-3);
+  --shadow-elev-4: var(--elev-4);
 }
 
 @layer base {
@@ -155,13 +306,37 @@
   ::-webkit-scrollbar-thumb {
     background: var(--line-strong);
     border: 3px solid var(--surface);
-    border-radius: 6px;
+    border-radius: var(--r-sm);
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--ink-faint);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  /* Proportional digits shift width as they change, so anything that ticks or recounts
+     jitters in place — the header clocks re-lay out every minute, and a stat going 9 → 10
+     nudges its label. Monospace text is already fixed-width; this is for the UI face. */
+  .tabular,
+  .kbd,
+  .rows td,
+  .day-chip__num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Nothing in this product needs motion to be understood: `grid.css` states outright that
+     nothing decorative moves, and the transitions that do exist are hover feedback. Honour
+     the OS setting rather than making someone watch them. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -173,8 +348,8 @@
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 10px;
-    box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+    border-radius: var(--r-lg);
+    box-shadow: var(--elev-1);
   }
 
   /* --- Buttons ------------------------------------------------------------ */
@@ -185,7 +360,7 @@
     height: 32px;
     padding: 0 12px;
     border: 1px solid var(--line-strong);
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--surface);
     color: var(--ink);
     font: inherit;
@@ -236,7 +411,7 @@
     height: 26px;
     padding: 0 9px;
     font-size: 12px;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
   }
   .btn--icon {
     width: 32px;
@@ -251,7 +426,7 @@
     gap: 5px;
     height: 22px;
     padding: 0 8px;
-    border-radius: 999px;
+    border-radius: var(--r-full);
     background: var(--surface-sunken);
     color: var(--ink-muted);
     font-size: 11.5px;
@@ -298,7 +473,7 @@
     height: 32px;
     padding: 0 10px;
     border: 1px solid var(--line-strong);
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--surface);
     color: var(--ink);
     font: inherit;
@@ -320,7 +495,7 @@
     height: 32px;
     padding: 0 10px;
     border: 1px solid var(--line-strong);
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--surface);
     color: var(--ink);
     font: inherit;
@@ -340,9 +515,9 @@
     min-width: var(--radix-select-trigger-width);
     padding: 5px;
     border: 1px solid var(--line);
-    border-radius: 9px;
+    border-radius: var(--r-lg);
     background: var(--surface);
-    box-shadow: 0 10px 30px -8px rgb(16 24 40 / 0.22);
+    box-shadow: var(--elev-3);
     /* Above `.dialog` (71): a Select opened from inside a Dialog portals to
        body as a sibling, not a child, so it must outrank the dialog's own
        overlay (70) by z-index alone or the overlay swallows every click. */
@@ -350,7 +525,7 @@
   }
   .select__item {
     padding: 6px 9px;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     font-size: 13px;
     cursor: pointer;
     outline: none;
@@ -398,11 +573,9 @@
     min-width: 200px;
     padding: 5px;
     border: 1px solid var(--line);
-    border-radius: 9px;
+    border-radius: var(--r-lg);
     background: var(--surface);
-    box-shadow:
-      0 10px 30px -8px rgb(16 24 40 / 0.22),
-      0 2px 6px -2px rgb(16 24 40 / 0.12);
+    box-shadow: var(--elev-3);
     z-index: 60;
   }
   .menu-item {
@@ -412,7 +585,7 @@
     width: 100%;
     padding: 6px 9px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--ink);
     font: inherit;
@@ -466,7 +639,7 @@
     margin: 3px 2px 5px;
     padding: 8px 9px;
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-    border-radius: 8px;
+    border-radius: var(--r-md);
     background: color-mix(in srgb, var(--accent) 8%, var(--surface));
     color: var(--ink);
     font: inherit;
@@ -484,7 +657,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--accent);
     color: var(--accent-ink);
     font-family: var(--font-mono);
@@ -513,7 +686,7 @@
     margin: 2px 1px 4px;
     padding: 6px 8px 8px;
     border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--accent-soft);
   }
   .menu-decide__label {
@@ -537,7 +710,7 @@
     height: 26px;
     padding: 0 8px;
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: var(--r-full);
     background: var(--surface);
     color: var(--ink);
     font: inherit;
@@ -564,7 +737,7 @@
     padding: 0 3px;
     border: 1px solid var(--line-strong);
     border-bottom-width: 2px;
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     background: var(--surface-sunken);
     color: var(--ink-muted);
     font-family: var(--font-mono);
@@ -602,7 +775,7 @@
     width: 28px;
     height: 28px;
     flex: none;
-    border-radius: 9px;
+    border-radius: var(--r-lg);
     background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent) 55%, color-mix(in srgb, var(--accent) 72%, black));
     color: var(--accent-ink);
     font-size: 13px;
@@ -626,7 +799,7 @@
   .tab {
     position: relative;
     padding: 7px 13px 9px;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--r-md) var(--r-md) 0 0;
     color: var(--ink-muted);
     font-size: 13.5px;
     font-weight: 500;
@@ -663,7 +836,7 @@
     width: 32px;
     height: 32px;
     flex: none;
-    border-radius: 999px;
+    border-radius: var(--r-full);
     background: var(--surface);
     color: var(--accent);
     font-size: 12px;
@@ -678,13 +851,13 @@
     display: inline-flex;
     padding: 2px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-md);
     background: var(--surface-sunken);
   }
   .segmented__item {
     padding: 4px 9px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: none;
     color: var(--ink-muted);
     font: inherit;
@@ -700,7 +873,7 @@
   .segmented__item[data-active='true'] {
     background: var(--surface);
     color: var(--accent);
-    box-shadow: 0 1px 2px rgb(16 24 40 / 0.1);
+    box-shadow: var(--elev-1);
   }
 
   /* --- Day strip -------------------------------------------------------------- */
@@ -715,7 +888,7 @@
     align-items: center;
     padding: 3px 0 4px;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     background: var(--surface-sunken);
     color: var(--ink-muted);
     font: inherit;
@@ -766,7 +939,7 @@
     position: relative;
     height: 30px;
     border: 1px solid var(--line);
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: var(--surface-sunken);
     cursor: pointer;
     user-select: none;
@@ -841,9 +1014,9 @@
     max-height: calc(100vh - 64px);
     padding: 20px;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--r-xl);
     background: var(--surface);
-    box-shadow: 0 24px 60px -12px rgb(16 24 40 / 0.35);
+    box-shadow: var(--elev-4);
     overflow: auto;
     z-index: 71;
   }
@@ -890,7 +1063,7 @@
   .tooltip {
     max-width: 320px;
     padding: 6px 9px;
-    border-radius: 7px;
+    border-radius: var(--r-md);
     background: #101828;
     color: #f9fafb;
     font-size: 12px;
