@@ -1020,10 +1020,14 @@
 
 /* Sticks below the page header rather than at the top of the scroller, which is where
    the header already is — without the offset the month name slides underneath it and the
-   only thing telling you which month you are looking at disappears as you scroll. */
+   only thing telling you which month you are looking at disappears as you scroll.
+
+   The offset is the header's height, so it is declared as a variable on the scroller in
+   `MyCalendarPage` rather than repeated as a number here: the two are one measurement, and
+   as a bare literal it silently went wrong the moment the header grew a second line. */
 .calendar__title {
   position: sticky;
-  top: 40px;
+  top: var(--calendar-header-h, 40px);
   z-index: 5;
   padding: 4px 0 8px;
   background: var(--surface);

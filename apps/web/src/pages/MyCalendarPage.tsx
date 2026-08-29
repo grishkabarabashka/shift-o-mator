@@ -14,7 +14,7 @@
  * builds a dataset of one person and runs the same three functions the grid does.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { DateTime } from 'luxon';
 import { useMyCalendar } from '../api/myCalendar.ts';
 import { buildIndex } from '../domain/lookup.ts';
@@ -175,17 +175,34 @@ export function MyCalendarPage() {
   if (!reference || !selfId) return null;
 
   return (
-    <div className="flex h-full min-h-0 gap-3 p-4">
-      <div ref={scroller} className="card min-w-0 flex-1 overflow-y-auto">
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
-          <h1 className="text-[15px] font-semibold tracking-tight">My calendar</h1>
-          <span className="text-[11.5px] text-muted">
+    /* WHY the row is centred and the calendar is measured (ADR-0056): a month stretched to
+       a 1920px card gives a day box 230px wide and 76px tall, which is a shape no calendar
+       has ever had — the week reads as a row of banners rather than a grid. A month wants
+       to be roughly as wide as it is tall. Only the planning grid earns the full width,
+       and it earns it by having eighty rows and a horizontal axis. */
+    <div className="flex h-full min-h-0 justify-center gap-4 p-4">
+      <div
+        ref={scroller}
+        className="card w-[clamp(340px,40vw,560px)] shrink-0 overflow-y-auto shadow-elev-2"
+        // The month names stick below this header; `.calendar__title` reads the height from
+        // here so the two cannot drift apart.
+        style={{ '--calendar-header-h': '62px' } as CSSProperties}
+      >
+        {/* The one surface this screen exists for, so it is the one that sits on --elev-2. */}
+        <header className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-3">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-lg font-semibold">My calendar</h1>
+            {calendar.isFetching ? (
+              <span className="ml-auto text-xs text-faint">Loading…</span>
+            ) : null}
+          </div>
+          {/* On its own line rather than trailing the title: as a tail it was a caption on
+              the heading, and the one instruction telling somebody how to use this screen
+              should not read as a subtitle. */}
+          <p className="mt-0.5 text-xs text-muted">
             Right-click a day &mdash; or drag across several &mdash; to ask for time off or
             say where you are working.
-          </span>
-          {calendar.isFetching ? (
-            <span className="ml-auto text-[11px] text-faint">Loading…</span>
-          ) : null}
+          </p>
         </header>
 
         <div className="flex justify-center border-b border-line py-2">

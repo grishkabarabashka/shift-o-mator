@@ -52,7 +52,12 @@ export function RequestsPage({ view }: { readonly view: PlanningView }) {
   const inbox = useRequests('inbox');
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-4">
+    /* Measured and centred (ADR-0056). This screen is a form of small fields and three
+       short lists; run to 1920px it put a 150px date input at one end of the monitor and
+       its label at the other, and every list row became a line of text with a hundred
+       characters of white space after it. Settings already does this at 1200px — a form is
+       narrower still. */
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[880px] flex-col gap-3 overflow-y-auto p-4">
       <NewRequestCard locations={view.locations} />
 
 
