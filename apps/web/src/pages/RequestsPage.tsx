@@ -83,7 +83,7 @@ export function RequestsPage({ view }: { readonly view: PlanningView }) {
             </div>
           ))
         ) : (
-          <p className="text-[12.5px] text-faint">Nothing needs your decision.</p>
+          <ListFallback query={inbox} empty="Nothing needs your decision." />
         )}
       </section>
 
@@ -96,11 +96,43 @@ export function RequestsPage({ view }: { readonly view: PlanningView }) {
             ))}
           </ul>
         ) : (
-          <p className="text-[12.5px] text-faint">You have not asked for anything yet.</p>
+          <ListFallback query={mine} empty="You have not asked for anything yet." />
         )}
       </section>
     </div>
   );
+}
+
+/**
+ * What a list says when it has nothing to show.
+ *
+ * WHY it is not just the empty sentence: both lists rendered their empty copy whenever
+ * `data` was falsy, and a failed fetch makes `data` falsy. "Nothing needs your decision"
+ * was therefore also what an approver saw when the API was unreachable — an error state
+ * that reads as good news, which is the worst way for one to read. `retry: 1` and no global
+ * error handler (`api/queryClient.ts`) meant nothing else would have said so either.
+ */
+function ListFallback({
+  query,
+  empty,
+}: {
+  readonly query: { readonly isError: boolean; readonly isLoading: boolean; readonly refetch: () => unknown };
+  readonly empty: string;
+}) {
+  if (query.isLoading) return <p className="text-sm text-faint">Loading…</p>;
+
+  if (query.isError) {
+    return (
+      <div role="alert" className="flex items-center gap-3 text-sm text-bad">
+        <span>This list could not be loaded.</span>
+        <button type="button" className="btn btn--sm" onClick={() => void query.refetch()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return <p className="text-sm text-faint">{empty}</p>;
 }
 
 interface SubjectGroup {

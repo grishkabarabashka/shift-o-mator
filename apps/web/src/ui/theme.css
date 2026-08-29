@@ -36,7 +36,11 @@
      merely grey. */
   --ink: #1c2634;
   --ink-muted: #6b7688;
-  --ink-faint: #98a1b0;
+  /* Was #98a1b0, which is ≈2.7:1 on white — failing WCAG AA (4.5:1) and failing even the
+     3:1 bar for large text. It carries 107 usages, and they are not decorative: the empty
+     states, the heatmap legend, and the one line telling somebody that right-click is how
+     you edit the grid. Everything wearing it gets darker, which is the point (ADR-0057). */
+  --ink-faint: #727d8d;
 
   /* Accent */
   --accent: #2563eb;
@@ -156,7 +160,8 @@
 
     --ink: #e5e9ef;
     --ink-muted: #8e9aa9;
-    --ink-faint: #6b7785;
+    /* Same correction against #141920: the old #6b7785 was ≈3.4:1 there. */
+    --ink-faint: #7c8898;
 
     --accent: #4f8cf7;
     --accent-hover: #6ba0ff;
@@ -466,6 +471,31 @@
   .pill[data-active='true'] {
     background: var(--accent);
     color: var(--accent-ink);
+  }
+
+  /* --- Toasts (ADR-0057) ------------------------------------------------------
+   * Elevated well clear of the page: this is the one thing on screen that arrived without
+   * being asked for, and it has to read as a layer rather than as part of the work. */
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    max-width: min(520px, calc(100vw - 32px));
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--fs-base);
+    box-shadow: var(--elev-4);
+  }
+  /* A 4px edge rather than a tinted background: the message is ordinary text and should
+     read as such, while the edge answers "good or bad" before the sentence is parsed. */
+  .toast--ok {
+    border-left: 4px solid var(--ok);
+  }
+  .toast--bad {
+    border-left: 4px solid var(--bad);
   }
 
   /* --- Location clocks (ADR-0057) --------------------------------------------

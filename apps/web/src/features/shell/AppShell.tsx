@@ -30,6 +30,7 @@ import { Select, type SelectOption } from '../../ui/primitives.tsx';
 import { useRoleAssignments } from '../../api/roleAssignments.ts';
 import { useCapabilities } from '../../auth/useCapabilities.ts';
 import { NotificationBell } from './NotificationBell.tsx';
+import { ToastViewport } from '../../ui/ToastViewport.tsx';
 
 export interface NavItem {
   readonly to: string;
@@ -73,6 +74,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
       <main id="content" className="min-h-0 flex-1 overflow-auto">
         {children}
       </main>
+      <ToastViewport />
     </div>
   );
 }

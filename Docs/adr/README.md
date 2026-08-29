@@ -57,6 +57,7 @@ not something else?"
 | [0054](0054-presence-types-are-an-open-set.md) | Presence types are an open set; the two branches become columns (reopens 0053) | accepted |
 | [0055](0055-a-personal-calendar-and-a-feed.md) | A personal calendar, and a feed anybody can subscribe to (extends 0050) | accepted |
 | [0056](0056-one-live-comp-day-request.md) | At most one live comp-day placement request (narrows 0052) | accepted |
+| [0057](0057-a-language-of-surfaces.md) | A language of surfaces: light, measure, elevation (extends 0022, 0013) | accepted |
 
 ## Superseded decisions (archive)
 

@@ -12,8 +12,10 @@ Phases 0–6 completed the HTTP cutover; 7–8 were the model rework (Region del
 absolute-time `Shift`); **Phase 9** made the product production-shaped and absorbed the
 self-service portal; **Phase 10** made the grid one grid for everybody; **Phase 11**
 rebuilt authorization (roles are a scoped set) and split the write paths (drafts publish
-the rota; time off and presence are written directly and reviewed by approval). Code and
-design agree; the ADR index is complete through 0052.
+the rota; time off and presence are written directly and reviewed by approval);
+**Phase 12** gave the UI a design language (elevation, measure, a type scale, real
+breakpoints) and a feedback layer. Code and design agree; the ADR index is complete
+through 0057.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -317,6 +319,26 @@ dotnet test
     `+ Absence` / `+ Presence` toolbar buttons: right-click does both in one click on the
     cells already selected. (ADR-0050)
 
+34. **Light is information, measure is focus.** Elevation is a ladder of five (`--elev-0`
+    … `--elev-4`) with one rule: **exactly one surface per screen sits on `--elev-2`**, the
+    one the screen exists for. In dark mode elevation inverts its *mechanism* — a lit top
+    edge, because a shadow on a `#0b0e13` canvas has no light to block. Only the planning
+    grid is full-bleed; My calendar and Requests are measured and centred, which is what
+    makes the grid read as the instrument. The header clocks carry their own sky from
+    `skyPhase`, which shares `nightBands`' constants so the header and Overview's axis
+    cannot disagree about what night is — and `--sky-*` is a **separate** family from the
+    semantic palette, because a sunset drawn in `--warn` would read as a warning about
+    Chicago. Narrow viewports get a different *control*, never a missing one. (ADR-0057)
+
+35. **Success has a channel, and failure keeps its own.** `ui/toasts.ts` plus one
+    `ToastViewport` (`role="status"` for success, `role="alert"` for failure — before this
+    there was no live region anywhere). It does **not** replace the three failure surfaces:
+    a failed publish keeps its banner, because that message belongs beside the draft it is
+    about, and field errors stay at their fields. **Toasts are raised from `features`,
+    never from `store`** — the layering runs downward, and `store` reaching into `ui` is
+    the first edge going the wrong way. `ui/ErrorBoundary.tsx` is the one class component
+    in the codebase; `getDerivedStateFromError` has no hook equivalent. (ADR-0057)
+
 ## Technical decisions
 
 - Frontend: React 19 + Vite + TypeScript (strict), react-router, TanStack Query for
@@ -484,5 +506,8 @@ Not bugs — things the design names and has not built. Full list in
   `Holidays:AllowedCalendarHosts`) and **adds days that are missing, never removing one**.
   A real sync needs a scheduler and an answer to "the feed dropped a day people are already
   rostered off for", and neither exists.
-- **No mobile or tablet story.** Zero touch/pointer handlers; painting, range selection
-  and the scrubber are mouse-only, and the side panels are fixed-width.
+- **The layout is responsive; the *interaction* is not.** Phase 12 gave the app real
+  breakpoints — the clock strip collapses to one clock plus a popover, the issue panel
+  becomes a drawer, My calendar stacks — so nothing is unreachable on a narrow screen. What
+  is still missing is touch: zero touch/pointer handlers, so painting, range selection and
+  the scrubber remain mouse-only. A phone can read this product and cannot plan with it.

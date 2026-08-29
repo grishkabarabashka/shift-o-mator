@@ -19,6 +19,7 @@ import { summarizeChanges } from '../../domain/draft.ts';
 import type { DraftChange } from '../../domain/types.ts';
 import { canPublish } from '../../engine/issues.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
+import { toast } from '../../ui/toasts.ts';
 import type { PlanningView } from './usePlanningView.ts';
 
 interface Props {
@@ -41,9 +42,23 @@ export function ReviewDialog({ view, open, onClose }: Props) {
   const groups = useMemo(() => groupByPerson(changes, view), [changes, view]);
 
   const onPublish = async (): Promise<void> => {
+    // Read before publishing: a successful publish clears the draft, so afterwards the
+    // count is always zero.
+    const count = changes.length;
     const outcome = await publish();
     // NOTE: Close only on success: a conflict needs to be shown right here.
-    if (outcome?.ok) onClose();
+    if (!outcome?.ok) return;
+
+    onClose();
+    // WHY the toast is raised here and not inside the store action: `store` sits below
+    // `features` in the layering, and reaching up into `ui` from it would be the first
+    // edge that goes the wrong way. A failed publish keeps its own banner — that message
+    // has to stay on screen beside the draft it is about (ADR-0057).
+    toast.ok(
+      count === 1
+        ? 'Published. 1 change is now live for everybody.'
+        : `Published. ${count} changes are now live for everybody.`,
+    );
   };
 
   if (!open) return null;

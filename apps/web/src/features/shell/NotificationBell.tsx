@@ -63,7 +63,15 @@ export function NotificationBell() {
           </div>
 
           {items.length === 0 ? (
-            <p className="px-1 py-2 text-[12.5px] text-faint">Nothing yet.</p>
+            // An unreachable API also produces no items, and "Nothing yet." is a
+            // reassuring thing to say about a notification list that failed to load.
+            query.isError ? (
+              <p role="alert" className="px-1 py-2 text-sm text-bad">
+                The inbox could not be loaded.
+              </p>
+            ) : (
+              <p className="px-1 py-2 text-sm text-faint">Nothing yet.</p>
+            )
           ) : (
             <ul className="max-h-[50vh] overflow-y-auto">
               {items.slice(0, 20).map((item) => (

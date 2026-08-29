@@ -140,31 +140,56 @@ export function useAdminEdits() {
     setSaving(true);
     const nextErrors = new Map<string, FieldErrors>();
     const succeeded: string[] = [];
-    for (const [mapKey, entry] of pending) {
-      const ops = opsByEntity[entry.entity];
-      if (!ops) continue;
-      try {
-        if (entry.op.kind === 'update') {
-          await ops.update(entry.op.id, ops.toRequest(entry.op.patch as never));
-        } else if (entry.op.kind === 'create') {
-          await ops.create(ops.toRequest(entry.op.patch as never));
-        } else {
-          await ops.remove(entry.op.id);
+    // Anything that is not a per-field rejection: a 500, a dropped connection, a bug. It is
+    // returned rather than thrown (see below), so the caller can say so.
+    let failure: string | undefined;
+
+    try {
+      for (const [mapKey, entry] of pending) {
+        const ops = opsByEntity[entry.entity];
+        if (!ops) continue;
+        try {
+          if (entry.op.kind === 'update') {
+            await ops.update(entry.op.id, ops.toRequest(entry.op.patch as never));
+          } else if (entry.op.kind === 'create') {
+            await ops.create(ops.toRequest(entry.op.patch as never));
+          } else {
+            await ops.remove(entry.op.id);
+          }
+          succeeded.push(mapKey);
+        } catch (error) {
+          if (error instanceof AdminValidationError) {
+            nextErrors.set(mapKey, error.fieldErrors);
+            continue;
+          }
+          // WHY this no longer rethrows: it was thrown out of an async click handler, where
+          // nothing catches it — React's boundaries do not see rejected promises. The
+          // result was an unhandled rejection and a button stuck on "Saving…" forever,
+          // because the `setSaving(false)` below was never reached. Stop at the first such
+          // failure: if the API is down, the remaining rows will fail the same way, and
+          // twenty identical errors is not more information than one.
+          failure = error instanceof Error ? error.message : 'The change could not be saved.';
+          break;
         }
-        succeeded.push(mapKey);
-      } catch (error) {
-        if (error instanceof AdminValidationError) nextErrors.set(mapKey, error.fieldErrors);
-        else throw error;
       }
+
+      setPending((prev) => {
+        const next = new Map(prev);
+        for (const key of succeeded) next.delete(key);
+        return next;
+      });
+      setErrors(nextErrors);
+
+      return {
+        ok: nextErrors.size === 0 && failure === undefined,
+        savedCount: succeeded.length,
+        failedCount: nextErrors.size,
+        ...(failure ? { failure } : {}),
+      };
+    } finally {
+      // In a `finally` so the button comes back even if something above throws anyway.
+      setSaving(false);
     }
-    setPending((prev) => {
-      const next = new Map(prev);
-      for (const key of succeeded) next.delete(key);
-      return next;
-    });
-    setErrors(nextErrors);
-    setSaving(false);
-    return { ok: nextErrors.size === 0, failedCount: nextErrors.size };
   }
 
   return {

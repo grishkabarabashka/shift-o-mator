@@ -68,6 +68,7 @@ import { useSchedule } from '../store/useSchedule.ts';
 import { APP_ROLES, type AppRole } from '../auth/AuthProvider.tsx';
 import { useCapabilities } from '../auth/useCapabilities.ts';
 import { useGrantRole, useRevokeRole, useRoleAssignments } from '../api/roleAssignments.ts';
+import { toast } from '../ui/toasts.ts';
 
 const TABS = [
   'Units',
@@ -227,7 +228,18 @@ export function SettingsPage() {
       <DirtyBar
         dirtyCount={edits.dirtyCount}
         saving={saving}
-        onSaveAll={() => void edits.saveAll(opsByEntity)}
+        // The result was computed and thrown away, so a partial save — three rows written,
+        // two rejected — was communicated only by the fact that two rows stayed dirty.
+        onSaveAll={() => {
+          void edits.saveAll(opsByEntity).then((result) => {
+            if (result.failure) toast.bad(result.failure);
+            else if (result.ok) toast.ok(`Saved ${result.savedCount} ${rowWord(result.savedCount)}.`);
+            else
+              toast.bad(
+                `Saved ${result.savedCount}; ${result.failedCount} ${rowWord(result.failedCount)} rejected — see the highlighted fields.`,
+              );
+          });
+        }}
         onCancelAll={edits.cancelAll}
       />
 
@@ -1499,4 +1511,9 @@ function GlobalAdminNotice({ reference, what }: { readonly reference: Reference;
         : 'Nobody holds that grant — a global admin has to be granted on the Roles tab first.'}
     </p>
   );
+}
+
+/** "1 row" / "2 rows" — a count with the wrong plural beside it reads as a bug. */
+function rowWord(count: number): string {
+  return count === 1 ? 'row' : 'rows';
 }

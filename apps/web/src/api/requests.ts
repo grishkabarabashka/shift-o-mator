@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, qs } from './client.ts';
 import { camelToUpperSnake, upperSnakeToCamel } from './mapping.ts';
 import type { DayPortion, IsoDate, IsoInstant, PersonId } from '../domain/types.ts';
+import { toast } from '../ui/toasts.ts';
 
 export type RequestState =
   | 'DRAFT'
@@ -204,11 +205,23 @@ export function useNotifications() {
  * is already showing. Without this the approver sees "approved" and the schedule behind
  * them still shows the old week until something else happens to refetch.
  */
-function useRequestMutation<TArgs>(fn: (args: TArgs) => Promise<unknown>) {
+function useRequestMutation<TArgs>(
+  fn: (args: TArgs) => Promise<unknown>,
+  /** What to say when it worked. One place per family covers create, decide and cancel. */
+  successMessage?: string,
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,
+    // WHY here and not per call site: `decide.isError` and `cancel.isError` were never
+    // rendered anywhere, so approving with the API down re-enabled the button and said
+    // nothing at all — the request stayed in the inbox and the approver had no reason to
+    // think their click had failed rather than been ignored.
+    onError: (error: unknown) => {
+      toast.bad(error instanceof Error ? error.message : 'That did not go through.');
+    },
     onSuccess: async () => {
+      if (successMessage) toast.ok(successMessage);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['requests'] }),
         queryClient.invalidateQueries({ queryKey: ['notifications'] }),
@@ -251,6 +264,7 @@ export function useCreateRequest() {
       siteLabel: args.siteLabel ?? null,
       portion: (args.portion ?? 'FULL').toLowerCase(),
     }),
+    'Request sent. It is now waiting on an approver.',
   );
 }
 
@@ -264,12 +278,14 @@ export function useDecideRequest() {
       decision: upperSnakeToCamel(args.decision),
       comment: args.comment ?? null,
     }),
+    'Decision recorded. The schedule has been updated.',
   );
 }
 
 export function useCancelRequest() {
-  return useRequestMutation<{ readonly id: string }>((args) =>
-    apiPost(`/api/requests/${args.id}/cancel`),
+  return useRequestMutation<{ readonly id: string }>(
+    (args) => apiPost(`/api/requests/${args.id}/cancel`),
+    'Request withdrawn.',
   );
 }
 

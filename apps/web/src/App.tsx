@@ -14,6 +14,7 @@ import { TooltipProvider } from './ui/primitives.tsx';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
 import { useNow } from './ui/useNow.ts';
+import { ErrorBoundary } from './ui/ErrorBoundary.tsx';
 import { AppShell } from './features/shell/AppShell.tsx';
 import { usePlanningView } from './features/planning/usePlanningView.ts';
 import { DayDrilldownPage } from './pages/DayDrilldownPage.tsx';
@@ -51,8 +52,20 @@ export function App() {
       <TooltipProvider>
         <BrowserRouter>
           <AppShell>
-            {status === 'error' ? (
-              <Placeholder title="Could not load the schedule" body={error ?? 'Unknown error'} />
+            {/* Inside the shell, so a screen that throws leaves the header and the tabs
+                usable — one broken screen you can navigate away from, rather than a white
+                page and a lost session. */}
+            <ErrorBoundary title="This screen could not be shown">
+              {status === 'error' ? (
+              <Placeholder
+                title="Could not load the schedule"
+                body={error ?? 'Unknown error'}
+                // WHY a button and not just the message: this was a dead end. The load is a
+                // store action nothing re-invoked on demand, so the only way out of a
+                // dropped connection or a restarting API was to reload the page — and
+                // nothing on screen said so.
+                action={{ label: 'Try again', onClick: () => void load(unitId, range) }}
+              />
             ) : !view.ready ? (
               <Placeholder title="Loading…" body="Reading the published plan." />
             ) : (
@@ -70,7 +83,8 @@ export function App() {
                 <Route path="/timeline" element={<Navigate to="/overview" replace />} />
                 <Route path="*" element={<Navigate to="/overview" replace />} />
               </Routes>
-            )}
+              )}
+            </ErrorBoundary>
           </AppShell>
         </BrowserRouter>
       </TooltipProvider>
@@ -124,12 +138,25 @@ function UnsavedWorkGuard() {
   return null;
 }
 
-function Placeholder({ title, body }: { readonly title: string; readonly body: string }) {
+function Placeholder({
+  title,
+  body,
+  action,
+}: {
+  readonly title: string;
+  readonly body: string;
+  readonly action?: { readonly label: string; readonly onClick: () => void };
+}) {
   return (
     <div className="grid h-full place-items-center p-8">
       <div className="max-w-md text-center">
-        <h2 className="text-[16px] font-semibold">{title}</h2>
-        <p className="mt-1 text-[13px] text-muted">{body}</p>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="mt-1 text-base text-muted">{body}</p>
+        {action ? (
+          <button type="button" className="btn btn--sm btn--primary mt-3" onClick={action.onClick}>
+            {action.label}
+          </button>
+        ) : null}
       </div>
     </div>
   );
