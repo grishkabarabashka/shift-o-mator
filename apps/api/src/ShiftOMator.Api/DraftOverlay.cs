@@ -34,9 +34,6 @@ public static class DraftOverlay
                     case DraftTargetType.Assignment:
                         ApplyOne(assignments, change, a => a.Id);
                         break;
-                    case DraftTargetType.Absence:
-                        ApplyOne(absences, change, a => a.Id);
-                        break;
                     case DraftTargetType.CompDay:
                         ApplyOne(compDays, change, c => c.Id);
                         break;

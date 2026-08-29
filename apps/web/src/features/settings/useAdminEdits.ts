@@ -22,6 +22,8 @@ export type AdminEntity =
   | 'shift'
   | 'unit'
   | 'absenceCapacityRule'
+  | 'eventType'
+  | 'presenceType'
   | 'person';
 
 type PendingOp =

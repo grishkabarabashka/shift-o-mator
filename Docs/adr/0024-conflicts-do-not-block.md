@@ -1,6 +1,10 @@
 # ADR-0024. A conflict is acknowledged, not blocked
 
-**Status:** accepted — amends [ADR-0009](0009-three-severity-levels.md)
+**Status:** accepted — amends [ADR-0009](0009-three-severity-levels.md).
+
+> **Note.** This ADR's text says gaps and corrupt data still block publication. The gap
+> half was reversed by [ADR-0035](0035-coverage-gap-does-not-block-publication.md); only
+> corrupt data blocks now.
 
 ## Context
 

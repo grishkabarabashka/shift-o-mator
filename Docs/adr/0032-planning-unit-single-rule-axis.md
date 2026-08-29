@@ -1,6 +1,9 @@
 # ADR-0032. PlanningUnit is the single rule axis
 
-**Status:** accepted — **supersedes [ADR-0004](0004-roles-belong-to-unit.md) and [ADR-0020](0020-planning-unit-and-region.md)**
+**Status:** accepted — **supersedes [ADR-0004](0004-roles-belong-to-unit.md) and [ADR-0020](0020-planning-unit-and-region.md)**.
+Its "no unit scoping of write access" rule is **narrowed by
+[ADR-0051](0051-roles-are-a-scoped-set.md)**: roles are granted per unit, with a global
+grant available for the cross-unit planner this rule was written for.
 
 ## Context
 

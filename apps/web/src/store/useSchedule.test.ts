@@ -3,6 +3,7 @@ import { queryClient } from '../api/queryClient.ts';
 import { mockBackend, resetMockApi, server } from '../testUtils/mockApi.ts';
 import { DEFAULT_UNIT } from '../testUtils/mockDataset.ts';
 import { useSchedule } from './useSchedule.ts';
+import { ALL_UNITS } from '../domain/types.ts';
 
 const RANGE = { from: '2026-08-01', to: '2026-08-31' } as const;
 
@@ -133,18 +134,6 @@ describe('cell edits', () => {
     expect(cellShiftId(person.id, date)).toBeUndefined();
   });
 
-  it('sets a roster marker', () => {
-    const { person } = personWithShift('Cover');
-    if (!person) return;
-    const date = freeDate(person.id);
-
-    useSchedule.getState().setMarker([{ personId: person.id, date }], 'OFF');
-    const assignment = useSchedule
-      .getState()
-      .plan?.assignments.find((a) => a.personId === person.id && a.date === date);
-    expect(assignment?.content).toEqual({ kind: 'MARKER', marker: 'OFF' });
-  });
-
   it('paints a range as one batch', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
@@ -158,6 +147,39 @@ describe('cell edits', () => {
 
     useSchedule.getState().undo();
     expect(dates.every((date) => cellShiftId(person.id, date) !== shift.id)).toBe(true);
+  });
+});
+
+describe('changing what is on screen', () => {
+  /**
+   * The defect: `load()` blanked `session` and `changes`, so a planner who had painted a
+   * period and then switched the view — one unit to all of them, or one month to the next
+   * — watched their staged cells disappear and the Publish button go with them. Nothing
+   * had been lost: the draft was still open on the server, and every *other* user could
+   * see the cells hatched as somebody else's work in progress.
+   */
+  it('resumes the open draft instead of dropping it', async () => {
+    await loadStore();
+    const { shift, person } = personWithShift('Lead');
+    const date = freeDate(person!.id);
+    useSchedule.getState().setCell(person!.id, date, shift!.id);
+    const sessionId = useSchedule.getState().session?.id;
+    expect(sessionId).toBeDefined();
+
+    // Same period, wider scope — the combined view, which is not a unit at all.
+    await useSchedule.getState().load(ALL_UNITS, RANGE);
+
+    expect(useSchedule.getState().session?.id).toBe(sessionId);
+    expect(cellShiftId(person!.id, date)).toBe(shift!.id);
+  });
+
+  it('opens nothing where there is nothing to resume', async () => {
+    // Looking at a unit must not mint an empty draft in it: resuming is not opening.
+    resetMockApi();
+    queryClient.clear();
+    await useSchedule.getState().load(DEFAULT_UNIT, RANGE);
+
+    expect(useSchedule.getState().session).toBeUndefined();
   });
 });
 
@@ -215,40 +237,33 @@ describe('absences', () => {
     await loadStore();
   });
 
-  it('setAbsences creates several records as one undo batch', () => {
-    const people = useSchedule
+  it('saveAbsence writes straight through, with no draft and no undo step', async () => {
+    // The whole point of the split (ADR-0052): drafts publish the rota, and time off is
+    // not part of that decision. It used to be staged in whatever draft happened to be
+    // open, so a sick day sat invisible until an unrelated planner published — and a
+    // non-planner recording one got a 403 from an endpoint they had no business calling.
+    const person = useSchedule
       .getState()
-      .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isIncluded)
-      .slice(0, 2);
-    if (!people || people.length < 2) return;
+      .reference?.people.find((p) => p.unitId === DEFAULT_UNIT && p.isIncluded);
+    if (!person) return;
 
-    const before = useSchedule.getState().undoStack.length;
-    useSchedule.getState().setAbsences(
-      people.map((person, i) => ({
-        id: `abs-test-${i}`,
-        personId: person.id,
-        type: 'VACATION' as const,
-        from: '2026-08-24',
-        to: '2026-08-26',
-        source: 'MANUAL' as const,
-      })),
-    );
+    const undoBefore = useSchedule.getState().undoStack.length;
+    const changesBefore = useSchedule.getState().changes.length;
+    const countBefore = useSchedule.getState().plan?.absences.length ?? 0;
 
-    expect(
-      (useSchedule.getState().plan?.absences ?? []).filter((a) => a.id.startsWith('abs-test-')),
-    ).toHaveLength(2);
-    expect(useSchedule.getState().undoStack).toHaveLength(before + 1);
+    await useSchedule.getState().saveAbsence({
+      personId: person.id,
+      eventTypeId: 'et-unavailable',
+      from: '2026-08-24',
+      to: '2026-08-26',
+    });
 
-    useSchedule.getState().undo();
-    expect(
-      (useSchedule.getState().plan?.absences ?? []).filter((a) => a.id.startsWith('abs-test-')),
-    ).toHaveLength(0);
-  });
-
-  it('an empty list does not create an undo step', () => {
-    const before = useSchedule.getState().undoStack.length;
-    useSchedule.getState().setAbsences([]);
-    expect(useSchedule.getState().undoStack).toHaveLength(before);
+    expect(useSchedule.getState().plan?.absences).toHaveLength(countBefore + 1);
+    expect(useSchedule.getState().undoStack).toHaveLength(undoBefore);
+    // Nothing was staged. Asserted on the change list rather than on `session` being
+    // absent, because an earlier test in this file may legitimately have left one open —
+    // what matters is that the absence did not go into it.
+    expect(useSchedule.getState().changes).toHaveLength(changesBefore);
   });
 });
 

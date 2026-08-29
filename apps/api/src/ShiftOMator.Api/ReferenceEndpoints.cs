@@ -24,6 +24,13 @@ public static class ReferenceEndpoints
                 .Include(u => u.AbsenceCapacityRules)
                 .ToListAsync();
             var people = await db.People.AsNoTracking().Include(p => p.Eligibility).ToListAsync();
+            var eventTypes = await db.EventTypes.AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync();
+            var presenceTypes = await db.PresenceTypes.AsNoTracking()
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync();
 
             return Results.Ok(new ReferenceResponse(
                 locations,
@@ -32,10 +39,12 @@ public static class ReferenceEndpoints
                 units.SelectMany(u => u.Shifts),
                 units.SelectMany(u => u.DayConfigurations),
                 people,
-                units.SelectMany(u => u.AbsenceCapacityRules)));
+                units.SelectMany(u => u.AbsenceCapacityRules),
+                eventTypes,
+                presenceTypes));
         })
         .WithName("GetReference")
         .Produces<ReferenceResponse>()
-        .RequireAuthorization(AuthPolicies.ViewerOrAbove);
+        .RequireAuthorization(AuthPolicies.Authenticated);
     }
 }

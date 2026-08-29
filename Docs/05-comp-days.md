@@ -83,16 +83,22 @@ and must not prevent the planner from doing something else with that day.
 An entry that is still `PROPOSED`, `SCHEDULED` or `PENDING_APPROVAL` more than
 `agingThresholdDays` after its `earnedForDate` is **flagged, not lost**:
 
-- **For the planner or manager** — an alert. Aged entries surface in the Dashboard
+- **For the planner or manager** — an alert. Aged entries surface in the Overview
   attention list and as an `INFO` issue (`COMP_DAY_AGING`) anchored to the person.
 - **For the person** — a standing indication that they have unused comp days, on their
   own schedule view and in the People panel.
 
+> **The alert had nowhere to go until recently.** "An alert for the manager, a standing
+> notice for the person" was specified from the start and delivered nowhere, because the
+> product had no notification mechanism at all. `NotificationKind.CompDayAging` and the
+> in-app inbox ([ADR-0044](adr/0044-in-app-inbox-first.md)) are where it belongs; wiring
+> it is now a call to `Notify`, not a feature.
+
 Age is measured from `earnedForDate`, not from the proposed date: what matters is how
 long the debt has been outstanding, not when someone last moved it.
 
-The threshold is configuration, expected in the region of one to two weeks. It is a
-prompt to act, never an enforcement.
+The threshold is configuration, expected to be somewhere around one to two weeks. It is
+a prompt to act, never an enforcement.
 
 ## Links and deletion
 
@@ -119,15 +125,15 @@ Per person, over a period:
 | Aged | Untaken past `agingThresholdDays`. A prompt, not a loss. |
 | Due | Earned but neither taken nor declined. |
 
-An accumulated balance of unused days is a management signal that is currently
-invisible in the spreadsheet world. It appears on the People screen per person and in
-Analytics in aggregate.
+An accumulated balance of unused days is a management signal that is invisible in the
+spreadsheet world. It appears on the People screen per person; there is no aggregate
+analytics screen, and reporting is a remaining roadmap stage.
 
 ## Interaction with other rules
 
 - A confirmed comp day counts as an absence for the simultaneous-absence limits
   ([ADR-0010](adr/0010-absence-limits-by-role-pool.md)).
 - A confirmed comp day blocks assignment exactly as a vacation does.
-- Working a holiday may earn a comp day; whether it does is regional policy, not a
+- Working a holiday may earn a comp day; whether it does is the unit's policy, not a
   constant.
 - Comp day dates are stored without time. Timezone conversion is display-only.

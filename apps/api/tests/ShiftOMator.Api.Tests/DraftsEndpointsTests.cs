@@ -14,11 +14,50 @@ namespace ShiftOMator.Api.Tests;
 [Collection("Api")]
 public class DraftsEndpointsTests(ApiTestFactory factory)
 {
-    private const string PersonId = "p-thomas-foley";
+    /// <summary>
+    /// Both of these have to survive <c>Trimmed()</c>, which keeps every manager plus the
+    /// first N working people of each unit by id. That is why the ids look arbitrary and
+    /// are not: picking a name further down the alphabet meant twelve tests failing with
+    /// an unexplained 400, because ActorResolver silently substituted its own pick for a
+    /// person the database did not have. <c>Both_test_people_are_in_the_seeded_roster</c>
+    /// exists to fail loudly and singly if the trim ever moves.
+    /// </summary>
+    private const string PersonId = "p-amit-bhatt";
+
+    /// <summary>
+    /// A second real person, for the cases that need two concurrent editors.
+    ///
+    /// It has to be someone actually in the roster: <c>ActorResolver</c> substitutes its
+    /// own deterministic pick for an id that names nobody (ADR-0039), so a typo here would
+    /// quietly resolve to the *same* actor and the test would prove nothing.
+    /// </summary>
+    private const string OtherPersonId = "p-alison-kowalski";
     private const string ShiftId = "AMER:Crew";
+
+    // Both are eligible for AMER:Crew, which every test here paints.
     private const string UnitId = "unit-amer";
 
-    private static DateOnly NextDate() => new DateOnly(2028, 1, 1).AddDays(Random.Shared.Next(0, 3650));
+    /// <summary>
+    /// A date no other test is using — in this run, or in any earlier one.
+    ///
+    /// Both halves matter, and each was learned the hard way:
+    ///
+    /// - **Distinct within a run.** Opening a draft *resumes* the caller's open one for an
+    ///   overlapping range, so two tests on the same day share a draft and each sees the
+    ///   other's staged changes. A random day out of 3650 collided about once per run.
+    /// - **Distinct across runs.** The database persists between runs, so a fixed counter
+    ///   put every run on the days the previous one had already published — and a `create`
+    ///   came back as an `update`.
+    ///
+    /// A per-run random base plus a deterministic stride gives both. The far-future base
+    /// keeps these clear of the demo plan, which lives in 2026.
+    /// </summary>
+    private static readonly int _dateBase = Random.Shared.Next(0, 20_000);
+
+    private static int _dateSeq;
+
+    private static DateOnly NextDate() =>
+        new DateOnly(2028, 1, 1).AddDays(_dateBase + (Interlocked.Increment(ref _dateSeq) * 7));
 
     private static JsonElement AssignmentPayload(string id, string personId, DateOnly date, string shiftId) =>
         JsonSerializer.SerializeToElement(new
@@ -27,7 +66,6 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
             personId,
             date = date.ToString("yyyy-MM-dd"),
             unitId = UnitId,
-            contentKind = "shift",
             shiftId,
             isWeekend = false,
             source = "manual",
@@ -36,9 +74,23 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
             createdAt = "2026-01-01T00:00:00Z",
         });
 
-    private async Task<string> OpenDraftAsync(HttpClient client, DateOnly from, DateOnly to)
+    /// <summary>
+    /// Opens a draft, optionally as somebody else.
+    ///
+    /// <paramref name="asPersonId"/> matters because the endpoint **resumes** a caller's
+    /// open draft rather than minting a new one: asking twice as the same person is one
+    /// draft, by design. Two drafts on one range means two planners.
+    /// </summary>
+    private async Task<string> OpenDraftAsync(
+        HttpClient client, DateOnly from, DateOnly to, string? asPersonId = null)
     {
-        var response = await client.PostAsJsonAsync("/api/drafts", new { editorPersonId = PersonId, unitId = UnitId, rangeFrom = from, rangeTo = to });
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/drafts")
+        {
+            Content = JsonContent.Create(new { unitId = UnitId, rangeFrom = from, rangeTo = to }),
+        };
+        if (asPersonId is not null) request.Headers.Add("X-Debug-PersonId", asPersonId);
+
+        var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return body.GetProperty("id").GetString()!;
@@ -81,7 +133,10 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var historyResponse = await client.GetFromJsonAsync<JsonElement>(
             $"/api/history?from={today.AddDays(-1):yyyy-MM-dd}&to={today.AddDays(1):yyyy-MM-dd}");
-        Assert.Contains(historyResponse.EnumerateArray(), h => h.GetProperty("assignmentId").GetString() == assignmentId);
+        Assert.Contains(
+            historyResponse.EnumerateArray(),
+            h => h.GetProperty("entityId").GetString() == assignmentId
+                 && h.GetProperty("entityType").GetString() == "assignment");
     }
 
     [Fact]
@@ -92,8 +147,11 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var idA = $"as-test-{Guid.NewGuid():n}";
         var idB = $"as-test-{Guid.NewGuid():n}";
 
+        // Two planners, not one person asking twice — the endpoint resumes rather than
+        // duplicating, so the same caller would get one draft back both times.
         var draftA = await OpenDraftAsync(client, date, date);
-        var draftB = await OpenDraftAsync(client, date, date);
+        var draftB = await OpenDraftAsync(client, date, date, asPersonId: OtherPersonId);
+        Assert.NotEqual(draftA, draftB);
 
         (await client.PostAsJsonAsync($"/api/drafts/{draftA}/changes", new
         {
@@ -141,6 +199,55 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("SHIFT_OUTSIDE_UNIT", body.GetProperty("code").GetString());
+    }
+
+    /// <summary>
+    /// Concurrent drafts are allowed and resolve at publish (ADR-0015). What was missing
+    /// was the warning: two planners could fill the same week each unaware of the other,
+    /// and whoever published first decided it.
+    ///
+    /// "Somebody else has this period open" was already on the screen and is useless —
+    /// naming the cells is what lets the second planner work somewhere else.
+    /// </summary>
+    [Fact]
+    public async Task Cells_staged_in_another_planners_draft_are_visible_and_ones_own_are_not()
+    {
+        var client = factory.CreateClient();
+        var date = NextDate();
+        var mine = $"as-test-{Guid.NewGuid():n}";
+        var theirs = $"as-test-{Guid.NewGuid():n}";
+
+        var myDraft = await OpenDraftAsync(client, date, date);
+        (await client.PostAsJsonAsync($"/api/drafts/{myDraft}/changes", new
+        {
+            targetType = "assignment", op = "create", entityId = mine,
+            after = AssignmentPayload(mine, PersonId, date, ShiftId),
+        })).EnsureSuccessStatusCode();
+
+        var theirDraft = await OpenDraftAsync(client, date, date, OtherPersonId);
+        var append = new HttpRequestMessage(HttpMethod.Post, $"/api/drafts/{theirDraft}/changes")
+        {
+            Content = JsonContent.Create(new
+            {
+                targetType = "assignment", op = "create", entityId = theirs,
+                after = AssignmentPayload(theirs, OtherPersonId, date, ShiftId),
+            }),
+        };
+        append.Headers.Add("X-Debug-PersonId", OtherPersonId);
+        (await client.SendAsync(append)).EnsureSuccessStatusCode();
+
+        var body = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/drafts/staged?unitId={UnitId}&from={date:yyyy-MM-dd}&to={date:yyyy-MM-dd}");
+        var cells = body.GetProperty("cells").EnumerateArray().ToList();
+
+        Assert.Contains(cells, c => c.GetProperty("personId").GetString() == OtherPersonId);
+        // Your own staged edits are not news: you are looking at them.
+        Assert.DoesNotContain(cells, c => c.GetProperty("editorPersonId").GetString() == PersonId);
+
+        (await client.PostAsync($"/api/drafts/{myDraft}/discard", null)).EnsureSuccessStatusCode();
+        var discardTheirs = new HttpRequestMessage(HttpMethod.Post, $"/api/drafts/{theirDraft}/discard");
+        discardTheirs.Headers.Add("X-Debug-PersonId", OtherPersonId);
+        await client.SendAsync(discardTheirs);
     }
 
     [Fact]

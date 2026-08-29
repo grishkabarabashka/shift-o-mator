@@ -10,6 +10,7 @@
  * `Shift` entity; this fixture follows.
  */
 
+import { TEST_EVENT_TYPES, TEST_PRESENCE_TYPES } from '../domain/testkit.ts';
 import type {
   DayConfiguration,
   Location,
@@ -17,6 +18,7 @@ import type {
   PlanningUnit,
   ScheduleDataset,
   Shift,
+  CompDayEntry,
 } from '../domain/types.ts';
 
 export const DEFAULT_UNIT = 'unit-amer';
@@ -192,6 +194,7 @@ export const weekendConfig: DayConfiguration = {
 function makePerson(id: string, displayName: string, locationId: string): Person {
   return {
     id,
+    defaultPresenceTypeId: 'pt-office',
     displayName,
     initials: displayName
       .split(' ')
@@ -211,13 +214,13 @@ function makePerson(id: string, displayName: string, locationId: string): Person
     availableWeekdays: [1, 2, 3, 4, 5],
     weekendEligible: false,
     constraints: { minRestHours: 11, maxConsecutiveDays: 6 },
-    calendarToken: `tok-${id}`,
   };
 }
 
 function makeEmeaPerson(id: string, displayName: string): Person {
   return {
     id,
+    defaultPresenceTypeId: 'pt-office',
     displayName,
     initials: displayName
       .split(' ')
@@ -233,7 +236,22 @@ function makeEmeaPerson(id: string, displayName: string): Person {
     availableWeekdays: [1, 2, 3, 4, 5],
     weekendEligible: false,
     constraints: { minRestHours: 11, maxConsecutiveDays: 6 },
-    calendarToken: `tok-${id}`,
+  };
+}
+
+/**
+ * A manager: `isIncluded: false`, so no shift is ever planned for them.
+ *
+ * They still need a row. `isIncluded` decides who is *planned*; it was also deciding who
+ * is *drawn*, and the result was that an administrator existed in the list only while you
+ * were acting as them.
+ */
+function makeManager(id: string, displayName: string): Person {
+  return {
+    ...makePerson(id, displayName, locNewYork.id),
+    orgCategory: 'MANAGEMENT',
+    isIncluded: false,
+    eligibility: [],
   };
 }
 
@@ -245,7 +263,38 @@ export const people: Person[] = [
   makePerson('p-erin', 'Erin Evans', locPune.id),
   makePerson('p-frank', 'Frank Ford', locPune.id),
   makeEmeaPerson('p-priya', 'Priya Patel'),
+  // Two managers, and the reason is the test rather than realism: the mock signs you in as
+  // the first MANAGEMENT person, exactly as the server does, and a manager who *is* the
+  // caller was drawn under the old rule as well. With a second one, the row that only the
+  // corrected rule draws is somebody else.
+  makeManager('p-morgan', 'Morgan Mills'),
+  makeManager('p-nadia', 'Nadia Novak'),
 ];
+
+/**
+ * One earned comp day, so the placement flow has something to place (ADR-0052).
+ *
+ * Dates are relative to today because the Schedule window now runs forward from the
+ * selected day: a fixed date would fall outside it as soon as the clock moved.
+ */
+function demoCompDay(): CompDayEntry {
+  const earned = new Date();
+  earned.setUTCDate(earned.getUTCDate() - 7);
+  const proposed = new Date();
+  proposed.setUTCDate(proposed.getUTCDate() + 3);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  return {
+    id: 'cd-mock-1',
+    personId: 'p-alice',
+    earnedForAssignmentId: 'as-mock-weekend',
+    earnedForDate: iso(earned),
+    trigger: 'SATURDAY',
+    proposedDate: iso(proposed),
+    status: 'PROPOSED',
+    version: 1,
+  };
+}
 
 export function buildMockDataset(): ScheduleDataset {
   return {
@@ -258,7 +307,10 @@ export function buildMockDataset(): ScheduleDataset {
     absenceCapacityRules: [],
     assignments: [],
     absences: [],
-    compDays: [],
+    compDays: [demoCompDay()],
+    presence: [],
+    eventTypes: TEST_EVENT_TYPES,
+    presenceTypes: TEST_PRESENCE_TYPES,
     acknowledgements: [],
     history: [],
   };

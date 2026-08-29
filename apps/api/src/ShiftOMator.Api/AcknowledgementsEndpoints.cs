@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.Acknowledgements;
@@ -15,10 +16,11 @@ public static class AcknowledgementsEndpoints
 {
     public static void MapAcknowledgementsEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/acknowledgements", async (AcknowledgeRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/acknowledgements", async (AcknowledgeRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
         {
             var existing = await db.Acknowledgements.FirstOrDefaultAsync(a => a.IssueKey == req.IssueKey, ct);
             var now = DateTimeOffset.UtcNow;
+            var actorId = await actors.RequireAsync(user, ct);
 
             if (existing is null)
             {
@@ -26,7 +28,7 @@ public static class AcknowledgementsEndpoints
                 {
                     IssueKey = req.IssueKey,
                     Comment = req.Comment,
-                    ByPersonId = req.ByPersonId,
+                    ByPersonId = actorId,
                     At = now,
                 };
                 db.Acknowledgements.Add(existing);
@@ -34,7 +36,7 @@ public static class AcknowledgementsEndpoints
             else
             {
                 existing.Comment = req.Comment;
-                existing.ByPersonId = req.ByPersonId;
+                existing.ByPersonId = actorId;
                 existing.At = now;
             }
 
@@ -43,6 +45,6 @@ public static class AcknowledgementsEndpoints
         })
         .WithName("Acknowledge")
         .Produces<Acknowledgement>()
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
     }
 }

@@ -266,7 +266,65 @@ export interface Person {
   readonly weekendEligible: boolean;
   readonly constraints: PersonConstraints;
   readonly preferences?: PersonPreferences;
-  readonly calendarToken: string;
+  /** NOTE: Where this person works when nothing says otherwise (ADR-0043). The grid
+   * renders presence as a delta from this, so a baseline is what makes the channel
+   * mean anything. */
+  readonly defaultPresenceTypeId: string;
+  /** NOTE: Which office is the baseline — usually, but not necessarily, `locationId`,
+   * which answers a different question (calendar and display timezone, ADR-0002). */
+  readonly defaultSiteLocationId?: LocationId;
+}
+
+// ---------------------------------------------------------------------------
+// Presence
+// ---------------------------------------------------------------------------
+
+/** NOTE: Which headcount a way of working adds to on the coverage strip. A readout, not
+ * a property of the work: one strip row cannot have a column per type an admin invents,
+ * and "how many are in a building on Friday" has exactly these three answers. */
+export type PresenceGroup = 'ON_SITE' | 'REMOTE' | 'AWAY';
+
+export type PresenceSource = 'MANUAL' | 'REQUEST' | 'IMPORT' | 'PORTAL';
+
+/**
+ * NOTE: A way of working — label, glyph, colour, whether it is offered, and whether
+ * recording it raises a request (ADR-0043, reopened by ADR-0054).
+ *
+ * The set is open: an administrator adds one on Settings. The two things code used to
+ * branch on are columns — `namesALocation` says whether the record points at an office or
+ * carries free text, `countsAs` says which headcount it lands in.
+ */
+export interface PresenceType {
+  readonly id: string;
+  readonly label: string;
+  readonly namesALocation: boolean;
+  readonly countsAs: PresenceGroup;
+  /** NOTE: One or two characters — the grid's presence band is 9px. */
+  readonly glyph: string;
+  readonly color: string;
+  readonly requiresApproval: boolean;
+  readonly isActive: boolean;
+  readonly sortOrder: number;
+}
+
+/** NOTE: A range, like `Absence` — presence is declared in blocks ("remote Mon–Wed"),
+ * not cell by cell. It never affects coverage. */
+export interface PresenceRecord {
+  readonly id: string;
+  readonly personId: PersonId;
+  readonly typeId: string;
+  /** NOTE: Which office, for a type that `namesALocation`. */
+  readonly siteLocationId?: LocationId;
+  /** NOTE: Free text for a type with no location row behind it. */
+  readonly siteLabel?: string;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly source: PresenceSource;
+  readonly portion: DayPortion;
+  readonly requestId?: string;
+  readonly note?: string;
+  /** NOTE: Optimistic-concurrency token (ADR-0043). */
+  readonly version: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -282,12 +340,24 @@ export interface TimeOverride {
   readonly crossesMidnight: boolean;
 }
 
-/** NOTE: `OFF` is a scheduled day off (`Off`/`W-Off`). `NOT_SCHEDULED` is `0`. */
-export type RosterMarker = 'OFF' | 'NOT_SCHEDULED';
-
-export type AssignmentContent =
-  | { readonly kind: 'SHIFT'; readonly shiftId: ShiftId; readonly timeOverride?: TimeOverride }
-  | { readonly kind: 'MARKER'; readonly marker: RosterMarker };
+/**
+ * NOTE: An assignment is a shift, and nothing else (ADR-0052).
+ *
+ * This used to be a union with a `MARKER` arm carrying `OFF` / `NOT_SCHEDULED`. The
+ * markers recorded "considered, and deliberately not scheduled" as distinct from "nobody
+ * has looked at this yet" — a distinction the team did not use, and which duplicated what
+ * a non-working calendar day and an absence already said. An engineer who wants to be
+ * left off a day records the `UNAVAILABLE` event type instead, which is an absence and so
+ * is understood by every screen that already understands absences.
+ *
+ * The shape is kept as a one-armed union rather than flattened to a bare `shiftId`,
+ * because that is what the wire and the draft protocol still carry.
+ */
+export type AssignmentContent = {
+  readonly kind: 'SHIFT';
+  readonly shiftId: ShiftId;
+  readonly timeOverride?: TimeOverride;
+};
 
 /**
  * NOTE: Exactly one assignment per (person, date) — a hard constraint.
@@ -331,15 +401,40 @@ export function isWorkingAssignment(assignment: Assignment): boolean {
  * NOTE: Training is not included here: in-hours training is the `Cover`
  * shift — the person is at work and counts toward coverage (ADR-0017).
  */
-export type AbsenceType = 'VACATION' | 'SICK' | 'OTHER';
+/** NOTE: Which half of a day something covers (ADR-0050). Deliberately not times —
+ * comparing a half against a shift window needs a boundary hour, and any we picked
+ * would be invented. Coverage stays whole-day. */
+export type DayPortion = 'FULL' | 'MORNING' | 'AFTERNOON';
 
-export type AbsenceSource = 'IMPORT' | 'MANUAL';
+export type EventCategory = 'LEAVE' | 'SICKNESS' | 'OTHER';
+
+/** NOTE: A kind of non-working day, defined as data (ADR-0049). There is deliberately no
+ * `countsAsCoverage`: if it counts as coverage it is a `Shift`. */
+export interface EventType {
+  readonly id: string;
+  readonly code: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly color: string;
+  readonly category: EventCategory;
+  readonly blocksAssignment: boolean;
+  readonly countsTowardCapacity: boolean;
+  readonly requiresApproval: boolean;
+  readonly allowsHalfDay: boolean;
+  /** NOTE: Retiring a kind is deactivating it, never deleting: absences point at these
+   * by id, and a deleted one would leave rows nobody can name (ADR-0049). */
+  readonly isActive: boolean;
+  readonly sortOrder: number;
+}
+
+export type AbsenceSource = 'IMPORT' | 'MANUAL' | 'REQUEST';
 
 /** NOTE: Leave is a range, and the range is the source of truth (ADR-0017). */
 export interface Absence {
   readonly id: AbsenceId;
   readonly personId: PersonId;
-  readonly type: AbsenceType;
+  readonly eventTypeId: string;
+  readonly portion: DayPortion;
   readonly from: IsoDate;
   readonly to: IsoDate;
   readonly source: AbsenceSource;
@@ -348,6 +443,12 @@ export interface Absence {
   readonly lastSeenInImportAt?: IsoInstant;
   readonly syncedToHrAt?: IsoInstant;
   readonly note?: string;
+  /**
+   * NOTE: Optimistic-concurrency token (ADR-0043). Must survive the round trip through
+   * a draft change untouched — the server compares it at publish time, and a payload
+   * that dropped it would look like an edit against version 0 and conflict every time.
+   */
+  readonly version: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +474,8 @@ export interface CompDayEntry {
   readonly actualDate?: IsoDate;
   readonly status: CompDayStatus;
   readonly syncedToHrAt?: IsoInstant;
+  /** NOTE: Optimistic-concurrency token (ADR-0043) — see `Absence.version`. */
+  readonly version: number;
 }
 
 /** NOTE: The date the comp day actually falls on. */
@@ -445,7 +548,7 @@ export interface AbsenceCapacityRule {
   readonly durationBucket: AbsenceDurationBucket;
   readonly longThresholdWorkdays: number;
   readonly maxConcurrent: number;
-  readonly countsTypes: readonly AbsenceType[];
+  readonly countsEventTypeIds: readonly string[];
   /** NOTE: Whether confirmed comp days count the same as leave. */
   readonly countsCompDays: boolean;
 }
@@ -585,12 +688,24 @@ export interface PublishConflict {
 
 export type HistoryAction = 'CREATED' | 'UPDATED' | 'DELETED';
 
-/** NOTE: Append-only. The only control where there's no access boundary. */
-export interface AssignmentHistoryEntry {
+/** NOTE: What kind of record a history entry describes (ADR-0041). */
+export type HistoryEntityType = 'ASSIGNMENT' | 'ABSENCE' | 'COMP_DAY' | 'PERSON' | 'CONFIGURATION';
+
+/**
+ * NOTE: Append-only. The only control where there's no access boundary — which is why
+ * ADR-0041 widened it past assignments: leave, comp days, profile edits and configuration
+ * changes used to leave no record at all.
+ */
+export interface ChangeHistoryEntry {
   readonly id: string;
-  readonly assignmentId: AssignmentId;
+  readonly entityType: HistoryEntityType;
+  readonly entityId: string;
   readonly action: HistoryAction;
+  /** NOTE: Only parsed for `ASSIGNMENT`; other types are read through `summary`. */
   readonly snapshot: Assignment | null;
+  /** NOTE: The person the record is *about*, when there is one. */
+  readonly personId?: PersonId;
+  readonly summary?: string;
   readonly actorId: PersonId;
   readonly at: IsoInstant;
 }
@@ -599,14 +714,23 @@ export interface AssignmentHistoryEntry {
 // Cell projection
 // ---------------------------------------------------------------------------
 
-export type CellStatus =
-  | 'OFF'
-  | 'NOT_SCHEDULED'
-  | 'PH'
-  | 'COMP_OFF'
-  | 'VACATION'
-  | 'SICK'
-  | 'OTHER';
+/**
+ * NOTE: Fixed roster states. `ABSENT` is the one that carries detail: which kind of
+ * absence is an `EventType` row, not a member of this union (ADR-0049), so it travels
+ * alongside in `CellValue.event`.
+ */
+/** NOTE: `OFF` / `NOT_SCHEDULED` are gone with the roster markers (ADR-0052). */
+export type CellStatus = 'PH' | 'COMP_OFF' | 'ABSENT';
+
+/** NOTE: The absence behind an `ABSENT` cell, denormalised from its `EventType` so the
+ * memoized cell component never has to look one up. */
+export interface CellEventInfo {
+  readonly eventTypeId: string;
+  readonly shortLabel: string;
+  readonly color: string;
+  readonly blocksAssignment: boolean;
+  readonly portion: DayPortion;
+}
 
 /**
  * NOTE: What the grid shows for a (person, date) pair. Precedence is
@@ -621,10 +745,22 @@ export type CellValue =
       readonly proposedCompDay?: CompDayEntryId;
       /** NOTE: An assignment on top of an absence, comp day, or holiday. */
       readonly conflict?: CellConflict;
+      /**
+       * NOTE: The absence underneath, when there is one.
+       *
+       * A shift and an absence are separate records and both are true at once — the cell
+       * shows both rather than one replacing the other (ADR-0050). Before this, an
+       * absence over a shift produced a conflict flag and the absence itself became
+       * invisible.
+       */
+      readonly event?: CellEventInfo;
+      readonly absenceId?: AbsenceId;
     }
   | {
       readonly kind: 'STATUS';
       readonly status: CellStatus;
+      /** NOTE: Present when `status` is `ABSENT`. */
+      readonly event?: CellEventInfo;
       readonly absenceId?: AbsenceId;
       readonly compDayId?: CompDayEntryId;
       readonly assignmentId?: AssignmentId;
@@ -649,6 +785,10 @@ export interface ReferenceData {
   readonly dayConfigurations: readonly DayConfiguration[];
   readonly people: readonly Person[];
   readonly absenceCapacityRules: readonly AbsenceCapacityRule[];
+  readonly eventTypes: readonly EventType[];
+  /** NOTE: All of them, retired ones included — an existing record still needs its
+   * colour and its name. The menu is what filters on `isActive`. */
+  readonly presenceTypes: readonly PresenceType[];
 }
 
 /** NOTE: The published plan: what everyone sees. */
@@ -656,9 +796,12 @@ export interface PlanData {
   readonly assignments: readonly Assignment[];
   readonly absences: readonly Absence[];
   readonly compDays: readonly CompDayEntry[];
+  /** NOTE: Where people are working (ADR-0043). Carried alongside the plan, but not
+   * part of it — nothing here affects coverage or blocks a publish. */
+  readonly presence: readonly PresenceRecord[];
   readonly acknowledgements: readonly Acknowledgement[];
 }
 
 export interface ScheduleDataset extends ReferenceData, PlanData {
-  readonly history: readonly AssignmentHistoryEntry[];
+  readonly history: readonly ChangeHistoryEntry[];
 }

@@ -5,8 +5,10 @@
  * week zoom would be pointless there — the grid holds a minimum of 30xN
  * cells — and three controls live in one card:
  *
- *   1. **Step and zoom** — "next month," "show a quarter." Discrete and
- *      predictable; the main path.
+ *   1. **Step and zoom** — a day at a time with `‹ ›`, a month at a time with
+ *      `« »`, and the window width with the segmented control. The window runs
+ *      *forward from the selected day*, so Today starts it at today rather than
+ *      at the 1st with today buried in the middle.
  *   2. **Day strip** — clicking a day makes it the start of a period of the
  *      same width (owner review: not necessarily the 1st of the month — the
  *      end adjusts to the already-selected length).
@@ -36,6 +38,7 @@ export function DateRangeControl() {
   const setZoom = useUi((s) => s.setScheduleZoom);
   const jumpTo = useUi((s) => s.jumpScheduleTo);
   const stepPeriod = useUi((s) => s.stepSchedule);
+  const jumpMonths = useUi((s) => s.jumpScheduleMonths);
   const goToday = useUi((s) => s.scheduleToday);
 
   const length = rangeLength(range);
@@ -64,13 +67,25 @@ export function DateRangeControl() {
           </span>
         </button>
 
+        {/* Two granularities, because a planner does both: walk along the rota a day at
+            a time, and skip to next month. The single arrow used to move a whole month,
+            which made the near boundary impossible to sit on. */}
         <div className="flex items-center gap-1">
           <button
             type="button"
             className="btn btn--icon"
+            onClick={() => jumpMonths(-1)}
+            aria-label="Back one month"
+            title="Back one month"
+          >
+            «
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon"
             onClick={() => stepPeriod(-1)}
-            aria-label="Previous period"
-            title="Previous period"
+            aria-label="Back one day"
+            title="Back one day"
           >
             ‹
           </button>
@@ -79,7 +94,7 @@ export function DateRangeControl() {
             className="btn"
             onClick={goToday}
             data-active={containsToday}
-            title="Jump to the period containing today"
+            title="Start the window at today"
           >
             Today
           </button>
@@ -87,10 +102,19 @@ export function DateRangeControl() {
             type="button"
             className="btn btn--icon"
             onClick={() => stepPeriod(1)}
-            aria-label="Next period"
-            title="Next period"
+            aria-label="Forward one day"
+            title="Forward one day"
           >
             ›
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={() => jumpMonths(1)}
+            aria-label="Forward one month"
+            title="Forward one month"
+          >
+            »
           </button>
         </div>
 

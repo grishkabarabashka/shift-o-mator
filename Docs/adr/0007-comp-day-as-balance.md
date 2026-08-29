@@ -69,7 +69,7 @@ relationships with people.
   require an explicit decision if it's already `SCHEDULED`.
 - A balance screen appears: accrued, taken, scheduled, expiring.
 - The expiry period is an open question — see
-  [10-open-questions.md](../10-open-questions.md).
+  [10-open-questions.md](../14-open-questions.md).
 
 ## Alternatives considered
 

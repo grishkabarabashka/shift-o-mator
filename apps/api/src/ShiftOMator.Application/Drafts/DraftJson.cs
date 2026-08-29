@@ -5,10 +5,13 @@ namespace ShiftOMator.Application.Drafts;
 
 /// <summary>
 /// One JSON convention for everything a <see cref="ShiftOMator.Domain.DraftChange"/>
-/// snapshots — Before/After payloads and later the wire format share it, so a snapshot
-/// captured at append time compares byte-for-byte against the same entity reserialized
-/// at publish time (the conflict-detection strategy for entities with no version
-/// column — see DraftService.Publish remarks).
+/// snapshots — Before/After payloads and the wire format share it, so a payload written
+/// by the client deserializes into the same shape the engines work with.
+///
+/// NOTE: this convention is no longer load-bearing for conflict detection. It used to be
+/// (absences and comp days were compared as serialized text), which meant a change here
+/// silently invalidated every open draft. Since ADR-0043 every entity carries a version
+/// token, so this is free to evolve.
 /// </summary>
 public static class DraftJson
 {

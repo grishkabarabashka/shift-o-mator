@@ -24,7 +24,7 @@ external data source, so import is a real feature, not a hack.
 ## Spreadsheet migration
 
 Optional, and only if commissioned. The historical workbooks are wide monthly matrices
-mixing roles and statuses in the same cells. If built, it must:
+mixing shifts and statuses in the same cells. If built, it must:
 
 1. detect workbook and sheet type by headers, not filename;
 2. convert spreadsheet serial dates to ISO dates;
@@ -33,12 +33,12 @@ mixing roles and statuses in the same cells. If built, it must:
    identifiers into fixtures;
 5. normalize case and aliases;
 6. preserve unrecognized values in `notes` or an import-warning table;
-7. **distinguish blank, `0`, `Off`, `PH`, `Comp-Off`, absence and ordinary roles** —
+7. **distinguish blank, `0`, `Off`, `PH`, `Comp-Off`, absence and ordinary shifts** —
    these affect coverage, eligibility, rotation and comp-off differently;
 8. import weekend Primary / Secondary / ST / On-Call / Shadow columns as separate
    assignments;
 9. import holiday definitions separately from holiday work assignments;
-10. import role descriptions and timings from the daily-role sheets;
+10. import shift descriptions and timings from the daily-duty sheets;
 11. report duplicate person/date cells and unknown people before publish;
 12. load everything into a draft for review.
 
@@ -57,17 +57,16 @@ Recognized case-insensitively and normalized:
 | `Crew`, `Crew-E`, `Crew-L`, `Crew-BC` | AMER incident crew variants |
 | `Batch-E`, `Batch-L`, `Batch-U` | AMER batch early, late, understudy |
 | `Cover` | Flexible coverage, normally 0–3 people |
-| `Primary`, `Secondary`, `Wknd ST`, `Wknd SU`, `ST`, `Shadow` | Weekend service roles. `Wknd ST`/`Wknd SU` are Saturday/Sunday service-transition cover and are **not** the generic `ST` role. |
-| `Off`, `W-Off`, `woff` | Planned day off → marker `OFF`, source label kept as a note |
-| `0` | Explicitly non-working → marker `NOT_SCHEDULED`, **not** the same as blank |
+| `Primary`, `Secondary`, `Wknd ST`, `Wknd SU`, `ST`, `Shadow` | Weekend service shifts. `Wknd ST`/`Wknd SU` are Saturday/Sunday service-transition cover and are **not** the generic `ST` shift. |
+| `Off`, `W-Off`, `woff`, `0` | No shift. The markers these used to import as are deleted ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)); an engineer declaring themselves unavailable records the `UNAVAILABLE` event type instead. |
 | `PH` | Public holiday |
 | `C-Off`, `c-off`, `coff`, `Comp-Off`, `compff` | → `Comp-Off`, original value kept in import metadata |
-| `OnCall`, `OnCall S2`, `OnCall S3` | On-call; severity-specific forms stay distinct role codes. An ordinary duty occupying the day — never layered on top of another. |
+| `OnCall`, `OnCall S2`, `OnCall S3` | On-call; severity-specific forms stay distinct shift codes. An ordinary duty occupying the day — never layered on top of another. |
 | `sick` | `Absence` of type `SICK` |
-| `Training` | → the **`Cover`** role, not an absence. In-hours training is engineering work and the person is at work, so the day **counts toward coverage**. ([ADR-0017](adr/0017-absence-range-cell-projection.md)) |
+| `Training` | → the **`Cover`** shift, not an absence. In-hours training is engineering work and the person is at work, so the day **counts toward coverage**. ([ADR-0017](adr/0017-absence-range-cell-projection.md)) |
 
 Unknown codes produce an **import warning requiring a mapping decision**, never a
-silently accepted role.
+silently accepted shift.
 
 ## Reverse flow to HR
 
@@ -89,7 +88,7 @@ and absences.
 - Production: a stable per-person subscription URL keyed by `Person.calendarToken`,
   which is already in the model.
 
-Events carry the role window in the role's timezone, with the role code and long name
+Events carry the shift window in the shift's timezone, with the shift code and long name
 in the summary.
 
 ## Export

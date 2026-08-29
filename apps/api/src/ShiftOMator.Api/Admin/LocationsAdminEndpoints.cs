@@ -13,7 +13,7 @@ public static class LocationsAdminEndpoints
 {
     public static void MapLocationsAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/locations").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/locations").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Locations.AsNoTracking().OrderBy(l => l.Id).ToListAsync(ct)))

@@ -18,9 +18,28 @@
   position: relative;
   min-height: 0;
   overflow: auto;
-  outline: none;
   background: var(--surface);
   border-radius: 10px;
+}
+
+/* WHY the ring is here at all: this is the grid's only focusable element, and it used to
+   set `outline: none`. Tab was also swallowed by the key handler, so a keyboard user had
+   no way in, no way out and no indication of either.
+
+   WHY a shadow and not an outline: on a scroll container the outline follows the border
+   box of the *scrolled* content, so the right-hand edge of the ring was painted somewhere
+   off past the last column -- a stray blue line at the edge of the screen whenever the
+   grid took focus. An inset shadow is painted on the padding box and stays put. */
+.grid-wrap:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* An accessibility-tree row that is not a layout box: `role="row"` needs a real element
+   between the grid and its cells, but CSS Grid needs the cells to be direct children of
+   the grid container. `display: contents` satisfies both. */
+.sheet__row {
+  display: contents;
 }
 
 .sheet {
@@ -45,6 +64,7 @@
 .sheet__corner {
   left: 0;
   z-index: 4;
+  box-shadow: 4px 0 8px -6px rgb(16 24 40 / 0.35);
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -119,9 +139,12 @@
   color: var(--bad);
   font-weight: 700;
 }
+/* The current day. It used to be an accent-tinted header underlined in *red*, which is
+   the gap colour — so "today" read as "something is wrong here". Accent throughout, and
+   heavier, because "where am I in this month" is the first question the screen is asked. */
 .sheet__head[data-today] {
   background: var(--accent-soft);
-  box-shadow: inset 0 -2px 0 var(--bad);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .sheet__head[data-today] .sheet__head-num {
   color: var(--accent);
@@ -183,10 +206,15 @@
 
 /* --- Name -------------------------------------------------------------------- */
 
+/* WHY the shadow: the person column is frozen and the dates scroll under it, and with a
+   1px border the two read as one continuous table — so a name looked like it belonged to
+   whatever column happened to be beside it. A soft edge says which part is standing
+   still. */
 .sheet__name {
   position: sticky;
   left: 0;
   z-index: 2;
+  box-shadow: 4px 0 8px -6px rgb(16 24 40 / 0.35);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -213,24 +241,253 @@
   cursor: cell;
 }
 
+/* Alternate-row banding.
+   WHY it is first in this file: everything below it — nonworking, today, your own row,
+   selection — carries meaning and must win, and at equal specificity the later rule does.
+   The tint is deliberately at the edge of visible: it is there to keep the eye on a line
+   across sixty columns, not to say anything. */
+.cell[data-band] {
+  background: color-mix(in srgb, var(--ink) 2.5%, transparent);
+}
+
+/* The name column is sticky, so its tint has to be opaque or the dates scroll through it. */
+.sheet__name[data-band] {
+  background: color-mix(in srgb, var(--ink) 2.5%, var(--surface));
+}
+
 .cell[data-nonworking] {
   background: var(--surface-sunken);
 }
-.cell[data-today] {
+
+/* Your own line. A tint rather than a border: eighty rows of names is a lot to scan,
+   and the answer to "where am I" should not need looking for. */
+.cell[data-self] {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
-.cell[data-today][data-nonworking] {
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface-sunken));
+
+/* WHY the name column mixes against --surface and the cells mix against transparent:
+   this one is **sticky**, and a background with any alpha in it lets the columns scrolling
+   underneath show straight through the person's name. On your own row that is exactly
+   what happened — the tint made it the one transparent cell in the frozen column. */
+.sheet__name[data-self] {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
-/* NOTE: absence — hatching, since a solid fill would compete with the role color. */
-.cell[data-absent] {
+.sheet__name[data-self] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.sheet__name-you {
+  margin-left: auto;
+  flex: none;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+/* The cell is two stacked rows (ADR-0050): the chip owns the top, presence and pending
+   requests own the bottom. They are different *kinds* of fact — what someone is doing
+   versus where they are and what they have asked for — and both are true at once, so
+   neither can be allowed to hide the other. */
+.cell {
+  flex-direction: column;
+  gap: 0;
+}
+
+.cell__main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Time off, drawn as the day's own ground (ADR-0052). Behind the content and inert, so a
+   shift chip on the same day still reads — that pair is a flagged conflict, not something
+   to hide. A half-day fills its own half, on the side it actually falls. */
+.cell__fill {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.cell__fill[data-portion='MORNING'] {
+  right: 50%;
+}
+
+.cell__fill[data-portion='AFTERNOON'] {
+  left: 50%;
+}
+
+/* Dense mode — the two-month zoom. Narrower columns and smaller type so ~60 days fit
+   without a horizontal scroll and a shift code still lands inside its chip. Overriding
+   the custom property on the sheet is enough: `columnsTemplate` and the coverage strip
+   both read it. */
+.sheet[data-dense] {
+  --cell-w: 40px;
+}
+
+/* The type goes down again, and the chip loses its side padding: at 38px a five-character
+   code was landing on the chip's edge. It still cannot make "Shift-Lead" fit — no size
+   can — so a clipped code fades out instead of stopping mid-letter, which is the
+   difference between "there is more here" and "the renderer is broken". */
+.sheet[data-dense] .chip {
+  font-size: 8px;
+  letter-spacing: -0.05em;
+  border-radius: 3px;
+  padding: 0 1px;
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 5px), transparent 100%);
+}
+
+.sheet[data-dense] .cell__status,
+.sheet[data-dense] .cell__hint {
+  font-size: 8.5px;
+}
+
+.sheet[data-dense] .cell__band {
+  font-size: 6.5px;
+}
+
+.sheet[data-dense] .sheet__head-wd,
+.sheet[data-dense] .sheet__head-num {
+  font-size: 9px;
+}
+
+/* The chip has to stay legible on top of the fill. */
+.cell__main,
+.cell__band {
+  position: relative;
+}
+
+/* Only drawn when there is something to say, so an ordinary cell keeps the chip
+   vertically centred in the space the band would have taken. */
+.cell__band {
+  display: flex;
+  flex: 0 0 9px;
+  width: 100%;
+  gap: 1px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 7.5px;
+  line-height: 9px;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.cell__band-part {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  color: var(--ink-faint);
+  /* Presence overrides both of these per kind (ADR-0043); this is the fallback. */
+  background: color-mix(in srgb, var(--ink-faint) 12%, transparent);
+  border-radius: 2px;
+}
+
+/* Half a day is half the band, on the side it actually falls (ADR-0050). */
+.cell__band-part[data-portion='MORNING'] {
+  flex: 0 0 48%;
+  margin-right: auto;
+}
+
+.cell__band-part[data-portion='AFTERNOON'] {
+  flex: 0 0 48%;
+  margin-left: auto;
+}
+
+/* Same rule for a half-day absence that owns the top row: half the width, on its side. */
+.cell__status[data-portion='MORNING'],
+.cell__status[data-portion='AFTERNOON'] {
+  width: 48%;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.cell__status[data-portion='MORNING'] {
+  margin-right: auto;
+}
+
+.cell__status[data-portion='AFTERNOON'] {
+  margin-left: auto;
+}
+
+/* Dashed, always: a pending request is a proposal and must never read as a fact. */
+.cell__band-part--pending {
+  color: var(--warn);
+  background: transparent;
+  border: 1px dashed var(--warn);
+  line-height: 7px;
+}
+
+/* Where the person normally is: still shown — a recorded day is a recorded day — but it
+   is not news, so it does not compete with an away day for attention. */
+.cell__band-part[data-quiet] {
+  opacity: 0.7;
+}
+
+/* Shifts layer off: the chip row keeps only the height of what is in it (nothing, on most
+   days) and the band takes the rest. Turning the layer off is how you ask "where is
+   everyone this week", and the answer should not still be a 9px strip under an empty
+   chip. No JS in it — an empty flex row collapses on its own. */
+.sheet[data-shifts='off'] .cell__main {
+  flex: 0 1 auto;
+}
+
+.sheet[data-shifts='off'] .cell__band {
+  flex: 1 1 auto;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sheet[data-shifts='off'] .cell__band-part {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+/* The whole column, not just its header.
+   WHY hatching and not a tint: a wash competes with the row banding, the weekend shading
+   and the absence ground — four flat fills stacked on one cell, and the one that means
+   "you are here" was the weakest of them. A diagonal hatch is a different *kind* of mark,
+   so it survives whatever the cell is already saying, and the accent edges give the
+   column a boundary instead of a vague glow. */
+.cell[data-today] {
   background-image: repeating-linear-gradient(
     45deg,
-    transparent,
-    transparent 4px,
-    color-mix(in srgb, var(--ink-faint) 22%, transparent) 4px,
-    color-mix(in srgb, var(--ink-faint) 22%, transparent) 8px
+    color-mix(in srgb, var(--accent) 13%, transparent) 0 1px,
+    transparent 1px 8px
+  );
+  border-left-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* The hatch is drawn on the cell, and everything in the cell sits above it — otherwise
+   the chip would be striped. */
+.cell[data-today] > * {
+  position: relative;
+}
+
+/* The hatched absence is gone (ADR-0052): `.cell__fill` says it in the event type's own
+   colour, over the full height of the cell, and two treatments for one fact competed. */
+
+/* Somebody else is holding an unpublished edit on this cell (ADR-0015).
+   WHY a hatch and not a border or a fill: every one of those is already spoken for —
+   selection, focus, issue level, and the absence ground — and this must not be able to
+   hide any of them. Nothing is locked here; concurrent drafts are the design, and the
+   point is only that the second planner sees it before filling the same week twice. */
+.cell[data-staged]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--ink-faint) 30%, transparent) 0 1px,
+    transparent 1px 5px
   );
 }
 
@@ -242,6 +499,15 @@
 .cell[data-focused] {
   z-index: 1;
   box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* WHY an outline and not a box-shadow: every shadow slot on the cell already carries
+   meaning — selection, focus, issue level — and a hover that used one would hide whichever
+   it beat. `outline` is a separate property, so the pointer gets feedback and the cell
+   keeps saying what it says. */
+.cell:hover {
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
 }
 
 /* NOTE: violations — an outline, not a fill: the role color must stay readable. */
@@ -276,7 +542,36 @@
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
-  text-shadow: 0 1px 1px rgb(0 0 0 / 0.22);
+  gap: 5px;
+  /* A cap, not a width: on the week zoom a cell is around 150px, and a chip stretched
+     across all of it stops reading as a value and starts reading as a fill. */
+  max-width: 150px;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.28);
+  /* The shift's own colour arrives as `background-color` from the component; everything
+     here is painted over it. A top-down highlight and a hairline inner ring give the chip
+     an edge against both the cell's ground and the absence wash it may be sitting on —
+     flat rectangles of similar hue were running together down a column. */
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.20), rgb(255 255 255 / 0) 60%);
+  box-shadow:
+    0 1px 1.5px rgb(16 24 40 / 0.22),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+/* Nothing decorative moves. A chip is a value in a table, and 2500 of them animating on
+   hover would be a different product. */
+.cell:hover .chip {
+  box-shadow:
+    0 1px 3px rgb(16 24 40 / 0.30),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22);
+}
+
+/* The hours, on a zoom whose columns have room for them. Lighter than the code: the code
+   is what you scan for, the time is what you check once you have found it. */
+.chip__time {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.82;
+  letter-spacing: -0.02em;
 }
 
 /* NOTE: auto-populate lock — a small notch in the corner of the chip. */
@@ -355,6 +650,7 @@
 }
 
 .cover__cell {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -364,8 +660,41 @@
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
   cursor: pointer;
+}
+
+/* How full the day is, in the level's own colour.
+   WHY a bar and not just the fraction: "8/10" and "3/10" are the same shape at a glance,
+   and this strip is read by sweeping a month rather than by reading sixty fractions. The
+   track stays visible at 14% so a day at zero still shows where full would be. */
+.cover__cell::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    currentColor 0 var(--fill, 0%),
+    color-mix(in srgb, currentColor 14%, transparent) var(--fill, 0%) 100%
+  );
+}
+
+.cover__cell:hover {
+  background: var(--surface-hover);
+}
+
+/* A cell that is not a coverage figure: nothing required here, or a headcount readout.
+   It keeps the grid line and loses the bar and the hover. */
+.cover__cell--blank::after {
+  display: none;
+}
+.cover__cell--blank:hover {
+  background: none;
 }
 
 /* NOTE: the totals row is highlighted — it's always visible, detail is on demand. */
@@ -374,6 +703,14 @@
   height: 30px;
   border-bottom: 0;
   background: var(--surface-sunken);
+}
+
+/* The one row that is always on screen, so it gets the weight. */
+.cover__cell--total {
+  font-size: 11.5px;
+}
+.cover__cell--total::after {
+  height: 3px;
 }
 
 .cover__cell[data-level='OK'] {
@@ -450,6 +787,7 @@
   border-radius: 6px;
   background: var(--surface-sunken);
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgb(16 24 40 / 0.06);
 }
 
 .lane__hour {
@@ -474,10 +812,20 @@
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
-  text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.28);
+  /* The same treatment the grid chips get, for the same reason: a row of flat rectangles
+     in neighbouring hues runs together, and these are the same shifts. The colour arrives
+     as background-color from the component, so the gradient is painted over it. */
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.20), rgb(255 255 255 / 0) 65%);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.28),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
 }
 .lane__block:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
+  box-shadow:
+    0 2px 5px rgb(16 24 40 / 0.34),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22);
 }
 
 /* NOTE: shift-handover overlap — a semi-transparent overlay on top of the blocks. */
@@ -570,9 +918,52 @@
   cursor: pointer;
 }
 
+/* Each location gets its own hour axis, washed with a day/night gradient so "is it the
+   middle of the night in Singapore" is answered by looking rather than by reading the
+   numbers. Faint on purpose: the ticks are the data, this is the context they sit in. */
 .axis {
   position: relative;
   height: 16px;
+  overflow: hidden;
+}
+
+/* WHY the horizontal gradient as well as the vertical one: dusk is not a wall. A band
+   with hard edges reads as a rectangle drawn on the axis; fading the first and last hour
+   into it reads as evening and morning, which is what the hours either side of it say. */
+.axis__night {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      color-mix(in srgb, var(--ink) 10%, transparent) 12%,
+      color-mix(in srgb, var(--ink) 10%, transparent) 88%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ink) 5%, transparent),
+      transparent
+    );
+}
+
+/* In dark mode --ink is nearly white, so the same mix would make night the *brighter*
+   half of the axis. Night darkens, in both themes. */
+@media (prefers-color-scheme: dark) {
+  .axis__night {
+    background:
+      linear-gradient(
+        90deg,
+        transparent 0,
+        rgb(0 0 0 / 0.32) 12%,
+        rgb(0 0 0 / 0.32) 88%,
+        transparent 100%
+      ),
+      linear-gradient(180deg, rgb(0 0 0 / 0.12), transparent);
+  }
 }
 .axis__tick {
   position: absolute;
@@ -582,4 +973,189 @@
   font-size: 9.5px;
   transform: translateX(-50%);
   white-space: nowrap;
+}
+
+/* The portion toggle at the head of the self-service menu (ADR-0050). It costs nothing
+   when you want a whole day — which is nearly always — and one click when you do not,
+   which is cheaper than a modal with a dropdown in it. */
+.menu-portion {
+  display: flex;
+  gap: 2px;
+  margin: 4px 8px 6px;
+}
+
+.menu-portion__button {
+  flex: 1 1 0;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--ink-faint);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu-portion__button[data-active] {
+  color: var(--accent-ink, #fff);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+ * My calendar
+ *
+ * The opposite of the planning grid, on purpose. There, density is everything: eighty
+ * rows have to fit without scrolling. Here there is one person and one month at a time,
+ * so a day gets room for its shift code, its hours and what else the day is about — and
+ * the reason this screen exists beside the grid is that it uses that room.
+ * ----------------------------------------------------------------------- */
+
+.calendar {
+  padding: 0 16px 8px;
+}
+
+.calendar__month {
+  padding: 14px 0 6px;
+}
+
+/* Sticks below the page header rather than at the top of the scroller, which is where
+   the header already is — without the offset the month name slides underneath it and the
+   only thing telling you which month you are looking at disappears as you scroll. */
+.calendar__title {
+  position: sticky;
+  top: 40px;
+  z-index: 5;
+  padding: 4px 0 8px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.calendar__weekday {
+  padding-bottom: 2px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.calendar__pad {
+  min-height: 76px;
+}
+
+.calendar__day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 76px;
+  padding: 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  overflow: hidden;
+  /* The whole month is one drag surface: a text selection starting mid-drag would fight
+     the range being chosen. */
+  user-select: none;
+}
+
+.calendar__day[data-nonworking] {
+  background: var(--surface-sunken);
+  border-color: transparent;
+}
+
+.calendar__day:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.calendar__day[data-selected] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* The same hatch the grid uses for today, so the two screens agree about what it means. */
+.calendar__day[data-today] {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--accent) 9%, transparent) 0 1px,
+    transparent 1px 8px
+  );
+}
+
+.calendar__day[data-today] .calendar__num {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.calendar__fill {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.calendar__num {
+  position: relative;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.calendar__body {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar__shift {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.28);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.20), rgb(255 255 255 / 0) 65%);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.22),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+.calendar__hours {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  opacity: 0.9;
+}
+
+.calendar__label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Dashed, as everywhere: a proposal must never read as a fact (ADR-0050). */
+.calendar__pending {
+  padding: 1px 4px;
+  border: 1px dashed var(--warn);
+  border-radius: 4px;
+  color: var(--warn);
+  font-size: 9.5px;
+  line-height: 1.3;
+}
+
+.calendar__presence {
+  font-size: 9.5px;
+  line-height: 1.3;
 }

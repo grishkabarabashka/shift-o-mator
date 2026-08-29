@@ -42,6 +42,10 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("EventTypeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateOnly>("From")
                         .HasColumnType("date");
 
@@ -56,7 +60,10 @@ namespace ShiftOMator.Infrastructure.Migrations
 
                     b.Property<string>("PersonId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Portion")
+                        .HasColumnType("int");
 
                     b.Property<int>("Source")
                         .HasColumnType("int");
@@ -67,10 +74,14 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<DateOnly>("To")
                         .HasColumnType("date");
 
-                    b.Property<int>("Type")
+                    b.Property<int>("Version")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("To");
+
+                    b.HasIndex("PersonId", "From");
 
                     b.ToTable("Absences");
                 });
@@ -83,7 +94,7 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<bool>("CountsCompDays")
                         .HasColumnType("bit");
 
-                    b.Property<string>("CountsTypes")
+                    b.Property<string>("CountsEventTypeIds")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -144,13 +155,39 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.ToTable("Acknowledgements");
                 });
 
-            modelBuilder.Entity("ShiftOMator.Domain.Assignment", b =>
+            modelBuilder.Entity("ShiftOMator.Domain.ApprovalDecision", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<int>("ContentKind")
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ByPersonId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Decision")
                         .HasColumnType("int");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.ToTable("ApprovalDecisions");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.Assignment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -165,9 +202,6 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<bool>("IsWeekend")
                         .HasColumnType("bit");
 
-                    b.Property<int?>("Marker")
-                        .HasColumnType("int");
-
                     b.Property<string>("Note")
                         .HasColumnType("nvarchar(max)");
 
@@ -176,6 +210,7 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("ShiftId")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Source")
@@ -183,7 +218,7 @@ namespace ShiftOMator.Infrastructure.Migrations
 
                     b.Property<string>("UnitId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -196,13 +231,17 @@ namespace ShiftOMator.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Date");
+
                     b.HasIndex("PersonId", "Date")
                         .IsUnique();
+
+                    b.HasIndex("UnitId", "Date");
 
                     b.ToTable("Assignments");
                 });
 
-            modelBuilder.Entity("ShiftOMator.Domain.AssignmentHistoryEntry", b =>
+            modelBuilder.Entity("ShiftOMator.Domain.ChangeHistoryEntry", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
@@ -214,19 +253,42 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("AssignmentId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateOnly?>("AffectedFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("AffectedTo")
+                        .HasColumnType("date");
 
                     b.Property<DateTimeOffset>("At")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("EntityType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PersonId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("SnapshotJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Summary")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("AssignmentHistory");
+                    b.HasIndex("At");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("PersonId", "At");
+
+                    b.HasIndex("PersonId", "AffectedFrom", "AffectedTo");
+
+                    b.ToTable("ChangeHistory");
                 });
 
             modelBuilder.Entity("ShiftOMator.Domain.CompDayEntry", b =>
@@ -246,7 +308,7 @@ namespace ShiftOMator.Infrastructure.Migrations
 
                     b.Property<string>("PersonId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateOnly?>("ProposedDate")
                         .HasColumnType("date");
@@ -260,7 +322,14 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<int>("Trigger")
                         .HasColumnType("int");
 
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("PersonId", "EarnedForDate");
 
                     b.ToTable("CompDayEntries");
                 });
@@ -364,6 +433,53 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.ToTable("DraftSessions");
                 });
 
+            modelBuilder.Entity("ShiftOMator.Domain.EventType", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("AllowsHalfDay")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("BlocksAssignment")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("CountsTowardCapacity")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresApproval")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ShortLabel")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("EventTypes");
+                });
+
             modelBuilder.Entity("ShiftOMator.Domain.Holiday", b =>
                 {
                     b.Property<string>("Id")
@@ -418,6 +534,55 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.ToTable("Locations");
                 });
 
+            modelBuilder.Entity("ShiftOMator.Domain.Notification", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Body")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Channel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DeliveryAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RecipientPersonId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("SubjectId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SubjectType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("RecipientPersonId", "ReadAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("ShiftOMator.Domain.Person", b =>
                 {
                     b.Property<string>("Id")
@@ -431,7 +596,14 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DefaultPresenceTypeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DefaultShiftId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DefaultSiteLocationId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("DisplayName")
@@ -453,6 +625,9 @@ namespace ShiftOMator.Infrastructure.Migrations
 
                     b.Property<string>("LocationId")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ManagerId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("OrgCategory")
@@ -500,6 +675,254 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("PlanningUnits");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.PresenceRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("LastSeenInSyncAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PersonId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Portion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SiteLabel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SiteLocationId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TypeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("[ExternalId] IS NOT NULL");
+
+                    b.HasIndex("To");
+
+                    b.HasIndex("PersonId", "From");
+
+                    b.ToTable("Presence");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.PresenceType", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CountsAs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Glyph")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("NamesALocation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresApproval")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PresenceTypes");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.Request", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date");
+
+                    b.Property<string>("MaterializedEntityId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Portion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SubjectPersonId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TypeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UnitId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("From");
+
+                    b.HasIndex("State", "UnitId");
+
+                    b.HasIndex("SubjectPersonId", "State");
+
+                    b.ToTable("Requests");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.RequestType", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EventTypeId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Materializer")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PresenceTypeId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RequestTypes");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.RoleAssignment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("GrantedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PersonId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UnitId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("Role", "UnitId");
+
+                    b.HasIndex("PersonId", "UnitId", "Role")
+                        .IsUnique()
+                        .HasFilter("[UnitId] IS NOT NULL");
+
+                    b.ToTable("RoleAssignments");
                 });
 
             modelBuilder.Entity("ShiftOMator.Domain.Shift", b =>
@@ -651,6 +1074,15 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.HasOne("ShiftOMator.Domain.PlanningUnit", null)
                         .WithMany("AbsenceCapacityRules")
                         .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.ApprovalDecision", b =>
+                {
+                    b.HasOne("ShiftOMator.Domain.Request", null)
+                        .WithMany("Decisions")
+                        .HasForeignKey("RequestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -842,6 +1274,11 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Navigation("DayConfigurations");
 
                     b.Navigation("Shifts");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.Request", b =>
+                {
+                    b.Navigation("Decisions");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,8 +1,11 @@
 # ADR-0001. A role carries its own time
 
-**Status:** accepted — amended by
-[ADR-0018](0018-shift-distinct-from-role.md), which adds a person's contracted shift
-window as a separate concept. Role time still drives coverage, timelines and exports.
+**Status:** ~~accepted~~ — **superseded by [ADR-0033](0033-one-shift-entity-absolute-window.md)**
+(one `Shift` entity carrying an absolute window). It was first amended by
+[ADR-0018](0018-shift-distinct-from-role.md), which added a person's contracted shift
+window as a separate concept; ADR-0033 then collapsed both entities into one. The core
+claim survives the collapse: a shift carries its own time, in its own fixed timezone,
+and that time drives coverage, timelines and exports.
 
 ## Context
 

@@ -12,4 +12,12 @@ public record ReferenceResponse(
     IEnumerable<Shift> Shifts,
     IEnumerable<DayConfiguration> DayConfigurations,
     IReadOnlyList<Person> People,
-    IEnumerable<AbsenceCapacityRule> AbsenceCapacityRules);
+    IEnumerable<AbsenceCapacityRule> AbsenceCapacityRules,
+    /// <summary>Kinds of non-working day, as data (ADR-0049). Active ones only — a
+    /// retired type still appears on historical absences but must not be offered.</summary>
+    IReadOnlyList<EventType> EventTypes,
+
+    /// <summary>How each kind of presence is offered and drawn (ADR-0043). <b>All</b> of
+    /// them, retired ones included: a record written before a kind was retired still has
+    /// to render, and the menu is what filters on <c>IsActive</c>.</summary>
+    IReadOnlyList<PresenceType> PresenceTypes);

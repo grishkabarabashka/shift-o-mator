@@ -20,6 +20,13 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { API_BASE_URL } from '../api/client.ts';
 import { instantToWire, timeToWire, upperSnakeToCamel, weekdaysToWire } from '../api/mapping.ts';
+import {
+  MOCK_REQUEST_TYPES,
+  presenceToWire,
+  selfServiceHandlers,
+  type MockNotification,
+  type MockRequest,
+} from './mockSelfService.ts';
 import type {
   Absence,
   Assignment,
@@ -90,7 +97,6 @@ function assignmentToWireLocal(a: Assignment) {
     personId: a.personId,
     date: a.date,
     unitId: a.unitId,
-    contentKind: a.content.kind === 'SHIFT' ? 'shift' : 'marker',
     shiftId: a.content.kind === 'SHIFT' ? a.content.shiftId : null,
     timeOverride:
       a.content.kind === 'SHIFT' && a.content.timeOverride
@@ -100,7 +106,6 @@ function assignmentToWireLocal(a: Assignment) {
             crossesMidnight: a.content.timeOverride.crossesMidnight,
           }
         : null,
-    marker: a.content.kind === 'MARKER' ? upperSnakeToCamel(a.content.marker) : null,
     isWeekend: a.isWeekend,
     note: a.note ?? null,
     source: upperSnakeToCamel(a.source),
@@ -114,7 +119,8 @@ function assignmentToWireLocal(a: Assignment) {
 function absenceToWireLocal(a: Absence) {
   return {
     ...a,
-    type: upperSnakeToCamel(a.type),
+    eventTypeId: a.eventTypeId,
+    portion: upperSnakeToCamel(a.portion),
     source: upperSnakeToCamel(a.source),
     importBatchId: a.importBatchId ?? null,
     lastSeenInImportAt: a.lastSeenInImportAt ?? null,
@@ -142,7 +148,43 @@ interface MockSession {
 class MockBackend {
   data: ScheduleDataset = buildMockDataset();
   sessions = new Map<string, MockSession>();
+  /** Self-service state (ADR-0047), kept alongside the plan so a test can approve a
+   * request and then assert on the presence record it produced. */
+  requests: MockRequest[] = [];
+
+  /** Role grants, as `/api/admin/role-assignments` stores them (ADR-0051). */
+  roleAssignments: {
+    id: string;
+    personId: string;
+    unitId: string | null;
+    role: string;
+    grantedBy: string;
+    grantedAt: string;
+  }[] = [];
+  notifications: MockNotification[] = [];
+  /**
+   * The roles `/api/auth/me` reports. A **set**, and scoped to a unit or global
+   * (ADR-0051) — the real server resolves the same shape from `RoleAssignment` rows.
+   *
+   * The default is a planner-and-approver of everywhere, which is what most tests want;
+   * a test that cares about scoping sets the list itself.
+   */
+  roles: readonly { role: string; unitId?: string }[] = [
+    { role: 'planner' },
+    { role: 'approver' },
+  ];
   private seq = 0;
+
+  /**
+   * The signed-in person, as the real server resolves it (ADR-0039): a real member of
+   * the roster, not a phantom id. Both `/api/auth/me` and the draft editor come from
+   * here, so the client can never see the two disagree.
+   */
+  get currentPersonId(): string {
+    return this.data.people.find((p) => p.orgCategory === 'MANAGEMENT')?.id
+      ?? this.data.people[0]?.id
+      ?? 'p-unknown';
+  }
 
   nextId(prefix: string): string {
     this.seq += 1;
@@ -159,6 +201,10 @@ export const mockBackend = new MockBackend();
 export function resetMockApi(): void {
   mockBackend.data = buildMockDataset();
   mockBackend.sessions.clear();
+  mockBackend.requests = [];
+  mockBackend.notifications = [];
+  mockBackend.roles = [{ role: 'planner' }, { role: 'approver' }];
+  mockBackend.roleAssignments = [];
 }
 
 function inRange(date: IsoDate, range: DateRange): boolean {
@@ -226,6 +272,18 @@ function overlayPlan(session?: MockSession) {
 const base = API_BASE_URL;
 
 export const handlers = [
+  // ADR-0039: the client asks the server who it is instead of assuming.
+  http.get(`${base}/api/auth/me`, () =>
+    HttpResponse.json({
+      personId: mockBackend.currentPersonId,
+      displayName: 'Planner (test)',
+      roles: [{ role: 'viewer', unitId: null }, ...mockBackend.roles.map((r) => ({
+        role: r.role,
+        unitId: r.unitId ?? null,
+      }))],
+      stubMode: true,
+    })),
+
   http.get(`${base}/api/reference`, () => {
     const d = mockBackend.data;
     return HttpResponse.json({
@@ -236,6 +294,11 @@ export const handlers = [
       dayConfigurations: d.dayConfigurations.map(dayConfigToWire),
       people: d.people.map(personToWire),
       absenceCapacityRules: d.absenceCapacityRules,
+      // The real ReferenceResponse carries these (ADR-0045). Omitting them left the cell
+      // menu with an empty Time off section and no test could see it -- the same class of
+      // gap that hid presence from `/api/schedule`.
+      eventTypes: d.eventTypes,
+      presenceTypes: d.presenceTypes,
     });
   }),
 
@@ -310,6 +373,12 @@ export const handlers = [
           .filter((a) => mockBackend.overlaps({ from: a.from, to: a.to }, { from, to }))
           .map(absenceToWireLocal),
         compDays: compDays.map(compDayToWireLocal),
+        // Presence rides on the plan response so the grid needs one round trip, not two
+        // (ADR-0043). Overlap, not containment: a block that started earlier still
+        // covers days in this window.
+        presence: mockBackend.data.presence
+          .filter((p) => mockBackend.overlaps({ from: p.from, to: p.to }, { from, to }))
+          .map(presenceToWire),
       },
       coverage,
       issues,
@@ -321,7 +390,6 @@ export const handlers = [
 
   http.post(`${base}/api/drafts`, async ({ request }) => {
     const body = (await request.json()) as {
-      editorPersonId: string;
       unitId: string;
       rangeFrom: string;
       rangeTo: string;
@@ -329,7 +397,8 @@ export const handlers = [
     const now = new Date().toISOString();
     const session: DraftSession = {
       id: mockBackend.nextId('draft'),
-      editorPersonId: body.editorPersonId,
+      // The editor comes from the authenticated principal, not the payload (ADR-0039).
+      editorPersonId: mockBackend.currentPersonId,
       unitId: body.unitId,
       range: { from: body.rangeFrom, to: body.rangeTo },
       status: 'OPEN',
@@ -349,7 +418,81 @@ export const handlers = [
     });
   }),
 
-  http.get(`${base}/api/drafts`, () => HttpResponse.json([])),
+  // Used two ways: other people's overlapping drafts (the informational banner) and, with
+  // `mine`, the caller's own — which is how a view change resumes a draft instead of
+  // dropping it. Returning a flat [] made the second unobservable in any test.
+  http.get(`${base}/api/drafts`, ({ request }) => {
+    const url = new URL(request.url);
+    const unitId = url.searchParams.get('unitId');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const mine = url.searchParams.get('mine') === 'true';
+
+    const open = [...mockBackend.sessions.values()]
+      .map((entry) => entry.session)
+      .filter((s) => s.status === 'OPEN')
+      .filter((s) => !unitId || s.unitId === unitId)
+      .filter((s) => !from || s.range.to >= from)
+      .filter((s) => !to || s.range.from <= to)
+      .filter((s) => !mine || s.editorPersonId === mockBackend.currentPersonId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    return HttpResponse.json(
+      open.map((s) => ({
+        id: s.id,
+        editorPersonId: s.editorPersonId,
+        unitId: s.unitId,
+        rangeFrom: s.range.from,
+        rangeTo: s.range.to,
+        status: 'open',
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
+    );
+  }),
+
+  // The advisory "somebody else is editing here" overlay (ADR-0015). Empty rather than
+  // absent: the grid polls it on every render, and an unhandled request is the sort of
+  // gap that has twice hidden a real one here.
+  http.get(`${base}/api/drafts/staged`, () => HttpResponse.json({ cells: [] })),
+
+  // One person's own year. Filtered here rather than returned whole, because "does this
+  // screen show somebody else's rows" is the property most worth being able to test.
+  http.get(`${base}/api/me/calendar`, ({ request }) => {
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from') ?? '';
+    const to = url.searchParams.get('to') ?? '';
+    const me = mockBackend.currentPersonId;
+    const d = mockBackend.data;
+    const overlaps = (a: { from: string; to: string }) => a.from <= to && a.to >= from;
+
+    return HttpResponse.json({
+      personId: me,
+      assignments: d.assignments
+        .filter((a) => a.personId === me && a.date >= from && a.date <= to)
+        .map(assignmentToWireLocal),
+      absences: d.absences.filter((a) => a.personId === me && overlaps(a)).map(absenceToWireLocal),
+      compDays: d.compDays.filter((c) => c.personId === me).map(compDayToWireLocal),
+      presence: d.presence.filter((p) => p.personId === me && overlaps(p)).map(presenceToWire),
+      pendingRequests: mockBackend.requests
+        .filter((r) => r.subjectPersonId === me && (r.state === 'submitted' || r.state === 'approved'))
+        .map((r) => ({
+          id: r.id,
+          typeId: r.typeId,
+          typeLabel: MOCK_REQUEST_TYPES.find((t) => t.id === r.typeId)?.label ?? r.typeId,
+          from: r.from,
+          to: r.to,
+          portion: 'full',
+          state: r.state,
+        })),
+    });
+  }),
+
+  http.get(`${base}/api/me/calendar-feed`, () =>
+    HttpResponse.json({ url: `${base}/api/calendar/mock-token.ics` })),
+
+  http.post(`${base}/api/me/calendar-feed/reset`, () =>
+    HttpResponse.json({ url: `${base}/api/calendar/mock-token-2.ics` })),
 
   http.get(`${base}/api/drafts/:id/changes`, ({ params }) => {
     const entry = mockBackend.sessions.get(params.id as string);
@@ -454,6 +597,21 @@ export const handlers = [
 
   http.post(`${base}/api/suggest`, () => HttpResponse.json({ available: [], excluded: [], teamWeekendAverage: 0 })),
 
+  // ADR-0048: the deciding factor is computed and always present; the prose is null
+  // when no model is configured, which is the default everywhere including tests.
+  http.post(`${base}/api/insights/candidate-explanation`, () =>
+    HttpResponse.json({
+      explanation: null,
+      digest: '',
+      suggestedPersonId: null,
+      suggestedPersonName: null,
+      decidingFactor: 'nobody is both eligible and available',
+      availableCount: 0,
+      excludedCount: 0,
+      model: null,
+      generatedAt: new Date().toISOString(),
+    })),
+
   http.post(`${base}/api/auto-populate`, () => HttpResponse.json({ assignments: [], compDays: [], gaps: [] })),
 
   http.put(`${base}/api/people/:id`, async ({ params, request }) => {
@@ -484,6 +642,104 @@ export const handlers = [
     mockBackend.data = { ...mockBackend.data, dayConfigurations: [...mockBackend.data.dayConfigurations, created as never] };
     return HttpResponse.json(created);
   }),
+
+  // Absences are direct writes now (ADR-0052) — no draft, no publish.
+  http.post(`${base}/api/absences`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const created = {
+      id: mockBackend.nextId('abs'),
+      personId: body.personId as string,
+      eventTypeId: body.eventTypeId as string,
+      from: body.from as string,
+      to: body.to as string,
+      portion: ((body.portion as string) ?? 'full'),
+      source: 'manual',
+      note: (body.note as string | null) ?? null,
+      version: 1,
+    };
+    mockBackend.data = {
+      ...mockBackend.data,
+      absences: [
+        ...mockBackend.data.absences,
+        {
+          id: created.id,
+          personId: created.personId,
+          eventTypeId: created.eventTypeId,
+          from: created.from,
+          to: created.to,
+          portion: upperOf(created.portion),
+          source: 'MANUAL' as const,
+          version: 1,
+          ...(created.note ? { note: created.note } : {}),
+        },
+      ],
+    };
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.put(`${base}/api/absences/:id`, async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const id = params.id as string;
+    const existing = mockBackend.data.absences.find((a) => a.id === id);
+    if (!existing) return new HttpResponse(null, { status: 404 });
+    const updated = {
+      ...existing,
+      eventTypeId: body.eventTypeId as string,
+      portion: upperOf((body.portion as string) ?? 'full'),
+      ...(body.note ? { note: body.note as string } : {}),
+      version: existing.version + 1,
+    };
+    mockBackend.data = {
+      ...mockBackend.data,
+      absences: mockBackend.data.absences.map((a) => (a.id === id ? updated : a)),
+    };
+    return HttpResponse.json({ ...updated, portion: (updated.portion as string).toLowerCase() });
+  }),
+
+  http.delete(`${base}/api/absences/:id`, ({ params }) => {
+    mockBackend.data = {
+      ...mockBackend.data,
+      absences: mockBackend.data.absences.filter((a) => a.id !== params.id),
+    };
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get(`${base}/api/admin/role-assignments`, ({ request }) => {
+    const unitId = new URL(request.url).searchParams.get('unitId');
+    return HttpResponse.json(
+      unitId === null
+        ? mockBackend.roleAssignments
+        : mockBackend.roleAssignments.filter((r) => r.unitId === unitId),
+    );
+  }),
+
+  http.post(`${base}/api/admin/role-assignments`, async ({ request }) => {
+    const body = (await request.json()) as { personId: string; unitId: string | null; role: string };
+    // Granting something already held is the same grant, not a second row — the server
+    // returns the existing one rather than erroring.
+    const existing = mockBackend.roleAssignments.find(
+      (r) => r.personId === body.personId && r.unitId === body.unitId && r.role === body.role,
+    );
+    if (existing) return HttpResponse.json(existing);
+
+    const created = {
+      id: mockBackend.nextId('ra'),
+      personId: body.personId,
+      unitId: body.unitId,
+      role: body.role,
+      grantedBy: mockBackend.currentPersonId,
+      grantedAt: new Date().toISOString(),
+    };
+    mockBackend.roleAssignments.push(created);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.delete(`${base}/api/admin/role-assignments/:id`, ({ params }) => {
+    mockBackend.roleAssignments = mockBackend.roleAssignments.filter((r) => r.id !== params.id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  ...selfServiceHandlers(base),
 ];
 
 /** Builds GET(list is unused by the UI, which reads `/api/reference` instead) +
@@ -577,17 +833,19 @@ function keyOfChange(change: DraftChange): string {
 
 // Minimal local wire->domain reversal — small enough not to warrant reusing
 // api/mapping.ts's private helpers, and keeps this mock free-standing.
+/** The wire is camelCase; the domain is upper snake. One helper, two absence routes. */
+function upperOf(portion: string): 'FULL' | 'MORNING' | 'AFTERNOON' {
+  const upper = portion.toUpperCase();
+  return upper === 'MORNING' || upper === 'AFTERNOON' ? upper : 'FULL';
+}
+
 function fromWireAssignment(w: Record<string, unknown>): Assignment {
-  const contentKind = w.contentKind as string;
   return {
     id: w.id as string,
     personId: w.personId as string,
     date: w.date as string,
     unitId: w.unitId as string,
-    content:
-      contentKind === 'shift'
-        ? { kind: 'SHIFT', shiftId: w.shiftId as string }
-        : { kind: 'MARKER', marker: (w.marker as string) === 'off' ? 'OFF' : 'NOT_SCHEDULED' },
+    content: { kind: 'SHIFT', shiftId: w.shiftId as string },
     isWeekend: Boolean(w.isWeekend),
     source: ((w.source as string) === 'manual' ? 'MANUAL' : (w.source as string) === 'generated' ? 'GENERATED' : 'IMPORTED'),
     version: (w.version as number) ?? 0,
@@ -601,10 +859,12 @@ function fromWireAbsence(w: Record<string, unknown>): Absence {
   return {
     id: w.id as string,
     personId: w.personId as string,
-    type: (w.type as string).toUpperCase() as Absence['type'],
+    eventTypeId: w.eventTypeId as string,
+    portion: ((w.portion as string) ?? 'full').toUpperCase() as Absence['portion'],
     from: w.from as string,
     to: w.to as string,
     source: (w.source as string).toUpperCase() as Absence['source'],
+    version: (w.version as number) ?? 1,
   };
 }
 function fromWireCompDay(w: Record<string, unknown>): CompDayEntry {
@@ -617,6 +877,7 @@ function fromWireCompDay(w: Record<string, unknown>): CompDayEntry {
     status: upperSnakeFromCamel(w.status as string) as CompDayEntry['status'],
     ...(w.proposedDate ? { proposedDate: w.proposedDate as string } : {}),
     ...(w.actualDate ? { actualDate: w.actualDate as string } : {}),
+    version: (w.version as number) ?? 1,
   };
 }
 function upperSnakeFromCamel(value: string): string {

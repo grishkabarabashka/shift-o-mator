@@ -22,7 +22,7 @@ import { ALL_UNITS } from './domain/types.ts';
 import { rangeFor } from './engine/period.ts';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
-import { resetMockApi, server } from './testUtils/mockApi.ts';
+import { mockBackend, resetMockApi, server } from './testUtils/mockApi.ts';
 import { DEFAULT_UNIT } from './testUtils/mockDataset.ts';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -41,7 +41,6 @@ afterEach(() => {
     highlightDate: undefined,
     activeShiftId: undefined,
     clipboard: undefined,
-    issueFilter: 'ALL',
     absenceDraft: undefined,
     compDayDraft: undefined,
     // NOTE: the app default is "all units" (ADR-0020) — reset to that, not to
@@ -107,13 +106,22 @@ function freeCoverCell(): { personId: string; date: string; shiftId: string } {
   );
   if (!shift || !person) throw new Error('No suitable person in the mock dataset');
 
-  for (let day = 1; day <= 31; day += 1) {
-    const date = `2026-08-${String(day).padStart(2, '0')}`;
-    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  // Derived from the range on screen, not hard-coded to a month: the Schedule window
+  // runs forward from the selected day now, so a fixed August date is not necessarily in
+  // it (ADR-0036 as amended).
+  const range = useSchedule.getState().range;
+  if (!range) throw new Error('No range loaded');
+
+  for (let offset = 0; offset < 31; offset += 1) {
+    const cursor = new Date(`${range.from}T00:00:00Z`);
+    cursor.setUTCDate(cursor.getUTCDate() + offset);
+    const date = cursor.toISOString().slice(0, 10);
+    if (date > range.to) break;
+    const weekday = cursor.getUTCDay();
     if (weekday === 0 || weekday === 6) continue;
     return { personId: person.id, date, shiftId: shift.id };
   }
-  throw new Error('No weekday found');
+  throw new Error('No weekday in the visible range');
 }
 
 function cellShiftId(personId: string, date: string): string | undefined {
@@ -130,11 +138,14 @@ describe('shell', () => {
       await screen.findByRole('heading', { name: 'Coverage timeline' }, { timeout: 10000 }),
     ).toBeInTheDocument();
 
-    for (const name of ['Overview', 'Schedule', 'People', 'Settings']) {
+    for (const name of ['Overview', 'Schedule', 'People', 'Requests']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
     // NOTE: dashboard and timeline are no longer separate tabs.
     expect(screen.queryByRole('link', { name: 'Timeline' })).toBeNull();
+    // Settings is configuration, so it is hidden from anyone who administers nothing
+    // (ADR-0051). The default test identity plans and approves; it does not administer.
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();
   });
 
   it('Overview shows all units at once, with no need to pick one', async () => {
@@ -155,7 +166,8 @@ describe('shell', () => {
     expect(within(table).getByText('Comp owed')).toBeInTheDocument();
   });
 
-  it('Settings shows the unit\'s real shift codes', async () => {
+  it('Settings is offered to an administrator, and shows the unit\'s real shift codes', async () => {
+    mockBackend.roles = [{ role: 'admin' }];
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Shifts' }));
@@ -186,11 +198,15 @@ describe('grid', () => {
   it('renders the unit\'s people and the days of the month', async () => {
     await renderSchedule();
     const cells = grid().querySelectorAll('[role="gridcell"]');
+    // Everyone active, managers included. `isIncluded` decides who gets *planned*, not
+    // who is drawn: a manager holds no shifts and still takes leave, and their row is the
+    // only place to record it. Deciding both with one flag meant an administrator existed
+    // in the list only while you were acting as them.
     const people = useSchedule
       .getState()
-      .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isIncluded);
+      .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isActive);
 
-    expect(people?.length).toBeGreaterThan(0);
+    expect(people?.some((person) => !person.isIncluded)).toBe(true);
     expect(cells.length).toBe((people?.length ?? 0) * 31);
   });
 
@@ -369,20 +385,19 @@ describe('assignment picker', () => {
     });
   });
 
-  it('sets the `0` marker, distinct from an empty cell', async () => {
+  it('offers no roster markers, because there are none', async () => {
+    // "Off" and "0 — not scheduled" were deleted with the markers themselves (ADR-0052).
+    // An engineer who wants to be left off a day records the Not available absence, which
+    // the self-service section of this same menu offers.
     await renderSchedule();
     const { personId, date } = freeCoverCell();
 
     fireEvent.contextMenu(cellAt(personId, date));
     const menu = await screen.findByRole('menu');
-    fireEvent.click(within(menu).getByText('0 — not scheduled'));
 
-    await waitFor(() => {
-      const assignment = useSchedule
-        .getState()
-        .plan?.assignments.find((a) => a.personId === personId && a.date === date);
-      expect(assignment?.content).toEqual({ kind: 'MARKER', marker: 'NOT_SCHEDULED' });
-    });
+    expect(within(menu).queryByText('0 — not scheduled')).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: 'Off' })).toBeNull();
+    expect(within(menu).getByRole('menuitem', { name: /Not available/ })).toBeTruthy();
   });
 });
 

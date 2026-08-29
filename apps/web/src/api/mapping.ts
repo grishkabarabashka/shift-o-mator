@@ -10,7 +10,7 @@
  * convention) and a weekday name on the wire (`IsoWeekday`).
  *
  * `Assignment` is also *structurally* different: the wire shape flattens
- * `content` into `contentKind`/`shiftId`/`marker`/`timeOverride` (an EF-mapped
+ * `content` into `shiftId`/`timeOverride` (an EF-mapped
  * class can't hold a discriminated union); `toWireAssignment`/`fromWireAssignment`
  * do the reshaping in both directions.
  *
@@ -20,13 +20,20 @@
  * file follows both renames.
  */
 
+import type { PendingCategory, PendingRequest } from '../engine/requests.ts';
 import type {
   Absence,
   AbsenceCapacityRule,
-  AbsenceType,
+  DayPortion,
+  EventType,
   Acknowledgement,
   AssignmentContent,
-  AssignmentHistoryEntry,
+  ChangeHistoryEntry,
+  HistoryEntityType,
+  PresenceGroup,
+  PresenceType,
+  PresenceRecord,
+  PresenceSource,
   AssignmentSource,
   Assignment,
   CompDayEntry,
@@ -52,7 +59,6 @@ import type {
   PublishConflict,
   PublishResult,
   ReferenceData,
-  RosterMarker,
   Shift,
   ShiftEligibility,
   ShiftRequirement,
@@ -336,7 +342,8 @@ interface WirePerson {
   readonly weekendEligible: boolean;
   readonly constraints: WirePersonConstraints;
   readonly preferences?: WirePersonPreferences | null;
-  readonly calendarToken: string;
+  readonly defaultPresenceTypeId?: string | null;
+  readonly defaultSiteLocationId?: string | null;
   readonly eligibility: readonly WireShiftEligibility[];
 }
 
@@ -376,7 +383,10 @@ export function personFromWire(w: WirePerson): Person {
         : {}),
     },
     ...(w.preferences ? { preferences: preferencesFromWire(w.preferences) } : {}),
-    calendarToken: w.calendarToken,
+    // Defaulted rather than required on the wire so an older API still deserializes:
+    // office is the pre-ADR-0043 assumption everyone was operating under anyway.
+    defaultPresenceTypeId: w.defaultPresenceTypeId ?? 'pt-office',
+    ...(w.defaultSiteLocationId ? { defaultSiteLocationId: w.defaultSiteLocationId } : {}),
   };
 }
 
@@ -388,7 +398,7 @@ interface WireAbsenceCapacityRule {
   readonly durationBucket: string;
   readonly longThresholdWorkdays: number;
   readonly maxConcurrent: number;
-  readonly countsTypes: readonly string[];
+  readonly countsEventTypeIds: readonly string[];
   readonly countsCompDays: boolean;
 }
 
@@ -400,7 +410,7 @@ export function absenceCapacityRuleFromWire(w: WireAbsenceCapacityRule): Absence
     durationBucket: camelToUpperSnake(w.durationBucket),
     longThresholdWorkdays: w.longThresholdWorkdays,
     maxConcurrent: w.maxConcurrent,
-    countsTypes: w.countsTypes.map((t) => camelToUpperSnake<AbsenceType>(t)),
+    countsEventTypeIds: [...w.countsEventTypeIds],
     countsCompDays: w.countsCompDays,
   };
 }
@@ -413,6 +423,8 @@ export interface WireReferenceData {
   readonly dayConfigurations: readonly WireDayConfiguration[];
   readonly people: readonly WirePerson[];
   readonly absenceCapacityRules: readonly WireAbsenceCapacityRule[];
+  readonly eventTypes?: readonly WireEventType[];
+  readonly presenceTypes?: readonly WirePresenceType[];
 }
 
 export function referenceFromWire(w: WireReferenceData): ReferenceData {
@@ -424,6 +436,67 @@ export function referenceFromWire(w: WireReferenceData): ReferenceData {
     dayConfigurations: w.dayConfigurations.map(dayConfigurationFromWire),
     people: w.people.map(personFromWire),
     absenceCapacityRules: w.absenceCapacityRules.map(absenceCapacityRuleFromWire),
+    eventTypes: (w.eventTypes ?? []).map(eventTypeFromWire),
+    presenceTypes: (w.presenceTypes ?? []).map(presenceTypeFromWire),
+  };
+}
+
+
+interface WirePresenceType {
+  readonly id: string;
+  readonly label: string;
+  readonly namesALocation: boolean;
+  readonly countsAs: string;
+  readonly glyph: string;
+  readonly color: string;
+  readonly requiresApproval: boolean;
+  readonly isActive: boolean;
+  readonly sortOrder: number;
+}
+
+export function presenceTypeFromWire(w: WirePresenceType): PresenceType {
+  return {
+    id: w.id,
+    label: w.label,
+    namesALocation: w.namesALocation,
+    countsAs: camelToUpperSnake<PresenceGroup>(w.countsAs),
+    glyph: w.glyph,
+    color: w.color,
+    requiresApproval: w.requiresApproval,
+    isActive: w.isActive,
+    sortOrder: w.sortOrder,
+  };
+}
+
+interface WireEventType {
+  readonly id: string;
+  readonly code: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly color: string;
+  readonly category: string;
+  readonly blocksAssignment: boolean;
+  readonly countsTowardCapacity: boolean;
+  readonly requiresApproval: boolean;
+  readonly isActive: boolean;
+  readonly allowsHalfDay: boolean;
+  readonly sortOrder: number;
+}
+
+export function eventTypeFromWire(w: WireEventType): EventType {
+  return {
+    id: w.id,
+    code: w.code,
+    label: w.label,
+    shortLabel: w.shortLabel,
+    color: w.color,
+    category: camelToUpperSnake(w.category),
+    blocksAssignment: w.blocksAssignment,
+    countsTowardCapacity: w.countsTowardCapacity,
+    requiresApproval: w.requiresApproval,
+    isActive: w.isActive,
+    allowsHalfDay: w.allowsHalfDay,
+    sortOrder: w.sortOrder,
   };
 }
 
@@ -442,10 +515,9 @@ interface WireAssignment {
   readonly personId: string;
   readonly date: IsoDate;
   readonly unitId: string;
-  readonly contentKind: string;
-  readonly shiftId?: string | null;
+  /** An assignment is a shift (ADR-0052), so this is never null on the wire. */
+  readonly shiftId: string;
   readonly timeOverride?: WireTimeOverride | null;
-  readonly marker?: string | null;
   readonly isWeekend: boolean;
   readonly note?: string | null;
   readonly source: string;
@@ -457,22 +529,19 @@ interface WireAssignment {
 }
 
 export function assignmentFromWire(w: WireAssignment): Assignment {
-  const content: AssignmentContent =
-    w.contentKind === 'shift'
+  const content: AssignmentContent = {
+    kind: 'SHIFT',
+    shiftId: w.shiftId,
+    ...(w.timeOverride
       ? {
-          kind: 'SHIFT',
-          shiftId: w.shiftId ?? '',
-          ...(w.timeOverride
-            ? {
-                timeOverride: {
-                  start: timeFromWire(w.timeOverride.start),
-                  end: timeFromWire(w.timeOverride.end),
-                  crossesMidnight: w.timeOverride.crossesMidnight,
-                },
-              }
-            : {}),
+          timeOverride: {
+            start: timeFromWire(w.timeOverride.start),
+            end: timeFromWire(w.timeOverride.end),
+            crossesMidnight: w.timeOverride.crossesMidnight,
+          },
         }
-      : { kind: 'MARKER', marker: camelToUpperSnake<RosterMarker>(w.marker ?? 'off') };
+      : {}),
+  };
 
   return {
     id: w.id,
@@ -497,17 +566,15 @@ export function assignmentToWire(a: Assignment): WireAssignment {
     personId: a.personId,
     date: a.date,
     unitId: a.unitId,
-    contentKind: a.content.kind === 'SHIFT' ? 'shift' : 'marker',
-    shiftId: a.content.kind === 'SHIFT' ? a.content.shiftId : null,
+    shiftId: a.content.shiftId,
     timeOverride:
-      a.content.kind === 'SHIFT' && a.content.timeOverride
+      a.content.timeOverride
         ? {
             start: timeToWire(a.content.timeOverride.start),
             end: timeToWire(a.content.timeOverride.end),
             crossesMidnight: a.content.timeOverride.crossesMidnight,
           }
         : null,
-    marker: a.content.kind === 'MARKER' ? upperSnakeToCamel(a.content.marker) : null,
     isWeekend: a.isWeekend,
     note: a.note ?? null,
     source: upperSnakeToCamel(a.source),
@@ -522,7 +589,8 @@ export function assignmentToWire(a: Assignment): WireAssignment {
 interface WireAbsence {
   readonly id: string;
   readonly personId: string;
-  readonly type: string;
+  readonly eventTypeId: string;
+  readonly portion?: string;
   readonly from: IsoDate;
   readonly to: IsoDate;
   readonly source: string;
@@ -530,13 +598,15 @@ interface WireAbsence {
   readonly lastSeenInImportAt?: string | null;
   readonly syncedToHrAt?: string | null;
   readonly note?: string | null;
+  readonly version?: number;
 }
 
 export function absenceFromWire(w: WireAbsence): Absence {
   return {
     id: w.id,
     personId: w.personId,
-    type: camelToUpperSnake(w.type),
+    eventTypeId: w.eventTypeId,
+    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
     from: w.from,
     to: w.to,
     source: camelToUpperSnake(w.source),
@@ -544,6 +614,7 @@ export function absenceFromWire(w: WireAbsence): Absence {
     ...(w.lastSeenInImportAt ? { lastSeenInImportAt: instantFromWire(w.lastSeenInImportAt) } : {}),
     ...(w.syncedToHrAt ? { syncedToHrAt: instantFromWire(w.syncedToHrAt) } : {}),
     ...(w.note ? { note: w.note } : {}),
+    version: w.version ?? 1,
   };
 }
 
@@ -551,7 +622,8 @@ export function absenceToWire(a: Absence): WireAbsence {
   return {
     id: a.id,
     personId: a.personId,
-    type: upperSnakeToCamel(a.type),
+    eventTypeId: a.eventTypeId,
+    portion: upperSnakeToCamel(a.portion),
     from: a.from,
     to: a.to,
     source: upperSnakeToCamel(a.source),
@@ -559,6 +631,7 @@ export function absenceToWire(a: Absence): WireAbsence {
     lastSeenInImportAt: a.lastSeenInImportAt ? instantToWire(a.lastSeenInImportAt) : null,
     syncedToHrAt: a.syncedToHrAt ? instantToWire(a.syncedToHrAt) : null,
     note: a.note ?? null,
+    version: a.version,
   };
 }
 
@@ -572,6 +645,7 @@ interface WireCompDayEntry {
   readonly actualDate?: IsoDate | null;
   readonly status: string;
   readonly syncedToHrAt?: string | null;
+  readonly version?: number;
 }
 
 export function compDayFromWire(w: WireCompDayEntry): CompDayEntry {
@@ -585,6 +659,7 @@ export function compDayFromWire(w: WireCompDayEntry): CompDayEntry {
     ...(w.actualDate ? { actualDate: w.actualDate } : {}),
     status: camelToUpperSnake<CompDayStatus>(w.status),
     ...(w.syncedToHrAt ? { syncedToHrAt: instantFromWire(w.syncedToHrAt) } : {}),
+    version: w.version ?? 1,
   };
 }
 
@@ -599,6 +674,7 @@ export function compDayToWire(c: CompDayEntry): WireCompDayEntry {
     actualDate: c.actualDate ?? null,
     status: upperSnakeToCamel(c.status),
     syncedToHrAt: c.syncedToHrAt ? instantToWire(c.syncedToHrAt) : null,
+    version: c.version,
   };
 }
 
@@ -818,7 +894,7 @@ export function syncItemToWireBody(item: {
 
 interface WirePublishSuccess {
   readonly remainingGaps: number;
-  readonly history: readonly WireAssignmentHistoryEntry[];
+  readonly history: readonly WireChangeHistoryEntry[];
   readonly generatedCompDays: readonly WireCompDayEntry[];
 }
 
@@ -875,24 +951,107 @@ export function publishResultFromWire(
 }
 
 // ---------------------------------------------------------------------------
+// Pending requests (overlay, not plan data — ADR-0045)
+// ---------------------------------------------------------------------------
+
+interface WirePendingRequest {
+  readonly id: string;
+  readonly typeId: string;
+  readonly typeCode: string;
+  readonly typeLabel: string;
+  readonly category: string;
+  readonly subjectPersonId: string;
+  readonly subjectDisplayName: string;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly portion?: string;
+  readonly createdAt: string;
+  readonly callerCanDecide: boolean;
+}
+
+export function pendingRequestFromWire(w: WirePendingRequest): PendingRequest {
+  return {
+    id: w.id,
+    typeCode: w.typeCode,
+    typeLabel: w.typeLabel,
+    category: camelToUpperSnake<PendingCategory>(w.category),
+    subjectPersonId: w.subjectPersonId,
+    subjectDisplayName: w.subjectDisplayName,
+    from: w.from,
+    to: w.to,
+    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
+    createdAt: instantFromWire(w.createdAt),
+    callerCanDecide: w.callerCanDecide,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Presence
+// ---------------------------------------------------------------------------
+
+interface WirePresenceRecord {
+  readonly id: string;
+  readonly personId: string;
+  readonly typeId: string;
+  readonly siteLocationId?: string | null;
+  readonly siteLabel?: string | null;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly source: string;
+  readonly portion?: string;
+  readonly requestId?: string | null;
+  readonly note?: string | null;
+  readonly version?: number;
+}
+
+export function presenceFromWire(w: WirePresenceRecord): PresenceRecord {
+  return {
+    id: w.id,
+    personId: w.personId,
+    typeId: w.typeId,
+    ...(w.siteLocationId ? { siteLocationId: w.siteLocationId } : {}),
+    ...(w.siteLabel ? { siteLabel: w.siteLabel } : {}),
+    from: w.from,
+    to: w.to,
+    source: camelToUpperSnake<PresenceSource>(w.source),
+    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
+    ...(w.requestId ? { requestId: w.requestId } : {}),
+    ...(w.note ? { note: w.note } : {}),
+    version: w.version ?? 1,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // History
 // ---------------------------------------------------------------------------
 
-interface WireAssignmentHistoryEntry {
+interface WireChangeHistoryEntry {
   readonly id: string;
-  readonly assignmentId: string;
+  readonly entityType: string;
+  readonly entityId: string;
   readonly action: string;
   readonly snapshotJson?: string | null;
+  readonly personId?: string | null;
+  readonly summary?: string | null;
   readonly actorId: string;
   readonly at: string;
 }
 
-export function historyEntryFromWire(w: WireAssignmentHistoryEntry): AssignmentHistoryEntry {
+export function historyEntryFromWire(w: WireChangeHistoryEntry): ChangeHistoryEntry {
+  const entityType = camelToUpperSnake<HistoryEntityType>(w.entityType);
   return {
     id: w.id,
-    assignmentId: w.assignmentId,
+    entityType,
+    entityId: w.entityId,
     action: camelToUpperSnake(w.action),
-    snapshot: w.snapshotJson ? assignmentFromWire(JSON.parse(w.snapshotJson)) : null,
+    // Only an assignment snapshot has a shape this client can parse; the others are
+    // stored for the record and read through `summary`.
+    snapshot:
+      entityType === 'ASSIGNMENT' && w.snapshotJson
+        ? assignmentFromWire(JSON.parse(w.snapshotJson))
+        : null,
+    ...(w.personId ? { personId: w.personId } : {}),
+    ...(w.summary ? { summary: w.summary } : {}),
     actorId: w.actorId,
     at: instantFromWire(w.at),
   };

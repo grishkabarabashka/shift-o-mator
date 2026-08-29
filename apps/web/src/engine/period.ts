@@ -11,11 +11,11 @@
  * The week is always ISO: Monday-Sunday, and that must not be relaxed.
  */
 
-import { DateTime } from 'luxon';
+
 import type { DateRange, IsoDate } from '../domain/types.ts';
 import { addDays, daysBetween, parseDate, toIsoDate } from './dates.ts';
 
-export type ScheduleZoom = 'month' | 'quarter' | 'half-year';
+export type ScheduleZoom = 'week' | 'month' | 'two-months' | 'quarter' | 'half-year';
 
 export interface ZoomSpec {
   readonly id: ScheduleZoom;
@@ -24,17 +24,36 @@ export interface ZoomSpec {
   /** Full label for aria and the tooltip. */
   readonly title: string;
   /**
-   * NOTE: The grid is editable only at the month zoom. Three and six months
-   * are a read-only heatmap: 80 x 180 editable cells fit neither the screen
-   * nor a reasonable render time.
+   * NOTE: The grid is editable up to two months. Three and six are a read-only
+   * heatmap: 80 x 180 editable cells fit neither the screen nor a reasonable
+   * render time.
    */
   readonly detail: boolean;
+  /**
+   * How far the window runs from its start, in months — or in `days`, for the one zoom
+   * short enough that a month is the wrong unit.
+   */
+  readonly months: number;
+  readonly days?: number;
 }
 
+/**
+ * Days of context kept behind the anchor, so the selected day is not glued to the left
+ * edge and yesterday stays visible without navigating.
+ */
+export const LEAD_IN_DAYS = 2;
+
 export const ZOOMS: readonly ZoomSpec[] = [
-  { id: 'month', label: 'Month', title: 'Calendar month', detail: true },
-  { id: 'quarter', label: '3 Months', title: 'Three months — read-only heatmap', detail: false },
-  { id: 'half-year', label: '6 Months', title: 'Six months — read-only heatmap', detail: false },
+  // WHY a week exists at all: it is the horizon a planner actually works in, and the
+  // shortest view on offer was a month — thirty-one columns squeezed to forty-five pixels
+  // to fit the screen. Nine columns give each day room for the shift code, the absence
+  // band and the person's name in one glance. Columns stretch to the width available, so
+  // this fits exactly and has nothing to scroll.
+  { id: 'week', label: 'Week', title: 'A week from the selected day, with two days behind it', detail: true, months: 0, days: 7 + LEAD_IN_DAYS },
+  { id: 'month', label: 'Month', title: 'One month from the selected day', detail: true, months: 1 },
+  { id: 'two-months', label: '2 Months', title: 'Two months from the selected day — still editable', detail: true, months: 2 },
+  { id: 'quarter', label: '3 Months', title: 'Three months — read-only heatmap', detail: false, months: 3 },
+  { id: 'half-year', label: '6 Months', title: 'Six months — read-only heatmap', detail: false, months: 6 },
 ];
 
 const ZOOM_BY_ID = new Map(ZOOMS.map((zoom) => [zoom.id, zoom]));
@@ -45,53 +64,46 @@ export function zoomSpec(id: ScheduleZoom): ZoomSpec {
   return spec;
 }
 
+
 /**
- * NOTE: The range of the selected zoom that contains the anchor date. For
- * Schedule only — its minimum zoom is a month (owner review: planning
- * anything shorter than a month is pointless).
+ * NOTE: The window for the selected zoom, **starting from the anchor** rather than
+ * snapping to a calendar month.
  *
- * The anchor isn't "the start of the range" but "the day the planner wants
- * to see". That's why the month aligns to the 1st: otherwise stepping
- * "forward" from August 15 would give September 15, and the column headers
- * would stop matching the calendar.
+ * WHY it changed: the anchor is "the day the planner wants to see", and aligning to the
+ * 1st meant picking the 27th showed the 1st–31st with the interesting part at the far
+ * right, and Today did the same. What a planner is actually looking at is the near future
+ * from where they are, so the window runs a month *forward* from the selected day, with
+ * two days of context behind it.
+ *
+ * The cost is that column headers no longer line up with a calendar month. That was the
+ * original reason for the alignment, and it is the smaller loss: the headers carry their
+ * own dates.
  */
 export function rangeFor(zoom: ScheduleZoom, anchor: IsoDate): DateRange {
-  const dt = parseDate(anchor);
-  switch (zoom) {
-    case 'month':
-      return { from: toIsoDate(dt.startOf('month')), to: toIsoDate(dt.endOf('month')) };
-    case 'quarter':
-      return monthSpan(dt, 3);
-    case 'half-year':
-      return monthSpan(dt, 6);
-  }
-}
-
-function monthSpan(dt: DateTime, months: number): DateRange {
-  const start = dt.startOf('month');
-  return {
-    from: toIsoDate(start),
-    to: toIsoDate(start.plus({ months }).minus({ days: 1 })),
-  };
+  const spec = zoomSpec(zoom);
+  const from = parseDate(anchor).minus({ days: LEAD_IN_DAYS });
+  // A zoom shorter than a month counts in days: `plus({ months: 0 })` is the anchor
+  // itself, and a window of one day is not a week.
+  const end = spec.days !== undefined
+    ? from.plus({ days: spec.days })
+    : from.plus({ months: spec.months });
+  return { from: toIsoDate(from), to: toIsoDate(end.minus({ days: 1 })) };
 }
 
 /**
- * NOTE: The anchor after stepping forward or backward.
+ * NOTE: The anchor after stepping forward or backward — **by one day**.
  *
- * The step equals the visible range, not a fixed number of days: "forward"
- * from a month means a month, not 30 days, or February would misalign the
- * grid.
+ * WHY not by the width of the window: a planner following a rota moves along it, and a
+ * whole-month jump per arrow press made the near boundary impossible to sit on. Jumping a
+ * month is still one click, on its own control — see <see cref="jumpAnchorMonths"/>.
  */
-export function stepAnchor(zoom: ScheduleZoom, anchor: IsoDate, direction: 1 | -1): IsoDate {
-  const dt = parseDate(anchor);
-  switch (zoom) {
-    case 'month':
-      return toIsoDate(dt.startOf('month').plus({ months: direction }));
-    case 'quarter':
-      return toIsoDate(dt.startOf('month').plus({ months: 3 * direction }));
-    case 'half-year':
-      return toIsoDate(dt.startOf('month').plus({ months: 6 * direction }));
-  }
+export function stepAnchor(anchor: IsoDate, direction: 1 | -1): IsoDate {
+  return addDays(anchor, direction);
+}
+
+/** NOTE: The anchor a whole month away — the coarse companion to `stepAnchor`. */
+export function jumpAnchorMonths(anchor: IsoDate, direction: 1 | -1): IsoDate {
+  return toIsoDate(parseDate(anchor).plus({ months: direction }));
 }
 
 /**

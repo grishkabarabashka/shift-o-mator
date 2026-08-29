@@ -71,7 +71,7 @@ public class ValidatorTests
         [Fact]
         public void Assignment_during_vacation()
         {
-            var absence = new Absence { Id = "abs-1", PersonId = "p-1", Type = AbsenceType.Vacation, From = new DateOnly(2026, 9, 7), To = new DateOnly(2026, 9, 11), Source = AbsenceSource.Manual };
+            var absence = new Absence { Id = "abs-1", PersonId = "p-1", EventTypeId = TestEventTypes.VacationId, From = new DateOnly(2026, 9, 7), To = new DateOnly(2026, 9, 11), Source = AbsenceSource.Manual };
             var issues = IssuesFor(new Scenario { Assignments = [MakeAssignment("p-1", LeadRole.Id, new DateOnly(2026, 9, 9))], Absences = [absence] });
             var issue = FirstOf(issues, IssueCode.AssignedDuringAbsence);
             Assert.Equal(IssueLevel.Warning, issue?.Level);
@@ -217,14 +217,14 @@ public class ValidatorTests
             };
             Absence LongLeave(string personId, string id) => new()
             {
-                Id = id, PersonId = personId, Type = AbsenceType.Vacation,
+                Id = id, PersonId = personId, EventTypeId = TestEventTypes.VacationId,
                 From = new DateOnly(2026, 9, 7), To = new DateOnly(2026, 9, 18), Source = AbsenceSource.Manual,
             };
 
             var rules = new List<AbsenceCapacityRule>
             {
-                new() { Id = "acr-unit", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.Unit, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 3, CountsTypes = [AbsenceType.Vacation, AbsenceType.Sick, AbsenceType.Other], CountsCompDays = true },
-                new() { Id = "acr-pool", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.ShiftPool, ScopeShiftId = LeadRole.Id, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 1, CountsTypes = [AbsenceType.Vacation, AbsenceType.Sick, AbsenceType.Other], CountsCompDays = true },
+                new() { Id = "acr-unit", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.Unit, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 3, CountsEventTypeIds = [TestEventTypes.VacationId, TestEventTypes.SickId, TestEventTypes.OtherId], CountsCompDays = true },
+                new() { Id = "acr-pool", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.ShiftPool, ScopeShiftId = LeadRole.Id, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 1, CountsEventTypeIds = [TestEventTypes.VacationId, TestEventTypes.SickId, TestEventTypes.OtherId], CountsCompDays = true },
             };
 
             var issues = IssuesFor(new Scenario { People = people, Absences = [LongLeave("p-lead-1", "abs-1"), LongLeave("p-lead-2", "abs-2")], AbsenceCapacityRules = rules });
@@ -239,9 +239,9 @@ public class ValidatorTests
         {
             var rules = new List<AbsenceCapacityRule>
             {
-                new() { Id = "acr-pool", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.ShiftPool, ScopeShiftId = LeadRole.Id, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 1, CountsTypes = [AbsenceType.Vacation], CountsCompDays = false },
+                new() { Id = "acr-pool", UnitId = TestUnit.Id, ScopeKind = AbsenceCapacityScopeKind.ShiftPool, ScopeShiftId = LeadRole.Id, DurationBucket = AbsenceDurationBucket.Long, LongThresholdWorkdays = 5, MaxConcurrent = 1, CountsEventTypeIds = [TestEventTypes.VacationId], CountsCompDays = false },
             };
-            Absence ShortLeave(string personId, string id) => new() { Id = id, PersonId = personId, Type = AbsenceType.Vacation, From = new DateOnly(2026, 9, 8), To = new DateOnly(2026, 9, 9), Source = AbsenceSource.Manual };
+            Absence ShortLeave(string personId, string id) => new() { Id = id, PersonId = personId, EventTypeId = TestEventTypes.VacationId, From = new DateOnly(2026, 9, 8), To = new DateOnly(2026, 9, 9), Source = AbsenceSource.Manual };
             var issues = IssuesFor(new Scenario { People = [MakePerson("p-1"), MakePerson("p-2")], Absences = [ShortLeave("p-1", "abs-1"), ShortLeave("p-2", "abs-2")], AbsenceCapacityRules = rules });
             Assert.DoesNotContain(IssueCode.AbsenceCapacityExceeded, Codes(issues));
         }

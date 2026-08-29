@@ -118,7 +118,6 @@ export async function runAutoPopulate(params: {
   readonly unitId: UnitId;
   readonly range: DateRange;
   readonly lockedAssignmentIds: ReadonlySet<string>;
-  readonly actorId: PersonId;
   /** NOTE: The planner's open draft: generation must see cells already placed
    * by hand, otherwise accepting the preview would overwrite them. */
   readonly draftId?: string | undefined;
@@ -127,8 +126,9 @@ export async function runAutoPopulate(params: {
     unitId: params.unitId,
     rangeFrom: params.range.from,
     rangeTo: params.range.to,
+    // NOTE: no `actorId` — generated assignments are attributed to the authenticated
+    // caller, server-side (ADR-0039).
     lockedAssignmentIds: [...params.lockedAssignmentIds],
-    actorId: params.actorId,
     draftId: params.draftId ?? null,
   });
 
@@ -147,4 +147,37 @@ export async function runAutoPopulate(params: {
     gaps: wire.gaps,
     assignedCount: wire.assignments.length,
   };
+}
+
+/**
+ * NOTE: "Why this person" for one suggested cell (ADR-0048).
+ *
+ * The deciding factor is computed server-side from the ranker's own ordering, so it is
+ * present whether or not a model is configured; `explanation` is the phrased version and
+ * is null when there is no model or the call failed. The UI shows the factor either way
+ * — losing the prose must not lose the answer.
+ */
+export interface CandidateExplanation {
+  readonly explanation: string | null;
+  readonly digest: string;
+  readonly suggestedPersonId: string | null;
+  readonly suggestedPersonName: string | null;
+  readonly decidingFactor: string;
+  readonly availableCount: number;
+  readonly excludedCount: number;
+  readonly model: string | null;
+}
+
+export async function fetchCandidateExplanation(params: {
+  readonly shiftId: ShiftId;
+  readonly date: IsoDate;
+  readonly unitId: UnitId;
+  readonly excludePersonIds?: ReadonlySet<PersonId>;
+}): Promise<CandidateExplanation> {
+  return apiPost<CandidateExplanation>('/api/insights/candidate-explanation', {
+    shiftId: params.shiftId,
+    date: params.date,
+    unitId: params.unitId,
+    excludePersonIds: params.excludePersonIds ? [...params.excludePersonIds] : null,
+  });
 }

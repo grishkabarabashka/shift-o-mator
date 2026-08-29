@@ -30,7 +30,7 @@ public static class CoverageCalculator
         {
             if (a.Date < from || a.Date > to) continue;
             if (a.UnitId != unitId) continue;
-            if (a.ContentKind != AssignmentContentKind.Shift || a.ShiftId is null) continue;
+            if (a.ShiftId is null) continue;
             if (!index.Shifts.TryGetValue(a.ShiftId, out var shift) || !shift.CountsAsCoverage) continue;
             var key = (a.Date, a.ShiftId);
             actualBy[key] = actualBy.GetValueOrDefault(key) + 1;

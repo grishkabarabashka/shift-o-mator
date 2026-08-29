@@ -26,7 +26,10 @@ import type {
   Absence,
   Acknowledgement,
   Assignment,
-  AssignmentHistoryEntry,
+  ChangeHistoryEntry,
+  DayPortion,
+  IsoDate,
+    PresenceRecord,
   CompDayEntry,
   DateRange,
   DraftSession,
@@ -123,8 +126,72 @@ export interface ScheduleRepository {
     range: DateRange,
     excludeEditorId: PersonId,
   ): Promise<readonly DraftSession[]>;
+  /**
+   * NOTE: The caller's own open drafts over this scope, newest first — for **resuming**
+   * one after a change of unit or period, without opening one that did not exist.
+   *
+   * WHY it is a separate call from `openDraft`: opening creates. Changing the view must
+   * not mint an empty session on every unit you look at, and it must not throw away the
+   * one you already have (which is what it did — the staged cells vanished from the
+   * screen while still sitting on the server, and Publish disappeared with them).
+   */
+  listMyOpenDrafts(unitId: UnitId, range: DateRange): Promise<readonly DraftSession[]>;
+  /** NOTE: The changes staged in a draft. Empty if it has none, or cannot be read. */
+  draftChanges(sessionId: DraftSessionId): Promise<readonly DraftChange[]>;
 
   // -- Audit and history --------------------------------------------------------
 
-  history(range: DateRange): Promise<readonly AssignmentHistoryEntry[]>;
+  history(range: DateRange): Promise<readonly ChangeHistoryEntry[]>;
+
+  // -- Presence ---------------------------------------------------------------
+  //
+  // NOTE: Presence goes straight to the server rather than through a draft (ADR-0043).
+  // It is not a roster decision: it never affects coverage, never blocks a publish, and
+  // is owned by the person it describes. Staging it in a planner's draft would mean an
+  // employee's "remote on Tuesday" stayed invisible until someone else published.
+
+  savePresence(record: PresenceUpsert): Promise<PresenceRecord>;
+  deletePresence(id: string): Promise<void>;
+
+  // NOTE: Absences go straight to the server too (ADR-0052). Drafts publish the rota;
+  // time off is asked for and granted on its own schedule, by different people. The
+  // control that replaces the draft is approval, and it belongs to the *kind* of absence:
+  // a type with `requiresApproval` cannot be written here by anyone, planner included.
+
+  saveAbsence(record: AbsenceUpsert): Promise<Absence>;
+  deleteAbsence(id: string): Promise<void>;
+}
+
+/**
+ * NOTE: What an absence write carries. `id` present means "replace that record";
+ * `version` is the optimistic-concurrency token of the record being replaced (ADR-0042)
+ * and is omitted on create.
+ */
+export interface AbsenceUpsert {
+  readonly id?: string;
+  readonly personId: PersonId;
+  readonly eventTypeId: string;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly portion?: DayPortion | undefined;
+  readonly note?: string | undefined;
+  readonly version?: number | undefined;
+}
+
+/**
+ * NOTE: What a presence write carries. `id` present means "replace that record";
+ * `version` is the optimistic-concurrency token of the record being replaced (ADR-0043)
+ * and is omitted on create.
+ */
+export interface PresenceUpsert {
+  readonly id?: string;
+  readonly personId: PersonId;
+  readonly typeId: string;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly siteLocationId?: string | undefined;
+  readonly siteLabel?: string | undefined;
+  readonly note?: string | undefined;
+  readonly version?: number | undefined;
+  readonly portion?: DayPortion | undefined;
 }

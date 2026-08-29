@@ -25,6 +25,8 @@
 import { useMemo } from 'react';
 import { useScheduleQuery } from '../../api/queries.ts';
 import { cellKey, type DatasetIndex } from '../../domain/lookup.ts';
+import { projectPresence, type PresenceProjection } from '../../engine/presence.ts';
+import { projectRequests, type RequestProjection } from '../../engine/requests.ts';
 import type {
   Absence,
   CellValue,
@@ -90,6 +92,17 @@ export interface PlanningView {
   /** NOTE: Planning units included in the current view. Usually one. */
   readonly unitIds: readonly UnitId[];
   readonly projection: CellProjection;
+  /** NOTE: Where people are working (ADR-0043). A second, independent map over the same
+   * cell keys — deliberately not folded into `projection`, which resolves a precedence
+   * chain that presence has no place in. */
+  readonly presence: PresenceProjection;
+  /** NOTE: Requests awaiting a decision over this window — a proposal, never a fact.
+   * The third projection over the same cell keys (ADR-0045). */
+  readonly requests: RequestProjection;
+  /** NOTE: Offices, for the presence dialog's site picker. */
+  readonly locations: readonly Location[];
+  /** NOTE: The signed-in person, so the grid can mark their own row. */
+  readonly selfId: PersonId | undefined;
   readonly coverageCells: readonly CoverageCell[];
   readonly coverageByCell: ReadonlyMap<string, CoverageCell>;
   readonly coverageSummary: ReturnType<typeof summarizeCoverage>;
@@ -118,12 +131,20 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const EMPTY_PROJECTION: CellProjection = { byCell: new Map(), nonWorkingByCell: new Set() };
 
+const EMPTY_PRESENCE: PresenceProjection = { byCell: new Map(), countsByDate: new Map() };
+
+const EMPTY_REQUESTS: RequestProjection = { byCell: new Map(), byRequestId: new Map() };
+
 const EMPTY_VIEW: PlanningView = {
   ready: false,
   rows: [],
   columns: [],
   unitIds: [],
   projection: EMPTY_PROJECTION,
+  presence: EMPTY_PRESENCE,
+  requests: EMPTY_REQUESTS,
+  locations: [],
+  selfId: undefined,
   coverageCells: [],
   coverageByCell: new Map(),
   coverageSummary: { gaps: 0, thin: 0, over: 0, total: 0 },
@@ -150,14 +171,32 @@ const EMPTY_VIEW: PlanningView = {
 
 export { cellKey };
 
+/**
+ * NOTE: Who gets a row: everybody active in scope.
+ *
+ * `isIncluded` decides who is **planned** — managers are false, they hold no shifts, and
+ * coverage and auto-populate go on ignoring them (both are server-side and read the flag).
+ * It was also being used to decide who is *drawn*, which is a different question with a
+ * different answer: a manager still works somewhere and still takes leave, and a row is
+ * the only place either can be recorded.
+ *
+ * The previous rule was "included, or it is you", which produced the strangest symptom in
+ * the product: an administrator existed in the list only while you were acting as them,
+ * and vanished the moment you switched to somebody else.
+ */
+function includeInGrid(person: Person, selfId: string | undefined): boolean {
+  void selfId;
+  return person.isActive;
+}
+
 /** NOTE: People included in the rows: the selected units, or all of them (ADR-0020). */
-function selectPeople(scope: string, index: DatasetIndex): Person[] {
+function selectPeople(scope: string, index: DatasetIndex, selfId: string | undefined): Person[] {
   // NOTE: `ALL` is not a unit but its absence: there is no filter (ADR-0020).
   if (isAllUnits(scope)) {
-    return [...index.people.values()].filter((p) => p.isIncluded);
+    return [...index.people.values()].filter((p) => includeInGrid(p, selfId));
   }
   return unitsInScope(scope, [...index.units.keys()]).flatMap((unitId) =>
-    (index.peopleByUnit.get(unitId) ?? []).filter((p) => p.isIncluded),
+    (index.peopleByUnit.get(unitId) ?? []).filter((p) => includeInGrid(p, selfId)),
   );
 }
 
@@ -181,6 +220,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
   const plan = useSchedule((s) => s.plan);
   const index = useSchedule((s) => s.index);
   const draftId = useSchedule((s) => s.session?.id);
+  const selfId = useSchedule((s) => s.currentUserId);
 
   const scheduleQuery = useScheduleQuery(unitId, range, draftId);
   const schedule = scheduleQuery.data;
@@ -197,7 +237,7 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
     const groupBy = unit?.groupBy ?? 'LOCATION';
 
     const dates = eachDate(range);
-    const people = selectPeople(unitId, index);
+    const people = selectPeople(unitId, index, selfId);
     const unitIds = [...new Set(people.map((p) => p.unitId))].sort();
 
     // --- Rows ----------------------------------------------------------------
@@ -307,7 +347,23 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       absences: plan.absences,
       compDays: plan.compDays,
       index,
+      eventTypes: new Map(reference.eventTypes.map((t) => [t.id, t])),
     });
+
+    // --- Presence: orthogonal to the plan, projected separately (ADR-0043) ------
+    const presenceProjection = projectPresence({
+      records: plan.presence,
+      dates,
+      baselines: reference.people.map((person) => ({
+        personId: person.id,
+        defaultPresenceTypeId: person.defaultPresenceTypeId,
+        defaultSiteLocationId: person.defaultSiteLocationId,
+      })),
+      locations: reference.locations,
+      presenceTypes: reference.presenceTypes,
+    });
+
+    const requestProjection = projectRequests({ requests: schedule.pendingRequests, dates });
 
     // --- Coverage and issues: server --------------------------------------------
     const coverageCells = schedule.coverage;
@@ -362,6 +418,10 @@ export function usePlanningView(asOf: IsoDate): PlanningView {
       columns,
       unitIds,
       projection,
+      presence: presenceProjection,
+      requests: requestProjection,
+      locations: reference.locations,
+      selfId,
       coverageCells,
       coverageByCell: indexCoverage(coverageCells),
       coverageSummary: summarizeCoverage(coverageCells),

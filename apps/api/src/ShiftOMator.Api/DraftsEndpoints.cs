@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
@@ -15,31 +16,129 @@ public static class DraftsEndpoints
 {
     public static void MapDraftsEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/drafts", async (OpenDraftRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts", async (OpenDraftRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
         {
-            var session = DraftService.Open(req.EditorPersonId, req.UnitId, req.RangeFrom, req.RangeTo, DateTimeOffset.UtcNow);
+            var actorId = await actors.RequireAsync(user, ct);
+
+            // WHY it resumes rather than always opening a new one: the client only knows
+            // it has a draft while the page is loaded. A reload, or switching identity and
+            // back, asked for a draft again — and a fresh empty session was minted every
+            // time. The old ones stayed Open forever, so the grid reported "another planner
+            // has this period open" about the caller's own abandoned sessions, and the
+            // edits staged in them were stranded: invisible, unpublishable, and
+            // indistinguishable from work that had silently failed to save.
+            //
+            // One open draft per (person, unit, overlapping range) is what the product
+            // always meant. Concurrent drafts by *different* people are still allowed and
+            // still informational (ADR-0015).
+            var existing = await db.DraftSessions
+                .Where(s => s.Status == DraftStatus.Open
+                    && s.EditorPersonId == actorId
+                    && s.UnitId == req.UnitId
+                    && s.RangeFrom <= req.RangeTo
+                    && s.RangeTo >= req.RangeFrom)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (existing is not null) return Results.Ok(existing);
+
+            var session = DraftService.Open(actorId, req.UnitId, req.RangeFrom, req.RangeTo, DateTimeOffset.UtcNow);
             db.DraftSessions.Add(session);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/drafts/{session.Id}", session);
         })
         .WithName("OpenDraft")
+        .Produces<DraftSession>()
         .Produces<DraftSession>(StatusCodes.Status201Created)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
         // Overlapping, informational (Docs/03) — several concurrent drafts on the same
         // unit/range are allowed; the UI just needs to know they exist.
-        app.MapGet("/api/drafts", async (string? unitId, DateOnly? from, DateOnly? to, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/drafts", async (
+            string? unitId, DateOnly? from, DateOnly? to, bool? mine,
+            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
         {
             var query = db.DraftSessions.AsNoTracking().Where(s => s.Status == DraftStatus.Open);
             if (!string.IsNullOrEmpty(unitId)) query = query.Where(s => s.UnitId == unitId);
             if (from is not null) query = query.Where(s => s.RangeTo >= from);
             if (to is not null) query = query.Where(s => s.RangeFrom <= to);
-            var sessions = await query.ToListAsync(ct);
+
+            // WHY `mine` is a server-side filter and not a client-side one: the client's
+            // copy of "who am I" arrives from /api/auth/me asynchronously, and the caller
+            // that needs this — resuming a draft after a change of unit or period — runs
+            // before that has landed. Filtering here removes the race entirely.
+            if (mine == true)
+            {
+                var actorId = await actors.RequireAsync(user, ct);
+                query = query.Where(s => s.EditorPersonId == actorId);
+            }
+
+            var sessions = await query.OrderByDescending(s => s.UpdatedAt).ToListAsync(ct);
             return Results.Ok(sessions);
         })
         .WithName("ListDrafts")
         .Produces<IReadOnlyList<DraftSession>>()
-        .RequireAuthorization(AuthPolicies.ViewerOrAbove);
+        .RequireAuthorization(AuthPolicies.Authenticated);
+
+
+        // Which cells somebody *else* is holding an edit on, so the grid can say so
+        // (ADR-0015: concurrent drafts are allowed, and the answer to a collision is
+        // information rather than a lock).
+        //
+        // WHY it reads the change payloads rather than a column: a DraftChange stores its
+        // before/after as a JSON snapshot, deliberately — a relational union of three
+        // entity shapes buys nothing. There are at most a handful of open drafts over a
+        // window, so parsing them is cheaper than the schema that would avoid it.
+        app.MapGet("/api/drafts/staged", async (
+            string? unitId, DateOnly? from, DateOnly? to, ClaimsPrincipal user, ActorResolver actors,
+            ScheduleDbContext db, CancellationToken ct) =>
+        {
+            var actorId = await actors.RequireAsync(user, ct);
+
+            var query = db.DraftSessions.AsNoTracking().Include(s => s.Changes)
+                .Where(s => s.Status == DraftStatus.Open && s.EditorPersonId != actorId);
+            if (!string.IsNullOrEmpty(unitId)) query = query.Where(s => s.UnitId == unitId);
+            if (from is not null) query = query.Where(s => s.RangeTo >= from);
+            if (to is not null) query = query.Where(s => s.RangeFrom <= to);
+
+            var sessions = await query.ToListAsync(ct);
+            if (sessions.Count == 0) return Results.Ok(new StagedCellsResponse([]));
+
+            var editorIds = sessions.Select(s => s.EditorPersonId).Distinct().ToList();
+            var editorNames = await db.People.AsNoTracking()
+                .Where(p => editorIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
+
+            // Keyed so two drafts touching one cell report it once. Whose name is shown is
+            // then arbitrary, which is honest — "somebody else is on this cell" is the
+            // fact, and a list of names in a 62px tooltip is not readable anyway.
+            var cells = new Dictionary<(string, DateOnly), StagedCell>();
+            foreach (var session in sessions)
+            {
+                var editor = editorNames.GetValueOrDefault(session.EditorPersonId, session.EditorPersonId);
+                foreach (var change in session.Changes)
+                {
+                    if (change.TargetType != DraftTargetType.Assignment) continue;
+                    var json = change.AfterJson ?? change.BeforeJson;
+                    if (json is null) continue;
+
+                    Assignment? assignment;
+                    try { assignment = DraftJson.Deserialize<Assignment>(json); }
+                    // A malformed snapshot must not fail the read: this is advisory, and
+                    // publish is where correctness is enforced.
+                    catch (DraftDomainException) { continue; }
+                    catch (JsonException) { continue; }
+
+                    cells[(assignment.PersonId, assignment.Date)] =
+                        new StagedCell(assignment.PersonId, assignment.Date, session.EditorPersonId, editor);
+                }
+            }
+
+            return Results.Ok(new StagedCellsResponse([.. cells.Values]));
+        })
+        .WithName("ListStagedCells")
+        .Produces<StagedCellsResponse>()
+        .RequireAuthorization(AuthPolicies.Authenticated);
 
         app.MapGet("/api/drafts/{id}/changes", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -51,14 +150,14 @@ public static class DraftsEndpoints
         .WithName("ListDraftChanges")
         .Produces<IReadOnlyList<DraftChange>>()
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.ViewerOrAbove);
+        .RequireAuthorization(AuthPolicies.Authenticated);
 
         app.MapPost("/api/drafts/{id}/changes", async (string id, AppendChangeRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
 
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, session.RangeFrom, session.RangeTo, ct);
             var index = DatasetIndex.Build(dataset);
             var now = DateTimeOffset.UtcNow;
 
@@ -70,11 +169,6 @@ public static class DraftsEndpoints
                         session, req.Op,
                         dataset.Assignments.FirstOrDefault(a => a.Id == req.EntityId),
                         req.Op == DraftOp.Delete ? null : DraftJson.DeserializeElement<Assignment>(req.After!.Value),
-                        index, now),
-                    DraftTargetType.Absence => DraftService.AppendAbsenceChange(
-                        session, req.Op,
-                        dataset.Absences.FirstOrDefault(a => a.Id == req.EntityId),
-                        req.Op == DraftOp.Delete ? null : DraftJson.DeserializeElement<Absence>(req.After!.Value),
                         index, now),
                     DraftTargetType.CompDay => DraftService.AppendCompDayChange(
                         session, req.Op,
@@ -96,7 +190,7 @@ public static class DraftsEndpoints
         .Produces<DraftChange>(StatusCodes.Status201Created)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
         // The client syncs *desired cell state*, not a log of ops (SyncChangesRequest):
         // one request for a whole painted range, one change kept per cell, and the op
@@ -108,7 +202,7 @@ public static class DraftsEndpoints
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
 
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, session.RangeFrom, session.RangeTo, ct);
             var index = DatasetIndex.Build(dataset);
             var now = DateTimeOffset.UtcNow;
 
@@ -123,9 +217,6 @@ public static class DraftsEndpoints
                     {
                         case DraftTargetType.Assignment:
                             SyncAssignment(session, item, index, now);
-                            break;
-                        case DraftTargetType.Absence:
-                            SyncAbsence(session, item, dataset, index, now);
                             break;
                         case DraftTargetType.CompDay:
                             SyncCompDay(session, item, dataset, index, now);
@@ -149,7 +240,7 @@ public static class DraftsEndpoints
         .Produces<IReadOnlyList<DraftChange>>()
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
         app.MapDelete("/api/drafts/{id}/changes/{changeId}", async (string id, string changeId, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -172,7 +263,7 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status204NoContent)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
         app.MapPost("/api/drafts/{id}/discard", async (string id, ScheduleDbContext db, CancellationToken ct) =>
         {
@@ -195,16 +286,16 @@ public static class DraftsEndpoints
         .Produces<DraftSession>()
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapPost("/api/drafts/{id}/publish", async (string id, ScheduleDbContext db, CancellationToken ct) =>
-            await PublishAsync(id, db, ct))
+        app.MapPost("/api/drafts/{id}/publish", async (string id, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            await PublishAsync(id, await actors.RequireAsync(user, ct), db, ct))
         .WithName("PublishDraft")
         .Produces<PublishDraftResponse>()
         .Produces<PublishConflictResponse>(StatusCodes.Status409Conflict)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
         .Produces(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
     }
 
     /// <summary>
@@ -237,16 +328,6 @@ public static class DraftsEndpoints
         DraftService.AppendAssignmentChange(session, op, before, after, index, now);
     }
 
-    private static void SyncAbsence(
-        DraftSession session, SyncChangeItem item, ScheduleDataset dataset, DatasetIndex index, DateTimeOffset now)
-    {
-        var before = dataset.Absences.FirstOrDefault(a => a.Id == item.Key);
-        var after = DeserializeAfter<Absence>(item);
-        if (before is null && after is null) return;
-        var op = before is null ? DraftOp.Create : after is null ? DraftOp.Delete : DraftOp.Update;
-        DraftService.AppendAbsenceChange(session, op, before, after, index, now);
-    }
-
     private static void SyncCompDay(
         DraftSession session, SyncChangeItem item, ScheduleDataset dataset, DatasetIndex index, DateTimeOffset now)
     {
@@ -270,7 +351,7 @@ public static class DraftsEndpoints
     /// written or nothing is — a failed publish never touches the draft, so it stays
     /// open for the planner to compare/refresh/reapply.
     /// </summary>
-    private static async Task<IResult> PublishAsync(string id, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<IResult> PublishAsync(string id, string actorId, ScheduleDbContext db, CancellationToken ct)
     {
         var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
         if (session is null) return Results.NotFound();
@@ -279,10 +360,11 @@ public static class DraftsEndpoints
 
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
-        var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+        // Scoped to the draft's own range (ADR-0042). This read happens inside a
+        // serializable transaction, so its size is the publish's lock footprint.
+        var dataset = await ScheduleDatasetLoader.LoadAsync(db, session.RangeFrom, session.RangeTo, ct);
         var index = DatasetIndex.Build(dataset);
         var now = DateTimeOffset.UtcNow;
-        var actorId = session.EditorPersonId;
 
         var outcome = DraftService.Publish(dataset, index, session, actorId, now);
 
@@ -299,16 +381,13 @@ public static class DraftsEndpoints
                 case DraftTargetType.Assignment:
                     await ApplyAssignmentChange(db, change, outcome.Assignments, ct);
                     break;
-                case DraftTargetType.Absence:
-                    await ApplyAbsenceChange(db, change, outcome.Absences, ct);
-                    break;
                 case DraftTargetType.CompDay:
                     await ApplyCompDayChange(db, change, outcome.CompDays, ct);
                     break;
             }
         }
 
-        db.AssignmentHistory.AddRange(outcome.History);
+        db.ChangeHistory.AddRange(outcome.History);
         db.CompDayEntries.AddRange(outcome.GeneratedCompDays);
         session.Status = DraftStatus.Published;
         session.UpdatedAt = now;
@@ -354,10 +433,8 @@ public static class DraftsEndpoints
         to.PersonId = from.PersonId;
         to.Date = from.Date;
         to.UnitId = from.UnitId;
-        to.ContentKind = from.ContentKind;
         to.ShiftId = from.ShiftId;
         to.TimeOverride = from.TimeOverride;
-        to.Marker = from.Marker;
         to.IsWeekend = from.IsWeekend;
         to.Note = from.Note;
         to.Source = from.Source;
@@ -366,48 +443,8 @@ public static class DraftsEndpoints
         to.UpdatedAt = from.UpdatedAt;
     }
 
-    private static async Task ApplyAbsenceChange(
-        ScheduleDbContext db, DraftChange change, IReadOnlyList<Absence> final, CancellationToken ct)
-    {
-        switch (change.Op)
-        {
-            case DraftOp.Create:
-            {
-                var id = DraftJson.Deserialize<Absence>(change.AfterJson!).Id;
-                db.Absences.Add(final.First(a => a.Id == id));
-                break;
-            }
-            case DraftOp.Update:
-            {
-                var id = DraftJson.Deserialize<Absence>(change.AfterJson!).Id;
-                var value = final.First(a => a.Id == id);
-                var tracked = await db.Absences.FindAsync([id], ct);
-                if (tracked is null) { db.Absences.Add(value); break; }
-                CopyAbsence(value, tracked);
-                break;
-            }
-            case DraftOp.Delete:
-            {
-                var id = DraftJson.Deserialize<Absence>(change.BeforeJson!).Id;
-                var tracked = await db.Absences.FindAsync([id], ct);
-                if (tracked is not null) db.Absences.Remove(tracked);
-                break;
-            }
-        }
-    }
-
-    private static void CopyAbsence(Absence from, Absence to)
-    {
-        to.PersonId = from.PersonId;
-        to.Type = from.Type;
-        to.From = from.From;
-        to.To = from.To;
-        to.Source = from.Source;
-        to.ImportBatchId = from.ImportBatchId;
-        to.LastSeenInImportAt = from.LastSeenInImportAt;
-        to.SyncedToHrAt = from.SyncedToHrAt;
-        to.Note = from.Note;
-    }
+    // ApplyAbsenceChange / CopyAbsence are gone with the draft path for absences
+    // (ADR-0052): a publish no longer writes one.
 
     private static async Task ApplyCompDayChange(
         ScheduleDbContext db, DraftChange change, IReadOnlyList<CompDayEntry> final, CancellationToken ct)
@@ -449,5 +486,6 @@ public static class DraftsEndpoints
         to.ActualDate = from.ActualDate;
         to.Status = from.Status;
         to.SyncedToHrAt = from.SyncedToHrAt;
+        to.Version = from.Version;
     }
 }

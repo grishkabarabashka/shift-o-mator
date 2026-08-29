@@ -115,7 +115,6 @@ public static class CompDayService
         foreach (var assignment in ordered)
         {
             if (assignment.Date < p.RangeFrom || assignment.Date > p.RangeTo) continue;
-            if (!IsWorkingAssignment(assignment)) continue;
             liveAssignmentIds.Add(assignment.Id);
             if (byAssignment.ContainsKey(assignment.Id)) continue;
             if (p.ScopeAssignmentIds is not null && !p.ScopeAssignmentIds.Contains(assignment.Id)) continue;

@@ -63,7 +63,11 @@ A vertically scrolling sequence of cards.
 
 Home unit. Display defaults.
 
-### Display Options
+### Display
+
+**The display-timezone picker lives here**, not in the header. The header carries a
+read-only strip of location clocks instead; choosing a zone is a preference set once, not
+a control reached for on every screen.
 
 Switches: show Off/Leave days, show weekends, highlight coverage gaps, highlight
 scheduling conflicts.
@@ -102,9 +106,50 @@ people and which coverage requirements a change affects** before it is saved.
 
 ### Access
 
-Identity-group to app-role mappings: Viewer, Planner, Admin. **No unit scoping**
-([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)) — a planner may edit any unit. The
-control is the audit trail, and this screen links to it.
+The dev identity switcher (stub mode only) picks a **person**, not a role: you get
+whatever grants that person holds, which is the only configuration the real product can
+produce. To change what somebody can do, change the grant here.
+
+**Settings is an administrator's screen** and the nav hides it from everyone else
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)): every tab on it is configuration, and a
+tab that 403s on arrival is worse than no tab. The one setting that was *not* configuration
+— which timezone you read the grid in — moved to the profile menu beside the avatar, where
+everybody still has it.
+
+Role grants live on **Settings → Roles**: a matrix of people against `Planner`, `Approver`
+and `Admin`, filtered by planning unit
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)). Roles are a **set with no ordering** —
+an Admin is not thereby a Planner — and each grant names a unit, or is global.
+
+`Viewer` has no column: everyone signed in has it, and a checkbox that can only ever be
+ticked is a lie about what is configurable.
+
+Read-only for somebody who does not administer the unit on screen, because "who approves my
+leave" is a fair question for the person waiting on the answer. Only a **global** admin can
+make a global grant, which is what stops a unit admin promoting themselves out of their
+unit; revoking the last global admin is refused.
+
+Self-service is still not a role
+([ADR-0046](adr/0046-routing-is-not-authorization.md)): every authenticated person records
+their own presence and raises their own requests, and "can I edit my own record" is a
+per-resource question.
+
+### Request types
+
+> **Not built as a screen yet.** `RequestType` is an ordinary table with a seeded starting
+> set (remote, office, annual leave, other leave, and one per approval-needing event type).
+> The mechanism is data-driven exactly so that adding a type is a row rather than a
+> deployment ([ADR-0045](adr/0045-generic-request-envelope-typed-materialization.md)) — but
+> until this card exists, adding one means editing the seed or the database.
+>
+> Approval routing is **not** configuration any more and needs no screen: a request goes to
+> the `Approver`s of the subject's unit, which are granted on **Settings → Roles**
+> ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)).
+>
+> When it is built, the two things it must not get wrong: a unit with no approvers and no
+> admins makes requests un-raisable (the API refuses them with `NO_APPROVER`
+> rather than accepting them into limbo), and `materializer` decides whether an approval
+> writes anything at all.
 
 ### Dirty state
 
@@ -112,7 +157,7 @@ The moment configuration differs from the saved snapshot, `Unsaved changes` appe
 beside the page title and a sticky bottom bar offers Cancel and Save All. Changed rows
 are highlighted. Leaving with unsaved changes prompts Save / Discard / Stay.
 
-**Validation runs before Save All**: duplicate role codes, invalid time ranges, a
+**Validation runs before Save All**: duplicate shift codes, invalid time ranges, a
 minimum above a maximum, a weekday in two day groups. Invalid configuration stays
 dirty and cannot be persisted.
 

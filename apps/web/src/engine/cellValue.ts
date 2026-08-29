@@ -8,8 +8,10 @@
  *   2. an absence covering the date;
  *   3. a confirmed comp day off (`SCHEDULED` or `TAKEN`);
  *   4. a holiday per the person's location calendar → `PH`;
- *   5. a roster marker → `OFF` / `NOT_SCHEDULED`;
- *   6. otherwise empty.
+ *   5. otherwise empty.
+ *
+ * There used to be a sixth: a roster marker. The markers are gone (ADR-0052) and an
+ * assignment is a shift, so rule 1 is the only thing an assignment can produce.
  *
  * When rule 1 fires and one of rules 2-4 would also have fired, the cell
  * carries a conflict: this is impossible data, not just an overlap.
@@ -18,8 +20,8 @@
 import { cellKey, type DatasetIndex } from '../domain/lookup.ts';
 import type {
   Absence,
-  AbsenceType,
-  CellStatus,
+  CellEventInfo,
+  EventType,
   CellValue,
   CompDayEntry,
   DateRange,
@@ -29,18 +31,27 @@ import type {
 import { compDayBlocksAssignment, effectiveCompDayDate } from '../domain/types.ts';
 import { eachDate, isWeekendIn, rangeContains } from './dates.ts';
 
-function statusOfAbsence(type: AbsenceType): CellStatus {
-  switch (type) {
-    case 'VACATION':
-      return 'VACATION';
-    case 'SICK':
-      return 'SICK';
-    case 'OTHER':
-      return 'OTHER';
-  }
+/**
+ * NOTE: The kind of absence is a row now (ADR-0049), so the projection carries the
+ * detail alongside a single `ABSENT` status rather than switching on an enum.
+ *
+ * An unknown type still renders and still blocks: a deactivated type must not make a
+ * historical absence vanish from the grid.
+ */
+function eventInfoOf(absence: Absence, eventTypes: ReadonlyMap<string, EventType>): CellEventInfo {
+  const type = eventTypes.get(absence.eventTypeId);
+  return {
+    eventTypeId: absence.eventTypeId,
+    shortLabel: type?.shortLabel ?? 'Absent',
+    color: type?.color ?? '#a8b0bb',
+    blocksAssignment: type?.blocksAssignment ?? true,
+    portion: absence.portion,
+  };
 }
 
 export interface CellProjectionInput {
+  /** NOTE: Needed to resolve an absence's kind, which is a row now (ADR-0049). */
+  readonly eventTypes?: ReadonlyMap<string, EventType>;
   readonly range: DateRange;
   readonly absences: readonly Absence[];
   readonly compDays: readonly CompDayEntry[];
@@ -60,27 +71,20 @@ export interface CellProjection {
  */
 export function projectCells(input: CellProjectionInput): CellProjection {
   const { range, absences, compDays, index } = input;
+  const eventTypes = input.eventTypes ?? new Map<string, EventType>();
   const byCell = new Map<string, CellValue>();
   const nonWorkingByCell = new Set<string>();
 
   const dates = eachDate(range);
 
-  // --- 5. Markers, and 1. working shifts ------------------------------------
+  // --- 1. Working shifts -----------------------------------------------------
   for (const [key, assignment] of index.assignmentsByCell) {
     if (!rangeContains(range, assignment.date)) continue;
-    if (assignment.content.kind === 'SHIFT') {
-      byCell.set(key, {
-        kind: 'SHIFT',
-        shiftId: assignment.content.shiftId,
-        assignmentId: assignment.id,
-      });
-    } else {
-      byCell.set(key, {
-        kind: 'STATUS',
-        status: assignment.content.marker,
-        assignmentId: assignment.id,
-      });
-    }
+    byCell.set(key, {
+      kind: 'SHIFT',
+      shiftId: assignment.content.shiftId,
+      assignmentId: assignment.id,
+    });
   }
 
   // --- 4. Holidays per the person's location ---------------------------------
@@ -100,9 +104,6 @@ export function projectCells(input: CellProjectionInput): CellProjection {
         byCell.set(key, { ...existing, conflict: 'HOLIDAY' });
       } else if (!existing || existing.kind === 'EMPTY') {
         byCell.set(key, { kind: 'STATUS', status: 'PH' });
-      } else if (existing.kind === 'STATUS' && existing.assignmentId !== undefined) {
-        // NOTE: A holiday is more informative than an "Off" marker.
-        byCell.set(key, { kind: 'STATUS', status: 'PH', assignmentId: existing.assignmentId });
       }
     }
   }
@@ -135,11 +136,19 @@ export function projectCells(input: CellProjectionInput): CellProjection {
       const key = cellKey(absence.personId, date);
       const existing = byCell.get(key);
       if (existing?.kind === 'SHIFT') {
-        byCell.set(key, { ...existing, conflict: 'ABSENCE' });
+        // Both facts are kept: the shift still renders as the duty, the absence renders
+        // in the band, and the conflict flag still marks the cell (ADR-0050).
+        byCell.set(key, {
+          ...existing,
+          conflict: 'ABSENCE',
+          event: eventInfoOf(absence, eventTypes),
+          absenceId: absence.id,
+        });
       } else {
         byCell.set(key, {
           kind: 'STATUS',
-          status: statusOfAbsence(absence.type),
+          status: 'ABSENT',
+          event: eventInfoOf(absence, eventTypes),
           absenceId: absence.id,
         });
       }
@@ -168,10 +177,8 @@ export function cellValueAt(
 /** NOTE: Whether the person's day is occupied by something that prevents scheduling a shift. */
 export function isBlocked(value: CellValue): boolean {
   if (value.kind !== 'STATUS') return false;
-  return (
-    value.status === 'VACATION' ||
-    value.status === 'SICK' ||
-    value.status === 'OTHER' ||
-    value.status === 'COMP_OFF'
-  );
+  if (value.status === 'COMP_OFF') return true;
+  // Whether an absence blocks is the type's own decision (ADR-0049): a floating holiday
+  // someone worked through does not close the day out.
+  return value.status === 'ABSENT' && (value.event?.blocksAssignment ?? true);
 }

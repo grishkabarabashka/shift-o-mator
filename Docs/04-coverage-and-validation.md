@@ -34,8 +34,14 @@ Three levels, which must not be blended
 | Level | Examples | Behavior |
 |---|---|---|
 | **BLOCKING** | Double assignment; shift not in the person's unit; unknown shift | Publication is impossible. These are model violations, not policy — the only things that cannot be right under any decision ([ADR-0009](adr/0009-three-severity-levels.md), narrowed by [ADR-0024](adr/0024-conflicts-do-not-block.md), [ADR-0035](adr/0035-coverage-gap-does-not-block-publication.md), [ADR-0037](adr/0037-warnings-do-not-block-publication.md)). |
-| **WARNING / CONFLICT** | Coverage below `min` (gap); shift not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Shown and highlighted everywhere; acknowledging a conflict or warning with a comment writes a kept record, but it is not a precondition for publishing. |
-| **INFO** | `THIN` coverage; preference violated; deviation from target shift share; comp day aging past the threshold; shift outside the day configuration | Highlighted, never blocking, never acknowledged. |
+| **WARNING / CONFLICT** | Shift not in the person's eligibility; person assigned during their own absence; person assigned on a confirmed comp day; `max` exceeded; simultaneous-absence limit exceeded; minimum rest violated; weekend load over target; comp day with no valid slot | Shown and highlighted everywhere; acknowledging a conflict or warning with a comment writes a kept record, but it is not a precondition for publishing. |
+| **INFO** | Coverage below `min` (gap); `THIN` coverage; preference violated; deviation from target shift share; comp day aging past the threshold; shift outside the day configuration | Highlighted, never blocking, never acknowledged. |
+
+> **A gap is INFO, category `Gap`.** [ADR-0035](adr/0035-coverage-gap-does-not-block-publication.md)
+> moved it out of the blocking tier: an unfilled shift is work not yet done, not data that
+> is wrong. The *level* fell to INFO; the *category* stays `Gap`, which is what keeps it in
+> its own bucket in the issues panel and its own counter everywhere else. Level and
+> category are orthogonal, and this is the case that shows why.
 
 > **`THIN` is INFO, not WARNING/GAP.** Running at exactly the minimum is the normal
 > state of this rota, not a deviation — in the reference data it describes most days.
@@ -82,26 +88,26 @@ jumps to the exact grid cell.
 
 ## Rules
 
-1. A person cannot hold a role they are not eligible for, unless an authorized override
+1. A person cannot hold a shift they are not eligible for, unless an authorized override
    exists and is recorded.
 2. **Exactly one assignment per person per date.** There is no split shift and no
-   parallel duty; on-call is an ordinary role code occupying the day. This is a hard
+   parallel duty; on-call is an ordinary shift code occupying the day. This is a hard
    constraint, not a soft rule.
 3. Below `min` is a gap; above `max` is a warning.
-4. Non-working states never satisfy a working-role requirement.
-5. Weekend-only roles appear only on configured weekend dates.
+4. Non-working states never satisfy a working-shift requirement.
+5. Weekend-only shifts appear only on configured weekend dates.
 6. Friday uses the Friday configuration, not the Monday–Thursday one.
-7. Holiday applicability follows the person's location, not the region.
+7. Holiday applicability follows the person's location, not the planning unit.
 8. Draft edits are never visible as published data before publication.
 9. Publication with corrupt data (a double assignment, or a shift outside the person's
-   unit) is blocked. Gaps and conflicts (role not eligible, assigned during absence,
+   unit) is blocked. Gaps and conflicts (shift not eligible, assigned during absence,
    assigned during comp day) do not block; acknowledging a conflict or warning is a
    kept, comment-carrying record, not a precondition.
 10. A stale version produces a compare/refresh flow, never a silent overwrite.
 11. Every comp day generated from weekend work keeps its link to the earning
     assignment.
 12. An unknown imported code is a warning requiring mapping, never a silently accepted
-    role.
+    shift.
 13. Dates always show weekday and date; times always show a timezone.
 14. Every green/amber/red state carries text or an icon. Color alone is never the
     signal.

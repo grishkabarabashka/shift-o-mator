@@ -10,7 +10,13 @@ import {
   nightShift,
   testUnit,
 } from '../domain/testkit.ts';
-import { buildDayDetail, buildDayDetailRange, buildTimelineRange, positionOf } from './timeline.ts';
+import {
+  buildDayDetail,
+  buildDayDetailRange,
+  buildTimelineRange,
+  nightBands,
+  positionOf,
+} from './timeline.ts';
 
 /**
  * `coverage.ts` (the engine) moved to the server in Phase 5 and is deleted
@@ -234,5 +240,32 @@ describe('personal bars for the whole range (Overview reuses the day view)', () 
     // Both strips share the same `dailyCoverage` — the collapsed view must
     // read the same regardless of which expanded view is behind it.
     expect(perPerson.lanes[0]?.daily).toEqual(aggregate.lanes[0]?.daily);
+  });
+});
+
+describe('nightBands', () => {
+  const axis = { start: '2026-09-07T00:00:00.000Z', end: '2026-09-09T00:00:00.000Z' } as const;
+
+  it('marks 20:00 to 06:00 local, not UTC', () => {
+    // The whole point of the stacked axes: night falls at a different offset in every
+    // timezone, so a repeating gradient would be wrong everywhere but one.
+    const utc = nightBands(axis, 'UTC');
+    const tokyo = nightBands(axis, 'Asia/Tokyo');
+
+    expect(utc.length).toBeGreaterThan(0);
+    expect(tokyo.length).toBeGreaterThan(0);
+    expect(tokyo[0]!.left).not.toBe(utc[0]!.left);
+  });
+
+  it('covers ten hours of every full day', () => {
+    // 48 hours of axis, 20 of them night: two nights of ten hours each. Percentages, so
+    // 10/48 is 20.83 per band.
+    const bands = nightBands(axis, 'UTC');
+    const total = bands.reduce((sum, band) => sum + band.width, 0);
+    expect(total).toBeCloseTo((20 / 48) * 100, 1);
+  });
+
+  it('is empty for an axis with no width', () => {
+    expect(nightBands({ start: axis.start, end: axis.start }, 'UTC')).toEqual([]);
   });
 });

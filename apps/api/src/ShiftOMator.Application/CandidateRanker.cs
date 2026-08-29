@@ -66,7 +66,7 @@ public static class CandidateRanker
                 continue;
             }
 
-            var reason = AvailabilityBlockReason(person, p.Date, weekday, p.Absences, p.CompDays);
+            var reason = AvailabilityBlockReason(person, p.Date, weekday, p.Absences, p.CompDays, p.Index.EventTypes);
             if (reason is not null)
             {
                 excluded.Add(new ExcludedCandidate(person.Id, person.DisplayName, reason));
@@ -75,10 +75,10 @@ public static class CandidateRanker
 
             var own = p.Assignments.Where(a => a.PersonId == person.Id).ToList();
             var shiftCountLast90 = own.Count(a =>
-                a.ContentKind == AssignmentContentKind.Shift && a.ShiftId == p.ShiftId && a.Date >= fairnessSince && a.Date < p.Date);
+                a.ShiftId == p.ShiftId && a.Date >= fairnessSince && a.Date < p.Date);
 
             var lastHeld = own
-                .Where(a => a.ContentKind == AssignmentContentKind.Shift && a.ShiftId == p.ShiftId && a.Date < p.Date)
+                .Where(a => a.ShiftId == p.ShiftId && a.Date < p.Date)
                 .Select(a => a.Date)
                 .OrderBy(d => d)
                 .Cast<DateOnly?>()
@@ -135,10 +135,14 @@ public static class CandidateRanker
     /// eventually drift.
     /// </summary>
     public static string? AvailabilityBlockReason(
-        Person person, DateOnly date, IsoWeekday weekday, IReadOnlyList<Absence> absences, IReadOnlyList<CompDayEntry> compDays)
+        Person person, DateOnly date, IsoWeekday weekday, IReadOnlyList<Absence> absences,
+        IReadOnlyList<CompDayEntry> compDays, IReadOnlyDictionary<string, EventType>? eventTypes = null)
     {
-        var absence = absences.FirstOrDefault(a => a.PersonId == person.Id && date >= a.From && date <= a.To);
-        if (absence is not null) return AbsenceReasonLabel(absence.Type);
+        // Only a blocking type makes someone unavailable. A floating holiday the person
+        // chose to work through does not (ADR-0049).
+        var absence = absences.FirstOrDefault(a =>
+            a.PersonId == person.Id && date >= a.From && date <= a.To && Blocks(a, eventTypes));
+        if (absence is not null) return AbsenceReasonLabel(absence, eventTypes);
 
         var onCompDay = compDays.Any(entry =>
             entry.PersonId == person.Id && CompDayBlocksAssignment(entry) && EffectiveCompDayDate(entry) == date);
@@ -151,12 +155,20 @@ public static class CandidateRanker
         return null;
     }
 
-    private static string AbsenceReasonLabel(AbsenceType type) => type switch
-    {
-        AbsenceType.Vacation => "on leave",
-        AbsenceType.Sick => "out sick",
-        _ => "absent",
-    };
+    /// <summary>The type's own label, lower-cased for the sentence it lands in
+    /// ("3 eligible, 2 on annual leave"). Falls back rather than throwing: a type that
+    /// was deactivated must not break the ranker.</summary>
+    private static string AbsenceReasonLabel(Absence absence, IReadOnlyDictionary<string, EventType>? eventTypes) =>
+        eventTypes is not null && eventTypes.TryGetValue(absence.EventTypeId, out var type)
+            ? $"on {type.Label.ToLowerInvariant()}"
+            : "absent";
+
+    /// <summary>Unknown types block, which is the safe default: an absence nobody can
+    /// classify should not quietly make someone schedulable.</summary>
+    public static bool Blocks(Absence absence, IReadOnlyDictionary<string, EventType>? eventTypes) =>
+        eventTypes is null
+        || !eventTypes.TryGetValue(absence.EventTypeId, out var type)
+        || type.BlocksAssignment;
 
     private static bool SameIsoWeek(DateOnly a, DateOnly b) =>
         ISOWeek.GetYear(a.ToDateTime(TimeOnly.MinValue)) == ISOWeek.GetYear(b.ToDateTime(TimeOnly.MinValue)) &&

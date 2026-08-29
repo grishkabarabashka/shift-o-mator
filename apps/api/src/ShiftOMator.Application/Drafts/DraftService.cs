@@ -9,13 +9,17 @@ namespace ShiftOMator.Application.Drafts;
 /// loading the current <see cref="ScheduleDataset"/> inside a transaction, calling
 /// <see cref="Publish"/>, and persisting the result or rolling back on conflict.
 ///
-/// Concurrency strategy: <see cref="Assignment"/> carries a numeric <see cref="Assignment.Version"/>
-/// used as a classic optimistic-concurrency token. <see cref="Absence"/> and
-/// <see cref="CompDayEntry"/> carry none, so their Before snapshot (captured at append
-/// time, from whatever was in the database then) is compared byte-for-byte, via
-/// <see cref="DraftJson"/>, against the same entity reserialized from the live state at
-/// publish time. Either mismatch is a conflict, not a partial apply — Publish always
-/// either applies every change in the draft or none of them.
+/// Concurrency strategy: every mutable entity carries a numeric version used as a
+/// classic optimistic-concurrency token — <see cref="Assignment.Version"/>,
+/// <see cref="Absence.Version"/> and <see cref="CompDayEntry.Version"/> (ADR-0043).
+/// A version that moved since the draft was opened is a conflict, not a partial apply:
+/// Publish always either applies every change in the draft or none of them.
+///
+/// Absences and comp days used to be checked by reserializing the live row and comparing
+/// it byte-for-byte to the draft's snapshot. That was brittle in both directions — any
+/// change to <see cref="DraftJson"/>'s conventions or to property order reported a
+/// conflict that had not happened, and two different edits that happened to serialize
+/// identically reported none that had.
 /// </summary>
 public static class DraftService
 {
@@ -109,7 +113,6 @@ public static class DraftService
         if (!index.People.TryGetValue(a.PersonId, out var person))
             throw new DraftDomainException("PERSON_NOT_FOUND", $"Person {a.PersonId} does not exist.");
 
-        if (a.ContentKind != AssignmentContentKind.Shift) return; // markers carry no shift
 
         if (a.ShiftId is null) throw new DraftDomainException("SHIFT_REQUIRED", "A shift assignment needs a shiftId.");
         if (!index.Shifts.TryGetValue(a.ShiftId, out var shift))
@@ -125,19 +128,9 @@ public static class DraftService
         }
     }
 
-    public static DraftChange AppendAbsenceChange(
-        DraftSession session, DraftOp op, Absence? before, Absence? after, DatasetIndex index, DateTimeOffset now)
-    {
-        EnsureOpen(session);
-        ValidateGenericOp(op, before, after, "Absence");
-        var subject = after ?? before!;
-        if (!index.People.ContainsKey(subject.PersonId))
-            throw new DraftDomainException("PERSON_NOT_FOUND", $"Person {subject.PersonId} does not exist.");
-
-        return AppendRaw(session, DraftTargetType.Absence, op,
-            before is null ? null : DraftJson.Serialize(before),
-            after is null ? null : DraftJson.Serialize(after), now);
-    }
+    // AppendAbsenceChange is gone (ADR-0052): absences are written directly through
+    // /api/absences, or produced by an approved request. They are not part of a rota
+    // publication and never were part of the decision one represents.
 
     public static DraftChange AppendCompDayChange(
         DraftSession session, DraftOp op, CompDayEntry? before, CompDayEntry? after, DatasetIndex index, DateTimeOffset now)
@@ -174,7 +167,7 @@ public static class DraftService
     /// What a change is *about*, so a later edit of the same thing can replace it instead
     /// of stacking on top of it. An assignment's identity is its cell — one assignment per
     /// (person, date), so two changes on the same cell are two versions of one decision,
-    /// never two decisions. Absences and comp days are identified by row id.
+    /// never two decisions. Comp days are identified by row id.
     /// </summary>
     public static string KeyOf(DraftChange change)
     {
@@ -184,7 +177,6 @@ public static class DraftService
         return change.TargetType switch
         {
             DraftTargetType.Assignment => AssignmentKeyOf(DraftJson.Deserialize<Assignment>(json)),
-            DraftTargetType.Absence => DraftJson.Deserialize<Absence>(json).Id,
             DraftTargetType.CompDay => DraftJson.Deserialize<CompDayEntry>(json).Id,
             _ => change.Id,
         };
@@ -231,7 +223,7 @@ public static class DraftService
         IReadOnlyList<Assignment> Assignments,
         IReadOnlyList<Absence> Absences,
         IReadOnlyList<CompDayEntry> CompDays,
-        IReadOnlyList<AssignmentHistoryEntry> History,
+        IReadOnlyList<ChangeHistoryEntry> History,
         IReadOnlyList<CompDayEntry> GeneratedCompDays,
         int RemainingGaps,
         IReadOnlyList<ConflictDetail> Conflicts)
@@ -260,7 +252,7 @@ public static class DraftService
         // --- Assignments: single pass, working state seeded from `current` -----------
         var assignmentsById = current.Assignments.ToDictionary(a => a.Id);
         var assignmentsByCell = current.Assignments.ToDictionary(a => DatasetIndex.CellKey(a.PersonId, a.Date));
-        var history = new List<AssignmentHistoryEntry>();
+        var history = new List<ChangeHistoryEntry>();
         var touchedDates = new List<DateOnly>();
         var touchedUnits = new HashSet<string>();
         var liveAssignmentIdsThisPublish = new HashSet<string>();
@@ -286,10 +278,10 @@ public static class DraftService
                     after.UpdatedAt = null;
                     assignmentsById[after.Id] = after;
                     assignmentsByCell[cell] = after;
-                    history.Add(MakeHistory(after.Id, HistoryAction.Created, after, actorId, now));
+                    history.Add(MakeHistory(HistoryEntityType.Assignment, after.Id, after.PersonId, HistoryAction.Created, after, actorId, now, after.Date, after.Date));
                     touchedDates.Add(after.Date);
                     touchedUnits.Add(after.UnitId);
-                    if (after.ContentKind == AssignmentContentKind.Shift) liveAssignmentIdsThisPublish.Add(after.Id);
+                    liveAssignmentIdsThisPublish.Add(after.Id);
                     break;
                 }
                 case DraftOp.Update:
@@ -325,12 +317,12 @@ public static class DraftService
                     assignmentsById[after.Id] = after;
                     assignmentsByCell.Remove(oldCell);
                     assignmentsByCell[newCell] = after;
-                    history.Add(MakeHistory(after.Id, HistoryAction.Updated, after, actorId, now));
+                    history.Add(MakeHistory(HistoryEntityType.Assignment, after.Id, after.PersonId, HistoryAction.Updated, after, actorId, now, actual.Date, after.Date));
                     touchedDates.Add(actual.Date);
                     touchedDates.Add(after.Date);
                     touchedUnits.Add(actual.UnitId);
                     touchedUnits.Add(after.UnitId);
-                    if (after.ContentKind == AssignmentContentKind.Shift) liveAssignmentIdsThisPublish.Add(after.Id);
+                    liveAssignmentIdsThisPublish.Add(after.Id);
                     break;
                 }
                 case DraftOp.Delete:
@@ -349,7 +341,7 @@ public static class DraftService
                     }
                     assignmentsById.Remove(before.Id);
                     assignmentsByCell.Remove(DatasetIndex.CellKey(actual.PersonId, actual.Date));
-                    history.Add(MakeHistory(before.Id, HistoryAction.Deleted, null, actorId, now));
+                    history.Add(MakeHistory(HistoryEntityType.Assignment, before.Id, actual.PersonId, HistoryAction.Deleted, (Assignment?)null, actorId, now, actual.Date, actual.Date));
                     touchedDates.Add(actual.Date);
                     touchedUnits.Add(actual.UnitId);
                     liveAssignmentIdsThisPublish.Remove(before.Id);
@@ -358,12 +350,18 @@ public static class DraftService
             }
         }
 
-        // --- Absences / comp days: snapshot-equality conflict check ------------------
+        // --- Comp days: version-token conflict check (ADR-0043) ---------------------
+        // Absences used to be checked here too. They are written directly now (ADR-0052),
+        // so a publish cannot conflict with one — and the read-only copy below is what the
+        // coverage and comp-day recomputation needs.
         var absencesById = current.Absences.ToDictionary(a => a.Id);
-        ApplyGeneric(ordered.Where(c => c.TargetType == DraftTargetType.Absence), absencesById, a => a.Id, conflicts, DraftTargetType.Absence);
 
         var compDaysById = current.CompDays.ToDictionary(c => c.Id);
-        ApplyGeneric(ordered.Where(c => c.TargetType == DraftTargetType.CompDay), compDaysById, c => c.Id, conflicts, DraftTargetType.CompDay);
+        ApplyVersioned(
+            ordered.Where(c => c.TargetType == DraftTargetType.CompDay), compDaysById, c => c.Id,
+            c => c.Version, (c, v) => c.Version = v, c => c.PersonId,
+            c => (c.ActualDate ?? c.ProposedDate ?? c.EarnedForDate, c.ActualDate ?? c.ProposedDate ?? c.EarnedForDate),
+            conflicts, history, DraftTargetType.CompDay, HistoryEntityType.CompDay, actorId, now);
 
         if (conflicts.Count > 0) return PublishOutcome.Failed(conflicts);
 
@@ -420,9 +418,26 @@ public static class DraftService
         return new PublishOutcome(true, newAssignments, newAbsences, newCompDays, history, generatedCompDays, remainingGaps, []);
     }
 
-    private static void ApplyGeneric<T>(
-        IEnumerable<DraftChange> changes, Dictionary<string, T> byId, Func<T, string> idOf,
-        List<ConflictDetail> conflicts, DraftTargetType targetType)
+    /// <summary>
+    /// The absence/comp-day counterpart of the assignment pass: same all-or-nothing
+    /// contract, same optimistic-concurrency token (ADR-0043), and — new in ADR-0041 —
+    /// the same audit trail. Before, a published absence change left no history row at
+    /// all, so "who cancelled my leave" had no answer anywhere in the system.
+    /// </summary>
+    private static void ApplyVersioned<T>(
+        IEnumerable<DraftChange> changes,
+        Dictionary<string, T> byId,
+        Func<T, string> idOf,
+        Func<T, int> versionOf,
+        Action<T, int> setVersion,
+        Func<T, string> personOf,
+        Func<T, (DateOnly From, DateOnly To)> spanOf,
+        List<ConflictDetail> conflicts,
+        List<ChangeHistoryEntry> history,
+        DraftTargetType targetType,
+        HistoryEntityType entityType,
+        string actorId,
+        DateTimeOffset now)
     {
         foreach (var change in changes)
         {
@@ -437,7 +452,9 @@ public static class DraftService
                         conflicts.Add(new ConflictDetail(change.Id, targetType, id, "A record with this id was created since this draft was opened."));
                         break;
                     }
+                    setVersion(after, 1);
                     byId[id] = after;
+                    history.Add(MakeHistory(entityType, id, personOf(after), HistoryAction.Created, after, actorId, now, spanOf(after).From, spanOf(after).To));
                     break;
                 }
                 case DraftOp.Update:
@@ -450,12 +467,15 @@ public static class DraftService
                         conflicts.Add(new ConflictDetail(change.Id, targetType, id, "The record was deleted since this draft was opened."));
                         break;
                     }
-                    if (DraftJson.Serialize(actual) != change.BeforeJson)
+                    if (versionOf(actual) != versionOf(before))
                     {
-                        conflicts.Add(new ConflictDetail(change.Id, targetType, id, "The record changed since this draft was opened."));
+                        conflicts.Add(new ConflictDetail(change.Id, targetType, id,
+                            $"The record changed since this draft was opened (now at version {versionOf(actual)})."));
                         break;
                     }
+                    setVersion(after, versionOf(actual) + 1);
                     byId[id] = after;
+                    history.Add(MakeHistory(entityType, id, personOf(after), HistoryAction.Updated, after, actorId, now, spanOf(after).From, spanOf(after).To));
                     break;
                 }
                 case DraftOp.Delete:
@@ -467,23 +487,32 @@ public static class DraftService
                         conflicts.Add(new ConflictDetail(change.Id, targetType, id, "The record was already deleted since this draft was opened."));
                         break;
                     }
-                    if (DraftJson.Serialize(actual) != change.BeforeJson)
+                    if (versionOf(actual) != versionOf(before))
                     {
-                        conflicts.Add(new ConflictDetail(change.Id, targetType, id, "The record changed since this draft was opened."));
+                        conflicts.Add(new ConflictDetail(change.Id, targetType, id,
+                            $"The record changed since this draft was opened (now at version {versionOf(actual)})."));
                         break;
                     }
                     byId.Remove(id);
+                    history.Add(MakeHistory<T>(entityType, id, personOf(actual), HistoryAction.Deleted, default, actorId, now, spanOf(actual).From, spanOf(actual).To));
                     break;
                 }
             }
         }
     }
 
-    private static AssignmentHistoryEntry MakeHistory(string assignmentId, HistoryAction action, Assignment? snapshot, string actorId, DateTimeOffset now) =>
+    private static ChangeHistoryEntry MakeHistory<T>(
+        HistoryEntityType entityType, string entityId, string? personId, HistoryAction action,
+        T? snapshot, string actorId, DateTimeOffset now,
+        DateOnly? affectedFrom = null, DateOnly? affectedTo = null) =>
         new()
         {
             Id = Guid.NewGuid().ToString("n"),
-            AssignmentId = assignmentId,
+            EntityType = entityType,
+            EntityId = entityId,
+            PersonId = personId,
+            AffectedFrom = affectedFrom,
+            AffectedTo = affectedTo,
             Action = action,
             SnapshotJson = snapshot is null ? null : DraftJson.Serialize(snapshot),
             ActorId = actorId,

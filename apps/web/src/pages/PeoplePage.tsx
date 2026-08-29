@@ -201,7 +201,7 @@ export function PeoplePage({ view, asOf }: Props) {
                         <span
                           key={shift.code}
                           className="chip !w-auto px-1.5 py-0.5 text-[9.5px]"
-                          style={{ background: shift.color }}
+                          style={{ backgroundColor: shift.color }}
                           title={`${shift.code}: ${shift.count} days`}
                         >
                           {shift.code}

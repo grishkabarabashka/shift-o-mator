@@ -12,7 +12,6 @@ import type {
   DateRange,
   IanaZone,
   IsoDate,
-  IssueLevel,
   PersonId,
   ShiftId,
 } from '../domain/types.ts';
@@ -22,6 +21,7 @@ import {
   overviewRange,
   rangeFor,
   rangeLength,
+  jumpAnchorMonths,
   stepAnchor,
   stepOverviewAnchor,
   type OverviewSpan,
@@ -60,6 +60,19 @@ export type AbsenceDraft =
   | { readonly mode: 'create'; readonly targets: readonly AbsenceRangeTarget[] }
   | { readonly mode: 'edit'; readonly absence: Absence };
 
+/**
+ * NOTE: Draft for the presence dialog (ADR-0043). Same two shapes as the absence
+ * dialog — presence is declared in blocks over a selection, or an existing block is
+ * edited — because it is the same kind of statement about a range of days.
+ */
+/** NOTE: What the grid draws. All on by default. */
+export interface GridLayers {
+  readonly shifts: boolean;
+  readonly timeOff: boolean;
+  readonly presence: boolean;
+  readonly requests: boolean;
+}
+
 export interface UiState {
   displayZone: DisplayZone;
   /** NOTE: Planning unit — a default filter, not a boundary (ADR-0020). */
@@ -89,11 +102,23 @@ export interface UiState {
    * highlight a random row.
    */
   highlightDate: IsoDate | undefined;
-  issueFilter: IssueLevel | 'ALL';
   /** NOTE: Internal clipboard: person rows x day columns. */
   clipboard: (ShiftId | null)[][] | undefined;
   absenceDraft: AbsenceDraft | undefined;
   compDayDraft: CompDayEntry | undefined;
+  /** NOTE: Which cell's audit timeline is open. Answering "was the request sent before
+   * or after the schedule changed" needs one time axis per cell. */
+  /** NOTE: `personId` absent means the whole day, everyone. */
+  cellHistory: { readonly personId?: PersonId; readonly date: IsoDate } | undefined;
+  /**
+   * NOTE: Which facts the grid draws.
+   *
+   * A cell can carry a shift, an absence, where the person is, and something they have
+   * asked for. All four at once is a lot in 62×32 pixels, and which of them you care
+   * about depends on why you opened the screen — so they are layers you turn off rather
+   * than a compromise nobody chose.
+   */
+  layers: GridLayers;
   /**
    * NOTE: Assignments locked from auto-populate.
    *
@@ -119,7 +144,10 @@ export interface UiState {
    * of the period at the same length — unlike `setScheduleAnchor`, it doesn't
    * snap to the 1st of the month. */
   jumpScheduleTo: (date: IsoDate) => void;
+  /** One day. The rota is walked along, not jumped through (ADR-0036 as amended). */
   stepSchedule: (direction: 1 | -1) => void;
+  /** A whole month — the coarse companion to `stepSchedule`. */
+  jumpScheduleMonths: (direction: 1 | -1) => void;
   scheduleToday: () => void;
 
   setActiveShift: (shiftId: ShiftId | undefined) => void;
@@ -127,11 +155,14 @@ export interface UiState {
   clearSelection: () => void;
   focusDate: (date: IsoDate, personId?: PersonId) => void;
   highlight: (date: IsoDate) => void;
-  setIssueFilter: (level: IssueLevel | 'ALL') => void;
   setClipboard: (rows: (ShiftId | null)[][]) => void;
   openAbsenceCreate: (targets: readonly AbsenceRangeTarget[]) => void;
   openAbsenceEdit: (absence: Absence) => void;
   closeAbsenceDialog: () => void;
+  toggleLayer: (layer: keyof GridLayers) => void;
+  openCellHistory: (personId: PersonId, date: IsoDate) => void;
+  openDayHistory: (date: IsoDate) => void;
+  closeCellHistory: () => void;
   openCompDayDialog: (entry: CompDayEntry) => void;
   closeCompDayDialog: () => void;
   toggleLock: (assignmentId: string) => void;
@@ -146,9 +177,10 @@ export const useUi = create<UiState>((set, get) => ({
   activeShiftId: undefined,
   selection: { anchor: undefined, focus: undefined },
   highlightDate: undefined,
-  issueFilter: 'ALL',
   clipboard: undefined,
   absenceDraft: undefined,
+  cellHistory: undefined,
+  layers: { shifts: true, timeOff: true, presence: true, requests: true },
   compDayDraft: undefined,
   lockedAssignmentIds: new Set(),
 
@@ -200,7 +232,12 @@ export const useUi = create<UiState>((set, get) => ({
   },
   stepSchedule: (direction) => {
     const { anchor, zoom } = get().schedule;
-    const next = stepAnchor(zoom, anchor, direction);
+    const next = stepAnchor(anchor, direction);
+    set({ schedule: { anchor: next, zoom }, range: rangeFor(zoom, next) });
+  },
+  jumpScheduleMonths: (direction) => {
+    const { anchor, zoom } = get().schedule;
+    const next = jumpAnchorMonths(anchor, direction);
     set({ schedule: { anchor: next, zoom }, range: rangeFor(zoom, next) });
   },
   scheduleToday: () => {
@@ -235,7 +272,6 @@ export const useUi = create<UiState>((set, get) => ({
 
   highlight: (highlightDate) => set({ highlightDate }),
 
-  setIssueFilter: (issueFilter) => set({ issueFilter }),
   setClipboard: (clipboard) => set({ clipboard }),
 
   openAbsenceCreate: (targets) => {
@@ -244,6 +280,15 @@ export const useUi = create<UiState>((set, get) => ({
   },
   openAbsenceEdit: (absence) => set({ absenceDraft: { mode: 'edit', absence } }),
   closeAbsenceDialog: () => set({ absenceDraft: undefined }),
+
+  toggleLayer: (layer) =>
+    set((state) => ({ layers: { ...state.layers, [layer]: !state.layers[layer] } })),
+
+  openCellHistory: (personId, date) => set({ cellHistory: { personId, date } }),
+  // NOTE: The whole day, everyone. A conflict is rarely one person's story.
+  openDayHistory: (date) => set({ cellHistory: { date } }),
+  closeCellHistory: () => set({ cellHistory: undefined }),
+
   openCompDayDialog: (entry) => set({ compDayDraft: entry }),
   closeCompDayDialog: () => set({ compDayDraft: undefined }),
 

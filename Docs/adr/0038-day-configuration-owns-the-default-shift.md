@@ -51,7 +51,7 @@ alphabetically before `AMER:Crew-BC` and `AMER:Lead`.
 
 Weekend and holiday configurations are excluded from passes 2–4: those are duty rosters,
 and filling them to capacity would invent weekend work — and the comp days that come with
-it ([ADR-0007](0007-comp-day-as-accrual.md)).
+it ([ADR-0007](0007-comp-day-as-balance.md)).
 
 ## Consequences
 

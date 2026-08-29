@@ -33,7 +33,7 @@ public static class InsightsEndpoints
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
 
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, req.From, req.To, ct);
 
             DraftSession? draft = null;
             if (!string.IsNullOrEmpty(req.DraftId))
@@ -102,6 +102,73 @@ public static class InsightsEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status502BadGateway)
         .Produces<ErrorResponse>(StatusCodes.Status503ServiceUnavailable)
-        .RequireAuthorization(AuthPolicies.ViewerOrAbove);
+        .RequireAuthorization(AuthPolicies.Authenticated);
+
+        MapCandidateExplanation(app);
+    }
+
+    /// <summary>
+    /// Why the ranker put this person first (ADR-0048).
+    ///
+    /// Unlike the gap summary, this one answers with or without a model: the deciding
+    /// factor comes from <see cref="CandidateDigest"/>, which reads the ranker's own
+    /// ordering. Without a model the planner gets the fact; with one, a sentence.
+    /// </summary>
+    private static void MapCandidateExplanation(WebApplication app)
+    {
+        app.MapPost("/api/insights/candidate-explanation", async (
+            CandidateExplanationRequest req, ScheduleDbContext db,
+            CandidateExplanationService explanations, CancellationToken ct) =>
+        {
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, req.Date, req.Date, ct);
+            var index = DatasetIndex.Build(dataset);
+
+            if (!index.Shifts.TryGetValue(req.ShiftId, out var shift))
+                return Results.BadRequest(new ErrorResponse("SHIFT_NOT_FOUND", req.ShiftId));
+
+            var result = CandidateRanker.Rank(new CandidateRanker.RankParams(
+                req.ShiftId, req.Date, req.UnitId, index,
+                dataset.Assignments, dataset.Absences, dataset.CompDays, req.ExcludePersonIds));
+
+            var leader = result.Available.FirstOrDefault();
+            var runnerUp = result.Available.Count > 1 ? result.Available[1] : null;
+            var decidingFactor = leader is null
+                ? "nobody is both eligible and available"
+                : CandidateDigest.DecidingFactor(leader, runnerUp);
+            var digest = CandidateDigest.Render(result, shift.Code, req.Date);
+
+            string? explanation = null;
+            string? modelId = null;
+            if (explanations.Configured && leader is not null)
+            {
+                try
+                {
+                    explanation = await explanations.ExplainAsync(digest, ct);
+                    modelId = explanations.ModelId;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Same posture as the gap summary: losing the prose is not losing the
+                    // answer, so this degrades rather than fails.
+                    explanation = null;
+                    _ = ex;
+                }
+            }
+
+            return Results.Ok(new CandidateExplanationResponse(
+                explanation,
+                digest,
+                leader?.PersonId,
+                leader?.Name,
+                decidingFactor,
+                result.Available.Count,
+                result.Excluded.Count,
+                modelId,
+                DateTimeOffset.UtcNow));
+        })
+        .WithName("CandidateExplanation")
+        .Produces<CandidateExplanationResponse>()
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
     }
 }

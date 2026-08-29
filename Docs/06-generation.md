@@ -101,7 +101,18 @@ person outside the selection before it can reach the draft (`AutoPopulateDialog.
 in the preview even when scoped to a few people, since a gap has no person to filter
 by.
 
-## Plain-English summaries (optional)
+## Plain-English explanations (optional)
+
+The rule for every AI surface, stated once ([ADR-0048](adr/0048-ai-explains-the-plan-never-decides-it.md)):
+
+> **A deterministic function computes the answer. The model only phrases it.** If the
+> digest is wrong the summary is wrong no matter how it is generated — so the digest is
+> what gets tested, and the model is never given the chance to reason about raw data.
+
+The model never writes. Nothing here touches published data, opens a draft or ranks
+anybody.
+
+### Gap summary
 
 `POST /api/insights/gap-summary` explains a period's gaps, conflicts and warnings in a
 few sentences. Two layers, deliberately separate:
@@ -120,6 +131,26 @@ Which model answers is configuration, not code: the service talks to `IChatClien
 variable. With nothing configured the endpoint answers `503 AI_NOT_CONFIGURED` and the
 panel does not appear. Nothing in planning depends on it — the model explains the plan,
 it never decides it.
+
+### Why this candidate
+
+`POST /api/insights/candidate-explanation` answers the question the suggestion popover
+raises: *why is this person first?*
+
+`CandidateDigest` (Application, pure, tested) computes the **deciding factor** by reading
+the ranker's own ordering — eligibility, availability, fewest in 90 days, recency,
+warnings, id — and naming the first criterion on which the leader and the runner-up
+differ. That is the honest reason, as opposed to whichever number looks largest.
+
+Two properties follow, and both matter:
+
+- **It answers without a model.** The deciding factor and the digest are always present;
+  only the phrased sentence is conditional. A deployment with no model access still gets
+  the real answer.
+- **It refuses to invent one.** When every measured criterion ties, the deciding factor is
+  literally *"tied with the others on every fairness measure — the order here is
+  arbitrary"*, and the prompt is told to say so plainly. A planner is about to justify a
+  rota decision with this sentence.
 
 ## Explainability
 
@@ -148,6 +179,11 @@ generation after a small edit must not see the whole month reshuffle.
 If a solver library (OR-Tools CP-SAT or equivalent) is available in the target
 environment, prefer it — the problem is small and solves in a fraction of a second. The
 interface is the same either way ([ADR-0012](adr/0012-schedule-repository-boundary.md)).
+
+> **One trade to weigh before swapping.** A solver optimises globally and therefore cannot
+> say *why* a particular person got a particular cell in terms anyone can check. The greedy
+> ranker can — that is what `CandidateDigest`'s deciding factor reads off. Optimality would
+> cost the explanation, and the explanation is what a planner defends a rota with.
 
 ## When to build it
 

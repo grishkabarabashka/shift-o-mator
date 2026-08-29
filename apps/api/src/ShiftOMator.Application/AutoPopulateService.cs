@@ -90,7 +90,6 @@ public static class AutoPopulateService
                 PersonId = personId,
                 Date = date,
                 UnitId = p.UnitId,
-                ContentKind = AssignmentContentKind.Shift,
                 ShiftId = shiftId,
                 IsWeekend = location is not null && location.WeekendDays.Contains(DateHelpers.IsoWeekdayOf(date)),
                 Source = AssignmentSource.Generated,
@@ -111,7 +110,7 @@ public static class AutoPopulateService
             .ToList();
 
         int FilledOn(DateOnly date, string shiftId) => working.Count(a =>
-            a.Date == date && a.ContentKind == AssignmentContentKind.Shift && a.ShiftId == shiftId);
+            a.Date == date && a.ShiftId == shiftId);
 
         /// <summary>Ranked fill of one requirement up to <paramref name="target"/>.
         /// Returns the reason it could not get there, for the caller to record as a gap
@@ -178,7 +177,8 @@ public static class AutoPopulateService
                 // with max=1, no one gets it as a second Lead.
                 if (requirement.Max is int max && FilledOn(date, requirement.ShiftId) >= max) continue;
 
-                var blocked = CandidateRanker.AvailabilityBlockReason(person, date, weekday, p.Absences, p.CompDays);
+                var blocked = CandidateRanker.AvailabilityBlockReason(
+                    person, date, weekday, p.Absences, p.CompDays, p.Index.EventTypes);
                 if (blocked is not null) continue;
 
                 Place(person.Id, date, person.DefaultShiftId);

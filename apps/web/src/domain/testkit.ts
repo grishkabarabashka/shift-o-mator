@@ -15,6 +15,9 @@ import type {
   Holiday,
   Location,
   Person,
+  EventType,
+  PresenceRecord,
+  PresenceType,
   PlanningUnit,
   ScheduleDataset,
   Shift,
@@ -112,13 +115,13 @@ export function makePerson(overrides: Partial<Person> & Pick<Person, 'id'>): Per
     locationId: nyLocation.id,
     defaultShiftId: leadShift.id,
     orgCategory: 'SUPPORT',
+    defaultPresenceTypeId: 'pt-office',
     isActive: true,
     isIncluded: true,
     eligibility: [{ shiftId: leadShift.id, targetShare: 1 }],
     availableWeekdays: [1, 2, 3, 4, 5, 6, 7],
     weekendEligible: true,
     constraints: { minRestHours: 11, maxConsecutiveDays: 6 },
-    calendarToken: `tok-${overrides.id}`,
     ...overrides,
   };
 }
@@ -161,7 +164,69 @@ export interface DatasetOverrides {
   readonly assignments?: readonly Assignment[];
   readonly absences?: readonly Absence[];
   readonly compDays?: readonly CompDayEntry[];
+  readonly presence?: readonly PresenceRecord[];
+  readonly eventTypes?: readonly EventType[];
+  readonly presenceTypes?: readonly PresenceType[];
 }
+
+/** NOTE: One row per kind (ADR-0043). Presence renders from a fallback when these are
+ * missing, so a test that leaves them out still gets marks — this is what lets a test
+ * assert on a *configured* label or colour. */
+export const TEST_PRESENCE_TYPES: readonly PresenceType[] = [
+  { id: 'pt-office', label: 'In the office', glyph: 'O', color: '#15803d', namesALocation: true, countsAs: 'ON_SITE', requiresApproval: false, isActive: true, sortOrder: 1 },
+  { id: 'pt-remote', label: 'Remote', glyph: 'R', color: '#2563eb', namesALocation: false, countsAs: 'REMOTE', requiresApproval: true, isActive: true, sortOrder: 2 },
+  { id: 'pt-travel', label: 'Travelling', glyph: 'T', color: '#b45309', namesALocation: false, countsAs: 'AWAY', requiresApproval: false, isActive: true, sortOrder: 3 },
+  { id: 'pt-customer-site', label: 'On customer site', glyph: 'C', color: '#9333ea', namesALocation: false, countsAs: 'AWAY', requiresApproval: false, isActive: true, sortOrder: 4 },
+];
+
+/** NOTE: Minimal set so a projection has something to resolve (ADR-0049). */
+export const TEST_EVENT_TYPES: readonly EventType[] = [
+  {
+    id: 'et-vacation',
+    code: 'VACATION',
+    label: 'Annual leave',
+    shortLabel: 'Leave',
+    color: '#7c9cf5',
+    category: 'LEAVE',
+    blocksAssignment: true,
+    countsTowardCapacity: true,
+    requiresApproval: true,
+    allowsHalfDay: true,
+    isActive: true,
+    sortOrder: 1,
+  },
+  {
+    id: 'et-sick',
+    code: 'SICK',
+    label: 'Sick leave',
+    shortLabel: 'Sick',
+    color: '#e08c8c',
+    category: 'SICKNESS',
+    blocksAssignment: true,
+    countsTowardCapacity: false,
+    // Requested like any other leave (ADR-0052).
+    requiresApproval: true,
+    allowsHalfDay: true,
+    isActive: true,
+    sortOrder: 2,
+  },
+  {
+    id: 'et-unavailable',
+    code: 'UNAVAILABLE',
+    label: 'Not available',
+    shortLabel: 'N/A',
+    color: '#8f97a3',
+    category: 'OTHER',
+    // What replaced the OFF / NOT_SCHEDULED markers: a declaration of availability, so
+    // no approval, and the only seeded type that can be written directly.
+    blocksAssignment: true,
+    countsTowardCapacity: false,
+    requiresApproval: false,
+    allowsHalfDay: true,
+    isActive: true,
+    sortOrder: 3,
+  },
+];
 
 export function makeDataset(overrides: DatasetOverrides = {}): ScheduleDataset {
   return {
@@ -175,6 +240,9 @@ export function makeDataset(overrides: DatasetOverrides = {}): ScheduleDataset {
     assignments: overrides.assignments ?? [],
     absences: overrides.absences ?? [],
     compDays: overrides.compDays ?? [],
+    eventTypes: overrides.eventTypes ?? TEST_EVENT_TYPES,
+    presenceTypes: overrides.presenceTypes ?? TEST_PRESENCE_TYPES,
+    presence: overrides.presence ?? [],
     acknowledgements: [],
     history: [],
   };

@@ -1,6 +1,9 @@
 # ADR-0031. Stubbed-but-real auth scaffold: bearer token, role claims, no region scoping
 
-**Status:** accepted — implements Phase 4; production replaces stub with Entra ID
+**Status:** accepted — implements Phase 4; production replaces the stub with Entra ID.
+Extended by [ADR-0039](0039-actor-identity-from-the-token.md), which makes the resolved
+identity — not a request-body field — authoritative for every write, and adds a
+fail-closed check that the principal maps to a real person.
 
 ## Context
 

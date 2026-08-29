@@ -5,7 +5,7 @@ namespace ShiftOMator.Api.Contracts.Drafts;
 
 public record PublishDraftResponse(
     int RemainingGaps,
-    IReadOnlyList<AssignmentHistoryEntry> History,
+    IReadOnlyList<ChangeHistoryEntry> History,
     IReadOnlyList<CompDayEntry> GeneratedCompDays);
 
 /// <summary>409 body — the draft is left open (ADR-0015), the caller compares

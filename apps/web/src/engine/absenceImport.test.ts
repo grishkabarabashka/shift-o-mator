@@ -59,7 +59,7 @@ describe('applying column mapping to rows', () => {
   it('normalizes the type via the synonym dictionary, one date = one day', () => {
     const table = [['E100', 'Alice', 'annual leave', '2026-08-10', '']];
     const [row] = mapRows(table, MAPPING, false);
-    expect(row?.type).toBe('VACATION');
+    expect(row?.eventTypeId).toBe('et-vacation');
     expect(row?.from).toBe('2026-08-10');
     expect(row?.to).toBe('2026-08-10'); // no "to" column — a single-day absence
     expect(row?.error).toBeUndefined();
@@ -148,18 +148,22 @@ describe('diffing against existing absences', () => {
       {
         id: 'abs-1',
         personId: 'p-alice',
-        type: 'VACATION',
+        eventTypeId: 'et-vacation',
+        portion: 'FULL',
         from: '2026-08-10',
         to: '2026-08-12',
         source: 'IMPORT',
+        version: 1,
       },
       {
         id: 'abs-2',
         personId: 'p-bob',
-        type: 'SICK',
+        eventTypeId: 'et-sick',
+        portion: 'FULL',
         from: '2026-08-01',
         to: '2026-08-01',
         source: 'IMPORT',
+        version: 1,
       },
     ];
     const table = [
@@ -193,18 +197,22 @@ describe('diffing against existing absences', () => {
       {
         id: 'abs-old',
         personId: 'p-alice',
-        type: 'VACATION',
+        eventTypeId: 'et-vacation',
+        portion: 'FULL',
         from: '2026-08-10',
         to: '2026-08-12',
         source: 'IMPORT',
+        version: 1,
       },
       {
         id: 'abs-outside',
         personId: 'p-alice',
-        type: 'VACATION',
+        eventTypeId: 'et-vacation',
+        portion: 'FULL',
         from: '2026-11-01',
         to: '2026-11-02',
         source: 'IMPORT',
+        version: 1,
       },
     ];
     // The import covers all of August (including abs-old's range) — the
@@ -223,10 +231,12 @@ describe('diffing against existing absences', () => {
       {
         id: 'abs-manual',
         personId: 'p-alice',
-        type: 'VACATION',
+        eventTypeId: 'et-vacation',
+        portion: 'FULL',
         from: '2026-08-10',
         to: '2026-08-12',
         source: 'MANUAL',
+        version: 1,
       },
     ];
     const table = [['E200', '', 'sick', '2026-08-01', '2026-08-01']];
@@ -248,7 +258,8 @@ describe('impact on published assignments', () => {
       {
         rowIndex: 0,
         personId: 'p-alice',
-        type: 'VACATION' as const,
+        eventTypeId: 'et-vacation',
+          portion: 'FULL' as const,
         from: '2026-08-10',
         to: '2026-08-12',
         note: undefined,
@@ -258,7 +269,8 @@ describe('impact on published assignments', () => {
       {
         rowIndex: 1,
         personId: 'p-bob',
-        type: 'VACATION' as const,
+        eventTypeId: 'et-vacation',
+          portion: 'FULL' as const,
         from: '2026-08-10',
         to: '2026-08-12',
         note: undefined,
@@ -277,7 +289,8 @@ describe('building draft changes', () => {
       {
         rowIndex: 0,
         personId: 'p-alice',
-        type: 'VACATION' as const,
+        eventTypeId: 'et-vacation',
+          portion: 'FULL' as const,
         from: '2026-08-10',
         to: '2026-08-12',
         note: undefined,
@@ -306,9 +319,11 @@ describe('building draft changes', () => {
         absence: {
           id: 'abs-1',
           personId: 'p-alice',
-          type: 'VACATION' as const,
+          eventTypeId: 'et-vacation',
+          portion: 'FULL' as const,
           from: '2026-08-10',
           to: '2026-08-12',
+          version: 1,
           source: 'IMPORT' as const,
         },
         personName: 'Alice Johnson',
@@ -317,9 +332,11 @@ describe('building draft changes', () => {
         absence: {
           id: 'abs-2',
           personId: 'p-bob',
-          type: 'SICK' as const,
+          eventTypeId: 'et-sick',
+          portion: 'FULL' as const,
           from: '2026-08-01',
           to: '2026-08-01',
+          version: 1,
           source: 'IMPORT' as const,
         },
         personName: 'Bob Smith',
@@ -346,20 +363,24 @@ describe('absence data freshness', () => {
       {
         id: 'a',
         personId: 'p-alice',
-        type: 'VACATION',
+        eventTypeId: 'et-vacation',
+        portion: 'FULL',
         from: '2026-08-01',
         to: '2026-08-01',
         source: 'IMPORT',
         lastSeenInImportAt: '2026-08-10T00:00:00Z',
+        version: 1,
       },
       {
         id: 'b',
         personId: 'p-bob',
-        type: 'SICK',
+        eventTypeId: 'et-sick',
+        portion: 'FULL',
         from: '2026-08-02',
         to: '2026-08-02',
         source: 'IMPORT',
         lastSeenInImportAt: '2026-08-14T00:00:00Z',
+        version: 1,
       },
     ];
     expect(absenceFreshness(absences)).toBe('2026-08-14T00:00:00Z');

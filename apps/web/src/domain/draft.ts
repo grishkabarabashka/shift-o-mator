@@ -133,9 +133,7 @@ export function isNoop(change: DraftChange): boolean {
   if (change.targetType === 'ASSIGNMENT' && change.before && change.after) {
     const before = change.before.content;
     const after = change.after.content;
-    if (before.kind !== after.kind) return false;
-    if (before.kind === 'SHIFT' && after.kind === 'SHIFT') return before.shiftId === after.shiftId;
-    if (before.kind === 'MARKER' && after.kind === 'MARKER') return before.marker === after.marker;
+    return before.shiftId === after.shiftId;
   }
   return false;
 }

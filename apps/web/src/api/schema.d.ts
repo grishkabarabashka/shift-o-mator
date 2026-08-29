@@ -102,6 +102,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/calendar-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyCalendarFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/calendar-feed/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ResetMyCalendarFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/calendar/{token}.ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetCalendarFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/schedule": {
         parameters: {
             query?: never;
@@ -128,6 +192,22 @@ export interface paths {
         get: operations["ListDrafts"];
         put?: never;
         post: operations["OpenDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/drafts/staged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListStagedCells"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -262,6 +342,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/insights/candidate-explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CandidateExplanation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/acknowledgements": {
         parameters: {
             query?: never;
@@ -294,6 +390,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/history/cell": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetCellHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/people/{id}": {
         parameters: {
             query?: never;
@@ -304,6 +416,223 @@ export interface paths {
         get?: never;
         put: operations["UpdatePerson"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPresence"];
+        put?: never;
+        post: operations["CreatePresence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/presence/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdatePresence"];
+        post?: never;
+        delete: operations["DeletePresence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/absences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListAbsences"];
+        put?: never;
+        post: operations["CreateAbsence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/absences/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateAbsence"];
+        post?: never;
+        delete: operations["DeleteAbsence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/request-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListRequestTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListRequests"];
+        put?: never;
+        post: operations["CreateRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/requests/{id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DecideRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/requests/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CancelRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MarkNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListRoleAssignments"];
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GrantRoleRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoleAssignment"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -645,6 +974,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/holidays/calendars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListHolidayCalendars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/holidays/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ImportHolidays"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/units": {
         parameters: {
             query?: never;
@@ -790,6 +1151,396 @@ export interface paths {
                 };
                 /** @description Conflict */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-assignments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotFoundResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotFoundResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/event-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EventType"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventTypeRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EventType"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/event-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventTypeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EventType"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/presence-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PresenceType"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PresenceTypeRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PresenceType"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/presence-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PresenceTypeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PresenceType"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1465,7 +2216,8 @@ export interface components {
         Absence: {
             id: string;
             personId: string;
-            type?: components["schemas"]["AbsenceType"];
+            eventTypeId: string;
+            portion?: components["schemas"]["DayPortion"];
             /** Format: date */
             from: string;
             /** Format: date */
@@ -1477,6 +2229,8 @@ export interface components {
             /** Format: date-time */
             syncedToHrAt?: null | string;
             note?: null | string;
+            /** Format: int32 */
+            version?: number | string;
         };
         AbsenceCapacityRule: {
             id: string;
@@ -1488,7 +2242,7 @@ export interface components {
             longThresholdWorkdays?: number | string;
             /** Format: int32 */
             maxConcurrent?: number | string;
-            countsTypes?: components["schemas"]["AbsenceType"][];
+            countsEventTypeIds?: string[];
             countsCompDays?: boolean;
         };
         AbsenceCapacityRuleRequest: {
@@ -1500,17 +2254,18 @@ export interface components {
             longThresholdWorkdays: number | string;
             /** Format: int32 */
             maxConcurrent: number | string;
-            countsTypes: components["schemas"]["AbsenceType"][];
+            countsEventTypeIds: string[];
             countsCompDays: boolean;
         };
         /** @enum {unknown} */
         AbsenceCapacityScopeKind: "unit" | "shiftPool";
         /** @enum {unknown} */
         AbsenceDurationBucket: "short" | "long";
+        AbsenceListResponse: {
+            absences: components["schemas"]["Absence"][];
+        };
         /** @enum {unknown} */
-        AbsenceSource: "import" | "manual";
-        /** @enum {unknown} */
-        AbsenceType: "vacation" | "sick" | "other";
+        AbsenceSource: "import" | "manual" | "request";
         Acknowledgement: {
             /** Format: int32 */
             id?: number | string;
@@ -1523,7 +2278,6 @@ export interface components {
         AcknowledgeRequest: {
             issueKey: string;
             comment: string;
-            byPersonId: string;
         };
         AdminPersonRequest: {
             displayName: string;
@@ -1541,16 +2295,27 @@ export interface components {
             entityId: string;
             after: null | components["schemas"]["JsonElement"];
         };
+        /** @enum {unknown} */
+        AppRole: "viewer" | "planner" | "approver" | "admin";
+        ApprovalDecision: {
+            id: string;
+            requestId: string;
+            decision?: components["schemas"]["ApprovalDecisionKind"];
+            byPersonId: string;
+            comment?: null | string;
+            /** Format: date-time */
+            at: string;
+        };
+        /** @enum {unknown} */
+        ApprovalDecisionKind: "approve" | "reject" | "return";
         Assignment: {
             id: string;
             personId: string;
             /** Format: date */
             date: string;
             unitId: string;
-            contentKind?: components["schemas"]["AssignmentContentKind"];
-            shiftId?: null | string;
+            shiftId: string;
             timeOverride?: null | components["schemas"]["TimeOverride"];
-            marker?: null | components["schemas"]["RosterMarker"];
             isWeekend?: boolean;
             note?: null | string;
             source?: components["schemas"]["AssignmentSource"];
@@ -1564,17 +2329,6 @@ export interface components {
             updatedAt?: null | string;
         };
         /** @enum {unknown} */
-        AssignmentContentKind: "shift" | "marker";
-        AssignmentHistoryEntry: {
-            id: string;
-            assignmentId: string;
-            action?: components["schemas"]["HistoryAction"];
-            snapshotJson?: null | string;
-            actorId: string;
-            /** Format: date-time */
-            at: string;
-        };
-        /** @enum {unknown} */
         AssignmentSource: "manual" | "generated" | "imported";
         AutoPopulateRequest: {
             unitId: string;
@@ -1583,8 +2337,10 @@ export interface components {
             /** Format: date */
             rangeTo: string;
             lockedAssignmentIds: null | string[];
-            actorId: string;
             draftId?: null | string;
+        };
+        CalendarFeedResponse: {
+            url: string;
         };
         Candidate: {
             personId: string;
@@ -1597,11 +2353,65 @@ export interface components {
             weekendLoad: number | string;
             warnings: string[];
         };
+        CandidateExplanationRequest: {
+            shiftId: string;
+            /** Format: date */
+            date: string;
+            unitId: string;
+            excludePersonIds?: null | string[];
+        };
+        CandidateExplanationResponse: {
+            explanation: null | string;
+            digest: string;
+            suggestedPersonId: null | string;
+            suggestedPersonName: null | string;
+            decidingFactor: string;
+            /** Format: int32 */
+            availableCount: number | string;
+            /** Format: int32 */
+            excludedCount: number | string;
+            model: null | string;
+            /** Format: date-time */
+            generatedAt: string;
+        };
         CandidateResult: {
             available: components["schemas"]["Candidate"][];
             excluded: components["schemas"]["ExcludedCandidate"][];
             /** Format: double */
             teamWeekendAverage: number | string;
+        };
+        CellEvent: {
+            /** Format: date-time */
+            at: string;
+            kind: components["schemas"]["CellEventKind"];
+            actorId: string;
+            actorName: null | string;
+            summary: string;
+            comment: null | string;
+        };
+        /** @enum {unknown} */
+        CellEventKind: "assignmentChanged" | "absenceChanged" | "presenceChanged" | "compDayChanged" | "requestSubmitted" | "requestDecided";
+        CellHistoryResponse: {
+            personId: null | string;
+            /** Format: date */
+            date: string;
+            events: components["schemas"]["CellEvent"][];
+        };
+        ChangeHistoryEntry: {
+            id: string;
+            entityType?: components["schemas"]["HistoryEntityType"];
+            entityId: string;
+            action?: components["schemas"]["HistoryAction"];
+            snapshotJson?: null | string;
+            personId?: null | string;
+            /** Format: date */
+            affectedFrom?: null | string;
+            /** Format: date */
+            affectedTo?: null | string;
+            summary?: null | string;
+            actorId: string;
+            /** Format: date-time */
+            at: string;
         };
         CompDayEntry: {
             id: string;
@@ -1617,6 +2427,8 @@ export interface components {
             status?: components["schemas"]["CompDayStatus"];
             /** Format: date-time */
             syncedToHrAt?: null | string;
+            /** Format: int32 */
+            version?: number | string;
         };
         /** @enum {unknown} */
         CompDayStatus: "proposed" | "scheduled" | "taken" | "declined" | "pendingApproval";
@@ -1659,6 +2471,19 @@ export interface components {
         };
         /** @enum {unknown} */
         CoverageLevel: "gap" | "thin" | "ok" | "over";
+        CreateRequestRequest: {
+            typeId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            subjectPersonId?: null | string;
+            compDayId?: null | string;
+            note?: null | string;
+            siteLocationId?: null | string;
+            siteLabel?: null | string;
+            portion?: components["schemas"]["DayPortion"];
+        };
         /** @enum {unknown} */
         DayConfigKey: "weekday" | "friday" | "weekend" | "holiday" | "date";
         DayConfiguration: {
@@ -1694,6 +2519,12 @@ export interface components {
             dayConfigurationId: string;
             key: components["schemas"]["DayConfigKey"];
             label: null | string;
+        };
+        /** @enum {unknown} */
+        DayPortion: "full" | "morning" | "afternoon";
+        DecideRequestRequest: {
+            decision: components["schemas"]["ApprovalDecisionKind"];
+            comment?: null | string;
         };
         DraftChange: {
             id: string;
@@ -1731,10 +2562,41 @@ export interface components {
         /** @enum {unknown} */
         DraftStatus: "open" | "published" | "discarded";
         /** @enum {unknown} */
-        DraftTargetType: "assignment" | "absence" | "compDay";
+        DraftTargetType: "assignment" | "compDay";
         ErrorResponse: {
             code: string;
             message: string;
+        };
+        /** @enum {unknown} */
+        EventCategory: "leave" | "sickness" | "other";
+        EventType: {
+            id: string;
+            code: string;
+            label: string;
+            shortLabel: string;
+            color: string;
+            category?: components["schemas"]["EventCategory"];
+            blocksAssignment?: boolean;
+            countsTowardCapacity?: boolean;
+            requiresApproval?: boolean;
+            allowsHalfDay?: boolean;
+            isActive?: boolean;
+            /** Format: int32 */
+            sortOrder?: number | string;
+        };
+        EventTypeRequest: {
+            code: string;
+            label: string;
+            shortLabel: string;
+            color: string;
+            category: components["schemas"]["EventCategory"];
+            blocksAssignment: boolean;
+            countsTowardCapacity: boolean;
+            requiresApproval: boolean;
+            allowsHalfDay: boolean;
+            isActive: boolean;
+            /** Format: int32 */
+            sortOrder: number | string;
         };
         ExcludedCandidate: {
             personId: string;
@@ -1772,10 +2634,17 @@ export interface components {
             /** Format: date-time */
             generatedAt: string;
         };
+        GrantRoleRequest: {
+            personId: string;
+            unitId: null | string;
+            role: components["schemas"]["AppRole"];
+        };
         /** @enum {unknown} */
         GroupBy: "location" | "region" | "orgCategory";
         /** @enum {unknown} */
         HistoryAction: "created" | "updated" | "deleted";
+        /** @enum {unknown} */
+        HistoryEntityType: "assignment" | "absence" | "compDay" | "presence" | "person" | "configuration" | "roleAssignment";
         Holiday: {
             id: string;
             /** Format: date */
@@ -1783,6 +2652,37 @@ export interface components {
             name: string;
             locationIds?: string[];
             isFullDay?: boolean;
+        };
+        HolidayCalendar: {
+            id: string;
+            country: string;
+            name: string;
+            url: string;
+        };
+        HolidayImportRequest: {
+            locationIds: string[];
+            url: null | string;
+            ics: null | string;
+            /** Format: date */
+            from: null | string;
+            /** Format: date */
+            to: null | string;
+            apply: boolean;
+            /** @default true */
+            holidaysOnly: boolean;
+        };
+        HolidayImportResponse: {
+            days: components["schemas"]["HolidayImportRow"][];
+            /** Format: int32 */
+            added: number | string;
+        };
+        HolidayImportRow: {
+            /** Format: date */
+            date: string;
+            name: string;
+            category: string;
+            alreadyPresent: boolean;
+            skipped: boolean;
         };
         HolidayRequest: {
             /** Format: date */
@@ -1834,14 +2734,58 @@ export interface components {
         MeResponse: {
             personId: null | string;
             displayName: null | string;
-            role: null | string;
+            roles: components["schemas"]["RoleGrant"][];
+            stubMode: boolean;
+        };
+        MyCalendarResponse: {
+            personId: string;
+            assignments: components["schemas"]["Assignment"][];
+            absences: components["schemas"]["Absence"][];
+            compDays: components["schemas"]["CompDayEntry"][];
+            presence: components["schemas"]["PresenceRecord"][];
+            pendingRequests: components["schemas"]["MyPendingRequest"][];
+        };
+        MyPendingRequest: {
+            id: string;
+            typeId: string;
+            typeLabel: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            portion: components["schemas"]["DayPortion"];
+            state: components["schemas"]["RequestState"];
         };
         NotFoundResponse: {
             code: string;
             id: string;
         };
+        Notification: {
+            id: string;
+            recipientPersonId: string;
+            kind?: components["schemas"]["NotificationKind"];
+            title: string;
+            body?: null | string;
+            subjectType?: null | string;
+            subjectId?: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            readAt?: null | string;
+            channel?: null | string;
+            /** Format: date-time */
+            deliveredAt?: null | string;
+            /** Format: int32 */
+            deliveryAttempts?: number | string;
+        };
+        /** @enum {unknown} */
+        NotificationKind: "requestSubmitted" | "requestApproved" | "requestRejected" | "requestApplyFailed" | "requestSuperseded" | "compDayAging" | "coverageGap";
+        NotificationListResponse: {
+            notifications: components["schemas"]["Notification"][];
+            /** Format: int32 */
+            unreadCount: number | string;
+        };
         OpenDraftRequest: {
-            editorPersonId: string;
             unitId: string;
             /** Format: date */
             rangeFrom: string;
@@ -1850,6 +2794,23 @@ export interface components {
         };
         /** @enum {unknown} */
         OrgCategory: "support" | "serviceTransition" | "management";
+        PendingRequestSummary: {
+            id: string;
+            typeId: string;
+            typeCode: string;
+            typeLabel: string;
+            category: components["schemas"]["RequestCategory"];
+            subjectPersonId: string;
+            subjectDisplayName: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            portion: components["schemas"]["DayPortion"];
+            /** Format: date-time */
+            createdAt: string;
+            callerCanDecide: boolean;
+        };
         Person: {
             id: string;
             displayName: string;
@@ -1865,7 +2826,9 @@ export interface components {
             weekendEligible?: boolean;
             constraints?: components["schemas"]["PersonConstraints"];
             preferences?: null | components["schemas"]["PersonPreferences"];
-            calendarToken: string;
+            defaultPresenceTypeId?: string;
+            defaultSiteLocationId?: null | string;
+            managerId?: null | string;
             eligibility?: components["schemas"]["ShiftEligibility"][];
         };
         PersonConstraints: {
@@ -1901,10 +2864,66 @@ export interface components {
             dayConfigurations?: components["schemas"]["DayConfiguration"][];
             absenceCapacityRules?: components["schemas"]["AbsenceCapacityRule"][];
         };
+        /** @enum {unknown} */
+        PresenceGroup: "onSite" | "remote" | "away";
+        PresenceListResponse: {
+            presence: components["schemas"]["PresenceRecord"][];
+        };
+        PresenceRecord: {
+            id: string;
+            personId: string;
+            typeId: string;
+            siteLocationId?: null | string;
+            siteLabel?: null | string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            source?: components["schemas"]["PresenceSource"];
+            portion?: components["schemas"]["DayPortion"];
+            requestId?: null | string;
+            externalId?: null | string;
+            /** Format: date-time */
+            lastSeenInSyncAt?: null | string;
+            note?: null | string;
+            /** Format: int32 */
+            version?: number | string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            updatedBy?: null | string;
+            /** Format: date-time */
+            updatedAt?: null | string;
+        };
+        /** @enum {unknown} */
+        PresenceSource: "manual" | "request" | "import" | "portal";
+        PresenceType: {
+            id: string;
+            namesALocation?: boolean;
+            countsAs?: components["schemas"]["PresenceGroup"];
+            label: string;
+            glyph: string;
+            color: string;
+            requiresApproval?: boolean;
+            isActive?: boolean;
+            /** Format: int32 */
+            sortOrder?: number | string;
+        };
+        PresenceTypeRequest: {
+            label: string;
+            glyph: string;
+            color: string;
+            namesALocation: boolean;
+            countsAs: components["schemas"]["PresenceGroup"];
+            requiresApproval: boolean;
+            isActive: boolean;
+            /** Format: int32 */
+            sortOrder: number | string;
+        };
         PublishDraftResponse: {
             /** Format: int32 */
             remainingGaps: number | string;
-            history: components["schemas"]["AssignmentHistoryEntry"][];
+            history: components["schemas"]["ChangeHistoryEntry"][];
             generatedCompDays: components["schemas"]["CompDayEntry"][];
         };
         ReferenceResponse: {
@@ -1915,6 +2934,63 @@ export interface components {
             dayConfigurations: components["schemas"]["DayConfiguration"][];
             people: components["schemas"]["Person"][];
             absenceCapacityRules: components["schemas"]["AbsenceCapacityRule"][];
+            eventTypes: components["schemas"]["EventType"][];
+            presenceTypes: components["schemas"]["PresenceType"][];
+        };
+        Request: {
+            id: string;
+            typeId: string;
+            subjectPersonId: string;
+            unitId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            portion?: components["schemas"]["DayPortion"];
+            payloadJson?: null | string;
+            note?: null | string;
+            state?: components["schemas"]["RequestState"];
+            failureReason?: null | string;
+            materializedEntityId?: null | string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt?: null | string;
+            /** Format: date-time */
+            decidedAt?: null | string;
+            /** Format: int32 */
+            version?: number | string;
+            decisions?: components["schemas"]["ApprovalDecision"][];
+        };
+        /** @enum {unknown} */
+        RequestCategory: "presence" | "leave" | "swap" | "compDay" | "other";
+        RequestListResponse: {
+            requests: components["schemas"]["RequestView"][];
+        };
+        /** @enum {unknown} */
+        RequestMaterializer: "none" | "presence" | "absence" | "compDay";
+        /** @enum {unknown} */
+        RequestState: "draft" | "submitted" | "approved" | "rejected" | "cancelled" | "applied" | "applyFailed";
+        RequestType: {
+            id: string;
+            code: string;
+            label: string;
+            category?: components["schemas"]["RequestCategory"];
+            materializer?: components["schemas"]["RequestMaterializer"];
+            eventTypeId?: null | string;
+            presenceTypeId?: null | string;
+            isActive?: boolean;
+            /** Format: int32 */
+            sortOrder?: number | string;
+        };
+        RequestView: {
+            request: components["schemas"]["Request"];
+            typeCode: string;
+            typeLabel: string;
+            subjectDisplayName: string;
+            pendingApproverIds: string[];
+            callerCanDecide: boolean;
         };
         Result: {
             assignments: components["schemas"]["Assignment"][];
@@ -1923,12 +2999,24 @@ export interface components {
             /** Format: int32 */
             assignedCount?: number | string;
         };
-        /** @enum {unknown} */
-        RosterMarker: "off" | "notScheduled" | null;
+        RoleAssignment: {
+            id: string;
+            personId: string;
+            unitId?: null | string;
+            role: components["schemas"]["AppRole"];
+            grantedBy: string;
+            /** Format: date-time */
+            grantedAt: string;
+        };
+        RoleGrant: {
+            role: components["schemas"]["AppRole"];
+            unitId: null | string;
+        };
         SchedulePlan: {
             assignments: components["schemas"]["Assignment"][];
             absences: components["schemas"]["Absence"][];
             compDays: components["schemas"]["CompDayEntry"][];
+            presence: components["schemas"]["PresenceRecord"][];
         };
         ScheduleResponse: {
             unitIds: string[];
@@ -1938,6 +3026,7 @@ export interface components {
             acknowledgedIssueKeys: string[];
             dayConfigurations: components["schemas"]["DayConfigurationSummary"][];
             overlaidDraftId: null | string;
+            pendingRequests: components["schemas"]["PendingRequestSummary"][];
         };
         Shift: {
             id: string;
@@ -2026,6 +3115,16 @@ export interface components {
             timingOverrideEnd: null | string;
             timingOverrideCrossesMidnight: null | boolean;
         };
+        StagedCell: {
+            personId: string;
+            /** Format: date */
+            date: string;
+            editorPersonId: string;
+            editorName: string;
+        };
+        StagedCellsResponse: {
+            cells: components["schemas"]["StagedCell"][];
+        };
         SuggestRequest: {
             shiftId: string;
             /** Format: date */
@@ -2064,6 +3163,31 @@ export interface components {
             defaultShiftId: null | string;
             weekendEligible: boolean;
             preferences: null | components["schemas"]["PersonPreferencesRequest"];
+        };
+        UpsertAbsenceRequest: {
+            personId: string;
+            eventTypeId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            portion?: components["schemas"]["DayPortion"];
+            note?: null | string;
+            /** Format: int32 */
+            version?: null | number | string;
+        };
+        UpsertPresenceRequest: {
+            personId: string;
+            typeId: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            siteLocationId?: null | string;
+            siteLabel?: null | string;
+            note?: null | string;
+            /** Format: int32 */
+            version?: null | number | string;
         };
         ValidationErrorResponse: {
             errors: {
@@ -2119,6 +3243,100 @@ export interface operations {
             };
         };
     };
+    GetMyCalendar: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCalendarResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    GetMyCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedResponse"];
+                };
+            };
+        };
+    };
+    ResetMyCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedResponse"];
+                };
+            };
+        };
+    };
+    GetCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": string;
+                };
+            };
+        };
+    };
     GetSchedule: {
         parameters: {
             query: {
@@ -2168,6 +3386,7 @@ export interface operations {
                 unitId?: string;
                 from?: string;
                 to?: string;
+                mine?: boolean;
             };
             header?: never;
             path?: never;
@@ -2199,6 +3418,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSession"];
+                };
+            };
             /** @description Created */
             201: {
                 headers: {
@@ -2206,6 +3434,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DraftSession"];
+                };
+            };
+        };
+    };
+    ListStagedCells: {
+        parameters: {
+            query?: {
+                unitId?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StagedCellsResponse"];
                 };
             };
         };
@@ -2544,6 +3796,39 @@ export interface operations {
             };
         };
     };
+    CandidateExplanation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CandidateExplanationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateExplanationResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     Acknowledge: {
         parameters: {
             query?: never;
@@ -2573,6 +3858,8 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                personId?: string;
+                entityType?: components["schemas"]["HistoryEntityType"];
             };
             header?: never;
             path?: never;
@@ -2586,7 +3873,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AssignmentHistoryEntry"][];
+                    "application/json": components["schemas"]["ChangeHistoryEntry"][];
+                };
+            };
+        };
+    };
+    GetCellHistory: {
+        parameters: {
+            query: {
+                date: string;
+                personId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CellHistoryResponse"];
                 };
             };
         };
@@ -2622,6 +3932,658 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+        };
+    };
+    ListPresence: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                personId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresenceListResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    CreatePresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertPresenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresenceRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    UpdatePresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertPresenceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresenceRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    DeletePresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+        };
+    };
+    ListAbsences: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                personId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AbsenceListResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    CreateAbsence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertAbsenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Absence"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    UpdateAbsence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertAbsenceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Absence"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    DeleteAbsence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+        };
+    };
+    ListRequestTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestType"][];
+                };
+            };
+        };
+    };
+    ListRequests: {
+        parameters: {
+            query?: {
+                scope?: string;
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestListResponse"];
+                };
+            };
+        };
+    };
+    CreateRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Request"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    DecideRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Request"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+        };
+    };
+    CancelRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Request"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundResponse"];
+                };
+            };
+        };
+    };
+    ListNotifications: {
+        parameters: {
+            query?: {
+                unreadOnly?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationListResponse"];
+                };
+            };
+        };
+    };
+    MarkNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListRoleAssignments: {
+        parameters: {
+            query?: {
+                unitId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAssignment"][];
+                };
+            };
+        };
+    };
+    ListHolidayCalendars: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendar"][];
+                };
+            };
+        };
+    };
+    ImportHolidays: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayImportResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

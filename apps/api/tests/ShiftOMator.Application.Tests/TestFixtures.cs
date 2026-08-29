@@ -7,6 +7,33 @@ namespace ShiftOMator.Application.Tests;
 /// Port of domain/testkit.ts. Fixtures don't belong here — they're big and change; a
 /// test should prove one rule against data that fits entirely in the test itself.
 /// </summary>
+/// <summary>Minimal event types for tests — vacation blocks and counts, the rest are
+/// only here so a rule that reads the set has something to read (ADR-0049).</summary>
+public static class TestEventTypes
+{
+    public const string VacationId = "et-vacation";
+    public const string SickId = "et-sick";
+    public const string OtherId = "et-other";
+
+    public static List<EventType> All =>
+    [
+        Make(VacationId, "VACATION", "Annual leave", blocks: true),
+        Make(SickId, "SICK", "Sick leave", blocks: true),
+        Make(OtherId, "OTHER", "Other absence", blocks: true),
+    ];
+
+    private static EventType Make(string id, string code, string label, bool blocks) => new()
+    {
+        Id = id,
+        Code = code,
+        Label = label,
+        ShortLabel = label[..4],
+        Color = "#888888",
+        BlocksAssignment = blocks,
+        CountsTowardCapacity = true,
+    };
+}
+
 public static class TestFixtures
 {
     private static readonly List<IsoWeekday> Weekend = [IsoWeekday.Saturday, IsoWeekday.Sunday];
@@ -172,7 +199,6 @@ public static class TestFixtures
             PersonId = personId,
             Date = date,
             UnitId = TestUnit.Id,
-            ContentKind = AssignmentContentKind.Shift,
             ShiftId = shiftId,
             IsWeekend = isWeekend,
             Source = source,
@@ -182,20 +208,8 @@ public static class TestFixtures
         };
     }
 
-    public static Assignment MakeMarkerAssignment(string personId, RosterMarker marker, DateOnly date) => new()
-    {
-        Id = $"as-marker-{++_assignmentSeq}",
-        PersonId = personId,
-        Date = date,
-        UnitId = TestUnit.Id,
-        ContentKind = AssignmentContentKind.Marker,
-        Marker = marker,
-        IsWeekend = false,
-        Source = AssignmentSource.Manual,
-        Version = 1,
-        CreatedBy = "p-planner",
-        CreatedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
-    };
+    // MakeMarkerAssignment is gone with RosterMarker (ADR-0052): an assignment is a
+    // shift, so there is no non-shift assignment left to construct.
 
     public static ScheduleDataset MakeDataset(
         List<Location>? locations = null,
@@ -215,6 +229,7 @@ public static class TestFixtures
         Shifts = shifts ?? [LeadRole, NightRole],
         DayConfigurations = dayConfigurations ?? [],
         People = people ?? [MakePerson("p-1")],
+        EventTypes = TestEventTypes.All,
         AbsenceCapacityRules = absenceCapacityRules ?? [],
         Assignments = assignments ?? [],
         Absences = absences ?? [],

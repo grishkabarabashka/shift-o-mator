@@ -1,7 +1,11 @@
 # ADR-0020. A planning unit and a region are orthogonal; access is unrestricted with audit
 
-**Status:** accepted — **supersedes [ADR-0019](0019-service-transition-as-category.md)**,
-amends [ADR-0003](0003-planning-unit-not-geography.md)
+**Status:** ~~accepted~~ — **superseded by [ADR-0032](0032-planning-unit-single-rule-axis.md)**,
+which deletes Region and makes PlanningUnit the single axis. This ADR superseded
+[ADR-0019](0019-service-transition-as-category.md) and amended
+[ADR-0003](0003-planning-unit-not-geography.md). Its "unrestricted access with audit"
+half survives in ADR-0032, and is what
+[ADR-0039](0039-actor-identity-from-the-token.md) had to make true.
 
 ## Context
 

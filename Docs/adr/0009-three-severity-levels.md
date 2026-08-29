@@ -1,6 +1,11 @@
 # ADR-0009. Three validation levels; soft rules don't block
 
-**Status:** accepted, extended
+**Status:** accepted, narrowed three times — by
+[ADR-0024](0024-conflicts-do-not-block.md) (a conflict is acknowledged, not blocked),
+[ADR-0035](0035-coverage-gap-does-not-block-publication.md) (a gap is INFO and does not
+block) and [ADR-0037](0037-warnings-do-not-block-publication.md) (an unacknowledged
+warning does not block). What remains of the publish gate is exactly two things: a double
+assignment, and an unknown or wrong-unit shift.
 
 > **Extension.** Two additions from the validated prototype:
 >

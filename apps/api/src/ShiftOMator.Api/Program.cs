@@ -15,6 +15,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+
+// Self-service (Phase 14) turns a handful of planner writes into ~80 people writing
+// daily; a 500 with no log line and no correlation id is not diagnosable at that rate.
+builder.Services.AddHttpContextAccessor();
+
+// Only the holiday import uses this, and only against Holidays:AllowedCalendarHosts. The
+// short timeout is deliberate: an admin is watching a preview load, and a calendar host
+// that is slow should say so rather than hold a request open.
+builder.Services.AddHttpClient("calendar", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.Add("User-Agent", "shift-o-mator/1.0");
+});
 
 var connectionString = builder.Configuration.GetConnectionString("Schedule")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:Schedule");
@@ -25,6 +39,7 @@ builder.Services.AddInfrastructure(connectionString);
 // rest of the app.
 builder.Services.AddSingleton(ShiftOMator.Api.Insights.ChatModel.FromConfiguration(builder.Configuration));
 builder.Services.AddScoped<ShiftOMator.Api.Insights.GapSummaryService>();
+builder.Services.AddScoped<ShiftOMator.Api.Insights.CandidateExplanationService>();
 
 // Auth seam (Phase 4): Stub mode issues a fixed identity with no token validation, for
 // local dev/demo. Switching to a real IdP later (e.g. "EntraId") only adds a branch
@@ -39,7 +54,18 @@ if (authMode == "Stub")
 {
     authenticationBuilder.AddScheme<StubAuthenticationSchemeOptions, StubAuthenticationHandler>(
         StubAuthenticationHandler.SchemeName,
-        options => options.Role = builder.Configuration[$"{AuthOptions.SectionName}:StubRole"] ?? "Planner");
+        options =>
+        {
+            // `StubRole` is a role **override**, and it must default to empty. It used to
+            // default to "Planner" here *and* in appsettings.json, so the override was
+            // always on: nobody was ever an Admin or an Approver, Settings never appeared,
+            // no Approve button ever rendered, and switching person changed who you were
+            // but not what you could do. Empty means "use the grants stored against this
+            // person", which is the realistic path and the only one that exercises
+            // RoleAssignment at all (ADR-0051).
+            options.Role = builder.Configuration[$"{AuthOptions.SectionName}:StubRole"] ?? string.Empty;
+            options.PersonId = builder.Configuration[$"{AuthOptions.SectionName}:StubPersonId"] ?? string.Empty;
+        });
 }
 else
 {
@@ -49,11 +75,20 @@ else
         builder.Configuration.GetSection($"{AuthOptions.SectionName}:Jwt").Bind(options));
 }
 
-builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MinimumRoleAuthorizationHandler>();
+// Scoped, because it caches the resolved person for the lifetime of one request and
+// reads the roster to verify the claim (ADR-0039).
+builder.Services.AddScoped<ActorResolver>();
+
+// Grants live in the database, not in the token: they are scoped to planning units, a
+// concept no identity provider knows about (ADR-0051).
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleClaimsTransformation>();
+
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RoleAuthorizationHandler>();
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(AuthPolicies.ViewerOrAbove, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Viewer)))
-    .AddPolicy(AuthPolicies.PlannerOrAbove, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Planner)))
-    .AddPolicy(AuthPolicies.AdminOnly, p => p.Requirements.Add(new MinimumRoleRequirement(AppRole.Admin)));
+    .AddPolicy(AuthPolicies.Authenticated, p => p.Requirements.Add(new RoleRequirement(AppRole.Viewer)))
+    .AddPolicy(AuthPolicies.PlannerSomewhere, p => p.Requirements.Add(new RoleRequirement(AppRole.Planner)))
+    .AddPolicy(AuthPolicies.ApproverSomewhere, p => p.Requirements.Add(new RoleRequirement(AppRole.Approver)))
+    .AddPolicy(AuthPolicies.AdminSomewhere, p => p.Requirements.Add(new RoleRequirement(AppRole.Admin)));
 
 // The client is a separate origin (Vite dev server, and any deployed SPA
 // origin) — without this, every fetch() from src/api/client.ts is blocked by
@@ -67,9 +102,17 @@ builder.Services.AddCors(options =>
     options.AddPolicy(ClientCorsPolicy, policy => policy
         .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod()));
+        .AllowAnyMethod()
+        // The dev identity switcher sends X-Debug-*; without this the browser strips
+        // them from cross-origin requests before they reach the stub handler.
+        .WithExposedHeaders(RequestCorrelationMiddleware.HeaderName)));
 
 var app = builder.Build();
+
+// One place that turns an unhandled exception into a typed body instead of a bare 500
+// with a stack trace in dev and nothing at all in production.
+app.UseExceptionHandler(ExceptionHandling.Handler);
+app.UseMiddleware<RequestCorrelationMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -94,18 +137,27 @@ app.MapGet("/health/ready", async (ScheduleDbContext db) =>
 
 app.MapReferenceEndpoints();
 app.MapAuthEndpoints();
+app.MapMeEndpoints();
 app.MapScheduleEndpoints();
 app.MapDraftsEndpoints();
 app.MapSuggestEndpoints();
 app.MapInsightsEndpoints();
 app.MapAcknowledgementsEndpoints();
 app.MapHistoryEndpoints();
+app.MapCellHistoryEndpoints();
 app.MapPeopleEndpoints();
+app.MapPresenceEndpoints();
+app.MapAbsenceEndpoints();
+app.MapRequestsEndpoints();
 
-// Phase 6: full CRUD administration, gated behind AuthPolicies.AdminOnly.
+// Phase 6: full CRUD administration, gated behind AuthPolicies.AdminSomewhere.
 app.MapLocationsAdminEndpoints();
 app.MapHolidaysAdminEndpoints();
+app.MapHolidayImportEndpoints();
 app.MapUnitsAdminEndpoints();
+app.MapRoleAssignmentsAdminEndpoints();
+app.MapEventTypesAdminEndpoints();
+app.MapPresenceTypesAdminEndpoints();
 app.MapAbsenceCapacityRulesAdminEndpoints();
 app.MapShiftsAdminEndpoints();
 app.MapDayConfigurationsAdminEndpoints();
@@ -115,11 +167,74 @@ app.MapPeopleAdminEndpoints();
 // FixtureSeeder). The demo plan (assignments/absences/comp days) only goes in behind
 // an explicit flag — the first production run must not come up with made-up shifts.
 var includeDemoData = args.Contains("--seed-demo") || builder.Configuration.GetValue<bool>("Seed:IncludeDemoData");
+
+// `--reset-db` drops the database and builds it again from the single migration.
+//
+// WHY it exists: the schema is one regenerated `InitialCreate` while there is no
+// production data (CLAUDE.md), so every schema change orphans the existing database. The
+// recovery was a hand-written sqlcmd line, looked up each time, and getting it wrong left
+// a half-migrated database that failed later and further away from the cause.
+//
+// Deliberately a flag and not a default: it destroys everything, and "the app wiped my
+// data on start" must never be something that just happens.
+var resetDb = args.Contains("--reset-db");
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+
+    if (resetDb)
+    {
+        app.Logger.LogWarning(
+            "--reset-db: dropping database {Database} and rebuilding it from scratch.",
+            db.Database.GetDbConnection().Database);
+        await db.Database.EnsureDeletedAsync();
+    }
+    else
+    {
+        await EnsureSchemaIsReconcilableAsync(db);
+    }
+
     await db.Database.MigrateAsync();
     await FixtureSeeder.SeedAsync(db, includeDemoData);
+}
+
+/// <summary>
+/// Refuses to start against a database built by a migration this build no longer has.
+///
+/// WHY this check exists: while there is no production data the schema is kept as a single
+/// `InitialCreate` that is **regenerated** rather than appended to. The cost is that every
+/// existing database becomes unreconcilable the moment it is regenerated — EF sees a
+/// migration id it does not recognise, decides nothing has been applied, and tries to
+/// CREATE TABLE over tables that are already there. The error it raises is
+/// "There is already an object named 'Absences' in the database", which says nothing about
+/// the actual cause and cost several confused restarts before it was named.
+///
+/// Once real data exists this stops being acceptable and migrations become incremental
+/// again — at which point this check should start passing on its own and can go.
+/// </summary>
+static async Task EnsureSchemaIsReconcilableAsync(ScheduleDbContext db)
+{
+    if (!await db.Database.CanConnectAsync()) return;
+
+    var known = db.Database.GetMigrations().ToHashSet();
+    var applied = await db.Database.GetAppliedMigrationsAsync();
+    var unknown = applied.Where(id => !known.Contains(id)).ToList();
+    if (unknown.Count == 0) return;
+
+    var name = db.Database.GetDbConnection().Database;
+    throw new InvalidOperationException(
+        $"""
+        Database '{name}' was created by migration(s) this build does not have
+        ({string.Join(", ", unknown)}), so its schema cannot be brought up to date.
+
+        The schema is a single regenerated InitialCreate while there is no production data
+        (see CLAUDE.md), so the fix is to drop the database and let it be recreated:
+
+          sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}];"
+
+        Everything in it is seed and demo data; nothing entered by hand survives there yet.
+        """);
 }
 
 app.Run();

@@ -15,4 +15,8 @@ public class AuthOptions
     /// <summary>The app role (see <see cref="ShiftOMator.Domain.AppRole"/>) the stub
     /// handler stamps onto every request when <see cref="Mode"/> is "Stub".</summary>
     public string StubRole { get; set; } = "Planner";
+
+    /// <summary>Which person the stub acts as. Empty lets <see cref="ActorResolver"/>
+    /// pick a deterministic one from the roster.</summary>
+    public string StubPersonId { get; set; } = string.Empty;
 }

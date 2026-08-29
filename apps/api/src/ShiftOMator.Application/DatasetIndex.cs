@@ -12,6 +12,7 @@ public class DatasetIndex
     public required IReadOnlyDictionary<string, PlanningUnit> Units { get; init; }
     public required IReadOnlyDictionary<string, Shift> Shifts { get; init; }
     public required IReadOnlyDictionary<string, Person> People { get; init; }
+    public required IReadOnlyDictionary<string, EventType> EventTypes { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<Shift>> ShiftsByUnit { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<Person>> PeopleByUnit { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<DayConfiguration>> DayConfigsByUnit { get; init; }
@@ -43,6 +44,7 @@ public class DatasetIndex
             Units = data.Units.ToDictionary(x => x.Id),
             Shifts = data.Shifts.ToDictionary(x => x.Id),
             People = data.People.ToDictionary(x => x.Id),
+            EventTypes = data.EventTypes.ToDictionary(x => x.Id),
             ShiftsByUnit = GroupBy(data.Shifts, s => s.UnitId),
             PeopleByUnit = GroupBy(data.People, p => p.UnitId),
             DayConfigsByUnit = GroupBy(data.DayConfigurations, c => c.UnitId),

@@ -18,9 +18,13 @@ import {
 } from '../api/queries.ts';
 import { queryClient } from '../api/queryClient.ts';
 import { scheduleRepository } from '../data/httpRepository.ts';
-import type { DraftSyncItem, PublishOutcome } from '../data/repository.ts';
+import type {
+  AbsenceUpsert,
+  DraftSyncItem,
+  PresenceUpsert,
+  PublishOutcome,
+} from '../data/repository.ts';
 import {
-  absenceChange,
   applyChanges,
   assignmentChange,
   compDayChange,
@@ -37,16 +41,15 @@ import type {
   DraftSession,
   IsoDate,
   Person,
+  PresenceRecord,
   PersonId,
   PlanData,
   PublishConflict,
-  PublishResult,
   ReferenceData,
   ScheduleDataset,
   ShiftId,
   UnitId,
 } from '../domain/types.ts';
-import { scopeIncludes } from '../domain/unitScope.ts';
 import { isWeekendIn } from '../engine/dates.ts';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -82,7 +85,6 @@ export interface ScheduleState {
   overlappingDrafts: readonly DraftSession[];
 
   publishing: boolean;
-  lastPublish: PublishResult | undefined;
   conflicts: readonly PublishConflict[];
 
   /**
@@ -104,17 +106,54 @@ export interface ScheduleState {
    */
   syncError: string | undefined;
 
+  /**
+   * NOTE: Why the last explicit action (publish, discard) failed.
+   *
+   * WHY separate from `error`: `error` puts the app into `status: 'error'`, which
+   * replaces the whole screen with "Could not load the schedule". A publish that
+   * failed must not do that — the draft is intact and the planner needs to see it to
+   * decide what to do. This used to be written into `error` and rendered nowhere at
+   * all, so clicking Publish with an unsynced edit did visibly nothing.
+   */
+  actionError: string | undefined;
+
+  /** NOTE: Clears `actionError` — the banner is dismissible, the failure is not fatal. */
+  dismissActionError: () => void;
+  /** NOTE: Reports a failure the user has to see. A control that silently does nothing
+   * is the failure mode ADR-0023 exists to prevent. */
+  setActionError: (message: string) => void;
+
+  /**
+   * NOTE: Publishes the signed-in identity into the store (ADR-0039).
+   *
+   * WHY an action rather than something `load()` derives: `load()` used to guess —
+   * "the first MANAGEMENT person in scope, else anyone" — and that guess became the
+   * `createdBy`/`updatedBy` on every edit and the author of every acknowledgement.
+   * The server now decides who the actor is; this only mirrors that answer so the
+   * optimistic UI shows the same name the audit trail will.
+   */
+  setCurrentUser: (personId: PersonId | undefined) => void;
   load: (unitId: UnitId, range: DateRange) => Promise<void>;
   startDraft: () => Promise<void>;
   setCell: (personId: PersonId, date: IsoDate, shiftId: ShiftId | null) => void;
   setCells: (cells: readonly CellRef[], shiftId: ShiftId | null) => void;
-  setMarker: (cells: readonly CellRef[], marker: 'OFF' | 'NOT_SCHEDULED') => void;
-  setAbsence: (absence: Absence | null, previous?: Absence) => void;
-  setAbsences: (absences: readonly Absence[]) => void;
-  setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => void;
+  setCompDay: (entry: CompDayEntry, previous?: CompDayEntry) => Promise<void>;
+  /**
+   * NOTE: Time off (ADR-0052). Like presence, this goes around the draft entirely:
+   * drafts publish the rota, and time off is asked for and granted separately. A kind of
+   * absence that needs approval is refused here by the server — it goes through a request.
+   */
+  saveAbsence: (record: AbsenceUpsert) => Promise<void>;
+  removeAbsence: (id: string) => Promise<void>;
   acknowledge: (issueKey: string, comment: string) => Promise<void>;
   /** NOTE: A person's profile — reference data, goes around the draft. */
   savePerson: (person: Person) => Promise<void>;
+  /**
+   * NOTE: Where someone works (ADR-0043). Like `savePerson`, this goes around the draft
+   * — presence is not a roster decision and must not wait on a planner's publish.
+   */
+  savePresence: (record: PresenceUpsert) => Promise<void>;
+  removePresence: (id: string) => Promise<void>;
   /** NOTE: Stages the auto-populate preview result into the draft, opening it if needed. */
   commitAutoPopulate: (result: AutoPopulateResult) => Promise<void>;
   /** NOTE: Stages an absence import into the draft as one batch — Undo rolls it all back. */
@@ -138,6 +177,21 @@ function newAssignmentId(): string {
 function nextSeq(): number {
   seqCounter += 1;
   return seqCounter;
+}
+
+/**
+ * NOTE: Rebuilds `plan` and the index from published plus the draft.
+ *
+ * At module scope rather than inside the store, because the query-cache subscription at
+ * the bottom of this file needs the same arithmetic and must not have a second copy of it.
+ */
+function recomputeFor(
+  reference: ReferenceData,
+  published: PlanData,
+  changes: readonly DraftChange[],
+): { plan: PlanData; index: DatasetIndex } {
+  const plan = applyChanges(published, changes);
+  return { plan, index: buildIndex(datasetOf(reference, plan)) };
 }
 
 function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
@@ -379,14 +433,69 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     pendingRange = undefined;
     consecutiveFailures = 0;
   }
-  /** NOTE: Rebuilds `plan` and the index from published plus the draft. */
-  function recompute(
-    reference: ReferenceData,
-    published: PlanData,
-    changes: readonly DraftChange[],
-  ): { plan: PlanData; index: DatasetIndex } {
-    const plan = applyChanges(published, changes);
-    return { plan, index: buildIndex(datasetOf(reference, plan)) };
+  const recompute = recomputeFor;
+
+  /**
+   * NOTE: The caller's open draft over this scope, with its staged changes — or nothing.
+   *
+   * Failures are swallowed on purpose. This is a convenience on top of a load that has
+   * already succeeded; a viewer with no planning rights gets an empty answer, and a
+   * network hiccup here must not turn a working screen into the error page.
+   */
+  async function resumeDraftFor(
+    unitId: UnitId,
+    range: DateRange,
+  ): Promise<{ session: DraftSession; changes: DraftChange[]; overlapping: readonly DraftSession[] } | undefined> {
+    try {
+      const mine = await scheduleRepository.listMyOpenDrafts(unitId, range);
+      const session = mine[0];
+      if (!session) return undefined;
+
+      const [changes, overlapping] = await Promise.all([
+        scheduleRepository.draftChanges(session.id),
+        scheduleRepository.listOverlappingDrafts(unitId, range, session.editorPersonId),
+      ]);
+      return { session, changes: [...changes], overlapping };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * NOTE: Writes a new presence list into both `published` and `plan`.
+   *
+   * WHY both: presence never passes through a draft (ADR-0043), so there is no change
+   * list to replay it from — `plan` is not derivable from `published` for this one
+   * field. Recomputing the index keeps the two consistent for everything else.
+   */
+  /**
+   * NOTE: My calendar reads its own long window through its own query, so a direct write
+   * here has to tell it. The grid gets the row through this store; the calendar does not,
+   * and without this a day recorded from the calendar sat there unchanged until a reload —
+   * the same shape of defect as an approval never reaching the grid.
+   */
+  function invalidatePersonalCalendar(): void {
+    void queryClient.invalidateQueries({ queryKey: ['my-calendar'] });
+  }
+
+  function applyPresence(presence: readonly PresenceRecord[]): void {
+    invalidatePersonalCalendar();
+    const { reference, published, changes } = get();
+    if (!reference || !published) return;
+    const nextPublished: PlanData = { ...published, presence };
+    const { plan, index } = recompute(reference, nextPublished, changes);
+    set({ published: nextPublished, plan, index });
+  }
+
+  /** The same, for absences, which are direct writes now (ADR-0052). Any open draft is
+   * left alone: the two flows do not meet. */
+  function applyAbsences(absences: readonly Absence[]): void {
+    invalidatePersonalCalendar();
+    const { reference, published, changes } = get();
+    if (!reference || !published) return;
+    const nextPublished: PlanData = { ...published, absences };
+    const { plan, index } = recompute(reference, nextPublished, changes);
+    set({ published: nextPublished, plan, index });
   }
 
   /**
@@ -450,14 +559,10 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       if (!person) continue;
       const location = index.locations.get(person.locationId);
 
-      if (content.kind === 'SHIFT') {
-        // NOTE: A shift is always taken from the person's own unit — one from elsewhere never matches.
-        const shift = index.shifts.get(content.shiftId);
-        if (!shift || shift.unitId !== person.unitId) continue;
-        if (before?.content.kind === 'SHIFT' && before.content.shiftId === content.shiftId) continue;
-      } else if (before?.content.kind === 'MARKER' && before.content.marker === content.marker) {
-        continue;
-      }
+      // NOTE: A shift is always taken from the person's own unit — one from elsewhere never matches.
+      const shift = index.shifts.get(content.shiftId);
+      if (!shift || shift.unitId !== person.unitId) continue;
+      if (before?.content.shiftId === content.shiftId) continue;
 
       const after: Assignment = {
         id: before?.id ?? newAssignmentId(),
@@ -505,6 +610,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     unitId: undefined,
     range: undefined,
     currentUserId: undefined,
+    actionError: undefined,
     reference: undefined,
     published: undefined,
     plan: undefined,
@@ -515,12 +621,38 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     redoStack: [],
     overlappingDrafts: [],
     publishing: false,
-    lastPublish: undefined,
-    conflicts: [],
+      conflicts: [],
     pendingSync: false,
     syncError: undefined,
 
+    setActionError(message) {
+      set({ actionError: message });
+    },
+
+    dismissActionError() {
+      set({ actionError: undefined });
+    },
+
+    setCurrentUser(personId) {
+      if (get().currentUserId === personId) return;
+      set({ currentUserId: personId });
+    },
+
     async load(unitId, range) {
+      // WHY flush before anything else: switching unit or period drops the local view of
+      // the draft (below). Any edit still sitting in the debounce queue would be dropped
+      // with it — painted on the grid a second ago, never sent, and gone. The session
+      // itself survives on the server and reopens on the next edit; the unsent edits
+      // would not have.
+      if (get().session && dirtyKeys.size > 0) {
+        try {
+          await get().flushNow();
+        } catch {
+          // A failed flush already surfaced through `syncError`; loading the new period
+          // must not be blocked by it.
+        }
+      }
+
       const seq = ++loadSeq;
       cancelSync();
       set({ status: 'loading', error: undefined });
@@ -540,15 +672,20 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
         const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
 
-        // NOTE: No authentication yet: the first included person in the unit.
-        // With `ALL` there's no single unit — take any manager.
-        const inScope = (p: (typeof reference.people)[number]): boolean =>
-          scopeIncludes(unitId, p.unitId);
-        const currentUserId =
-          reference.people.find((p) => inScope(p) && p.orgCategory === 'MANAGEMENT')?.id ??
-          reference.people.find(inScope)?.id;
+        // WHY the draft is resumed rather than dropped: changing the unit or the period
+        // used to blank `session` and `changes`, so a planner who had generated a period
+        // and then switched to the combined view watched their staged cells disappear and
+        // the Publish button with them — while the draft sat on the server, visible to
+        // everybody else as hatched cells. Nothing had been lost; the screen had simply
+        // stopped looking.
+        //
+        // It **resumes**, never opens: looking at a unit must not mint an empty session
+        // in it. Newest first, and only one — the schedule overlay takes a single draft
+        // id, so two of your own open drafts inside one view show the more recent.
+        const resumed = await resumeDraftFor(unitId, range);
+        if (seq !== loadSeq) return;
 
-        const { plan, index } = recompute(reference, published, []);
+        const { plan, index } = recompute(reference, published, resumed?.changes ?? []);
         set({
           status: 'ready',
           unitId,
@@ -557,12 +694,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           published,
           plan,
           index,
-          currentUserId,
-          session: undefined,
-          changes: [],
+          // NOTE: deliberately not reset — identity is owned by `setCurrentUser`
+          // (ADR-0039) and survives changing unit or period.
+          session: resumed?.session,
+          changes: resumed?.changes ?? [],
           undoStack: [],
           redoStack: [],
-          overlappingDrafts: [],
+          overlappingDrafts: resumed?.overlapping ?? [],
           conflicts: [],
           pendingSync: false,
           syncError: undefined,
@@ -581,20 +719,37 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       // and part of the edits vanished.
       if (opening) return opening;
       const { unitId, range, currentUserId, session } = get();
-      if (!unitId || !range || !currentUserId || session) return;
+      // NOTE: no longer gated on knowing who we are. The server takes the editor from the
+      // authenticated principal (ADR-0039), so waiting for the client's copy of that
+      // answer would only mean an edit silently doing nothing while `/api/auth/me` is
+      // still in flight.
+      if (!unitId || !range || session) return;
 
       opening = (async () => {
         try {
-          const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId);
+          const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId ?? '');
+          // The server's answer for "who owns this draft" beats the client's guess: it is
+          // the id that will appear in the audit trail.
+          const editorId = bundle.session.editorPersonId || (currentUserId ?? '');
           const overlapping = await scheduleRepository.listOverlappingDrafts(
             unitId,
             range,
-            currentUserId,
+            editorId,
           );
           set({
             session: bundle.session,
             changes: [...bundle.changes],
             overlappingDrafts: overlapping,
+          });
+        } catch (error) {
+          // WHY: this used to propagate as an unhandled rejection, so a caller without
+          // the Planner role clicked a cell and nothing happened at all — no draft, no
+          // edit, no message.
+          set({
+            actionError:
+              error instanceof Error && 'status' in error && (error as { status?: number }).status === 403
+                ? 'You do not have permission to edit the plan. Ask a planner, or raise a request for your own days.'
+                : `Could not open a draft: ${error instanceof Error ? error.message : String(error)}`,
           });
         } finally {
           opening = undefined;
@@ -611,20 +766,8 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       commitCells(cells, shiftId === null ? null : { kind: 'SHIFT', shiftId });
     },
 
-    setMarker(cells, marker) {
-      commitCells(cells, { kind: 'MARKER', marker });
-    },
-
-    setAbsence(absence, previous) {
-      commit([absenceChange(previous ?? null, absence, nextSeq(), new Date().toISOString())]);
-    },
-
-    setAbsences(absences) {
-      const now = new Date().toISOString();
-      commit(absences.map((absence) => absenceChange(null, absence, nextSeq(), now)));
-    },
-
-    setCompDay(entry, previous) {
+    async setCompDay(entry, previous) {
+      if (!get().session) await get().startDraft();
       commit([compDayChange(previous ?? null, entry, nextSeq(), new Date().toISOString())]);
     },
 
@@ -660,21 +803,36 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       commit(changes);
     },
 
+    /**
+     * NOTE: Applies an import as direct writes (ADR-0052).
+     *
+     * It used to be staged as one draft batch so a single Undo rolled the whole import
+     * back. Absences no longer go through the draft at all, so there is no batch to undo:
+     * each row is written as it is applied, and a failure part-way through leaves the ones
+     * already written alone. The preview screen is what makes that acceptable — nothing is
+     * written until the planner has seen the diff and pressed the button.
+     */
     async commitAbsenceImport(changes) {
       if (changes.length === 0) return;
-      if (!get().session) await get().startDraft();
 
-      const now = new Date().toISOString();
-      // NOTE: Same trick as commitAutoPopulate: the foreign seq from the
-      // preview is discarded, the store renumbers with its own counter.
-      const resequenced = changes.map((change) =>
-        change.targetType === 'ABSENCE'
-          ? absenceChange(change.before, change.after, nextSeq(), now)
-          : change,
-      );
-      // NOTE: One commit call is one batch in undoStack: the planner rolls
-      // back the whole import with a single Undo, not record by record.
-      commit(resequenced);
+      for (const change of changes) {
+        if (change.targetType !== 'ABSENCE') continue;
+        const { before, after } = change;
+
+        if (after) {
+          await get().saveAbsence({
+            ...(before ? { id: before.id, version: before.version } : {}),
+            personId: after.personId,
+            eventTypeId: after.eventTypeId,
+            from: after.from,
+            to: after.to,
+            portion: after.portion,
+            ...(after.note ? { note: after.note } : {}),
+          });
+        } else if (before) {
+          await get().removeAbsence(before.id);
+        }
+      }
     },
 
     async acknowledge(issueKey, comment) {
@@ -754,6 +912,66 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       }
     },
 
+    async saveAbsence(record) {
+      const { published } = get();
+      if (!published) return;
+      try {
+        const saved = await scheduleRepository.saveAbsence(record);
+        const next = published.absences.some((a) => a.id === saved.id)
+          ? published.absences.map((a) => (a.id === saved.id ? saved : a))
+          : [...published.absences, saved];
+        applyAbsences(next);
+      } catch (error) {
+        set({
+          actionError: `Could not save the absence: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    },
+
+    async removeAbsence(id) {
+      const { published } = get();
+      if (!published) return;
+      try {
+        await scheduleRepository.deleteAbsence(id);
+        applyAbsences(published.absences.filter((a) => a.id !== id));
+      } catch (error) {
+        set({
+          actionError: `Could not remove the absence: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    },
+
+    async savePresence(record) {
+      const { plan, published, reference } = get();
+      if (!plan || !published || !reference) return;
+      try {
+        const saved = await scheduleRepository.savePresence(record);
+        // Replace in place when it already existed; append otherwise. The server is the
+        // source of truth for the version, so the echoed record is what goes in.
+        const next = published.presence.some((p) => p.id === saved.id)
+          ? published.presence.map((p) => (p.id === saved.id ? saved : p))
+          : [...published.presence, saved];
+        applyPresence(next);
+      } catch (error) {
+        set({
+          actionError: `Could not save presence: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    },
+
+    async removePresence(id) {
+      const { published } = get();
+      if (!published) return;
+      try {
+        await scheduleRepository.deletePresence(id);
+        applyPresence(published.presence.filter((p) => p.id !== id));
+      } catch (error) {
+        set({
+          actionError: `Could not remove presence: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    },
+
     async publish() {
       const { session, unitId, range } = get();
       if (!session || !unitId || !range) return undefined;
@@ -765,11 +983,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       await get().flushNow();
       const syncError = get().syncError;
       if (syncError) {
-        set({ error: `Some edits could not be saved (${syncError}) — publish cancelled.` });
+        set({
+          actionError: `Some edits could not be saved (${syncError}) — publish cancelled. Retry once the connection recovers; nothing was lost.`,
+        });
         return undefined;
       }
 
-      set({ publishing: true, conflicts: [] });
+      set({ publishing: true, conflicts: [], actionError: undefined });
       try {
         const outcome = await scheduleRepository.publishDraft(session.id);
         if (!outcome.ok) {
@@ -797,13 +1017,12 @@ export const useSchedule = create<ScheduleState>((set, get) => {
           changes: [],
           undoStack: [],
           redoStack: [],
-          lastPublish: outcome.result,
         });
         return outcome;
       } catch (error) {
         set({
           publishing: false,
-          error: error instanceof Error ? error.message : String(error),
+          actionError: `Publishing failed: ${error instanceof Error ? error.message : String(error)}. Your draft is intact.`,
         });
         return undefined;
       }
@@ -830,6 +1049,42 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       });
     },
   };
+});
+
+/**
+ * The store follows the schedule query instead of snapshotting it once.
+ *
+ * WHY this exists at all: absences, comp days and presence reach the grid through
+ * `plan` here, and `load()` was the only thing that ever filled it. Anything the
+ * **server** wrote on our behalf therefore had no way in — and every approval is exactly
+ * that. Approving leave from the cell menu removed the dashed pending band, which is
+ * query-backed, and never drew the granted day, which is not: the cell went empty and
+ * stayed empty until the tab was reloaded.
+ *
+ * Invalidating `['schedule']` is now enough, from anywhere, for the grid to catch up —
+ * which is the property that was missing, not a faster path for one caller.
+ *
+ * Only a **fetch that succeeded** for the view currently on screen is taken. The delta
+ * path writes the visible key with `setQueryData` (a different event) after fetching a
+ * narrower range under a different key, so neither half of it can loop back through here.
+ */
+queryClient.getQueryCache().subscribe((event) => {
+  if (event.type !== 'updated' || event.action.type !== 'success') return;
+
+  const state = useSchedule.getState();
+  const { unitId, range, reference, published, changes, session } = state;
+  if (!unitId || !range || !reference || !published) return;
+
+  const expected: readonly unknown[] = scheduleQueryKey(unitId, range, session?.id);
+  const key: readonly unknown[] = event.query.queryKey;
+  if (key.length !== expected.length) return;
+  if (key.some((part: unknown, i: number) => part !== expected[i])) return;
+
+  const next = event.query.state.data as ScheduleResponse | undefined;
+  if (!next) return;
+
+  const nextPublished: PlanData = { ...next.plan, acknowledgements: published.acknowledgements };
+  useSchedule.setState({ published: nextPublished, ...recomputeFor(reference, nextPublished, changes) });
 });
 
 /** NOTE: Whether there are unsaved edits. */

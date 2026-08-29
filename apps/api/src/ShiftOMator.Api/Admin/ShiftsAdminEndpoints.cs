@@ -19,7 +19,7 @@ public static class ShiftsAdminEndpoints
 {
     public static void MapShiftsAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/shifts").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/shifts").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Shifts.AsNoTracking().OrderBy(s => s.Id).ToListAsync(ct)))

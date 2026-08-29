@@ -12,15 +12,21 @@
  * The picker deliberately works in read mode too: a right-click on a cell is
  * the most obvious gesture, and the user shouldn't have to hit "Edit" first.
  * Picking an item opens the draft by itself (see `withDraft` in PlanningGrid).
+ *
+ * One menu, contents by role. A non-planner gets self-service actions on their own row
+ * and history everywhere; a planner gets the planning actions as well. Before this the
+ * menu was role-blind, so a viewer was offered shifts they could not assign.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, type ReactNode } from 'react';
 import type { CellValue, IsoDate, PersonId, Shift, ShiftId } from '../../domain/types.ts';
+import { FloatingMenu } from './FloatingMenu.tsx';
 
 export interface PickerTarget {
   readonly personId: PersonId;
   readonly personName: string;
+  /** The row's planning unit. Every permission question is scoped to it (ADR-0051). */
+  readonly unitId: string | undefined;
   readonly date: IsoDate;
   readonly value: CellValue;
   readonly shifts: readonly Shift[];
@@ -48,67 +54,45 @@ interface Props {
   readonly target: PickerTarget;
   readonly onClose: () => void;
   readonly onPickShift: (shiftId: ShiftId | null) => void;
-  readonly onPickMarker: (marker: 'OFF' | 'NOT_SCHEDULED') => void;
   readonly onAbsence: () => void;
   readonly onCompDay: (() => void) | undefined;
   readonly onToggleLock: (() => void) | undefined;
+  /** Planning actions — shifts, markers, clear. False for a non-planner. */
+  readonly canEditPlan: boolean;
+  /** Self-service actions. True on the caller's own row, or for a planner. */
+  readonly canRequest: boolean;
+  /** The one-click presence and time-off section, rendered by the caller so this
+   * component stays a menu and does not grow a data layer. */
+  readonly selfService: ReactNode | undefined;
+  readonly onShowHistory: (() => void) | undefined;
+  /** Pending requests covering this cell, decidable by this caller. */
+  readonly pending: readonly PendingApproval[];
+  readonly onDecide: ((requestId: string, approve: boolean) => void) | undefined;
 }
 
-const MARGIN = 8;
+export interface PendingApproval {
+  readonly requestId: string;
+  readonly label: string;
+  readonly subjectName: string;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+}
 
 export function AssignmentPicker({
   target,
   onClose,
   onPickShift,
-  onPickMarker,
   onAbsence,
   onCompDay,
   onToggleLock,
+  canEditPlan,
+  canRequest,
+  selfService,
+  onShowHistory,
+  pending,
+  onDecide,
 }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: target.x, top: target.y });
   const [showOther, setShowOther] = useState(false);
-
-  // NOTE: The flip at the screen edge is computed after mount: before the
-  // actual height of the shift list is measured, any estimate would be a lie.
-  useLayoutEffect(() => {
-    const box = ref.current?.getBoundingClientRect();
-    if (!box) return;
-    const left =
-      target.x + box.width + MARGIN > window.innerWidth
-        ? Math.max(MARGIN, target.x - box.width)
-        : target.x;
-    const top =
-      target.y + box.height + MARGIN > window.innerHeight
-        ? Math.max(MARGIN, window.innerHeight - box.height - MARGIN)
-        : target.y;
-    setPos({ left, top });
-  }, [target.x, target.y, target.personId, target.date]);
-
-  useEffect(() => {
-    const onDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onClose();
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    // NOTE: Scroll closes it: the menu is pinned to a screen point, not to
-    // the cell, and a menu left behind would point at the wrong date.
-    window.addEventListener('mousedown', onDown, true);
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('resize', onClose);
-    window.addEventListener('scroll', onClose, true);
-    return () => {
-      window.removeEventListener('mousedown', onDown, true);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onClose);
-      window.removeEventListener('scroll', onClose, true);
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('.menu-item:not(:disabled)')?.focus();
-  }, [target.personId, target.date]);
 
   const run = (action: () => void) => () => {
     action();
@@ -117,13 +101,14 @@ export function AssignmentPicker({
 
   const occupied = target.value.kind !== 'EMPTY';
 
-  return createPortal(
-    <div
-      ref={ref}
-      className="popover fixed max-h-[70vh] w-[268px] overflow-y-auto"
-      style={{ left: pos.left, top: pos.top }}
-      role="menu"
-      aria-label="Assignment"
+  return (
+    <FloatingMenu
+      x={target.x}
+      y={target.y}
+      anchorKey={`${target.personId}|${target.date}`}
+      label="Assignment"
+      width={268}
+      onClose={onClose}
     >
       <div className="menu-label flex items-baseline justify-between gap-2 normal-case">
         <span className="truncate text-[12px] font-semibold tracking-normal text-ink">
@@ -131,6 +116,55 @@ export function AssignmentPicker({
         </span>
         <span className="shrink-0 text-[11px] font-medium tracking-normal">{target.date}</span>
       </div>
+      {/* First, and loud. A decision waiting on this caller outranks everything else the
+          menu offers — it was below the selection count and the conflict warning, which is
+          where you look last. */}
+      {pending.length > 0 && onDecide ? (
+        <div className="menu-decide">
+          <div className="menu-decide__label">Awaiting your decision</div>
+          {pending.map((request) => (
+            <div key={request.requestId} className="menu-decide__row">
+              <div className="text-[11.5px] font-medium">
+                {request.subjectName} · {request.label}
+              </div>
+              <div className="text-[10.5px] text-faint">
+                {request.from === request.to ? request.from : `${request.from} → ${request.to}`}
+              </div>
+              <div className="mt-1.5 flex gap-1">
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  onClick={run(() => onDecide(request.requestId, true))}
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={run(() => onDecide(request.requestId, false))}
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* A comp day only offers itself on a day that has one, so when it is here it is
+          the reason the menu was opened. It was ten items down among the planning
+          actions, below the shift list, where nothing draws the eye. */}
+      {onCompDay ? (
+        <button type="button" className="menu-feature" role="menuitem" onClick={run(onCompDay)}>
+          <span aria-hidden className="menu-feature__icon">C</span>
+          <span className="min-w-0 flex-1">
+            <span className="menu-feature__title">Comp day earned</span>
+            <span className="menu-feature__hint">Choose which day to take &mdash; needs approval</span>
+          </span>
+          <span aria-hidden className="menu-feature__chevron">&rsaquo;</span>
+        </button>
+      ) : null}
+
       {target.affected > 1 ? (
         <div className="px-2.5 pb-1 text-[11px] text-accent">
           Applies to {target.affected} selected cells
@@ -143,6 +177,23 @@ export function AssignmentPicker({
         </div>
       ) : null}
 
+      {canRequest && selfService ? selfService : null}
+
+      {!canEditPlan ? (
+        <>
+          {onShowHistory ? (
+            <>
+              <div className="menu-sep" />
+              <button type="button" className="menu-item" role="menuitem" onClick={run(onShowHistory)}>
+                History…
+              </button>
+            </>
+          ) : null}
+        </>
+      ) : null}
+
+      {!canEditPlan ? null : (
+      <>
       <div className="menu-sep" />
       <div className="menu-label">Shifts</div>
 
@@ -185,26 +236,18 @@ export function AssignmentPicker({
         </>
       ) : null}
 
-      <div className="menu-sep" />
-      <div className="menu-label">Non-working</div>
-      <button type="button" className="menu-item" role="menuitem" onClick={run(() => onPickMarker('OFF'))}>
-        Off
-      </button>
-      <button
-        type="button"
-        className="menu-item"
-        role="menuitem"
-        onClick={run(() => onPickMarker('NOT_SCHEDULED'))}
-      >
-        0 — not scheduled
-      </button>
-      <button type="button" className="menu-item" role="menuitem" onClick={run(onAbsence)}>
-        {target.value.kind === 'STATUS' && target.value.absenceId ? 'Edit absence…' : 'Leave / sick…'}
-      </button>
-      {onCompDay ? (
-        <button type="button" className="menu-item" role="menuitem" onClick={run(onCompDay)}>
-          Manage comp day…
-        </button>
+      {/* The "Non-working" block is gone (ADR-0052). "Off" and "0 — not scheduled" were
+          markers this model no longer has, and "Leave / sick…" offered a third route to
+          the time-off actions the self-service section already lists one click away.
+          Editing an existing absence still needs the dialog, so that item survives — but
+          only when there is one to edit. */}
+      {target.value.kind === 'STATUS' && target.value.absenceId ? (
+        <>
+          <div className="menu-sep" />
+          <button type="button" className="menu-item" role="menuitem" onClick={run(onAbsence)}>
+            Edit absence…
+          </button>
+        </>
       ) : null}
       {onToggleLock ? (
         <button type="button" className="menu-item" role="menuitem" onClick={run(onToggleLock)}>
@@ -222,8 +265,18 @@ export function AssignmentPicker({
       >
         Clear
       </button>
-    </div>,
-    document.body,
+
+      {onShowHistory ? (
+        <>
+          <div className="menu-sep" />
+          <button type="button" className="menu-item" role="menuitem" onClick={run(onShowHistory)}>
+            History…
+          </button>
+        </>
+      ) : null}
+      </>
+      )}
+    </FloatingMenu>
   );
 }
 

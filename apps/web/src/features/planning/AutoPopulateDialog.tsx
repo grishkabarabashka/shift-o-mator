@@ -40,7 +40,6 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
   const selection = useUi((s) => s.selection);
   const lockedAssignmentIds = useUi((s) => s.lockedAssignmentIds);
   const plan = useSchedule((s) => s.plan);
-  const currentUserId = useSchedule((s) => s.currentUserId);
   const commitAutoPopulate = useSchedule((s) => s.commitAutoPopulate);
   const flushNow = useSchedule((s) => s.flushNow);
 
@@ -85,7 +84,6 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
         unitId,
         range,
         lockedAssignmentIds,
-        actorId: currentUserId ?? 'unknown',
         draftId: useSchedule.getState().session?.id,
       });
       setPreview(scope ? scopeToPeople(result, scope.personIds) : result);

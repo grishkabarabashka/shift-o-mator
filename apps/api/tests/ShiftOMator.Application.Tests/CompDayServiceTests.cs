@@ -110,7 +110,7 @@ public class CompDayServiceTests
         [Fact]
         public void Steps_around_a_day_blocked_by_leave()
         {
-            var vacation = new Absence { Id = "abs-1", PersonId = "p-ny", Type = AbsenceType.Vacation, From = new DateOnly(2026, 8, 11), To = new DateOnly(2026, 8, 14), Source = AbsenceSource.Manual };
+            var vacation = new Absence { Id = "abs-1", PersonId = "p-ny", EventTypeId = TestEventTypes.VacationId, From = new DateOnly(2026, 8, 11), To = new DateOnly(2026, 8, 14), Source = AbsenceSource.Manual };
             var entry = ProposeFor([("p-ny", "2026-08-15")], absences: [vacation]).Added[0];
             Assert.NotNull(entry.ProposedDate);
             Assert.DoesNotContain(entry.ProposedDate!.Value, new[] { new DateOnly(2026, 8, 11), new DateOnly(2026, 8, 12), new DateOnly(2026, 8, 13), new DateOnly(2026, 8, 14) });
@@ -128,7 +128,7 @@ public class CompDayServiceTests
         [Fact]
         public void No_free_day_means_pending_approval_not_silence()
         {
-            var wall = new Absence { Id = "abs-wall", PersonId = "p-ny", Type = AbsenceType.Vacation, From = new DateOnly(2026, 7, 25), To = new DateOnly(2026, 9, 5), Source = AbsenceSource.Manual };
+            var wall = new Absence { Id = "abs-wall", PersonId = "p-ny", EventTypeId = TestEventTypes.VacationId, From = new DateOnly(2026, 7, 25), To = new DateOnly(2026, 9, 5), Source = AbsenceSource.Manual };
             var entry = ProposeFor([("p-ny", "2026-08-15")], absences: [wall]).Added[0];
             Assert.Equal(CompDayStatus.PendingApproval, entry.Status);
             Assert.Null(entry.ProposedDate);
@@ -170,15 +170,8 @@ public class CompDayServiceTests
             Assert.Equal(["cd-gone"], result.Orphaned.Select(e => e.Id));
         }
 
-        [Fact]
-        public void A_roster_marker_earns_nothing()
-        {
-            var marker = MakeMarkerAssignment("p-ny", RosterMarker.Off, new DateOnly(2026, 8, 15));
-            var data = MakeDataset(people: [Person], holidays: Holidays, assignments: [marker]);
-            var result = CompDayService.Propose(new CompDayService.ProposeParams(
-                AugustFrom, AugustTo, data.Assignments, [], [], BuildIndex(data)));
-            Assert.Empty(result.Added);
-        }
+        // "A roster marker earns nothing" is deleted with the markers themselves
+        // (ADR-0052). Nothing but a shift can be assigned, so nothing but a shift can earn.
     }
 
     public class AgeAndBalance

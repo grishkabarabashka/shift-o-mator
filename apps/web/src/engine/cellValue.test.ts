@@ -40,10 +40,12 @@ function project(options: {
 const vacation: Absence = {
   id: 'abs-1',
   personId: 'p-1',
-  type: 'VACATION',
+  eventTypeId: 'et-vacation',
+        portion: 'FULL',
   from: '2026-09-09',
   to: '2026-09-11',
   source: 'MANUAL',
+  version: 1,
 };
 
 function compDay(status: CompDayEntry['status'], date: string): CompDayEntry {
@@ -56,6 +58,7 @@ function compDay(status: CompDayEntry['status'], date: string): CompDayEntry {
     proposedDate: date,
     ...(status === 'SCHEDULED' || status === 'TAKEN' ? { actualDate: date } : {}),
     status,
+    version: 1,
   };
 }
 
@@ -72,31 +75,19 @@ describe('basic states', () => {
     if (value.kind === 'SHIFT') expect(value.shiftId).toBe(leadShift.id);
   });
 
-  it('Off marker — neither absence nor empty', () => {
-    const p = project({
-      assignments: [makeAssignment('p-1', { kind: 'MARKER', marker: 'OFF' }, '2026-09-07')],
-    });
-    expect(cellValueAt(p, 'p-1', '2026-09-07')).toMatchObject({ kind: 'STATUS', status: 'OFF' });
-  });
-
-  it('`0` differs from both Off and an empty cell', () => {
-    const p = project({
-      assignments: [
-        makeAssignment('p-1', { kind: 'MARKER', marker: 'NOT_SCHEDULED' }, '2026-09-07'),
-      ],
-    });
-    expect(cellValueAt(p, 'p-1', '2026-09-07')).toMatchObject({
-      kind: 'STATUS',
-      status: 'NOT_SCHEDULED',
-    });
-    expect(cellValueAt(p, 'p-1', '2026-09-10')).toEqual({ kind: 'EMPTY' });
+  it('a day with no shift is empty, not a status', () => {
+    // The roster markers are gone (ADR-0052). "Considered and left blank" and "nobody has
+    // looked at this yet" are one cell now; an engineer who wants to be left off a day
+    // records the UNAVAILABLE absence instead, which lands on the ABSENT branch.
+    const p = project({ assignments: [] });
+    expect(cellValueAt(p, 'p-1', '2026-09-07')).toEqual({ kind: 'EMPTY' });
   });
 
   it('a vacation occupies the whole range', () => {
     const p = project({ absences: [vacation] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toEqual({ kind: 'EMPTY' });
     for (const date of ['2026-09-09', '2026-09-10', '2026-09-11']) {
-      expect(cellValueAt(p, 'p-1', date)).toMatchObject({ kind: 'STATUS', status: 'VACATION' });
+      expect(cellValueAt(p, 'p-1', date)).toMatchObject({ kind: 'STATUS', status: 'ABSENT' });
     }
     expect(cellValueAt(p, 'p-1', '2026-09-12')).toEqual({ kind: 'EMPTY' });
   });
@@ -158,15 +149,12 @@ describe('precedence — a working role wins and produces a conflict', () => {
     const p = project({ absences: [overlapping], holidays: [holiday] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toMatchObject({
       kind: 'STATUS',
-      status: 'VACATION',
+      status: 'ABSENT',
     });
   });
 
-  it('a holiday is more informative than the Off marker', () => {
-    const p = project({
-      assignments: [makeAssignment('p-1', { kind: 'MARKER', marker: 'OFF' }, '2026-09-08')],
-      holidays: [holiday],
-    });
+  it('a holiday shows on an otherwise empty cell', () => {
+    const p = project({ holidays: [holiday] });
     expect(cellValueAt(p, 'p-1', '2026-09-08')).toMatchObject({ kind: 'STATUS', status: 'PH' });
   });
 });
@@ -182,17 +170,31 @@ describe('non-working days', () => {
 });
 
 describe('blocking an assignment', () => {
-  it('vacation, sick leave, and a confirmed comp day block', () => {
-    expect(isBlocked({ kind: 'STATUS', status: 'VACATION' })).toBe(true);
-    expect(isBlocked({ kind: 'STATUS', status: 'SICK' })).toBe(true);
+  it('a blocking absence and a confirmed comp day block', () => {
+    expect(isBlocked({ kind: 'STATUS', status: 'ABSENT', event: absenceEvent(true) })).toBe(true);
     expect(isBlocked({ kind: 'STATUS', status: 'COMP_OFF' })).toBe(true);
   });
 
-  it('Off, `0`, and a holiday do not block', () => {
-    // NOTE: a shift can still be placed on these — a day off gets rescheduled, a holiday can be worked.
-    expect(isBlocked({ kind: 'STATUS', status: 'OFF' })).toBe(false);
-    expect(isBlocked({ kind: 'STATUS', status: 'NOT_SCHEDULED' })).toBe(false);
+  it('an absence whose type does not block leaves the day open', () => {
+    // A floating holiday somebody worked through is recorded, and does not close the
+    // day out (ADR-0049).
+    expect(isBlocked({ kind: 'STATUS', status: 'ABSENT', event: absenceEvent(false) })).toBe(false);
+  });
+
+  it('a holiday and an empty cell do not block', () => {
+    // NOTE: a shift can still be placed on these — a holiday can be worked.
     expect(isBlocked({ kind: 'STATUS', status: 'PH' })).toBe(false);
     expect(isBlocked({ kind: 'EMPTY' })).toBe(false);
   });
 });
+
+/** A minimal `CellEventInfo` for the blocking tests. */
+function absenceEvent(blocksAssignment: boolean) {
+  return {
+    eventTypeId: 'et-x',
+    shortLabel: 'Leave',
+    color: '#7c9cf5',
+    blocksAssignment,
+    portion: 'FULL' as const,
+  };
+}

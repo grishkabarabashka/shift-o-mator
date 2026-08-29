@@ -21,7 +21,7 @@ public static class UnitsAdminEndpoints
 {
     public static void MapUnitsAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/units").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/units").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.PlanningUnits.AsNoTracking().OrderBy(u => u.Id).ToListAsync(ct)))

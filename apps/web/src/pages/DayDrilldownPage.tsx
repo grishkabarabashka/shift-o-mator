@@ -208,7 +208,7 @@ function LaneRow({
               key={bar.key}
               type="button"
               className="lane__block"
-              style={{ ...geometry, background: bar.color }}
+              style={{ ...geometry, backgroundColor: bar.color }}
               title={barTitle(bar, zone)}
               onClick={() => onEditBar(bar)}
             >

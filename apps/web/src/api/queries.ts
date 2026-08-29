@@ -17,12 +17,15 @@ import {
   assignmentFromWire,
   compDayFromWire,
   coverageCellFromWire,
+  pendingRequestFromWire,
+  presenceFromWire,
   issueFromWire,
   referenceFromWire,
   resolvedDayConfigFromWire,
   type ResolvedDayConfig,
   type WireReferenceData,
 } from './mapping.ts';
+import type { PendingRequest } from '../engine/requests.ts';
 import type {
   Absence,
   Assignment,
@@ -31,6 +34,7 @@ import type {
   DateRange,
   DraftSessionId,
   Issue,
+  PresenceRecord,
   ReferenceData,
   UnitId,
 } from '../domain/types.ts';
@@ -41,11 +45,13 @@ export interface ScheduleResponse {
     readonly assignments: readonly Assignment[];
     readonly absences: readonly Absence[];
     readonly compDays: readonly CompDayEntry[];
+    readonly presence: readonly PresenceRecord[];
   };
   readonly coverage: readonly CoverageCell[];
   readonly issues: readonly Issue[];
   readonly acknowledgedIssueKeys: readonly string[];
   readonly dayConfigurations: readonly ResolvedDayConfig[];
+  readonly pendingRequests: readonly PendingRequest[];
 }
 
 interface WireScheduleResponse {
@@ -54,11 +60,13 @@ interface WireScheduleResponse {
     readonly assignments: readonly Parameters<typeof assignmentFromWire>[0][];
     readonly absences: readonly Parameters<typeof absenceFromWire>[0][];
     readonly compDays: readonly Parameters<typeof compDayFromWire>[0][];
+    readonly presence?: readonly Parameters<typeof presenceFromWire>[0][];
   };
   readonly coverage: readonly Parameters<typeof coverageCellFromWire>[0][];
   readonly issues: readonly Parameters<typeof issueFromWire>[0][];
   readonly acknowledgedIssueKeys: readonly string[];
   readonly dayConfigurations: readonly Parameters<typeof resolvedDayConfigFromWire>[0][];
+  readonly pendingRequests?: readonly Parameters<typeof pendingRequestFromWire>[0][];
 }
 
 async function fetchSchedule(
@@ -75,11 +83,14 @@ async function fetchSchedule(
       assignments: wire.plan.assignments.map(assignmentFromWire),
       absences: wire.plan.absences.map(absenceFromWire),
       compDays: wire.plan.compDays.map(compDayFromWire),
+      // Optional on the wire so a client can talk to an API that predates ADR-0043.
+      presence: (wire.plan.presence ?? []).map(presenceFromWire),
     },
     coverage: wire.coverage.map(coverageCellFromWire),
     issues: wire.issues.map(issueFromWire),
     acknowledgedIssueKeys: wire.acknowledgedIssueKeys,
     dayConfigurations: wire.dayConfigurations.map(resolvedDayConfigFromWire),
+    pendingRequests: (wire.pendingRequests ?? []).map(pendingRequestFromWire),
   };
 }
 

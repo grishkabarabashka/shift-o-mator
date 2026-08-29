@@ -18,7 +18,7 @@ public static class PeopleAdminEndpoints
 {
     public static void MapPeopleAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/people").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/people").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.People.AsNoTracking().Include(p => p.Eligibility).OrderBy(p => p.DisplayName).ToListAsync(ct)))
@@ -40,7 +40,7 @@ public static class PeopleAdminEndpoints
                 OrgCategory = req.OrgCategory,
                 IsActive = req.IsActive,
                 IsIncluded = req.IsIncluded,
-                CalendarToken = Guid.NewGuid().ToString("N"),
+                CalendarToken = Person.NewCalendarToken(),
             };
             db.People.Add(person);
             await db.SaveChangesAsync(ct);

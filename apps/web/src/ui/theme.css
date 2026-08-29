@@ -19,6 +19,9 @@
   /* Surfaces */
   --canvas: #f5f6f8;
   --surface: #ffffff;
+  /* The bottom of the masthead's gradient — a hair of colour so the chrome is a band
+     rather than more page. */
+  --masthead-foot: #f7f9fc;
   --surface-sunken: #f0f2f5;
   --surface-hover: #f4f7fd;
 
@@ -26,10 +29,14 @@
   --line: #e4e7ec;
   --line-strong: #cdd3db;
 
-  /* Text */
-  --ink: #101828;
-  --ink-muted: #667085;
-  --ink-faint: #98a2b3;
+  /* Text.
+     Softened a step from near-black: on a dense grid the strongest ink is what the eye
+     lands on, and it should be a shift code rather than a column header. Secondary text
+     picks up a little of the blue in the surface, which reads as considered rather than
+     merely grey. */
+  --ink: #1c2634;
+  --ink-muted: #6b7688;
+  --ink-faint: #98a1b0;
 
   /* Accent */
   --accent: #2563eb;
@@ -46,7 +53,10 @@
   --bad-soft: #fdecea;
 
   /* Grid dimensions (ADR-0014) */
-  --row-h: 28px;
+  /* 32, not 28: the cell is split — chip on top, presence/request band underneath
+     (ADR-0050). 80 people costs ~320px more scroll, which buys both facts being
+     visible at once instead of one hiding in a corner. */
+  --row-h: 32px;
   --cell-w: 62px;
   --name-w: 185px;
 
@@ -60,6 +70,7 @@
   :root {
     --canvas: #0b0e13;
     --surface: #141920;
+    --masthead-foot: #10161e;
     --surface-sunken: #10151b;
     --surface-hover: #1a2330;
 
@@ -156,10 +167,14 @@
 
 @layer components {
   /* --- Card ---------------------------------------------------------------- */
+  /* A hairline plus the faintest lift. Cards sit on a tinted canvas, and a border alone
+     left them looking drawn rather than placed — but a card is a container, not a
+     control, so the shadow stays below the threshold of being noticed. */
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
   }
 
   /* --- Buttons ------------------------------------------------------------ */
@@ -193,10 +208,15 @@
     border-color: var(--accent);
     color: var(--accent-ink);
   }
+  /* The one button on a screen that is the thing to do — Publish, Approve, Import. It
+     gets a gradient and a shadow because it is meant to be found without reading, which
+     nothing else on the page is. */
   .btn--primary {
     background: var(--accent);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 70%);
     border-color: var(--accent);
     color: var(--accent-ink);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.16);
   }
   .btn--primary:hover:not(:disabled) {
     background: var(--accent-hover);
@@ -344,6 +364,35 @@
     font-weight: 600;
   }
 
+  /* The label under a stat, when the stat has a list behind it. It is a control and has
+     to look like one — as a plain caption, the fact that eighteen gaps could be *read*
+     was discoverable only by clicking the number on a hunch. */
+  .stat-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 5px 1px 0;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--ink-muted);
+    font: inherit;
+    cursor: pointer;
+  }
+  .stat-toggle:hover {
+    color: var(--accent);
+  }
+  .stat-toggle__chevron {
+    display: inline-block;
+    font-size: 14px;
+    line-height: 0.8;
+    transform: rotate(90deg);
+    transition: transform 120ms;
+  }
+  .stat-toggle__chevron[data-open] {
+    transform: rotate(-90deg);
+  }
+
   /* --- Popover layers -------------------------------------------------------- */
   .popover {
     min-width: 200px;
@@ -401,6 +450,85 @@
     background: var(--line);
   }
 
+  /* A decision waiting on this caller, at the top of the cell menu.
+     WHY it is a panel and not another labelled section: it is the only thing in the menu
+     that is *about* the reader rather than about the cell, and as an ordinary section it
+     read as one more heading to scroll past. */
+  /* Something that is only in the menu when it applies, and is therefore the reason the
+     menu was opened. A card rather than a tinted row: as a row it read as a menu item
+     someone had coloured in, which is what it looked like. Two lines, because the second
+     one answers the question the first one raises. */
+  .menu-feature {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: calc(100% - 4px);
+    margin: 3px 2px 5px;
+    padding: 8px 9px;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .menu-feature:hover {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+    border-color: var(--accent);
+  }
+  .menu-feature__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .menu-feature__title {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .menu-feature__hint {
+    display: block;
+    font-size: 10.5px;
+    color: var(--ink-muted);
+  }
+  .menu-feature__chevron {
+    flex: none;
+    color: var(--accent);
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .menu-decide {
+    margin: 2px 1px 4px;
+    padding: 6px 8px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 7px;
+    background: var(--accent-soft);
+  }
+  .menu-decide__label {
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .menu-decide__row + .menu-decide__row {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
   /* --- Role chip in the palette ------------------------------------------------ */
   .role-chip {
     display: inline-flex;
@@ -446,23 +574,74 @@
   }
 
   /* --- Section tabs ---------------------------------------------------------- */
+  /* --- Masthead --------------------------------------------------------------
+   *
+   * The two bars at the top used to be flat white on flat white, separated by a hairline
+   * — correct, quiet, and indistinguishable from the page it sits on. They are one band
+   * now: a single tinted surface with one shadow under it, so the chrome reads as chrome
+   * and the canvas below it reads as the work.
+   */
+  .masthead {
+    background: var(--surface);
+  }
+  /* The lower half of the band, and the only edge either bar has: one gradient across the
+     pair rather than one per bar, which would put a seam between them. */
+  .masthead--foot {
+    background: linear-gradient(180deg, var(--surface), var(--masthead-foot));
+    border-bottom: 1px solid var(--line-strong);
+    box-shadow:
+      0 1px 3px rgb(16 24 40 / 0.06),
+      0 6px 16px -12px rgb(16 24 40 / 0.30);
+  }
+
+  /* The mark. A gradient tile with a coloured halo under it: at 28px there is no room for
+     a logo, and a flat square of accent is a placeholder. */
+  .brand__mark {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: 9px;
+    background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent) 55%, color-mix(in srgb, var(--accent) 72%, black));
+    color: var(--accent-ink);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    box-shadow:
+      0 1px 2px rgb(16 24 40 / 0.24),
+      0 4px 10px -4px color-mix(in srgb, var(--accent) 55%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 0.35);
+  }
+  .brand__name {
+    font-size: 14.5px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+  .brand__name em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
   .tab {
     position: relative;
     padding: 7px 13px 9px;
-    border-radius: 7px 7px 0 0;
+    border-radius: 8px 8px 0 0;
     color: var(--ink-muted);
     font-size: 13.5px;
     font-weight: 500;
     text-decoration: none;
     white-space: nowrap;
+    transition: color 120ms, background 120ms;
   }
   .tab:hover {
-    background: var(--surface-hover);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
     color: var(--ink);
   }
   .tab.active {
     color: var(--accent);
     font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
   }
   /* NOTE: the underline extends past the header's bottom border and "stitches" it to the canvas. */
   .tab.active::after {
@@ -471,9 +650,27 @@
     right: 8px;
     bottom: -1px;
     left: 8px;
-    height: 2px;
-    border-radius: 2px 2px 0 0;
-    background: var(--accent);
+    height: 2.5px;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 65%, white));
+  }
+
+  /* The signed-in person. A ring rather than a filled circle: it is an identity, not a
+     status, and a solid accent disc competed with every control on the row. */
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+      0 1px 2px rgb(16 24 40 / 0.10);
   }
 
   /* --- Segmented toggle ------------------------------------------------------ */

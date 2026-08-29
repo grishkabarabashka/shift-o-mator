@@ -32,7 +32,6 @@ afterEach(() => {
     highlightDate: undefined,
     activeShiftId: undefined,
     clipboard: undefined,
-    issueFilter: 'ALL',
     absenceDraft: undefined,
     compDayDraft: undefined,
     unitId: ALL_UNITS,
@@ -43,6 +42,9 @@ afterEach(() => {
 });
 
 async function openSettings() {
+  // Settings is configuration, and configuration is an administrator's screen
+  // (ADR-0051). Without this the tab is not even rendered.
+  mockBackend.roles = [{ role: 'admin' }];
   render(
     <QueryClientProvider client={queryClient}>
       <App />

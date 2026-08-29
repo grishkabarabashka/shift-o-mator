@@ -6,21 +6,48 @@ import {
   rangeFor,
   rangeLength,
   scrubberTrack,
+  jumpAnchorMonths,
   stepAnchor,
+  zoomSpec,
   stepOverviewAnchor,
 } from './period.ts';
 
 describe('range zoom (Schedule — minimum a month, ADR-0036)', () => {
   it('month/quarter/half-year align to the 1st', () => {
     // 2026-09-09 is a Wednesday.
-    expect(rangeFor('month', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
-    expect(rangeFor('quarter', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2026-11-30' });
-    expect(rangeFor('half-year', '2026-09-09')).toEqual({ from: '2026-09-01', to: '2027-02-28' });
+    // The window runs forward *from the selected day*, with two days of context behind
+    // it — not snapped to a calendar month. Picking the 27th used to show the 1st–31st
+    // with the interesting part at the far right.
+    // Nine columns: a week from the anchor, plus the two days of lead-in every zoom keeps.
+    expect(rangeFor('week', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-09-15' });
+    expect(rangeFor('month', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-10-06' });
+    expect(rangeFor('two-months', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-11-06' });
+    expect(rangeFor('quarter', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2026-12-06' });
+    expect(rangeFor('half-year', '2026-09-09')).toEqual({ from: '2026-09-07', to: '2027-03-06' });
   });
 
   it('the step equals the length of the current zoom', () => {
-    expect(stepAnchor('month', '2026-09-09', 1)).toBe('2026-10-01');
-    expect(stepAnchor('quarter', '2026-09-09', 1)).toBe('2026-12-01');
+    // One day, whatever the zoom: a planner follows the rota along it.
+    expect(stepAnchor('2026-09-09', 1)).toBe('2026-09-10');
+    expect(stepAnchor('2026-09-09', -1)).toBe('2026-09-08');
+    // A month is still one click, on its own control.
+    expect(jumpAnchorMonths('2026-09-09', 1)).toBe('2026-10-09');
+    expect(jumpAnchorMonths('2026-01-31', 1)).toBe('2026-02-28');
+  });
+
+  it('the selected day sits near the left edge, not buried in the middle', () => {
+    // The complaint this fixes: picking the 27th showed the 1st to the 31st, with the
+    // part being planned pushed to the far right of the grid.
+    const range = rangeFor('month', '2026-08-27');
+    expect(range.from).toBe('2026-08-25');
+    expect(range.to).toBe('2026-09-24');
+  });
+
+  it('two months is editable; three and six are not', () => {
+    expect(zoomSpec('month').detail).toBe(true);
+    expect(zoomSpec('two-months').detail).toBe(true);
+    expect(zoomSpec('quarter').detail).toBe(false);
+    expect(zoomSpec('half-year').detail).toBe(false);
   });
 });
 

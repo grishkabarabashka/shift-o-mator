@@ -506,7 +506,7 @@ function ReviewStep({
     readonly rows: readonly AbsenceImportRow[];
     readonly unresolved: readonly ParsedAbsenceRow[];
     readonly invalid: readonly ParsedAbsenceRow[];
-    readonly gone: readonly { readonly absence: { readonly id: string; readonly from: string; readonly to: string; readonly type: string }; readonly personName: string }[];
+    readonly gone: readonly { readonly absence: { readonly id: string; readonly from: string; readonly to: string; readonly eventTypeId: string }; readonly personName: string }[];
   };
   readonly matches: readonly PersonMatch[];
   readonly impact: readonly { readonly assignment: { readonly id: string; readonly date: string }; readonly personName: string }[];
@@ -608,7 +608,7 @@ function ReviewStep({
                 />
                 <span className="font-medium">{item.personName}</span>
                 <span className="text-faint">
-                  {item.absence.type} · {item.absence.from}
+                  {eventTypeLabel(item.absence.eventTypeId)} · {item.absence.from}
                   {item.absence.to !== item.absence.from ? `–${item.absence.to}` : ''}
                 </span>
                 <span className="ml-auto text-[11px] text-faint">
@@ -668,5 +668,26 @@ function Stat({
       <div className={`text-[18px] leading-none font-semibold ${color}`}>{value}</div>
       <div className="mt-0.5 text-[10px] text-faint uppercase">{label}</div>
     </div>
+  );
+}
+
+/**
+ * NOTE: Labels for the seeded event-type ids.
+ *
+ * The import dialog reads a file, not the reference data, and the diff it shows is about
+ * rows that may name a type nobody has configured. Falling back to the raw id keeps an
+ * unknown one visible rather than blank (ADR-0049).
+ */
+function eventTypeLabel(id: string): string {
+  return (
+    {
+      'et-vacation': 'Annual leave',
+      'et-sick': 'Sick leave',
+      'et-floating-holiday': 'Floating holiday',
+      'et-personal-day': 'Personal day',
+      'et-unpaid-leave': 'Unpaid leave',
+      'et-furlough': 'Furlough',
+      'et-other': 'Other absence',
+    }[id] ?? id
   );
 }

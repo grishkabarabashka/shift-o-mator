@@ -151,10 +151,10 @@ function colorOf(
   if (value.kind === 'SHIFT') return shiftColor ?? 'var(--accent)';
   if (value.kind === 'STATUS') {
     switch (value.status) {
-      case 'VACATION':
-      case 'SICK':
-      case 'OTHER':
-        return 'var(--warn)';
+      // The type carries its own colour now (ADR-0049); at heatmap scale a single
+      // "away" tone reads better than seven near-identical ones.
+      case 'ABSENT':
+        return value.event?.color ?? 'var(--warn)';
       case 'COMP_OFF':
         return 'color-mix(in srgb, var(--ok) 55%, transparent)';
       case 'PH':

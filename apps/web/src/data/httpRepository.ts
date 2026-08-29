@@ -4,7 +4,7 @@
  *
  * Every wire shape differs from `domain/types.ts` in casing or structure
  * (enums are `camelCase` on the wire vs `UPPER_SNAKE` here, `Assignment.content`
- * is flattened into `contentKind`/`roleId`/`marker`) — `src/api/mapping.ts` does
+ * is flattened into `shiftId`) — `src/api/mapping.ts` does
  * all of that conversion in one place.
  *
  * `plan.acknowledgements` comes back empty from `loadPublished`: `GET
@@ -16,7 +16,8 @@
  * result locally for the current session, same as before.
  */
 
-import { apiGet, apiPost, apiPut, qs } from '../api/client.ts';
+import { apiDelete, apiGet, apiPost, apiPut, qs } from '../api/client.ts';
+import { isAllUnits } from '../domain/unitScope.ts';
 import {
   absenceFromWire,
   assignmentFromWire,
@@ -24,6 +25,7 @@ import {
   draftChangeFromWire,
   draftSessionFromWire,
   historyEntryFromWire,
+  presenceFromWire,
   publishConflictFromWire,
   publishResultFromWire,
   referenceFromWire,
@@ -33,18 +35,27 @@ import {
 } from '../api/mapping.ts';
 import type {
   Acknowledgement,
-  AssignmentHistoryEntry,
+  ChangeHistoryEntry,
   DateRange,
+  Absence,
   DraftChange,
   DraftSession,
   DraftSessionId,
   Person,
   PersonId,
   PlanData,
+  PresenceRecord,
   ReferenceData,
   UnitId,
 } from '../domain/types.ts';
-import type { DraftBundle, DraftSyncItem, PublishOutcome, ScheduleRepository } from './repository.ts';
+import type {
+  DraftBundle,
+  DraftSyncItem,
+  AbsenceUpsert,
+  PresenceUpsert,
+  PublishOutcome,
+  ScheduleRepository,
+} from './repository.ts';
 
 interface WireScheduleResponse {
   readonly unitIds: readonly string[];
@@ -52,6 +63,7 @@ interface WireScheduleResponse {
     readonly assignments: readonly Parameters<typeof assignmentFromWire>[0][];
     readonly absences: readonly Parameters<typeof absenceFromWire>[0][];
     readonly compDays: readonly Parameters<typeof compDayFromWire>[0][];
+    readonly presence?: readonly Parameters<typeof presenceFromWire>[0][];
   };
 }
 
@@ -69,6 +81,7 @@ export class HttpScheduleRepository implements ScheduleRepository {
       assignments: wire.plan.assignments.map(assignmentFromWire),
       absences: wire.plan.absences.map(absenceFromWire),
       compDays: wire.plan.compDays.map(compDayFromWire),
+      presence: (wire.plan.presence ?? []).map(presenceFromWire),
       // See file header — the schedule endpoint doesn't carry full ack records.
       acknowledgements: [],
     };
@@ -102,24 +115,35 @@ export class HttpScheduleRepository implements ScheduleRepository {
   }
 
   async saveAcknowledgement(ack: Acknowledgement): Promise<void> {
+    // The acknowledging person comes from the token, not the payload (ADR-0039).
     await apiPost('/api/acknowledgements', {
       issueKey: ack.issueKey,
       comment: ack.comment,
-      byPersonId: ack.byPersonId,
     });
   }
 
   // -- Drafts -----------------------------------------------------------------
 
   async openDraft(unitId: UnitId, range: DateRange, editorId: PersonId): Promise<DraftBundle> {
+    // NOTE: `editorId` is deliberately not sent. The server takes the editor from the
+    // authenticated principal (ADR-0039) — a client-supplied one would let any caller
+    // publish under someone else's name in the audit trail. The parameter survives
+    // because callers still use it locally to filter their own overlapping drafts.
+    void editorId;
     const wire = await apiPost<Parameters<typeof draftSessionFromWire>[0]>('/api/drafts', {
-      editorPersonId: editorId,
       unitId,
       rangeFrom: range.from,
       rangeTo: range.to,
     });
     const session = draftSessionFromWire(wire);
-    return { session, changes: [] };
+
+    // WHY the changes are fetched: the server resumes an open draft rather than minting a
+    // new one, so this may be a session with work already staged in it — from before a
+    // reload, or from before an identity switch and back. Returning an empty list left
+    // the grid showing published data, the dirty count at zero and Publish disabled, with
+    // the staged edits sitting on the server unreachable.
+    const changes = (await this.fetchChanges(session.id)) ?? [];
+    return { session, changes };
   }
 
   private async fetchChanges(sessionId: DraftSessionId): Promise<DraftChange[] | undefined> {
@@ -185,9 +209,72 @@ export class HttpScheduleRepository implements ScheduleRepository {
     return wire.map(draftSessionFromWire).filter((s) => s.editorPersonId !== excludeEditorId);
   }
 
+  async listMyOpenDrafts(unitId: UnitId, range: DateRange): Promise<readonly DraftSession[]> {
+    // `mine` is filtered by the server from the token: the client's copy of "who am I"
+    // may not have arrived yet when a view change asks this.
+    // A scope of "all units" is the *absence* of a unit filter, not a unit called ALL:
+    // sending it would match nothing, which is precisely the case this exists for —
+    // switching from one unit to the combined view must still find the draft you opened.
+    const scoped = isAllUnits(unitId) ? undefined : unitId;
+    const wire = await apiGet<readonly Parameters<typeof draftSessionFromWire>[0][]>(
+      `/api/drafts${qs({ unitId: scoped, from: range.from, to: range.to, mine: 'true' })}`,
+    );
+    return wire.map(draftSessionFromWire);
+  }
+
+  async draftChanges(sessionId: DraftSessionId): Promise<readonly DraftChange[]> {
+    return (await this.fetchChanges(sessionId)) ?? [];
+  }
+
+  // -- Presence -----------------------------------------------------------
+
+  async savePresence(record: PresenceUpsert): Promise<PresenceRecord> {
+    const body = {
+      personId: record.personId,
+      typeId: record.typeId,
+      from: record.from,
+      to: record.to,
+      siteLocationId: record.siteLocationId ?? null,
+      siteLabel: record.siteLabel ?? null,
+      note: record.note ?? null,
+      version: record.version ?? null,
+      portion: (record.portion ?? 'FULL').toLowerCase(),
+    };
+    const wire = record.id
+      ? await apiPut<Parameters<typeof presenceFromWire>[0]>(`/api/presence/${record.id}`, body)
+      : await apiPost<Parameters<typeof presenceFromWire>[0]>('/api/presence', body);
+    return presenceFromWire(wire);
+  }
+
+  async deletePresence(id: string): Promise<void> {
+    await apiDelete(`/api/presence/${id}`);
+  }
+
+  // -- Absences -----------------------------------------------------------
+
+  async saveAbsence(record: AbsenceUpsert): Promise<Absence> {
+    const body = {
+      personId: record.personId,
+      eventTypeId: record.eventTypeId,
+      from: record.from,
+      to: record.to,
+      portion: (record.portion ?? 'FULL').toLowerCase(),
+      note: record.note ?? null,
+      version: record.version ?? null,
+    };
+    const wire = record.id
+      ? await apiPut<Parameters<typeof absenceFromWire>[0]>(`/api/absences/${record.id}`, body)
+      : await apiPost<Parameters<typeof absenceFromWire>[0]>('/api/absences', body);
+    return absenceFromWire(wire);
+  }
+
+  async deleteAbsence(id: string): Promise<void> {
+    await apiDelete(`/api/absences/${id}`);
+  }
+
   // -- Audit --------------------------------------------------------------
 
-  async history(range: DateRange): Promise<readonly AssignmentHistoryEntry[]> {
+  async history(range: DateRange): Promise<readonly ChangeHistoryEntry[]> {
     const wire = await apiGet<readonly Parameters<typeof historyEntryFromWire>[0][]>(
       `/api/history${qs({ from: range.from, to: range.to })}`,
     );

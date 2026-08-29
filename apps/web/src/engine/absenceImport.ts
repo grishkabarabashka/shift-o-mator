@@ -13,7 +13,7 @@ import { absenceChange } from '../domain/draft.ts';
 import type { DatasetIndex } from '../domain/lookup.ts';
 import type {
   Absence,
-  AbsenceType,
+
   Assignment,
   DateRange,
   DraftChange,
@@ -53,7 +53,7 @@ export interface ParsedAbsenceRow {
   readonly rowIndex: number;
   readonly personIdRaw: string | undefined;
   readonly personNameRaw: string | undefined;
-  readonly type: AbsenceType;
+  readonly eventTypeId: string;
   readonly from: IsoDate | undefined;
   readonly to: IsoDate | undefined;
   readonly note: string | undefined;
@@ -61,22 +61,36 @@ export interface ParsedAbsenceRow {
   readonly error: string | undefined;
 }
 
-const TYPE_SYNONYMS: Readonly<Record<string, AbsenceType>> = {
-  vacation: 'VACATION',
-  annual: 'VACATION',
-  'annual leave': 'VACATION',
-  pto: 'VACATION',
-  holiday: 'VACATION',
-  leave: 'VACATION',
-  sick: 'SICK',
-  illness: 'SICK',
-  medical: 'SICK',
-  other: 'OTHER',
+/**
+ * NOTE: Column values from a leave export mapped onto seeded event-type ids.
+ *
+ * Kept as synonyms rather than matching an `EventType.code` directly: the strings come
+ * out of somebody else's spreadsheet, and "PTO" is never going to be a code here. An
+ * unmatched value lands on the generic type rather than failing the row (ADR-0049).
+ */
+const TYPE_SYNONYMS: Readonly<Record<string, string>> = {
+  vacation: 'et-vacation',
+  annual: 'et-vacation',
+  'annual leave': 'et-vacation',
+  pto: 'et-vacation',
+  holiday: 'et-vacation',
+  leave: 'et-vacation',
+  sick: 'et-sick',
+  illness: 'et-sick',
+  medical: 'et-sick',
+  furlough: 'et-furlough',
+  unpaid: 'et-unpaid-leave',
+  'unpaid leave': 'et-unpaid-leave',
+  personal: 'et-personal-day',
+  'personal day': 'et-personal-day',
+  floating: 'et-floating-holiday',
+  'floating holiday': 'et-floating-holiday',
+  other: 'et-other',
 };
 
-function normalizeType(raw: string | undefined): AbsenceType {
-  if (!raw) return 'VACATION';
-  return TYPE_SYNONYMS[raw.trim().toLowerCase()] ?? 'OTHER';
+function normalizeType(raw: string | undefined): string {
+  if (!raw) return 'et-vacation';
+  return TYPE_SYNONYMS[raw.trim().toLowerCase()] ?? 'et-other';
 }
 
 const ISO_DATE_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
@@ -154,7 +168,7 @@ export function mapRows(
     const fromRaw = cellAt(row, mapping, 'from');
     const toRaw = cellAt(row, mapping, 'to');
     const note = cellAt(row, mapping, 'note');
-    const type = normalizeType(cellAt(row, mapping, 'type'));
+    const eventTypeId = normalizeType(cellAt(row, mapping, 'type'));
 
     let error: string | undefined;
     if (!personIdRaw && !personNameRaw) error = 'no person in this row';
@@ -175,7 +189,7 @@ export function mapRows(
       to = swapped;
     }
 
-    return { rowIndex: index, personIdRaw, personNameRaw, type, from: effectiveFrom, to, note, error };
+    return { rowIndex: index, personIdRaw, personNameRaw, eventTypeId, from: effectiveFrom, to, note, error };
   });
 }
 
@@ -266,7 +280,7 @@ export type AbsenceRowDecision = 'add' | 'update' | 'unchanged';
 export interface AbsenceImportRow {
   readonly rowIndex: number;
   readonly personId: PersonId;
-  readonly type: AbsenceType;
+  readonly eventTypeId: string;
   readonly from: IsoDate;
   readonly to: IsoDate;
   readonly note: string | undefined;
@@ -321,14 +335,14 @@ export function diffAbsenceImport(params: {
     const existing = existingByKey.get(key);
     const decision: AbsenceRowDecision = !existing
       ? 'add'
-      : existing.type === row.type && (existing.note ?? '') === (row.note ?? '')
+      : existing.eventTypeId === row.eventTypeId && (existing.note ?? '') === (row.note ?? '')
         ? 'unchanged'
         : 'update';
 
     diffRows.push({
       rowIndex: row.rowIndex,
       personId,
-      type: row.type,
+      eventTypeId: row.eventTypeId,
       from: row.from,
       to: row.to,
       note: row.note,
@@ -429,13 +443,17 @@ export function buildImportChanges(params: {
 
   for (const row of rows) {
     const after: Absence = {
+      // An update carries the existing row's version so publish can detect a concurrent
+      // edit; a new row starts at 1 (ADR-0043).
+      version: row.existing?.version ?? 1,
       id: row.existing?.id ?? nextAbsenceId(),
       personId: row.personId,
-      type: row.type,
+      eventTypeId: row.eventTypeId,
       from: row.from,
       to: row.to,
       source: 'IMPORT',
       importBatchId: batchId,
+      portion: 'FULL',
       lastSeenInImportAt: now,
       ...(row.note ? { note: row.note } : {}),
       ...(row.existing?.syncedToHrAt !== undefined ? { syncedToHrAt: row.existing.syncedToHrAt } : {}),

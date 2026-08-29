@@ -1,17 +1,25 @@
 /**
- * NOTE: Confirming and rescheduling a comp day. The system only proposes a date per
- * policy (ADR-0007); here the planner confirms the proposal (`PROPOSED` →
- * `SCHEDULED`), reschedules the date, marks it taken, or declines it. A confirmed
- * comp day then blocks assignment.
+ * Placing an earned comp day.
  *
- * Comp days never expire: instead of a deadline there is an age and a
- * highlight threshold.
+ * The accrual exists from the moment the weekend shift was published, and the system
+ * auto-places a **proposal** per policy (ADR-0007). What happens here is the engineer
+ * choosing which day they actually want — which is a request, decided by an approver
+ * (ADR-0052). It used to be a planner writing the date straight into a draft, which put
+ * the person whose day off it is out of the loop entirely.
+ *
+ * Marking one taken or declining it stays a planner's direct edit: those record what
+ * became of a day already settled, not which day it should be.
+ *
+ * Comp days never expire: instead of a deadline there is an age and a highlight
+ * threshold.
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
 import { effectiveCompDayDate, type CompDayEntry, type CompDayStatus, type IsoDate } from '../../domain/types.ts';
 import { daysBetween } from '../../engine/dates.ts';
+import { useCreateRequest, useRequestTypes } from '../../api/requests.ts';
+import { useCapabilities } from '../../auth/useCapabilities.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 
@@ -39,12 +47,20 @@ export function CompDayDialog({ asOf }: Props) {
   const entry = useUi((s) => s.compDayDraft);
   const close = useUi((s) => s.closeCompDayDialog);
   const setCompDay = useSchedule((s) => s.setCompDay);
+  const createRequest = useCreateRequest();
+  const requestTypes = useRequestTypes();
+  const caps = useCapabilities();
   const person = useSchedule((s) => s.reference?.people.find((p) => p.id === entry?.personId));
   const unit = useSchedule((s) =>
     s.reference?.units.find((u) => u.id === person?.unitId),
   );
 
   const [actualDate, setActualDate] = useState('');
+
+  const setActionError = useSchedule((s) => s.setActionError);
+  const selfId = useSchedule((s) => s.currentUserId);
+  const aboutSelf = entry?.personId === selfId;
+  const firstName = person?.displayName.split(' ')[0] ?? 'them';
 
   useEffect(() => {
     if (entry) setActualDate(effectiveCompDayDate(entry) ?? '');
@@ -57,6 +73,30 @@ export function CompDayDialog({ asOf }: Props) {
     close();
   };
 
+  /**
+   * Asks for the chosen day. The server checks it against the unit's comp-off policy
+   * before it reaches anyone's inbox: an approver is being asked "is this a good day for
+   * the team", not "is this date legal".
+   */
+  const askFor = (): void => {
+    const type = requestTypes.data?.find((t) => t.code === 'COMP_DAY');
+    if (!type) {
+      // A button that silently does nothing is worse than one that says why. This is a
+      // seeding problem, not a user error: the COMP_DAY request type is data.
+      setActionError('No "Comp day" request type is configured, so there is nowhere to send this.');
+      return;
+    }
+    if (actualDate === '') return;
+    createRequest.mutate({
+      typeId: type.id,
+      subjectPersonId: entry.personId,
+      compDayId: entry.id,
+      from: actualDate,
+      to: actualDate,
+    });
+    close();
+  };
+
   const decline = (): void => {
     setCompDay({ ...entry, status: 'DECLINED' }, entry);
     close();
@@ -66,6 +106,18 @@ export function CompDayDialog({ asOf }: Props) {
     entry.status === 'PROPOSED' ||
     entry.status === 'SCHEDULED' ||
     entry.status === 'PENDING_APPROVAL';
+
+  /**
+   * WHY not "different from the current date": the dialog opens with the *proposed* date
+   * already filled in, and that was the date being compared against — so the button was
+   * dead on arrival and you had to nudge the date somewhere else and back to enable it.
+   * A proposal is a suggestion nobody has agreed to; asking for exactly the day the
+   * system proposed is the single most likely thing to want.
+   *
+   * The only pointless case is asking for a day already *scheduled*, which is settled.
+   */
+  const alreadySettledOnThisDay =
+    entry.status === 'SCHEDULED' && actualDate === effectiveCompDayDate(entry);
 
   const age = compDayAge(entry, asOf);
   const threshold = unit?.compOffPolicy.agingThresholdDays ?? 14;
@@ -104,6 +156,13 @@ export function CompDayDialog({ asOf }: Props) {
               onChange={(event) => setActualDate(event.target.value)}
             />
           </label>
+          <p className="mt-1 text-[11.5px] text-faint">
+            {entry.proposedDate
+              ? `Proposed ${entry.proposedDate} — earned for ${entry.earnedForDate}. `
+              : `Earned for ${entry.earnedForDate}. `}
+            Asking does not move the day yet: it raises a request, the cell shows it dashed
+            until an approver decides, and only an approval sets the date.
+          </p>
 
           <div className="mt-4 flex justify-end gap-2">
             <Dialog.Close asChild>
@@ -113,24 +172,30 @@ export function CompDayDialog({ asOf }: Props) {
             </Dialog.Close>
             {editable ? (
               <>
-                <button type="button" className="btn" onClick={decline}>
-                  Decline
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={actualDate === ''}
-                  onClick={() => apply('TAKEN')}
-                >
-                  Mark taken
-                </button>
+                {/* Bookkeeping on a day already settled — a planner's call, and unlike
+                    the placement itself it needs nobody's approval. */}
+                {caps.canPlan(person?.unitId) ? (
+                  <>
+                    <button type="button" className="btn" onClick={decline}>
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={actualDate === ''}
+                      onClick={() => apply('TAKEN')}
+                    >
+                      Mark taken
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
                   className="btn btn--primary"
-                  disabled={actualDate === ''}
-                  onClick={() => apply('SCHEDULED')}
+                  disabled={actualDate === '' || alreadySettledOnThisDay}
+                  onClick={askFor}
                 >
-                  {entry.status === 'SCHEDULED' ? 'Reschedule' : 'Confirm'}
+                  {aboutSelf ? 'Ask for this day' : `Ask on ${firstName}’s behalf`}
                 </button>
               </>
             ) : null}

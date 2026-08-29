@@ -32,9 +32,14 @@ export function useElementWidth<T extends HTMLElement>(): readonly [
     if (!node) return;
 
     setWidth(node.clientWidth);
+    // WHY clientWidth and not contentRect.width: contentRect includes the space a
+    // vertical scrollbar occupies. Sizing grid columns from it made the sheet about
+    // fifteen pixels wider than the room it had, so a view that was meant to fill the
+    // screen exactly came up with a small horizontal scrollbar under it — permanently,
+    // and for no visible reason.
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (entry) setWidth(entry.contentRect.width);
+      if (entry) setWidth((entry.target as HTMLElement).clientWidth);
     });
     observer.observe(node);
     observerRef.current = observer;

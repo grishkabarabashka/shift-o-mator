@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.Shared;
@@ -19,7 +20,9 @@ public static class SuggestEndpoints
     {
         app.MapPost("/api/suggest", async (SuggestRequest req, ScheduleDbContext db, CancellationToken ct) =>
         {
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            // One date, but the ranker looks 90 days back — the loader's lookback margin
+            // is what keeps the fairness counters honest here (ADR-0042).
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, req.Date, req.Date, ct);
             var index = DatasetIndex.Build(dataset);
 
             var result = CandidateRanker.Rank(new CandidateRanker.RankParams(
@@ -30,14 +33,14 @@ public static class SuggestEndpoints
         })
         .WithName("Suggest")
         .Produces<CandidateRanker.CandidateResult>()
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapPost("/api/auto-populate", async (AutoPopulateRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/auto-populate", async (AutoPopulateRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
         {
             if ((req.RangeTo.DayNumber - req.RangeFrom.DayNumber) > AutoPopulateService.MaxDays)
                 return Results.BadRequest(new ErrorResponse("RANGE_TOO_LONG", $"Auto-populate is limited to {AutoPopulateService.MaxDays} days."));
 
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, req.RangeFrom, req.RangeTo, ct);
 
             // NOTE: generation sees the plan through the planner's eyes — published plus
             // their own open draft. Otherwise cells already placed by hand would look
@@ -69,13 +72,13 @@ public static class SuggestEndpoints
 
             var result = AutoPopulateService.Run(new AutoPopulateService.Params(
                 req.UnitId, req.RangeFrom, req.RangeTo, req.LockedAssignmentIds ?? [],
-                assignments, absences, compDays, index, req.ActorId, DateTimeOffset.UtcNow));
+                assignments, absences, compDays, index, await actors.RequireAsync(user, ct), DateTimeOffset.UtcNow));
 
             return Results.Ok(result);
         })
         .WithName("AutoPopulate")
         .Produces<AutoPopulateService.Result>()
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
     }
 }

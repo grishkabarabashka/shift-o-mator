@@ -38,13 +38,14 @@ public class CandidateRankerTests
     public void Excludes_someone_on_leave_with_an_explanation()
     {
         var (index, _, _) = Setup();
-        var absence = new Absence { Id = "abs-1", PersonId = "p-alice", Type = AbsenceType.Vacation, From = new DateOnly(2026, 9, 5), To = new DateOnly(2026, 9, 10), Source = AbsenceSource.Manual };
+        var absence = new Absence { Id = "abs-1", PersonId = "p-alice", EventTypeId = TestEventTypes.VacationId, From = new DateOnly(2026, 9, 5), To = new DateOnly(2026, 9, 10), Source = AbsenceSource.Manual };
 
         var result = CandidateRanker.Rank(Params(index, absences: [absence]));
 
         Assert.Equal(["p-bob"], result.Available.Select(c => c.PersonId));
         var excluded = Assert.Single(result.Excluded);
-        Assert.Equal(("p-alice", "Alice", "on leave"), (excluded.PersonId, excluded.Name, excluded.Reason));
+        Assert.Equal(// The reason names the actual type now, not a hard-coded word (ADR-0049).
+            ("p-alice", "Alice", "on annual leave"), (excluded.PersonId, excluded.Name, excluded.Reason));
     }
 
     [Fact]

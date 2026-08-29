@@ -206,9 +206,8 @@ public static class Validator
                     $"{person.DisplayName}: more than one assignment on the same day", assignment.Date, person.Id));
             }
 
-            if (!IsWorkingAssignment(assignment)) continue;
 
-            var shiftId = AssignmentShiftId(assignment);
+            var shiftId = assignment.ShiftId;
             var shift = shiftId is not null ? p.Index.Shifts.GetValueOrDefault(shiftId) : null;
 
             if (shift is null)
@@ -249,7 +248,7 @@ public static class Validator
                 // own leave, or the record is stale; the planner resolves both cases,
                 // not the validator.
                 drafts.Add(new IssueDraft(IssueLevel.Warning, IssueCategory.Conflict, IssueCode.AssignedDuringAbsence,
-                    $"{person.DisplayName}: assigned during {AbsenceLabel(absence.Type)}", assignment.Date, person.Id, shift.Id));
+                    $"{person.DisplayName}: assigned during {AbsenceLabel(absence, p.Index)}", assignment.Date, person.Id, shift.Id));
             }
 
             if (blockingCompDays.ContainsKey(key))
@@ -276,12 +275,18 @@ public static class Validator
         return drafts;
     }
 
-    private static string AbsenceLabel(AbsenceType type) => type switch
+    private static string AbsenceLabel(Absence absence, DatasetIndex index)
     {
-        AbsenceType.Vacation => "vacation",
-        AbsenceType.Sick => "sick leave",
-        _ => "an absence",
-    };
+        var label = index.EventTypes.TryGetValue(absence.EventTypeId, out var type)
+            ? type.Label.ToLowerInvariant()
+            : "an absence";
+        return absence.Portion switch
+        {
+            DayPortion.Morning => $"{label} (morning)",
+            DayPortion.Afternoon => $"{label} (afternoon)",
+            _ => label,
+        };
+    }
 
     // -------------------------------------------------------------------------
     // SECTION: Rest and consecutive days
@@ -294,7 +299,7 @@ public static class Validator
         var result = new Dictionary<string, List<DatedInterval>>();
         foreach (var assignment in UnitAssignments(p))
         {
-            var shiftId = AssignmentShiftId(assignment);
+            var shiftId = assignment.ShiftId;
             if (shiftId is null) continue;
             if (!p.Index.Shifts.TryGetValue(shiftId, out var shift)) continue;
             UtcInterval interval;
@@ -336,7 +341,6 @@ public static class Validator
         var datesByPerson = new Dictionary<string, SortedSet<DateOnly>>();
         foreach (var assignment in UnitAssignments(p))
         {
-            if (!IsWorkingAssignment(assignment)) continue;
             if (!datesByPerson.TryGetValue(assignment.PersonId, out var bucket)) datesByPerson[assignment.PersonId] = bucket = [];
             bucket.Add(assignment.Date);
         }
@@ -383,7 +387,6 @@ public static class Validator
         var datesByPerson = new Dictionary<string, List<DateOnly>>();
         foreach (var assignment in UnitAssignments(p))
         {
-            if (!IsWorkingAssignment(assignment)) continue;
             if (!datesByPerson.TryGetValue(assignment.PersonId, out var bucket)) datesByPerson[assignment.PersonId] = bucket = [];
             bucket.Add(assignment.Date);
         }
@@ -415,7 +418,7 @@ public static class Validator
     // SECTION: Concurrent-absence limits
     // -------------------------------------------------------------------------
 
-    private record AbsenceSpan(string PersonId, AbsenceType? Type, bool IsCompDay, DateOnly From, DateOnly To, int Workdays);
+    private record AbsenceSpan(string PersonId, string? EventTypeId, bool IsCompDay, DateOnly From, DateOnly To, int Workdays);
 
     private static List<AbsenceSpan> AbsenceSpans(ValidateParams p)
     {
@@ -431,7 +434,7 @@ public static class Validator
         {
             var location = LocationOf(absence.PersonId);
             if (location is null) continue;
-            spans.Add(new AbsenceSpan(absence.PersonId, absence.Type, false, absence.From, absence.To,
+            spans.Add(new AbsenceSpan(absence.PersonId, absence.EventTypeId, false, absence.From, absence.To,
                 DateHelpers.CountWorkdays(absence.From, absence.To, location, p.Index)));
         }
 
@@ -467,7 +470,7 @@ public static class Validator
                 var matching = active.Where(span =>
                 {
                     if (span.IsCompDay) { if (!rule.CountsCompDays) return false; }
-                    else if (span.Type is null || !rule.CountsTypes.Contains(span.Type.Value)) return false;
+                    else if (span.EventTypeId is null || !rule.CountsEventTypeIds.Contains(span.EventTypeId)) return false;
 
                     var isLong = span.Workdays >= rule.LongThresholdWorkdays;
                     if (rule.DurationBucket == AbsenceDurationBucket.Long && !isLong) return false;
@@ -509,7 +512,7 @@ public static class Validator
         foreach (var assignment in UnitAssignments(p))
         {
             if (assignment.Date < p.RangeFrom || assignment.Date > p.RangeTo) continue;
-            var shiftId = AssignmentShiftId(assignment);
+            var shiftId = assignment.ShiftId;
             if (shiftId is null) continue;
             if (!byPerson.TryGetValue(assignment.PersonId, out var shiftCounts)) byPerson[assignment.PersonId] = shiftCounts = [];
             shiftCounts[shiftId] = shiftCounts.GetValueOrDefault(shiftId) + 1;

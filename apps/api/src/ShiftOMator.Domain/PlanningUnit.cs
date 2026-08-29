@@ -20,6 +20,10 @@ public class PlanningUnit
     public GroupBy GroupBy { get; set; }
     public required string PrimaryLocationId { get; set; }
     public List<string> LocationIds { get; set; } = [];
+
+    // Who approves this unit's requests is no longer a list here: it is everyone holding
+    // AppRole.Approver in this unit (ADR-0051). Two places naming approvers would have
+    // disagreed the first time one was edited.
     public CompOffPolicy CompOffPolicy { get; set; } = new();
 
     public List<Location> Locations { get; set; } = [];

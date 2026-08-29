@@ -13,3 +13,28 @@ public record GapSummaryRequest(string UnitId, DateOnly From, DateOnly To, strin
 public record GapSummaryResponse(
     string Summary, int Total, int Gaps, int Conflicts, int Warnings, int Blocking,
     string? Model, DateTimeOffset GeneratedAt);
+
+/// <summary>
+/// "Why this person for this cell" (ADR-0048). Takes the same shape a suggestion takes,
+/// because it explains exactly that suggestion.
+/// </summary>
+public record CandidateExplanationRequest(
+    string ShiftId, DateOnly Date, string UnitId, HashSet<string>? ExcludePersonIds = null);
+
+/// <summary>
+/// The digest travels with the prose, and is filled in even when no model is configured.
+///
+/// WHY: the deciding factor is computed, not generated — it is read straight off the
+/// ranker's documented ordering. A planner who has no model available still gets the
+/// real answer, just not phrased; and one who does can check the sentence against it.
+/// </summary>
+public record CandidateExplanationResponse(
+    string? Explanation,
+    string Digest,
+    string? SuggestedPersonId,
+    string? SuggestedPersonName,
+    string DecidingFactor,
+    int AvailableCount,
+    int ExcludedCount,
+    string? Model,
+    DateTimeOffset GeneratedAt);

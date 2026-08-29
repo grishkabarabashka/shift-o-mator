@@ -18,7 +18,15 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
     public DbSet<Absence> Absences => Set<Absence>();
     public DbSet<CompDayEntry> CompDayEntries => Set<CompDayEntry>();
     public DbSet<Acknowledgement> Acknowledgements => Set<Acknowledgement>();
-    public DbSet<AssignmentHistoryEntry> AssignmentHistory => Set<AssignmentHistoryEntry>();
+    public DbSet<PresenceRecord> Presence => Set<PresenceRecord>();
+    public DbSet<EventType> EventTypes => Set<EventType>();
+    public DbSet<PresenceType> PresenceTypes => Set<PresenceType>();
+    public DbSet<RequestType> RequestTypes => Set<RequestType>();
+    public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
+    public DbSet<Request> Requests => Set<Request>();
+    public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ChangeHistoryEntry> ChangeHistory => Set<ChangeHistoryEntry>();
     public DbSet<DraftSession> DraftSessions => Set<DraftSession>();
     public DbSet<DraftChange> DraftChanges => Set<DraftChange>();
 
@@ -65,7 +73,7 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         modelBuilder.Entity<AbsenceCapacityRule>(e =>
         {
             e.HasKey(x => x.Id);
-            ConfigureList(e.Property(x => x.CountsTypes));
+            ConfigureList(e.Property(x => x.CountsEventTypeIds));
         });
 
         modelBuilder.Entity<Person>(e =>
@@ -97,11 +105,75 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
             // NOTE: exactly one assignment per (person, date) — the same invariant as on
             // the client, except here it's not a convention but a constraint.
             e.HasIndex(x => new { x.PersonId, x.Date }).IsUnique();
+            // Every request path is "the plan between two dates" (ADR-0042); without
+            // this the scoped load is a clustered scan and the range filter buys nothing.
+            e.HasIndex(x => x.Date);
+            e.HasIndex(x => new { x.UnitId, x.Date });
         });
 
-        modelBuilder.Entity<Absence>(e => e.HasKey(x => x.Id));
+        modelBuilder.Entity<Absence>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // Overlap query in ScheduleDatasetLoader, and "my leave" on the People panel.
+            e.HasIndex(x => new { x.PersonId, x.From });
+            e.HasIndex(x => x.To);
+        });
 
-        modelBuilder.Entity<CompDayEntry>(e => e.HasKey(x => x.Id));
+        modelBuilder.Entity<CompDayEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PersonId, x.EarnedForDate });
+            e.HasIndex(x => x.Status);
+        });
+
+        modelBuilder.Entity<PresenceRecord>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // Same overlap query shape as Absence: "whose presence covers this window".
+            e.HasIndex(x => new { x.PersonId, x.From });
+            e.HasIndex(x => x.To);
+            // An external sync matches on this; null is unconstrained, same pattern as
+            // Person.EmployeeId.
+            e.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+        });
+
+        modelBuilder.Entity<EventType>(e => e.HasKey(x => x.Id));
+
+        modelBuilder.Entity<PresenceType>(e => e.HasKey(x => x.Id));
+
+        modelBuilder.Entity<RequestType>(e => e.HasKey(x => x.Id));
+
+        modelBuilder.Entity<RoleAssignment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // Read on every authenticated request by RoleClaimsTransformation.
+            e.HasIndex(x => x.PersonId);
+            // One grant per (person, unit, role): granting the same thing twice is not a
+            // stronger grant, and two rows would only ever disagree about who granted it.
+            e.HasIndex(x => new { x.PersonId, x.UnitId, x.Role }).IsUnique();
+            e.HasIndex(x => new { x.Role, x.UnitId });
+        });
+
+        modelBuilder.Entity<Request>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasMany(x => x.Decisions).WithOne().HasForeignKey(x => x.RequestId);
+            // "My requests" and "what is waiting on me" are the two queries this table
+            // exists to answer; both are indexed rather than scanned.
+            e.HasIndex(x => new { x.SubjectPersonId, x.State });
+            e.HasIndex(x => new { x.State, x.UnitId });
+            e.HasIndex(x => x.From);
+        });
+
+        modelBuilder.Entity<ApprovalDecision>(e => e.HasKey(x => x.Id));
+
+        modelBuilder.Entity<Notification>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // The bell polls "unread for me" on every render of the shell.
+            e.HasIndex(x => new { x.RecipientPersonId, x.ReadAt });
+            e.HasIndex(x => x.CreatedAt);
+        });
 
         modelBuilder.Entity<Acknowledgement>(e =>
         {
@@ -109,7 +181,17 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
             e.HasIndex(x => x.IssueKey).IsUnique();
         });
 
-        modelBuilder.Entity<AssignmentHistoryEntry>(e => e.HasKey(x => x.Id));
+        modelBuilder.Entity<ChangeHistoryEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // GET /api/history is a range query over an append-only table that only ever
+            // grows; it was previously an unindexed scan (ADR-0041).
+            e.HasIndex(x => x.At);
+            e.HasIndex(x => new { x.PersonId, x.At });
+            // The cell timeline: everything about one person over one date span.
+            e.HasIndex(x => new { x.PersonId, x.AffectedFrom, x.AffectedTo });
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+        });
 
         modelBuilder.Entity<DraftSession>(e =>
         {

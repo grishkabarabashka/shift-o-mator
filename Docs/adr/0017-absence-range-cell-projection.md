@@ -1,6 +1,9 @@
 # ADR-0017. Absence is a range; the grid cell is a projection
 
-**Status:** accepted, with the absence types narrowed
+**Status:** the range-and-projection half stands. Its **roster markers are deleted** by
+[ADR-0052](0052-two-flows-drafts-for-shifts-approval-for-everything-else.md) — "`0` ≠
+blank" recorded a distinction nobody used, and what people actually wanted is the
+`UNAVAILABLE` event type. Absence types were already generalised by ADR-0049.
 
 > **Amendment.** `TRAINING` is **not** an absence type. In-hours training and other
 > engineering activity is the `Cover` role — the person is at work and counts toward

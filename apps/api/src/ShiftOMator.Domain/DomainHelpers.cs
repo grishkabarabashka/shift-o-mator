@@ -3,9 +3,8 @@ namespace ShiftOMator.Domain;
 /// <summary>Small predicates on entities — mirrors the free functions in domain/types.ts.</summary>
 public static class DomainHelpers
 {
-    public static bool IsWorkingAssignment(Assignment a) => a.ContentKind == AssignmentContentKind.Shift;
-
-    public static string? AssignmentShiftId(Assignment a) => a.ContentKind == AssignmentContentKind.Shift ? a.ShiftId : null;
+    // IsWorkingAssignment and AssignmentShiftId are gone with the markers (ADR-0052):
+    // every assignment is a shift, so both were constant functions.
 
     /// <summary>The date a comp day actually blocks, once one exists.</summary>
     public static DateOnly? EffectiveCompDayDate(CompDayEntry e) => e.ActualDate ?? e.ProposedDate;

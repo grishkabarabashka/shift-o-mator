@@ -10,6 +10,8 @@ public class AbsenceCapacityRule
     public AbsenceDurationBucket DurationBucket { get; set; }
     public int LongThresholdWorkdays { get; set; }
     public int MaxConcurrent { get; set; }
-    public List<AbsenceType> CountsTypes { get; set; } = [];
+    /// <summary>Which event types count toward this limit (ADR-0049). Ids, not enum
+    /// members — the set is data now.</summary>
+    public List<string> CountsEventTypeIds { get; set; } = [];
     public bool CountsCompDays { get; set; }
 }

@@ -1,14 +1,19 @@
 # shift-o-mator — project context
 
-A shift-planning tool for a global application support team (~80 people across four
-planning units: `unit-amer`, `unit-emea`, `unit-apac`, and the cross-cutting
-`unit-st` for Service Transition). Replaces manual planning in a shared Excel file.
+A shift-planning and self-service tool for a global application support team (~80 people
+across four planning units: `unit-amer`, `unit-emea`, `unit-apac`, and the cross-cutting
+`unit-st` for Service Transition). Replaces manual planning in a shared Excel file — and,
+since ADR-0047, the separate portal people used to record leave and remote days in.
 
 
 ## State of the code
 
-Phases 0–6 complete the HTTP cutover: the backend is built and tested, domain logic
-lives server-side, and the frontend talks entirely over REST. Code and design agree.
+Phases 0–6 completed the HTTP cutover; 7–8 were the model rework (Region deleted, one
+absolute-time `Shift`); **Phase 9** made the product production-shaped and absorbed the
+self-service portal; **Phase 10** made the grid one grid for everybody; **Phase 11**
+rebuilt authorization (roles are a scoped set) and split the write paths (drafts publish
+the rota; time off and presence are written directly and reviewed by approval). Code and
+design agree; the ADR index is complete through 0052.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -17,15 +22,18 @@ workspace root at the repository root with no other members.
 
 - `domain/` — types only (no fixtures; seeded on backend)
 - `engine/` — client-side utilities: `dates` (parsing, formatting), `period` (zoom and
-  range arithmetic), `timeline` (layout and rendering), `cellValue` (projection logic)
+  range arithmetic), `timeline` (layout and rendering), `cellValue` (projection logic),
+  `presence` (a **second**, independent projection — see trap 3 below)
 - `data/` — `ScheduleRepository` interface and `HttpScheduleRepository` (REST client)
 - `store/` — `useSchedule` (draft metadata), `useUi` (selection, range, dialogs)
 - `api/` — TanStack Query hooks, OpenAPI-generated types (`schema.d.ts`)
 - `features/` — `planning` (grid, `ShiftPalette`), `coverage` (strip), `issues` (panel),
-  `absences`, `compdays`, `shell` (navigation, context, the location clock strip),
-  `settings` (admin UI)
+  `absences`, `compdays`, `presence`, `requests`, `shell` (navigation, context, the
+  location clock strip, the notification bell), `settings` (admin UI)
 - `pages/` — `OverviewPage`, `SchedulePage`, `DayDrilldownPage`, `PeoplePage`,
-  `SettingsPage`; routed in `App.tsx`
+  `MyCalendarPage` (`/me`),
+  `RequestsPage`, `SettingsPage` (admin-only: the nav hides it from anyone who
+  administers nothing); routed in `App.tsx`
 - `ui/` — Radix UI wrappers, `theme.css` (Tailwind tokens), shared styles
 - `auth/` — `AuthProvider`, stub identity for development
 
@@ -33,7 +41,8 @@ workspace root at the repository root with no other members.
 
 - `ShiftOMator.Domain` — entities and enums (mirrors `apps/web/src/domain/types.ts`)
 - `ShiftOMator.Application` — engines (coverage, validation, ranking, comp days,
-  auto-populate), services (drafts), helpers
+  auto-populate), services (drafts, requests), digests (`IssueDigest`,
+  `CandidateDigest`), helpers
 - `ShiftOMator.Infrastructure` — EF Core `ScheduleDbContext`, migrations, seeding
 - `ShiftOMator.Api` — minimal APIs, DTOs, auth scaffold, OpenAPI emission
 
@@ -42,7 +51,7 @@ workspace root at the repository root with no other members.
 - Frontend: `apps/web/src/**/*.test.ts` (Vitest)
 - Backend: `apps/api/tests/**/*.cs` (xUnit)
 
-Two traps worth knowing before touching the UI:
+Three traps worth knowing before touching the UI:
 
 - **Class names collide with Tailwind utilities.** `grid` and `table` are utilities;
   the planning grid root is `.sheet` and data tables are `.rows` for that reason
@@ -50,7 +59,16 @@ Two traps worth knowing before touching the UI:
 - **The planning grid is performance-sensitive.** ~2500 cells. `GridCell` is memoized
   on primitives, and there is exactly **one** context menu for the whole grid
   (`AssignmentPicker`). Do not put a Radix root, a tooltip or a new object prop inside
-  a cell.
+  a cell. This is why presence arrives as two optional **strings**, not a `PresenceMark`.
+
+- **`cellValue.ts` is a precedence chain, and presence is not in it.** `projectCells`
+  resolves one winner per cell (shift > absence > comp day > holiday > marker).
+  `projectPresence` is a *separate* map over the same keys, because a person can be on a
+  shift **and** remote at once (ADR-0043). If a change to presence makes you want to edit
+  `cellValue.ts`, the change is wrong.
+
+`Docs/16-workflows.md` is the end-to-end view: every workflow, and the role each step
+needs. Read it before changing anything about permissions or the write paths.
 
 **UI text and documentation are English.** In-code comments follow this rule:
 C# XML documentation on the backend is always English; existing TypeScript is left
@@ -86,8 +104,9 @@ dotnet test
    this person appears on. There are four units: `unit-amer`, `unit-emea`, `unit-apac`
    (REGION kind) and `unit-st` (CROSS_REGION kind). A unit is a **default filter, not a
    hard boundary**; the Schedule screen offers a toggle to view all people with shifts in
-   that unit. **No unit scoping of write access** — everyone can plan anywhere, and the
-   control is a complete audit trail. (ADR-0032, supersedes ADR-0004 and ADR-0020)
+   that unit. Write access **is** scoped to a unit since ADR-0051 — a global grant covers
+   the cross-unit planner the original rule was written for. (ADR-0032, supersedes
+   ADR-0004 and ADR-0020; narrowed by ADR-0051)
 
 4. **Shifts belong to a unit.** No global catalog; matching codes across units are
    coincidental. (ADR-0032, narrowing ADR-0004)
@@ -117,10 +136,31 @@ dotnet test
    (ADR-0007)
 
 9. **Absence is a range; the grid cell is a projection.** Leave lives as
-   `Absence{from,to}` with type `VACATION | SICK | OTHER`; roster decisions live as
-   `Assignment` markers `OFF` / `NOT_SCHEDULED`; `0` ≠ blank. One pure function
-   resolves precedence into a `CellValue`. **`Training` is not an absence** — in-hours
-   training is the `Cover` role and counts toward coverage. (ADR-0017)
+   `Absence{from,to,eventTypeId}`. One pure function resolves precedence into a
+   `CellValue`: shift > absence > comp day > holiday > empty. **An assignment is a
+   shift** — the `OFF` / `NOT_SCHEDULED` markers are deleted, and an empty cell means no
+   shift. An engineer declaring "do not schedule me that day" records the `UNAVAILABLE`
+   event type, which is an absence. **`Training` is not an absence** — in-hours training
+   is the `Cover` shift and counts toward coverage. (ADR-0017, markers deleted by
+   ADR-0052)
+
+9b. **One day, one record.** An approved request, or a direct write, **supersedes** what
+    already covered those days — trimming the old range rather than deleting it, so the
+    days it did not lose survive. Approving remote over an office week used to add a second
+    row and let the projection render whichever it reached last, so the day did not change.
+    `RangeSupersede` holds the arithmetic; a whole day beats anything, the same half beats
+    itself, and a half never trims a whole day (that would discard the other half).
+    **Changing the kind of leave is a new request, not an edit.** (ADR-0052)
+
+9a. **Two write flows, and what decides is the thing, not the person.** Drafts publish
+    the **rota** — shifts, and the comp-day accrual that comes with them. Everything else
+    is written directly, with **approval** where the thing needs it: an `EventType` with
+    `requiresApproval` cannot be written to `/api/absences` by anyone, planner included,
+    and remote presence always goes through a request. Sick leave needs approval
+    (reversing ADR-0049) and still does not count against capacity. A comp day is accrued
+    by publishing and **placed** by the engineer asking for a day, which an approver signs
+    off — `CompDayPlacement.Check` holds the rules so the client and the server cannot
+    disagree about which dates are offered. (ADR-0052)
 
 10. **Exactly one assignment per (person, date).** No split shifts, no parallel duty;
     on-call is an ordinary role code occupying the day. Hard constraint.
@@ -141,9 +181,12 @@ dotnet test
     the owner's rule; 3 long / 4 short per unit are confirmed defaults. (ADR-0010)
 
 13. **Optimistic drafts, not locking.** `DraftSession` + ordered `DraftChange`;
-    concurrent drafts allowed with an informational banner; atomic publish; version
-    conflict → compare/refresh/reapply. A failed publish **never** clears the draft.
-    Published data is what viewers see. (ADR-0015, supersedes ADR-0011)
+    concurrent drafts allowed; atomic publish; version conflict →
+    compare/refresh/reapply. A failed publish **never** clears the draft. Published data
+    is what viewers see. Cells staged in **another** planner's open draft are hatched grey
+    and named in the tooltip (`GET /api/drafts/staged`, polled) — still not a lock, but
+    the banner alone ("somebody else has this period open") was true and useless.
+    (ADR-0015, supersedes ADR-0011)
 
 14. **Configuration is effective-dated.** Raising a minimum today must not make last
     March fail. Coverage resolves the configuration version effective on the date being
@@ -163,6 +206,117 @@ dotnet test
     may carry shifts with `min=0` — no hard requirement. This never renders as a gap
     or understaffed cell. (ADR-0034)
 
+19. **The acting person comes from the token, never a request body.** ADR-0032 removed
+    write permissions on the grounds that the audit trail is the control; a body-supplied
+    actor id made that trail forgeable by the people it constrains. `Auth/ActorResolver`
+    resolves it and checks it against the roster — with a loud, deterministic fallback in
+    stub mode, and a fail-closed 403 outside it. **DTOs must not carry an actor field.**
+    (ADR-0039)
+
+20. **One append-only history, for every entity.** `ChangeHistoryEntry` covers
+    assignments, absences, comp days, presence, person edits and all admin CRUD. Draft
+    publishes emit it from `DraftService`; direct writes emit it via `Auth/ChangeAudit`.
+    A new write path with no history row is a bug. (ADR-0040)
+
+21. **Dataset loads are scoped by date, with a 120-day lookback.** The margin is
+    load-bearing, not padding: `CandidateRanker` counts 90 days and `Validator` uses a
+    rolling 91-day window, so trimming to the visible range would silently zero every
+    fairness counter. History is never loaded into the dataset at all. (ADR-0041)
+
+22. **Every mutable entity carries an `int Version`.** Absences and comp days used to be
+    compared as serialized snapshots, which reported conflicts that had not happened and
+    missed ones that had. The client must round-trip `version` untouched through a draft
+    change. (ADR-0042)
+
+23. **Presence is orthogonal to work, and never touches coverage.** A range entity like
+    `Absence`, a *second* projection rather than a `CellValue` variant, rendered only as a
+    **delta from the person's baseline**, and written directly rather than through a draft.
+    A remote person on `Crew` covers `Crew`. (ADR-0043)
+
+23a. **A way of working is a `PresenceType` row, and the set is open.** `PresenceRecord`
+    carries a `typeId`; `PresenceKind` is deleted. The two things code used to branch on
+    are columns: `namesALocation` (does it point at a `Location`, or carry free text) and
+    `countsAs` (`OnSite | Remote | Away`, the coverage strip's headcount — a **closed**
+    set, because a strip row cannot grow a column per type an admin invents). Full CRUD on
+    Settings → Presence; **DELETE is refused once anything points at the type**, and says
+    to untick Offered instead. A type that needs approving **owns a request type**, created
+    and retired with it — otherwise ticking the box makes a menu item with nowhere to send
+    the request. `requiresApproval` is enforced by the **server**
+    (`APPROVAL_REQUIRED`, exactly as `/api/absences` does); it used to be one `if` in the
+    cell menu, so any caller could write the record directly. `engine/presence.ts` draws
+    `?` for a type it does not hold — a blank glyph reads as "nothing recorded".
+    (ADR-0053, ADR-0054)
+
+24. **Roles are a set, granted per planning unit.** `AppRole` is
+    `Viewer | Planner | Approver | Admin` and **nothing is implied by ordering** — an Admin
+    cannot assign shifts, a Planner cannot approve leave, and holding two roles grants both.
+    The ordinal comparison that made `Admin > Planner` a licence to plan is deleted.
+    `RoleAssignment{personId, unitId?, role}` is the grant; `unitId` null is global, which
+    widens *scope*, never *privilege*. Grants live in the **database**, not the token —
+    planning units are ours, and no IdP knows them. "Employee" is still the resource check
+    `subjectPersonId == principal.personId`. `Capabilities` is the only place that answers
+    "may this caller do X, here", and every question takes a unit. (ADR-0051, superseding
+    the role model in ADR-0046)
+
+24a. **Approval is a property of the thing, not of who asks.** A planner recording leave on
+    somebody else's row raises a request like anybody else; `EventType.requiresApproval` and
+    the remote presence kind decide. A planner owns the rota, not other people's time off.
+    Whose inbox it lands in has one answer — the `Approver`s of the subject's unit, falling
+    through to admins when a unit has none, because an empty inbox is the failure nobody
+    notices. `ApprovalRoute` and multi-step approval are **deleted**. (ADR-0051)
+
+25. **A request's envelope is generic; its outcome is typed.** Adding a request type is a
+    row, not a deployment — but an approval writes a real `Absence` or `PresenceRecord`,
+    because the engines read typed rows. `APPROVED` and `APPLIED` are separate states:
+    approval is a human decision, application is a write that can fail. (ADR-0045)
+
+26. **Notifications are rows written in the same transaction as the change.** No queue, no
+    worker, no send — which is exactly why one cannot be lost. The outbox columns exist
+    and are unused until external delivery lands. (ADR-0044)
+
+27. **AI phrases a deterministic digest and never decides.** `IssueDigest` and
+    `CandidateDigest` compute the answer in Application, pure and tested; the model only
+    writes the sentence, under a prompt forbidding any fact not in the digest.
+    `/api/insights/candidate-explanation` answers **with or without** a model. When every
+    ranking criterion ties, the honest answer is "arbitrary" — say that, never invent a
+    reason. Nothing AI-driven may write to published data. (ADR-0048)
+
+28. **Leave entitlement is not modelled, and must not be.** The product records that leave
+    was asked for and granted; it does not compute balances, accrual or carry-over. If a
+    balance question ever needs answering here, integrate or buy. (ADR-0047)
+
+29. **Kinds of absence are data, and `EventType` has no `countsAsCoverage` field.** If it
+    counts as coverage it is a `Shift` — which is why `CoverageCalculator` is untouched by
+    an admin adding a leave type. Behaviour comes from `blocksAssignment`,
+    `countsTowardCapacity`, `requiresApproval`, `allowsHalfDay`. Sickness **needs**
+    approval (ADR-0052 reversing ADR-0049) and is still *not* counted against capacity.
+    The only seeded type needing no approval is `UNAVAILABLE` — a declaration of
+    availability, not a request for time. On the client `CellStatus` is closed
+    (`PH | COMP_OFF | ABSENT`) and carries the detail in `CellValue.event`. (ADR-0049,
+    ADR-0052)
+
+30. **One grid, editability by role.** `useCapabilities()` gates it; the picker stays a
+    single menu whose contents follow the role. Non-planners raise requests and record
+    presence from their own row and read any cell's history. Before this the grid was
+    role-blind and a viewer's click did nothing and said nothing. (ADR-0050)
+
+31. **Half-days are a `portion`, never a time.** `FULL | MORNING | AFTERNOON` on `Absence`
+    and `PresenceRecord`. **Coverage stays whole-day** — comparing a half against a shift
+    window needs a boundary hour, and any hour we picked would be invented. The
+    one-assignment-per-(person, date) invariant is untouched. (ADR-0050)
+
+32. **The cell is two stacked rows**: chip on top, band underneath (absence when a shift
+    is present, presence, pending request), row height 32px. A pending request is always
+    dashed — a proposal must never read as a fact. Presence is drawn for **every** recorded
+    day, coloured by kind, quieter when it matches the person's baseline. The earlier
+    "draw only a departure from the baseline" rule was reversed: records are sparse, so it
+    hid the only ones there were. (ADR-0050, amending ADR-0043)
+
+33. **What the grid draws is layered** — Shifts / Time off / Presence / Requests, toggled
+    in the toolbar, masked at render rather than in the projection. There are no
+    `+ Absence` / `+ Presence` toolbar buttons: right-click does both in one click on the
+    cells already selected. (ADR-0050)
+
 ## Technical decisions
 
 - Frontend: React 19 + Vite + TypeScript (strict), react-router, TanStack Query for
@@ -170,6 +324,31 @@ dotnet test
   Tailwind v4 for tokens and layout (ADR-0022), Vitest
 - Backend: .NET 10 + EF Core 10 + SQL Server (LocalDB in dev) + stubbed auth
   (Entra ID in production); xUnit tests; OpenAPI schema with generated types
+- **The schema is one migration.** There is no production data yet, so `InitialCreate` is
+  regenerated rather than appended to. Once real data exists this stops being true and
+  migrations become incremental again. **Regenerating it invalidates every existing
+  database** — EF sees a migration id it does not know and tries to create tables that are
+  already there. Startup refuses with a message naming the fix
+  (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
+  `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
+  `ShiftOMatorTests` still needs dropping by hand when the schema moves
+- **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
+  keeps all 76 people because the Phase 8 baseline comparison is only meaningful over the
+  full team, while the database gets `DemoPeoplePerUnit` working people per unit plus every
+  manager. A unit with no manager gets its first person granted Planner/Approver/Admin —
+  otherwise it comes up with nobody able to do anything in it
+- **Seeding has two rules, and confusing them was a live bug.** Reference data with fixed
+  ids — event types, request types, role grants — is **topped up per row** on every start,
+  so a database seeded before a type existed picks it up. The roster and demo plan are
+  written once into an empty database, because they have no natural key. The seeder used
+  to guard whole blocks with "if any row exists, skip", which left upgraded databases
+  without the newer types and — because the role step sat after an early return — without
+  any role grants at all, so every screen came up read-only with no explanation
+- **AI is optional and explanation-only**: `Ai:Provider` + `ANTHROPIC_API_KEY`, behind
+  `IChatClient` so no code names a provider. Unconfigured is a *supported state* —
+  `/api/insights/gap-summary` answers 503 `AI_NOT_CONFIGURED`, and
+  `/api/insights/candidate-explanation` still returns its computed deciding factor.
+  Nothing in planning depends on a model being reachable
 - Frontend layering is strictly downward: `features → store → api → data → engine → domain`.
   Backend layering: `Api → Application → Infrastructure → Domain`. Domain logic
   executes server-side only
@@ -180,22 +359,130 @@ dotnet test
   are the fast path for painting ranges. **Any edit opens the draft by itself** — there
   is no Edit mode to enter (ADR-0023)
 - **Overview and Schedule hold independent periods**, not one shared zoom (ADR-0036).
-  Overview is a fixed 1/3/7-day window centered on "now"; Schedule's shortest zoom is
-  a month (`month` / `quarter` / `half-year`). Each screen remembers its own slice in
+  Overview is a fixed 1/3/7-day window centered on "now"; Schedule offers `week` /
+  `month` / `two-months` / `quarter` / `half-year`, the first three editable. **Columns
+  stretch to the width available** — `--cell-w` is `(scroller width − name column) ÷
+  columns`, floored at 40px — so the week fits exactly and two months keeps its scroll.
+  Measured on the **scroller**, not the card: the card keeps its full width while the
+  scroller loses a vertical scrollbar's worth, and sizing from the card left every view a
+  permanent fifteen pixels too wide. **Schedule's window runs
+  forward from the selected day** (two days of lead-in), not snapped to a calendar month —
+  picking the 27th used to show the 1st–31st with the interesting part at the far right.
+  Arrows step **one day**; `« »` jump a month. Each screen remembers its own slice in
   `useUi` (`overview` / `schedule`) and writes the single active `useUi.range` on
   mount (`enterOverview()` / `enterSchedule()`); every other consumer — data loading,
   `usePlanningView`, coverage — still just reads `range`. There is no arbitrary custom
   range anymore; the day strip and year scrubber only jump the anchor. All the period
-  arithmetic lives in `engine/period.ts`.
+  arithmetic lives in `engine/period.ts`. **A screen's first paint must not use
+  `useUi.range`**: it is written by a **layout effect** (`enterSchedule`/`enterOverview`)
+  that runs *after* the first render, so on that render it still names whichever screen
+  you came from. `useRangeSettled` blanks the grid behind a placeholder until
+  `useSchedule.range` matches an **independently recomputed** expected range
+  (`rangeFor(zoom, anchor)`, not the stale store value) — the bug this exists to catch is
+  a one-frame flash of the previous screen's zoom, and comparing against `useUi.range`
+  reintroduces it by coincidentally matching two stale values on the very render it has to
+  catch.
+- **`Person.isIncluded` decides who is *planned*, never who is *drawn*.** Managers are
+  `isIncluded = false` and hold no shifts, and coverage and auto-populate go on ignoring
+  them — but everyone active gets a grid row, because a row is the only place leave and
+  presence can be recorded. Using the one flag for both meant an administrator appeared in
+  the list only while you were acting as them.
+- **My calendar is the grid's projections in a different shape** (ADR-0055).
+  `pages/MyCalendarPage` builds a dataset of **one** person and runs `projectCells`,
+  `projectPresence` and `projectRequests` — the same three — then hands a day to
+  `CellSelfServiceMenu` in a floating shell. Nothing about what a day means or what needs
+  approving is decided twice. It reads its own long window through `['my-calendar']`, so
+  every direct write and every request mutation invalidates that key as well.
+- **The calendar feed is the only anonymous route**, and `Person.CalendarToken` is the
+  whole of its authentication — a subscribing calendar client cannot carry a bearer token.
+  Hence: 256 bits, `[JsonIgnore]` so `/api/reference` cannot hand out everybody's,
+  seed-time replacement of the fixture's guessable `tok-{personId}` on **every** start, and
+  a reset button beside the copy button. A wrong token answers 404 exactly as an unknown
+  route does.
 - **A person's `employeeId` is a unique external key** once set (filtered unique index;
   `null` is unconstrained) — the field an eventual HR import will match people by.
   `AbsenceImportDialog`'s client-side `matchPeople` already tries it first.
+- **The client asks the server who it is** (`GET /api/auth/me` → `AuthProvider` →
+  `useSchedule.setCurrentUser`). It used to guess — "the first MANAGEMENT person in
+  scope" — and that guess disagreed with both `/api/auth/me` and the audit trail. Never
+  reintroduce a client-side identity heuristic.
+- **The grid is a valid ARIA grid and Tab leaves it.** `role="row"` wrappers use
+  `display: contents` so the CSS grid layout is untouched; the picker is reachable by
+  Shift+F10 or the Menu key; `aria-activedescendant` on the scroller carries the virtual
+  cursor. Tab is deliberately *not* bound to cell movement — it used to be, which made
+  the grid a keyboard trap.
+- **A draft survives a change of view.** `load()` used to blank `session`/`changes`, so
+  switching unit or period made staged cells and the Publish button disappear while the
+  draft sat open on the server — visible to everybody else as hatched cells.
+  `listMyOpenDrafts` (`GET /api/drafts?mine=true`, filtered server-side because the
+  client's copy of "who am I" arrives later) **resumes** one; it never opens one, or
+  looking at a unit would mint an empty session in it.
+- **`useSchedule` follows the schedule query, it does not snapshot it.** A cache
+  subscription re-seeds `published`/`plan` on every successful fetch for the view on
+  screen. Without it, anything the *server* wrote on our behalf — which is every approval —
+  never reached the grid: approving leave removed the dashed request and drew nothing, and
+  the cell stayed empty until a reload. **Invalidating `['schedule']` is the whole
+  contract**; do not add a second path.
+- **A failed publish shows a dismissible banner, not the error screen.**
+  `useSchedule.actionError` exists because writing to `error` put the app into
+  `status: 'error'` and blanked the grid — which is exactly what the planner needs to
+  look at while the draft is intact.
 
 ## Open questions
 
-**All eight are closed** — five by the prototype spec, three by the owner. See
+**All ten are closed** — five by the prototype spec, three by the owner before Phase 9,
+and two by the owner during it (absorb the portal; AI at explanation level only). See
 `Docs/14-open-questions.md` for the record, so they are not reopened by accident.
 
 Remaining `ASSUMPTION` values in fixtures (chosen, not confirmed, cheap to change):
-`agingThresholdDays` = 14, role-pool absence limits = 1, comp-off search window, role
-colors and hotkeys.
+`agingThresholdDays` = 14, shift-pool absence limits = 1, comp-off search window, shift
+colors and hotkeys, `unit-st`'s `primaryLocationId`, and the seeded role grants (every
+manager plans, approves and administers their own unit; one global Admin).
+
+## Known gaps
+
+Not bugs — things the design names and has not built. Full list in
+`Docs/13-roadmap.md`.
+
+- **Entra ID is a config branch, not an implementation.** `Auth:Mode != "Stub"` binds an
+  `Auth:Jwt` section that does not exist; there is no `roles` array-claim mapping and no
+  `Person.externalObjectId` to map a token onto. In stub mode the identity is
+  **switchable** — `Auth:StubPersonId`, or `X-Debug-PersonId` per request — so role
+  behaviour is testable without a restart. **`Auth:StubRole` must stay empty**: it is a
+  role *override*, and it used to default to `"Planner"` in both `Program.cs` and
+  `appsettings.json`, so the override was permanently on and the stored grants were never
+  read — nobody was ever an Admin or an Approver, Settings never appeared, and no Approve
+  button rendered. `X-Debug-Role` still exists for the API tests
+  (comma-separated; the literal `Viewer` strips an account to nothing, an absent header
+  means "use their real grants"), but the **in-app switcher picks a person only**: a
+  global role override is a state the real product cannot produce, so what it tested was a
+  configuration nobody could ever be in. Grants are edited on Settings → Roles. Those headers are read only by
+  `StubAuthenticationHandler`, which exists only in stub mode; the client's switcher is
+  gated on `MeResponse.stubMode`.
+- **No external notification delivery.** The inbox works; the outbox columns are unused.
+- **No admin screen for request types.** They are data with a seeded starting set, so
+  adding one is a row — but until the card exists that row goes in the seed or the
+  database. Event types have a screen (Settings → Leave types) and presence types have one
+  (Settings → Presence); approval routes no longer need one, because routing is the
+  `Approver` grant. Most request types are now derivable from those two screens — one per
+  approval-needing event type, one per presence kind — which is why the card has not been
+  built: the interesting question is whether it should exist at all rather than be
+  generated.
+- **Coverage is whole-day, so a half-day absence beside a shift is a flagged conflict
+  rather than a representable roster.** The fix is half-day *shifts*, which would let
+  coverage count halves and make absence-plus-shift forbiddable. It is blocked by integer
+  minimums running through the calculator, the validator, the strip, the digest and their
+  tests — a phase, not an afternoon (ADR-0052).
+- **A trap worth remembering, now defused.** `AbsenceCapacityRule.CountsTypes` used to
+  persist enum **ordinals** through `JsonListConverter`, because
+  `JsonSerializerDefaults.Web` registers no string-enum converter. Any future enum → string
+  list in a JSON column needs a data migration, not just a type change.
+- **No rate limiting, no structured logging beyond correlation ids.** `Docs/12` states
+  per-endpoint targets that nothing enforces.
+- **Holidays import, they do not sync.** `POST /api/admin/holidays/import` reads an
+  iCalendar feed (pasted, uploaded, or fetched from a host in
+  `Holidays:AllowedCalendarHosts`) and **adds days that are missing, never removing one**.
+  A real sync needs a scheduler and an answer to "the feed dropped a day people are already
+  rostered off for", and neither exists.
+- **No mobile or tablet story.** Zero touch/pointer handlers; painting, range selection
+  and the scrubber are mouse-only, and the side panels are fixed-width.

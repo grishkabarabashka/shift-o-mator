@@ -22,7 +22,6 @@ public class DraftServiceTests
         PersonId = "p-1",
         Date = date,
         UnitId = TestFixtures.TestUnit.Id,
-        ContentKind = AssignmentContentKind.Shift,
         ShiftId = TestFixtures.LeadRole.Id,
         Source = AssignmentSource.Manual,
         Version = version,

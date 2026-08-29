@@ -1,6 +1,10 @@
 # ADR-0012. `ScheduleRepository` is the single data boundary; every method is async
 
-**Status:** accepted
+**Status:** accepted — narrowed by
+[ADR-0041](0041-scoped-dataset-loading.md) on the server side (the dataset behind the
+boundary is loaded by date range, not wholesale). Self-service reads
+([ADR-0045](0045-generic-request-envelope-typed-materialization.md)) sit outside this
+boundary deliberately: a request is a conversation about a future change, not the plan.
 
 ## Context
 

@@ -115,16 +115,8 @@ public class CoverageCalculatorTests
             Assert.All(CoverageFor(("p-1", "2026-10-01")), c => Assert.Equal(0, c.Actual));
         }
 
-        [Fact]
-        public void Roster_markers_do_not_count_toward_coverage()
-        {
-            var data = MakeDataset(
-                people: People,
-                assignments: [MakeMarkerAssignment("p-1", RosterMarker.Off, new DateOnly(2026, 9, 8))],
-                dayConfigurations: [Weekday, Weekend, HolidayConfig]);
-            var cells = CoverageCalculator.Compute(TestUnit.Id, new DateOnly(2026, 9, 8), new DateOnly(2026, 9, 8), data.Assignments, BuildIndex(data));
-            Assert.Equal(0, cells[0].Actual);
-        }
+        // "Roster markers do not count toward coverage" is deleted with the markers
+        // (ADR-0052): every assignment is a shift, so there is no case left to test.
 
         [Fact]
         public void A_role_without_CountsAsCoverage_is_not_counted()

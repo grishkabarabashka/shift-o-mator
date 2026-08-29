@@ -10,7 +10,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider.tsx';
-import { type Location } from '../../domain/types.ts';
+import { type Location, type Person } from '../../domain/types.ts';
 import { isAllUnits, scopeIncludes } from '../../domain/unitScope.ts';
 import { UnitScopePicker } from './UnitScopePicker.tsx';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
@@ -19,19 +19,38 @@ import { dedupeLocationsByZone } from '../../engine/locationClocks.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { useNow } from '../../ui/useNow.ts';
+import * as Popover from '@radix-ui/react-popover';
+import {
+  useIdentitySwitcher,
+  type AuthIdentity,
+} from '../../auth/AuthProvider.tsx';
+import { Select, type SelectOption } from '../../ui/primitives.tsx';
+import { useRoleAssignments } from '../../api/roleAssignments.ts';
+import { useCapabilities } from '../../auth/useCapabilities.ts';
+import { NotificationBell } from './NotificationBell.tsx';
 
 export interface NavItem {
   readonly to: string;
   readonly label: string;
+  /** Hidden from anyone who administers nothing. Settings is configuration, and a tab
+   * that 403s on arrival is worse than no tab (ADR-0051). */
+  readonly adminOnly?: boolean;
 }
 
-export const NAV_ITEMS: readonly NavItem[] = [
+const NAV_ITEMS: readonly NavItem[] = [
   // NOTE: Dashboard and timeline are one screen: both answered "are we
   // covered?", and splitting them cost a navigation without buying anything.
   { to: '/overview', label: 'Overview' },
   { to: '/schedule', label: 'Schedule' },
   { to: '/people', label: 'People' },
-  { to: '/settings', label: 'Settings' },
+  // Your own months, read like a calendar. The grid is a planner's instrument, and
+  // reaching your own row in it to book November is not what it is for.
+  { to: '/me', label: 'My calendar' },
+  // NOTE: Requests sits in the main nav, not behind a menu (ADR-0047): it is the only
+  // screen most of the ~80 people ever need, and burying self-service is how you end up
+  // with a self-service portal nobody uses.
+  { to: '/requests', label: 'Requests' },
+  { to: '/settings', label: 'Settings', adminOnly: true },
 ];
 
 export function AppShell({ children }: { readonly children: ReactNode }) {
@@ -56,12 +75,12 @@ function ProductHeader() {
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);
 
-  // Stub identity for now (Phase 4 client seam) — see `auth/AuthProvider.tsx`. Not the
-  // same thing as `useSchedule`'s `currentUserId` (still "first manager in scope",
-  // Phase 5's problem to replace); this is who the badge says is signed in.
+  // Resolved server-side and mirrored into the store (ADR-0039), so the badge, the
+  // audit trail and what the grid lets you touch cannot disagree.
   const identity = useAuth();
 
   const units = reference?.units ?? [];
+  const people = reference?.people ?? [];
 
   // Locations of the units in scope. "All" has no locations of its own, and
   // neither does a scope naming several units — both fall back to every
@@ -81,17 +100,13 @@ function ProductHeader() {
   const primaryLocationIds = new Set(units.map((u) => u.primaryLocationId));
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-4 shadow-[0_1px_3px_rgb(16_24_40_/_0.05)]">
+    <header className="masthead flex h-14 shrink-0 items-center gap-3 px-4">
       <div className="flex shrink-0 items-center gap-2.5">
-        <span
-          aria-hidden
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-accent-ink"
-          style={{ background: 'linear-gradient(155deg, var(--accent), color-mix(in srgb, var(--accent) 70%, black))' }}
-        >
+        <span aria-hidden className="brand__mark">
           S
         </span>
-        <span className="hidden flex-none text-[15px] font-semibold tracking-tight whitespace-nowrap lg:block">
-          shift-o-mator
+        <span className="brand__name hidden flex-none whitespace-nowrap lg:block">
+          shift<em>·</em>o<em>·</em>mator
         </span>
       </div>
 
@@ -114,19 +129,19 @@ function ProductHeader() {
 
         <LocationClockStrip locations={strip} primaryLocationIds={primaryLocationIds} />
 
+        <NotificationBell />
+
         <div className="h-6 w-px bg-line" />
 
         <div className="flex items-center gap-2.5">
           <div className="hidden text-right leading-tight sm:block">
             <div className="text-[12.5px] font-semibold">{identity.displayName}</div>
-            <div className="text-[11px] text-faint">{identity.role}</div>
+            <div className="text-[11px] text-faint">{describeGrants(identity)}</div>
           </div>
-          <span
-            aria-hidden
-            className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-[12px] font-bold text-accent"
-          >
+          <span aria-hidden className="avatar">
             {initialsOf(identity.displayName)}
           </span>
+          {identity.stubMode ? <IdentitySwitcher people={people} current={identity} /> : null}
         </div>
       </div>
     </header>
@@ -158,12 +173,19 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
 }
 
 /**
- * Location clock strip — a read-only indicator, one small clock per location
- * actually in play. Used to double as the display-timezone picker; that
- * picker moved to Settings → Display (owner review: clicking a clock in the
- * header changed two tooltip strings on Overview and nothing else, which
- * read as broken rather than as a working control — ADR-0036). The active
- * pill still shows which zone is currently selected there.
+ * Location clocks — one per location actually in play, and **the display-timezone
+ * picker**: click a clock to read every time in that zone.
+ *
+ * WHY the control is here and not on a screen of its own: it went to Settings, then to a
+ * Display menu beside the avatar, and both were the same mistake in different places — a
+ * separate control for a choice the clocks already display. The clocks say which zone is
+ * active; clicking one is the shortest possible way to say "that one".
+ *
+ * The earlier objection (owner review: clicking a clock changed two tooltips on Overview
+ * and looked broken) was about what the setting *reaches*, not about where it lives. It
+ * reaches the day-detail axis, the palette's time labels and Overview's tooltips; each
+ * location keeps its own axis on Overview regardless, which is what made the effect look
+ * smaller than it is.
  */
 function LocationClockStrip({
   locations,
@@ -174,41 +196,57 @@ function LocationClockStrip({
 }) {
   const now = useNow();
   const displayZone = useUi((s) => s.displayZone);
+  const setDisplayZone = useUi((s) => s.setDisplayZone);
   const clocks = dedupeLocationsByZone(locations, primaryLocationIds);
 
   if (clocks.length === 0) return null;
 
   return (
-    <div className="hidden items-center gap-1.5 lg:flex" role="group" aria-label="Location times">
-      <span
+    <div
+      className="hidden items-center gap-1.5 lg:flex"
+      role="radiogroup"
+      aria-label="Display timezone"
+    >
+      <button
+        type="button"
         className="pill"
+        role="radio"
+        aria-checked={displayZone === 'shift'}
         data-active={displayZone === 'shift'}
-        title="Display timezone is 'Shift time' — change it in Settings → Display"
+        onClick={() => setDisplayZone('shift')}
+        title="Read every time in the shift's own timezone"
       >
         Shift time
-      </span>
+      </button>
       {clocks.map((location) => (
-        <span
+        <button
           key={location.timeZone}
+          type="button"
           className="pill"
+          role="radio"
+          aria-checked={displayZone === location.timeZone}
           data-active={displayZone === location.timeZone}
-          title={`${location.name} — ${location.timeZone}. Change the display timezone in Settings → Display.`}
+          onClick={() => setDisplayZone(location.timeZone)}
+          title={`Read every time in ${location.name} time (${location.timeZone})`}
         >
           <span className="font-medium">{location.name}</span>{' '}
           <span className="font-mono">{formatInZone(now, location.timeZone)}</span>
-        </span>
+        </button>
       ))}
     </div>
   );
 }
 
 function Masthead() {
+  const caps = useCapabilities();
+  const items = NAV_ITEMS.filter((item) => !item.adminOnly || caps.administersSomewhere);
+
   return (
     <nav
-      className="flex h-11 shrink-0 items-end gap-1 border-b border-line bg-surface px-4"
+      className="masthead masthead--foot flex h-11 shrink-0 items-end gap-1 px-4"
       aria-label="Sections"
     >
-      {NAV_ITEMS.map((item) => (
+      {items.map((item) => (
         <NavLink key={item.to} to={item.to} className="tab">
           {item.label}
         </NavLink>
@@ -224,4 +262,124 @@ function initialsOf(name: string | undefined): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
+}
+
+/**
+ * Acts as somebody else, for testing roles and self-service.
+ *
+ * **Person only.** There was a role override here too, and it was the wrong shape: it
+ * granted roles *globally*, which is a state the real product cannot produce, so what you
+ * were testing was not a configuration anybody could ever be in. Worse, it read as broken
+ * — grants live in Settings → Roles, so the honest way to see what a planner of one unit
+ * experiences is to grant that and act as them.
+ *
+ * Acting as a person now shows exactly the grants that person holds. If the answer is
+ * wrong, the grant is wrong, and the grant is a row you can fix.
+ *
+ * Only rendered when the server reports `Auth:Mode=Stub`, which is the only mode that
+ * honours the header this sets (`StubAuthenticationHandler`). There is no path to it in
+ * a real deployment, and `Docs/00-overview.md`'s "any in-app role switcher is a
+ * development convenience and must not ship" is satisfied by that gate rather than by
+ * hoping nobody finds it.
+ */
+function IdentitySwitcher({
+  people,
+  current,
+}: {
+  readonly people: readonly Person[];
+  readonly current: AuthIdentity;
+}) {
+  const switchTo = useIdentitySwitcher();
+
+  // WHY the roles are on the labels: acting as somebody is now the only way to see what
+  // a role does, and there was nothing anywhere saying who holds one — so finding an
+  // administrator meant trying people one at a time.
+  const grants = useRoleAssignments();
+  const rolesByPerson = new Map<string, string[]>();
+  const globalAdmins = new Set<string>();
+  for (const grant of grants.data ?? []) {
+    const held = rolesByPerson.get(grant.personId) ?? [];
+    const scope = grant.unitId ? grant.unitId.replace(/^unit-/, '').toUpperCase() : 'all';
+    const role = grant.role.charAt(0).toUpperCase() + grant.role.slice(1);
+    held.push(`${role} (${scope})`);
+    rolesByPerson.set(grant.personId, held);
+    if (!grant.unitId && grant.role.toLowerCase() === 'admin') globalAdmins.add(grant.personId);
+  }
+
+  // Grant-holders first, and the global administrators above them. Alphabetical order put
+  // the one person who can change global configuration somewhere in the middle of
+  // twenty-seven names, with nothing marking them out — so "there is no global
+  // administrator" was a reasonable conclusion to draw from this list.
+  const rank = (personId: string): number =>
+    globalAdmins.has(personId) ? 0 : rolesByPerson.has(personId) ? 1 : 2;
+
+  const peopleOptions: readonly SelectOption[] = [
+    { value: '', label: '— server default —' },
+    ...[...people]
+      .sort((a, b) => rank(a.id) - rank(b.id) || a.displayName.localeCompare(b.displayName))
+      .map((person) => {
+        const held = rolesByPerson.get(person.id);
+        return {
+          value: person.id,
+          label: held ? `${person.displayName} — ${[...new Set(held)].join(', ')}` : person.displayName,
+        };
+      }),
+  ];
+
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="pill pill--warn"
+          title="Development only: act as another person or role"
+        >
+          dev
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 w-[240px] rounded-lg border border-line bg-surface p-2 shadow-lg"
+        >
+          <p className="mb-2 px-1 text-[11px] text-faint">
+            Stub auth. Switching drops every cached query — you are a different person.
+          </p>
+
+          <label className="block text-[12px]">
+            <span className="mb-1 block font-medium">Act as</span>
+            <Select
+              value={current.personId}
+              onChange={(personId) => switchTo({ personId })}
+              options={peopleOptions}
+              ariaLabel="Act as person"
+            />
+          </label>
+
+          <p className="mt-2 px-1 text-[10.5px] text-faint">
+            You get whatever grants that person holds. To change what somebody can do, grant
+            it on Settings → Roles.
+          </p>
+          <p className="mt-1 px-1 text-[10.5px] text-faint">{describeGrants(current)}</p>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+/**
+ * The badge under the name. Roles are a set scoped to units, so this summarises rather
+ * than naming one: "Planner, Approver" globally, or "Planner (AMER)" when it is narrower.
+ */
+function describeGrants(identity: AuthIdentity): string {
+  const real = identity.grants.filter((grant) => grant.role !== 'Viewer');
+  if (real.length === 0) return 'Viewer';
+
+  return [
+    ...new Set(
+      real.map((grant) => (grant.unitId ? `${grant.role} (${grant.unitId.replace(/^unit-/, '').toUpperCase()})` : grant.role)),
+    ),
+  ].join(', ');
 }

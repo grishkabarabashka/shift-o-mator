@@ -21,7 +21,7 @@ public static class DayConfigurationsAdminEndpoints
 {
     public static void MapDayConfigurationsAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/day-configurations").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/day-configurations").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         // Full history, not just the currently-effective row — the UI needs every
         // version to render the timeline the plan calls for.

@@ -13,7 +13,7 @@ public static class HolidaysAdminEndpoints
 {
     public static void MapHolidaysAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/holidays").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/holidays").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Holidays.AsNoTracking().OrderBy(h => h.Date).ToListAsync(ct)))

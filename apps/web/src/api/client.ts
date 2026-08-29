@@ -35,10 +35,18 @@ async function parseBody(res: Response): Promise<unknown> {
 }
 
 /**
- * NOTE: Stub auth (Phase 4) needs no header — `StubAuthenticationHandler` issues
- * a fixed identity on every request without reading a token. This is where
- * `Authorization: Bearer` belongs once the server's `Auth:Mode` switches to
- * `EntraId` (see `src/auth/AuthProvider.tsx`).
+ * The dev identity override. Only meaningful when the server runs `Auth:Mode=Stub`,
+ * which is the only mode that reads these headers — see `StubAuthenticationHandler`.
+ */
+let debugIdentity: { personId?: string; role?: string } | undefined;
+
+export function setDebugIdentity(next: { personId?: string; role?: string } | undefined): void {
+  debugIdentity = next;
+}
+
+/**
+ * NOTE: no `Authorization` header yet — stub auth issues an identity without reading a
+ * token. This is where `Bearer` belongs once `Auth:Mode` switches to `EntraId`.
  */
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -46,6 +54,8 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
     headers: {
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       Accept: 'application/json',
+      ...(debugIdentity?.personId ? { 'X-Debug-PersonId': debugIdentity.personId } : {}),
+      ...(debugIdentity?.role ? { 'X-Debug-Role': debugIdentity.role } : {}),
       ...init?.headers,
     },
   });

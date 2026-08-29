@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.People;
@@ -15,7 +16,9 @@ public static class PeopleEndpoints
 {
     public static void MapPeopleEndpoints(this WebApplication app)
     {
-        app.MapPut("/api/people/{id}", async (string id, UpdatePersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPut("/api/people/{id}", async (
+            string id, UpdatePersonRequest req, ClaimsPrincipal user, ActorResolver actors,
+            ScheduleDbContext db, CancellationToken ct) =>
         {
             var person = await db.People.Include(p => p.Eligibility).FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null) return Results.NotFound(new NotFoundResponse("PERSON_NOT_FOUND", id));
@@ -46,12 +49,20 @@ public static class PeopleEndpoints
                     Note = req.Preferences.Note,
                 };
 
+            // ADR-0041: this write skips the draft, so nothing else would record it.
+            // Eligibility and availability decide who auto-populate can pick — a silent
+            // edit here changes tomorrow's roster with no trace of who made it.
+            db.RecordPerson(
+                HistoryAction.Updated, id,
+                $"Profile updated ({person.Eligibility.Count} eligible shifts).",
+                person, await actors.RequireAsync(user, ct));
+
             await db.SaveChangesAsync(ct);
             return Results.Ok(person);
         })
         .WithName("UpdatePerson")
         .Produces<Person>()
         .Produces<NotFoundResponse>(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.PlannerOrAbove);
+        .RequireAuthorization(AuthPolicies.PlannerSomewhere);
     }
 }

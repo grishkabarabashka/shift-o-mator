@@ -806,3 +806,54 @@ export function hourTicks(axis: UtcInterval, zone: string): HourTick[] {
   }
   return ticks;
 }
+
+/** A stretch of the axis that is night in one location, as percentages of its width. */
+export interface NightBand {
+  readonly left: number;
+  readonly width: number;
+}
+
+/** Local hours counted as night. Outside working hours everywhere we operate, and the
+ * point is legibility rather than astronomy. */
+const NIGHT_FROM = 20;
+const NIGHT_UNTIL = 6;
+
+/**
+ * Night, per location, across the axis.
+ *
+ * WHY it is computed rather than drawn as a repeating gradient: a gradient repeats on the
+ * axis, and night does not — it falls at a different offset in every timezone, which is
+ * the entire reason this product stacks one axis per location. Working that out in CSS is
+ * not possible; working it out here is a loop over hours.
+ *
+ * Hour granularity on purpose. This is a wash behind the tick labels, and a band that
+ * begins at 20:00 sharp is as true as the thing needs to be.
+ */
+export function nightBands(axis: UtcInterval, zone: string): NightBand[] {
+  const start = Date.parse(axis.start);
+  const end = Date.parse(axis.end);
+  if (!(end > start)) return [];
+
+  const hours = Math.round((end - start) / HOUR_MS);
+  const bands: NightBand[] = [];
+  let runStart: number | undefined;
+
+  const close = (endHour: number) => {
+    if (runStart === undefined) return;
+    const left = (runStart / hours) * 100;
+    bands.push({ left, width: ((endHour - runStart) / hours) * 100 });
+    runStart = undefined;
+  };
+
+  for (let hour = 0; hour < hours; hour += 1) {
+    const at = new Date(start + hour * HOUR_MS).toISOString();
+    const local = Number(formatInZone(at, zone, 'H'));
+    const isNight = local >= NIGHT_FROM || local < NIGHT_UNTIL;
+
+    if (isNight && runStart === undefined) runStart = hour;
+    else if (!isNight) close(hour);
+  }
+  close(hours);
+
+  return bands;
+}

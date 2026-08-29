@@ -1,6 +1,11 @@
 # ADR-0015. Optimistic drafts and atomic publication
 
-**Status:** accepted — **supersedes [ADR-0011](0011-checkout-instead-of-realtime.md)**
+**Status:** accepted — **supersedes [ADR-0011](0011-checkout-instead-of-realtime.md)**.
+Its *scope* is narrowed by [ADR-0052](0052-two-flows-drafts-for-shifts-approval-for-everything-else.md):
+a draft publishes the rota and comp-day accrual, and nothing else. Absences left it
+entirely.
+Amended by [ADR-0042](0042-concurrency-tokens-for-absences-and-comp-days.md): absences and
+comp days now carry version tokens instead of being compared as serialized snapshots.
 
 ## Context
 

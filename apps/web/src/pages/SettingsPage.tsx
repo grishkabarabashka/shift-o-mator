@@ -31,10 +31,14 @@ import {
   adminAbsenceCapacityRules,
   adminHolidays,
   adminLocations,
+  adminEventTypes,
+  adminPresenceTypes,
   adminPeople,
   adminShifts,
   adminUnits,
   absenceCapacityRuleToWire,
+  eventTypeToWire,
+  presenceTypeToWire,
   holidayToWire,
   locationToWire,
   personAdminToWire,
@@ -47,19 +51,23 @@ import { weekdaysToWire } from '../api/mapping.ts';
 import type {
   AbsenceCapacityRule,
   DayConfigKey,
+  EventType,
   Holiday,
   Location,
   PlanningUnit,
+  PresenceType,
   Shift,
   ShiftRequirement,
   Weekday,
 } from '../domain/types.ts';
-import { dedupeLocationsByZone } from '../engine/locationClocks.ts';
 import { DirtyBar } from '../features/settings/DirtyBar.tsx';
+import { HolidayImport } from '../features/settings/HolidayImport.tsx';
 import { CheckboxField, FieldErrorList, NativeSelectField, NumberField, TextField, TimeField } from '../features/settings/fields.tsx';
 import { type AdminEntity, type EntityOps, useAdminEdits } from '../features/settings/useAdminEdits.ts';
 import { useSchedule } from '../store/useSchedule.ts';
-import { useUi } from '../store/useUi.ts';
+import { APP_ROLES, type AppRole } from '../auth/AuthProvider.tsx';
+import { useCapabilities } from '../auth/useCapabilities.ts';
+import { useGrantRole, useRevokeRole, useRoleAssignments } from '../api/roleAssignments.ts';
 
 const TABS = [
   'Units',
@@ -68,8 +76,10 @@ const TABS = [
   'Day configs',
   'Holidays',
   'Absence limits',
+  'Leave types',
+  'Presence',
   'People',
-  'Display',
+  'Roles',
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -135,6 +145,13 @@ export function SettingsPage() {
   const shiftUpdate = adminShifts.useUpdate();
   const shiftRemove = adminShifts.useRemove();
 
+  const eventTypeCreate = adminEventTypes.useCreate();
+  const eventTypeUpdate = adminEventTypes.useUpdate();
+
+  const presenceTypeCreate = adminPresenceTypes.useCreate();
+  const presenceTypeUpdate = adminPresenceTypes.useUpdate();
+  const presenceTypeRemove = adminPresenceTypes.useRemove();
+
   const personCreate = adminPeople.useCreate();
   const personUpdate = adminPeople.useUpdate();
   const personRemove = adminPeople.useRemove();
@@ -169,6 +186,22 @@ export function SettingsPage() {
       update: (id, r) => shiftUpdate.mutateAsync({ id, body: r as never }),
       remove: (id) => shiftRemove.mutateAsync(id),
       toRequest: (d) => shiftToWire(d as never) as never,
+    },
+    eventType: {
+      create: (r) => eventTypeCreate.mutateAsync(r as never),
+      update: (id, r) => eventTypeUpdate.mutateAsync({ id, body: r as never }),
+      // No delete: a retired kind is `isActive: false`, because absences point at these
+      // by id and a deleted one leaves rows nobody can name (ADR-0049).
+      remove: () => Promise.resolve(),
+      toRequest: (d) => eventTypeToWire(d as never) as never,
+    },
+    presenceType: {
+      create: (r) => presenceTypeCreate.mutateAsync(r as never),
+      update: (id, r) => presenceTypeUpdate.mutateAsync({ id, body: r as never }),
+      // The server refuses this once anything points at the type, and says to untick
+      // Offered instead.
+      remove: (id) => presenceTypeRemove.mutateAsync(id),
+      toRequest: (d) => presenceTypeToWire(d as never) as never,
     },
     person: {
       create: (r) => personCreate.mutateAsync(r as never),
@@ -219,8 +252,10 @@ export function SettingsPage() {
         {tab === 'Day configs' ? <DayConfigurationsTab reference={reference} /> : null}
         {tab === 'Holidays' ? <HolidaysTab reference={reference} edits={edits} /> : null}
         {tab === 'Absence limits' ? <AbsenceLimitsTab reference={reference} edits={edits} /> : null}
+        {tab === 'Leave types' ? <EventTypesTab reference={reference} edits={edits} /> : null}
+        {tab === 'Presence' ? <PresenceTypesTab reference={reference} edits={edits} /> : null}
         {tab === 'People' ? <PeopleTab reference={reference} edits={edits} /> : null}
-        {tab === 'Display' ? <DisplayTab reference={reference} /> : null}
+        {tab === 'Roles' ? <RolesTab reference={reference} /> : null}
       </section>
     </div>
   );
@@ -589,7 +624,9 @@ function HolidaysTab({ reference, edits }: { readonly reference: Reference; read
   const tempId = useId();
   const sorted = [...reference.holidays].sort((a, b) => a.date.localeCompare(b.date));
   return (
-    <EditableTable
+    <div className="flex flex-col gap-3">
+      <HolidayImport locations={reference.locations} />
+      <EditableTable
       title="holiday"
       rows={sorted}
       entity="holiday"
@@ -636,7 +673,8 @@ function HolidaysTab({ reference, edits }: { readonly reference: Reference; read
           </td>
         </>
       )}
-    />
+      />
+    </div>
   );
 }
 
@@ -949,55 +987,8 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
  * changed exactly two tooltip strings on Overview and nothing else, which
  * read as broken rather than as a working control.
  */
-function DisplayTab({ reference }: { readonly reference: Reference }) {
-  const displayZone = useUi((s) => s.displayZone);
-  const setDisplayZone = useUi((s) => s.setDisplayZone);
-
-  const primaryLocationIds = new Set(reference.units.map((u) => u.primaryLocationId));
-  const clocks = dedupeLocationsByZone(reference.locations, primaryLocationIds);
-
-  return (
-    <div className="max-w-[420px] p-4">
-      <h2 className="text-[13.5px] font-semibold">Display timezone</h2>
-      <p className="mt-1 mb-3 text-[11.5px] text-faint">
-        Used for the day-detail time axis, the shift palette&apos;s time labels, and
-        tooltips on the Overview timeline. Each location keeps its own axis on Overview
-        regardless of this choice.
-      </p>
-      <div className="flex flex-col gap-2" role="radiogroup" aria-label="Display timezone">
-        <label className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] hover:bg-hover">
-          <input
-            type="radio"
-            name="display-zone"
-            checked={displayZone === 'shift'}
-            onChange={() => setDisplayZone('shift')}
-          />
-          <span>
-            Shift time
-            <span className="ml-1.5 text-faint">— each shift&apos;s own timezone</span>
-          </span>
-        </label>
-        {clocks.map((location) => (
-          <label
-            key={location.timeZone}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] hover:bg-hover"
-          >
-            <input
-              type="radio"
-              name="display-zone"
-              checked={displayZone === location.timeZone}
-              onChange={() => setDisplayZone(location.timeZone)}
-            />
-            <span>
-              {location.name}
-              <span className="ml-1.5 font-mono text-faint">{location.timeZone}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+// DisplayTab moved to the profile menu (features/shell/DisplayMenu.tsx): Settings is
+// admin-only now, and which timezone you read the grid in is everybody’s preference.
 
 // ---------------------------------------------------------------------------
 // Generic editable table: existing rows + one pending "new row" + delete
@@ -1089,5 +1080,423 @@ function EditableTable<T extends { readonly id: string }>({
         </tr>
       </tfoot>
     </table>
+  );
+}
+
+/**
+ * Who may plan, approve and administer, and where (ADR-0051).
+ *
+ * WHY a matrix of people against roles rather than a list of grants: the question people
+ * actually arrive with is "who approves EMEA's leave", and a flat list of rows sorted by
+ * whatever the database returned does not answer it. The unit filter comes first because
+ * a grant means nothing without it.
+ *
+ * Viewer is absent on purpose: everyone signed in has it, and a checkbox that can only
+ * ever be ticked is a lie about what is configurable.
+ */
+function RolesTab({ reference }: { readonly reference: Reference }) {
+  const [scope, setScope] = useState<string>(reference.units[0]?.id ?? '');
+  const caps = useCapabilities();
+  const grants = useRoleAssignments();
+  const grant = useGrantRole();
+  const revoke = useRevokeRole();
+
+  const unitId = scope === GLOBAL_SCOPE ? null : scope;
+  const mayEdit = unitId === null ? caps.canAdministerGlobally : caps.canAdminister(unitId);
+
+  const rows = [...reference.people]
+    .filter((person) => person.isActive)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  const held = new Map<string, string>();
+  for (const row of grants.data ?? []) {
+    if ((row.unitId ?? null) === unitId) held.set(`${row.personId}|${row.role}`, row.id);
+  }
+
+  const toggle = (personId: string, role: Lowercase<AppRole>) => {
+    const existing = held.get(`${personId}|${role}`);
+    if (existing) revoke.mutate(existing);
+    else grant.mutate({ personId, unitId, role });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] font-medium">Grants in</span>
+        <div className="segmented">
+          {reference.units.map((unit) => (
+            <button
+              key={unit.id}
+              type="button"
+              className="segmented__item"
+              data-active={scope === unit.id}
+              onClick={() => setScope(unit.id)}
+            >
+              {unit.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="segmented__item"
+            data-active={scope === GLOBAL_SCOPE}
+            onClick={() => setScope(GLOBAL_SCOPE)}
+            title="Roles that apply in every unit, and configuration that belongs to none"
+          >
+            Every unit
+          </button>
+        </div>
+      </div>
+
+      {mayEdit ? null : (
+        <p className="text-[12px] text-warn">
+          {unitId === null
+            ? 'Only a global administrator can grant a role in every unit.'
+            : 'You do not administer this unit, so these grants are read-only for you.'}
+        </p>
+      )}
+
+      <table className="rows">
+        <thead>
+          <tr>
+            <th className="text-left">Person</th>
+            {GRANTABLE.map((role) => (
+              <th key={role} className="w-[110px] text-left">
+                {role}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((person) => (
+            <tr key={person.id}>
+              <td>
+                <span className="font-medium">{person.displayName}</span>
+                <span className="ml-2 text-[11px] text-faint">{person.unitId}</span>
+              </td>
+              {GRANTABLE.map((role) => {
+                const key = role.toLowerCase() as Lowercase<AppRole>;
+                const on = held.has(`${person.id}|${key}`);
+                return (
+                  <td key={role}>
+                    <label className="flex items-center gap-1.5 text-[12px]">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!mayEdit}
+                        onChange={() => toggle(person.id, key)}
+                        aria-label={`${role} for ${person.displayName}`}
+                      />
+                      <span className="text-faint">{on ? 'yes' : '—'}</span>
+                    </label>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Sentinel for the "every unit" tab; a real unit id can never be empty. */
+const GLOBAL_SCOPE = '';
+
+/** Viewer is what everyone signed in already holds, so it is not grantable. */
+const GRANTABLE = APP_ROLES.filter((role) => role !== 'Viewer');
+
+/**
+ * Kinds of non-working day (ADR-0049).
+ *
+ * The colour is the one that fills the cell, and the short label is what a 62px column
+ * shows — both are here because both are matters of taste that changed twice in review and
+ * should not need a deployment to change a third time.
+ *
+ * There is **no delete**: absences point at these by id, so a retired kind is unticked
+ * rather than removed and keeps its name for the rows that already use it.
+ */
+function EventTypesTab({ reference, edits }: { readonly reference: Reference; readonly edits: Edits }) {
+  const tempId = useId();
+  const sorted = [...reference.eventTypes].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <GlobalAdminNotice reference={reference} what="Kinds of leave" />
+
+      <EditableTable
+        title="leave type"
+        rows={sorted}
+        entity="eventType"
+        edits={edits}
+        newTempId={tempId}
+        newInitial={{
+          code: '',
+          label: '',
+          shortLabel: '',
+          color: '#9aa3ad',
+          category: 'OTHER',
+          blocksAssignment: true,
+          countsTowardCapacity: true,
+          requiresApproval: true,
+          allowsHalfDay: true,
+          isActive: true,
+          sortOrder: sorted.length + 1,
+        }}
+        renderHeader={() => (
+          <tr>
+            <th>Label</th>
+            <th className="w-[90px]">In the cell</th>
+            <th className="w-[70px]">Colour</th>
+            <th className="w-[80px]" title="Closes the day out — a shift on it is flagged as a conflict">
+              Blocks
+            </th>
+            <th className="w-[90px]" title="Counted against the simultaneous-absence limit">
+              Capacity
+            </th>
+            <th className="w-[90px]" title="Has to be requested and approved, by anybody — planners included">
+              Approval
+            </th>
+            <th className="w-[80px]">Half day</th>
+            <th className="w-[70px]" title="Unticking retires it; existing absences keep their name">
+              Active
+            </th>
+            <th />
+          </tr>
+        )}
+        renderRow={(draft: EventType, setField, errors) => (
+          <>
+            <td>
+              <TextField value={draft.label} ariaLabel="Label" onChange={(v) => setField('label', v)} />
+              <FieldErrorList errors={errors?.label} />
+            </td>
+            <td>
+              <TextField
+                value={draft.shortLabel}
+                ariaLabel="Short label"
+                onChange={(v) => setField('shortLabel', v)}
+              />
+              <FieldErrorList errors={errors?.shortLabel} />
+            </td>
+            <td>
+              <input
+                type="color"
+                className="h-6 w-10 cursor-pointer rounded border border-line bg-transparent"
+                value={draft.color}
+                aria-label="Colour"
+                onChange={(e) => setField('color', e.target.value)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.blocksAssignment}
+                aria-label="Blocks assignment"
+                onChange={(e) => setField('blocksAssignment', e.target.checked)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.countsTowardCapacity}
+                aria-label="Counts toward capacity"
+                onChange={(e) => setField('countsTowardCapacity', e.target.checked)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.requiresApproval}
+                aria-label="Requires approval"
+                onChange={(e) => setField('requiresApproval', e.target.checked)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.allowsHalfDay}
+                aria-label="Allows half day"
+                onChange={(e) => setField('allowsHalfDay', e.target.checked)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.isActive}
+                aria-label="Active"
+                onChange={(e) => setField('isActive', e.target.checked)}
+              />
+            </td>
+          </>
+        )}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Presence types
+// ---------------------------------------------------------------------------
+
+/**
+ * The "where are you working" options (ADR-0043) — what they are called, how they are
+ * drawn, and whether recording one raises a request instead of writing the day.
+ *
+ * WHY this is not an `EditableTable`: there is no New and no Delete. One row per
+ * `PresenceKind`, and the kind is what every record carries, so a fifth row from a screen
+ * would be a value nothing downstream understands. Retiring one is Active off, which drops
+ * it from the cell menu while existing records keep their colour and their name.
+ *
+ * The approval column is the one that earns the screen. "Remote needs signing off" used to
+ * be an `if` in the cell menu; it is a local policy, and a team that trusts remote days —
+ * or one that wants travel signed off — should not need a release.
+ */
+function PresenceTypesTab({ reference, edits }: { readonly reference: Reference; readonly edits: Edits }) {
+  const tempId = useId();
+  const sorted = [...reference.presenceTypes].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[12px] text-muted">
+        The options on a cell&rsquo;s right-click menu. Presence never affects coverage
+        &mdash; somebody remote on <code>Crew</code> still covers <code>Crew</code>.
+      </p>
+      <GlobalAdminNotice reference={reference} what="Where people work" />
+
+      <EditableTable
+        title="way of working"
+        rows={sorted}
+        entity="presenceType"
+        edits={edits}
+        newTempId={tempId}
+        newInitial={{
+          label: '',
+          glyph: '',
+          color: '#6b7688',
+          namesALocation: false,
+          countsAs: 'AWAY',
+          requiresApproval: false,
+          isActive: true,
+          sortOrder: sorted.length + 1,
+        }}
+        renderHeader={() => (
+          <tr>
+            <th>Label</th>
+            <th className="w-[80px]" title="One or two characters — the presence band in a cell is 9px">
+              In the cell
+            </th>
+            <th className="w-[70px]">Colour</th>
+            <th className="w-[110px]" title="Recording it picks one of our offices, instead of free text">
+              An office
+            </th>
+            <th className="w-[130px]" title="Which headcount it adds to on the coverage strip">
+              Counts as
+            </th>
+            <th className="w-[100px]" title="Has to be asked for and approved, by anybody — planners included">
+              Approval
+            </th>
+            <th className="w-[70px]" title="Unticking hides it from the menu; existing records keep it">
+              Offered
+            </th>
+            <th className="w-[70px]">Order</th>
+            <th />
+          </tr>
+        )}
+        renderRow={(draft: PresenceType, setField, errors) => (
+          <>
+            <td>
+              <TextField value={draft.label} ariaLabel="Label" onChange={(v) => setField('label', v)} />
+              <FieldErrorList errors={errors?.label} />
+            </td>
+            <td>
+              <TextField value={draft.glyph} ariaLabel="Glyph" onChange={(v) => setField('glyph', v)} />
+              <FieldErrorList errors={errors?.glyph} />
+            </td>
+            <td>
+              <input
+                type="color"
+                className="h-6 w-10 cursor-pointer rounded border border-line bg-transparent"
+                value={draft.color}
+                aria-label="Colour"
+                onChange={(e) => setField('color', e.target.value)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.namesALocation}
+                aria-label="Names an office"
+                onChange={(e) => setField('namesALocation', e.target.checked)}
+              />
+            </td>
+            <td>
+              <NativeSelectField
+                value={draft.countsAs}
+                ariaLabel="Counts as"
+                options={[
+                  { value: 'ON_SITE', label: 'On site' },
+                  { value: 'REMOTE', label: 'Remote' },
+                  { value: 'AWAY', label: 'Away' },
+                ]}
+                onChange={(v) => setField('countsAs', v)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.requiresApproval}
+                aria-label="Requires approval"
+                onChange={(e) => setField('requiresApproval', e.target.checked)}
+              />
+            </td>
+            <td>
+              <input
+                type="checkbox"
+                checked={draft.isActive}
+                aria-label="Offered"
+                onChange={(e) => setField('isActive', e.target.checked)}
+              />
+            </td>
+            <td>
+              <NumberField
+                value={draft.sortOrder}
+                ariaLabel="Sort order"
+                onChange={(v) => setField('sortOrder', v)}
+              />
+            </td>
+          </>
+        )}
+      />
+    </div>
+  );
+}
+
+/**
+ * "This is read-only for you" — and **who to ask**.
+ *
+ * WHY the names: the previous version stated the rule and stopped there, so the reader
+ * was told a global administrator exists and given no way to find one. There is nothing
+ * else in the product that answers it either; the seed creates exactly one, and hunting
+ * for them meant acting as people one at a time in the dev switcher.
+ *
+ * Reading grants needs no privilege on purpose — "who approves my leave" and "who can
+ * change this" are fair questions for the person waiting on the answer.
+ */
+function GlobalAdminNotice({ reference, what }: { readonly reference: Reference; readonly what: string }) {
+  const caps = useCapabilities();
+  const grants = useRoleAssignments();
+  if (caps.canAdministerGlobally) return null;
+
+  const names = (grants.data ?? [])
+    .filter((g) => g.role.toLowerCase() === 'admin' && !g.unitId)
+    .map((g) => reference.people.find((p) => p.id === g.personId)?.displayName ?? g.personId);
+
+  return (
+    <p className="text-[12px] text-warn">
+      {what} means the same thing in every unit, so changing it needs a global
+      administrator. This is read-only for you.{' '}
+      {names.length > 0
+        ? `Ask ${[...new Set(names)].join(', ')}.`
+        : 'Nobody holds that grant — a global admin has to be granted on the Roles tab first.'}
+    </p>
   );
 }

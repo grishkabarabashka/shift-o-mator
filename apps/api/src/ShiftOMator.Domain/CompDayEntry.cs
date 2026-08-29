@@ -15,4 +15,7 @@ public class CompDayEntry
     public DateOnly? ActualDate { get; set; }
     public CompDayStatus Status { get; set; }
     public DateTimeOffset? SyncedToHrAt { get; set; }
+
+    /// <summary>Optimistic-concurrency token (ADR-0043) — see <see cref="Absence.Version"/>.</summary>
+    public int Version { get; set; } = 1;
 }

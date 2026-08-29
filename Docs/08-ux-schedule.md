@@ -8,28 +8,55 @@ One large white planning card holding a toolbar, the grid, and the coverage area
 ## Toolbar
 
 The date-range widget sits at the top: back / Today / forward, a human-readable range,
-zoom choices, presets, a clickable day strip, and a year minimap for long ranges whose
-selected window can be dragged.
+zoom choices, a clickable day strip, and a year scrubber. The strip and the scrubber move
+the **anchor**; there is no arbitrary custom range
+([ADR-0036](adr/0036-overview-and-schedule-independent-periods.md)).
 
 Below it, a right-aligned action row:
 
 | State | Actions |
 |---|---|
-| Published | Export, then any cell edit opens a draft |
-| Draft active | Generate, Undo, Redo, Cancel, **Review & Publish (N)** |
+| Published | `+ Absence`, `+ Presence`, `Generate…`, `Import…`; any cell edit opens a draft |
+| Draft active | the above, plus Undo, Redo, Discard draft, **Publish (N)** |
 
 `N` is the pending change count. The global header shows the `✏️ Draft` tag while a
 session is open. No separate Edit mode — any cell change opens a draft immediately.
 
 ## Zoom levels
 
+Schedule's shortest zoom is a **month** ([ADR-0036](adr/0036-overview-and-schedule-independent-periods.md)).
+A single day is a different question, answered by the day drill-down; a week never earned
+its own zoom once the month grid stretched to fill the screen.
+
 | Zoom | Columns | Purpose |
 |---|---|---|
-| Day | 1 | Drill-down, one column per person-hour detail |
-| Week | 7 | Full shift codes, primary editing view |
-| Two weeks | 14 | Compact codes, still editable |
-| Month | 28–31 | Dense codes; the default planning horizon |
-| 3 / 6 months | Weeks | **Read-only heatmap** for pattern recognition |
+| Month | ~30 | Dense codes; the default planning horizon |
+| 2 Months | ~60 | The same grid, still editable — for a rota that runs past a month boundary |
+| Quarter | Weeks | **Read-only heatmap** for pattern recognition |
+| Half-year | Weeks | **Read-only heatmap** over a longer horizon |
+
+### The window runs forward from the selected day
+
+It does **not** snap to a calendar month. Picking the 27th shows the 25th onward, not the
+1st to the 31st with the part being planned pushed to the far right — and Today starts the
+window at today for the same reason. Two days of context stay behind the anchor so
+yesterday is visible without navigating.
+
+The cost is that the columns no longer line up with a calendar month, which was the
+original reason for aligning them. It is the smaller loss: the headers carry their own
+dates.
+
+Navigation has two granularities, because planners do both:
+
+| Control | Moves |
+|---|---|
+| `‹` `›` | One **day** — walking along the rota |
+| `«` `»` | One **month** — skipping to the next stretch |
+| Today | Starts the window at today |
+| Day strip, year scrubber | Jump the anchor anywhere |
+
+The single arrow used to move a whole window, which made it impossible to sit on the near
+boundary of the period being planned.
 
 The heatmap is for leave blocks, shift density and fairness — not editing. Each person
 is one row, each day a small colored cell, weeks grouped by header, names sticky while
@@ -50,7 +77,7 @@ The grid shows the selected **planning unit** by default. Grouping comes from
 `PlanningUnit.groupBy`:
 
 ```
-AMER  ·  [● unit]  [ whole region ]        ← scope toggle
+AMER  ·  [● unit]  [ everyone with a shift here ]   ← scope toggle
 
 CHICAGO             (4)
   Person 06   Lead  Crew  Batch-E …
@@ -63,7 +90,7 @@ PUNE                (6)
 | Unit kind | Default grouping |
 |---|---|
 | `REGION` (unit-amer, unit-emea, unit-apac) | by **location** — locations differ in holidays and timezone, which is what a planner needs to see |
-| `CROSS_REGION` (unit-st) | by **region** — the same duty in three rule contexts |
+| `CROSS_REGION` (unit-st) | by **location** — the same duty across the places it is done from |
 | more than one unit in scope (`ALL`, or several picked explicitly) | by **unit** first, then by that unit's own grouping within it |
 
 `ORG_CATEGORY` is available as a third grouping for units that want it.
@@ -147,31 +174,44 @@ The Shifts section lists **only shifts in that day's configuration for which thi
 is eligible**, plus the unit's default shifts. Each shows color, code, long name and
 window. Clear appears only when the cell is populated and is styled destructively.
 
-Non-working entries create the right entity for their meaning
-([ADR-0017](adr/0017-absence-range-cell-projection.md)): `Off` and `0` write a roster
-marker on the assignment; `Vacation` and `Sick` create a one-day `Absence` that can be
-extended into a range; `Comp-Off` schedules a `CompDayEntry`. There is no `Training`
-entry — in-hours training is the `Cover` shift and appears in the Shifts section.
+There is no "Non-working" section any more
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)). `Off`
+and `0 — not scheduled` wrote roster markers that no longer exist, and `Leave / sick…`
+was a third route to the time-off actions the self-service section of the same menu
+already offers one click away. What remains is `Edit absence…`, and only when there is one
+to edit.
 
-Selection applies immediately, stages a draft change, and recomputes coverage. The
-picker closes on selection or outside click.
+Time off and presence live in the self-service section below the shifts — one click each,
+no dialog. See [15-self-service.md](15-self-service.md).
+
+There is no `Training` entry — in-hours training is the `Cover` shift and appears in the
+Shifts section.
+
+Picking a shift applies immediately, stages a draft change, and recomputes coverage. The
+self-service items write directly instead, or raise a request: **drafts are for the rota**
+(ADR-0052). The picker closes on selection or outside click.
 
 ### Keyboard
 
 | Key | Action |
 |---|---|
-| Arrows | Move focus |
+| Arrows | Move the cursor |
 | Shift + arrows | Extend selection |
 | Home / End | Row start / end |
-| Enter | Open picker on the focused cell |
+| Shift + F10, or the Menu key | Open the picker on the focused cell |
 | Escape | Close picker, then clear selection |
 | Shift hotkey | Apply that shift to the whole selection |
 | Delete / Backspace | Clear the selection |
 | Ctrl/Cmd + C / V | Copy / paste a range |
 | Ctrl/Cmd + Z / Y | Undo / redo |
+| **Tab** | **Leaves the grid**, like everywhere else |
 
 Hotkeys are a fast path for painting ranges. The picker is the discoverable path and
 the one a new planner finds first.
+
+> **Tab is deliberately not a movement key.** It used to move the cursor one cell right,
+> which meant that once focus reached the grid there was no way out of it without a
+> pointer. Arrow keys move within the grid; Tab moves between controls.
 
 ### Mouse and bulk
 

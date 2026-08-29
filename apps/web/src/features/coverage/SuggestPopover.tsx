@@ -11,7 +11,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchCandidates } from '../../api/planning.ts';
+import { fetchCandidateExplanation, fetchCandidates } from '../../api/planning.ts';
 import type { IsoDate, PersonId, ShiftId, UnitId } from '../../domain/types.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 
@@ -51,6 +51,22 @@ export function SuggestPopover({ target, onClose, onPick }: Props) {
         excludePersonIds: busyToday,
       }),
     enabled: plan !== undefined,
+  });
+
+  // NOTE: A second, independent query (ADR-0048). The candidate list must never wait
+  // on an explanation — the ranking is the answer, the sentence is commentary, and a
+  // slow or missing model has to cost nothing.
+  const { data: explanation } = useQuery({
+    queryKey: ['candidate-explanation', target.shiftId, target.date, target.unitId],
+    queryFn: () =>
+      fetchCandidateExplanation({
+        shiftId: target.shiftId,
+        date: target.date,
+        unitId: target.unitId,
+        excludePersonIds: busyToday,
+      }),
+    enabled: plan !== undefined,
+    retry: false,
   });
 
   useLayoutEffect(() => {
@@ -98,6 +114,15 @@ export function SuggestPopover({ target, onClose, onPick }: Props) {
         <span className="font-mono font-bold text-ink">{target.code}</span>
         <span className="ml-1.5 text-faint">{target.date}</span>
       </div>
+
+      {/* The computed reason is shown whenever there is one; the generated sentence
+          only when a model produced it. Both are attributed, so a reader always knows
+          which is which. */}
+      {explanation && explanation.suggestedPersonId ? (
+        <p className="px-2.5 pb-1 text-[10.5px] leading-snug text-faint">
+          {explanation.explanation ?? `Top pick ${explanation.decidingFactor}.`}
+        </p>
+      ) : null}
 
       {!result || result.available.length === 0 ? (
         <div className="px-2.5 py-2 text-[12px] text-muted">

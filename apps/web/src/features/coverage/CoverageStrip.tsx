@@ -146,12 +146,19 @@ export function CoverageStrip({ view, syncWith }: Props) {
               className="cover__cell cover__cell--total"
               data-level={total.level}
               title={total.detail}
+              // How full the day is, drawn as a bar under the number. WHY it earns its
+              // place: "8/10" and "3/10" are the same shape at a glance, and the question
+              // this strip exists to answer is asked by sweeping a month, not by reading
+              // sixty fractions.
+              style={{ '--fill': `${fillPercent(total.filled, total.required)}%` } as React.CSSProperties}
               onClick={() => focusDate(total.date)}
             >
               {total.filled}/{total.required}
             </button>
           ))}
         </div>
+
+        <PresenceRow view={view} />
       </div>
 
       {suggestTarget ? (
@@ -161,6 +168,63 @@ export function CoverageStrip({ view, syncWith }: Props) {
           onPick={(personId, shiftId, date) => void pickCandidate(personId, shiftId, date)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * How full a day is, as a percentage, clamped.
+ *
+ * A minimum of zero is a legal coverage state (ADR-0034) and is full by definition —
+ * dividing by it would put NaN in a style attribute.
+ */
+function fillPercent(actual: number, required: number): number {
+  if (required <= 0) return 100;
+  return Math.min(100, Math.round((actual / required) * 100));
+}
+
+/**
+ * NOTE: On-site / remote headcount per day (ADR-0043).
+ *
+ * WHY here and not in the cells: "is anyone in the Chicago office on Friday" is a
+ * per-day question. The cell glyph answers "is this person somewhere unusual", which is
+ * a different one, and reading a per-day total off 80 corner glyphs is not reading.
+ *
+ * Hidden entirely when nobody has declared anything, so a team that does not use the
+ * feature never sees a row of zeros.
+ */
+function PresenceRow({ view }: { readonly view: PlanningView }) {
+  const anyDeclared = view.columns.some((column) => {
+    const counts = view.presence.countsByDate.get(column.date);
+    return counts !== undefined && counts.onSite + counts.remote + counts.away > 0;
+  });
+  if (!anyDeclared) return null;
+
+  const template = columnsTemplate(view.columns.length);
+
+  return (
+    <div className="cover" style={{ gridTemplateColumns: template }}>
+      <div className="cover__label" title="People in an office / working remotely, per day">
+        <span className="truncate text-[11.5px] font-semibold tracking-normal text-ink normal-case">
+          On site / remote
+        </span>
+      </div>
+      {view.columns.map((column) => {
+        const counts = view.presence.countsByDate.get(column.date);
+        const onSite = counts?.onSite ?? 0;
+        const remote = counts?.remote ?? 0;
+        const away = counts?.away ?? 0;
+        return (
+          <div
+            key={column.date}
+            className="cover__cell cover__cell--blank"
+            title={`${column.date}: ${onSite} on site, ${remote} remote, ${away} travelling or on customer site`}
+          >
+            {onSite}/{remote}
+            {away > 0 ? <span className="text-faint">{`+${away}`}</span> : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -190,7 +254,9 @@ function CoverageRow({
       </div>
       {view.columns.map((column) => {
         const cell = view.coverageByCell.get(`${column.date}|${shiftId}`);
-        if (!cell) return <div key={column.date} className="cover__cell" />;
+        // No requirement for this shift on this day: no number, and no fill bar either —
+        // an empty bar would read as "nothing covered" rather than "nothing asked for".
+        if (!cell) return <div key={column.date} className="cover__cell cover__cell--blank" />;
 
         const title = [
           `${code} · ${column.date}`,
@@ -211,6 +277,7 @@ function CoverageRow({
             className="cover__cell"
             data-level={cell.level}
             title={title}
+            style={{ '--fill': `${fillPercent(cell.actual, cell.min)}%` } as React.CSSProperties}
             onClick={(event) => {
               if (cell.level !== 'GAP') {
                 onPick(column.date);

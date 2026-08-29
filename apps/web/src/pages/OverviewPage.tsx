@@ -23,7 +23,7 @@
  * "who exactly" at a glance, without clicking in.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { Issue, Location, UtcInterval } from '../domain/types.ts';
 import { eachDate, formatInZone, parseDate } from '../engine/dates.ts';
@@ -32,6 +32,7 @@ import { dedupeLocationsByZone } from '../engine/locationClocks.ts';
 import {
   buildDayDetailRange,
   hourTicks,
+  nightBands,
   positionOf,
   type DayCoverage,
   type DayDetailRange,
@@ -78,6 +79,9 @@ export function OverviewPage({ view, now }: Props) {
   // otherwise the first frame arrives with the wrong (month) period.
   useLayoutEffect(() => enterOverview(), [enterOverview]);
 
+  // One list open at a time, and it lives on the page rather than inside a tile: it is
+  // read against the timeline below it.
+  const [openList, setOpenList] = useState<'gaps' | 'conflicts' | undefined>(undefined);
   const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null);
   const [fillRef, fillWidth] = useElementWidth<HTMLDivElement>();
   const mergedRef = (node: HTMLDivElement | null) => {
@@ -153,6 +157,7 @@ export function OverviewPage({ view, now }: Props) {
   /** NOTE: a gap points only to a day — it has no person, that's the point. */
   const goToIssue = (issue: Issue) => {
     if (!issue.date) return;
+    setOpenList(undefined);
     setScheduleAnchor(issue.date);
     if (issue.personId) select({ personId: issue.personId, date: issue.date });
     focusDate(issue.date, issue.personId);
@@ -166,9 +171,29 @@ export function OverviewPage({ view, now }: Props) {
       <section className="card grid shrink-0 grid-cols-2 divide-x divide-line sm:grid-cols-4">
         <Stat label="On shift now" value={onShiftNow} />
         <Stat label="People" value={people} />
-        <IssueStat label="Gaps" issues={gaps} tone="bad" onPick={goToIssue} />
-        <IssueStat label="Conflicts" issues={conflicts} tone="warn" onPick={goToIssue} />
+        <IssueStat
+          label="Gaps"
+          issues={gaps}
+          tone="bad"
+          open={openList === 'gaps'}
+          onToggle={() => setOpenList(openList === 'gaps' ? undefined : 'gaps')}
+        />
+        <IssueStat
+          label="Conflicts"
+          issues={conflicts}
+          tone="warn"
+          open={openList === 'conflicts'}
+          onToggle={() => setOpenList(openList === 'conflicts' ? undefined : 'conflicts')}
+        />
       </section>
+
+      {openList ? (
+        <IssueList
+          issues={openList === 'gaps' ? gaps : conflicts}
+          onPick={goToIssue}
+          onClose={() => setOpenList(undefined)}
+        />
+      ) : null}
 
       <section className="card flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2.5">
@@ -292,6 +317,17 @@ function MultiZoneAxis({
           className="axis border-b border-line/60 last:border-b-0"
           style={{ height: ZONE_ROW_H }}
         >
+          {/* Night, in this location. It falls at a different offset in every timezone —
+              which is the whole reason these axes are stacked — so it is computed, not a
+              repeating gradient. Behind the ticks and inert. */}
+          {nightBands(axis, location.timeZone).map((band) => (
+            <span
+              key={band.left}
+              className="axis__night"
+              style={{ left: `${band.left}%`, width: `${band.width}%` }}
+              aria-hidden
+            />
+          ))}
           {hourTicks(axis, location.timeZone).map((tick) => (
             <span key={tick.at} className="axis__tick" style={{ left: `${tick.left}%` }}>
               {tick.label}
@@ -401,7 +437,9 @@ function LaneBody({
             key={bar.key}
             type="button"
             className="lane__block"
-            style={{ ...geometry, background: bar.color }}
+            // backgroundColor, not background: the shorthand would wipe the gradient
+            // `.lane__block` paints over the shift's own colour.
+            style={{ ...geometry, backgroundColor: bar.color }}
             title={barTitle(bar, zone)}
             onClick={() => onPickBar(bar)}
           >
@@ -528,29 +566,28 @@ function Stat({ label, value }: { readonly label: string; readonly value: number
 /** NOTE: Gaps/Conflicts used to be a separate "Attention required" block that
  * took up a full vertical strip; now a chip in the header with a popover list
  * (owner review: the page must not scroll vertically). */
+/**
+ * A count with a way in.
+ *
+ * WHY the list is not here: it used to be a popover hung off the number, so the only
+ * clue that eighteen gaps could be *read* was that the figure happened to be clickable.
+ * Nothing said so, and nobody finds an affordance they have no reason to look for. The
+ * tile now carries a named control, and the list opens as a panel below the row where
+ * there is room to read it.
+ */
 function IssueStat({
   label,
   issues,
   tone,
-  onPick,
+  open,
+  onToggle,
 }: {
   readonly label: string;
   readonly issues: readonly Issue[];
   readonly tone: 'bad' | 'warn';
-  readonly onPick: (issue: Issue) => void;
+  readonly open: boolean;
+  readonly onToggle: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
-  }, [open]);
-
   if (issues.length === 0) {
     return (
       <div className="px-4 py-2.5">
@@ -561,39 +598,66 @@ function IssueStat({
   }
 
   return (
-    <div ref={ref} className="relative px-4 py-2.5">
+    <div className="px-4 py-2.5">
+      <div className={`text-[20px] leading-none font-semibold tracking-tight ${tone === 'bad' ? 'text-bad' : 'text-warn'}`}>
+        {issues.length}
+      </div>
       <button
         type="button"
-        className={`text-[20px] leading-none font-semibold tracking-tight ${tone === 'bad' ? 'text-bad' : 'text-warn'}`}
-        onClick={() => setOpen(!open)}
+        className="stat-toggle mt-1"
+        aria-expanded={open}
+        onClick={onToggle}
       >
-        {issues.length}
+        <span className="text-[10px] font-medium tracking-wide uppercase">{label}</span>
+        <span aria-hidden className="stat-toggle__chevron" data-open={open || undefined}>
+          &rsaquo;
+        </span>
       </button>
-      <div className="mt-1 text-[10px] font-medium tracking-wide text-faint uppercase">{label}</div>
-
-      {open ? (
-        <div className="popover absolute top-full left-4 z-10 mt-1.5 max-h-[280px] w-[340px] overflow-y-auto">
-          {issues.slice(0, 80).map((issue) => (
-            <button
-              key={issue.key}
-              type="button"
-              className="menu-item items-start"
-              onClick={() => {
-                setOpen(false);
-                onPick(issue);
-              }}
-            >
-              {issue.date ? (
-                <span className="shrink-0 font-mono text-[11px] text-muted">
-                  {parseDate(issue.date).toFormat('ccc d LLL')}
-                </span>
-              ) : null}
-              <span className="min-w-0 flex-1 truncate text-[12px]">{issue.message}</span>
-              <span className="shrink-0 text-[10.5px] text-accent">Fix →</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
+  );
+}
+
+/**
+ * The list itself, between the counts and the timeline: the two things it sits between
+ * are what it explains.
+ */
+function IssueList({
+  issues,
+  onPick,
+  onClose,
+}: {
+  readonly issues: readonly Issue[];
+  readonly onPick: (issue: Issue) => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <section className="card shrink-0 overflow-hidden">
+      <header className="flex items-center gap-2 border-b border-line px-3 py-2">
+        <h2 className="text-[12.5px] font-semibold">
+          {issues.length} to look at
+        </h2>
+        <button type="button" className="btn btn--sm btn--ghost ml-auto" onClick={onClose}>
+          Hide
+        </button>
+      </header>
+      <div className="max-h-[220px] overflow-y-auto p-1">
+        {issues.slice(0, 80).map((issue) => (
+          <button
+            key={issue.key}
+            type="button"
+            className="menu-item items-start"
+            onClick={() => onPick(issue)}
+          >
+            {issue.date ? (
+              <span className="shrink-0 font-mono text-[11px] text-muted">
+                {parseDate(issue.date).toFormat('ccc d LLL')}
+              </span>
+            ) : null}
+            <span className="min-w-0 flex-1 truncate text-[12px]">{issue.message}</span>
+            <span className="shrink-0 text-[10.5px] text-accent">Fix &rarr;</span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }

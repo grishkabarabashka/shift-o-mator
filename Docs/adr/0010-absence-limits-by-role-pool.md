@@ -1,6 +1,11 @@
 # ADR-0010. Absence limits apply both unit-wide and per role pool
 
-**Status:** accepted
+**Status:** accepted — scope updated by
+[ADR-0032](0032-planning-unit-single-rule-axis.md) (per **unit** and per **shift** pool,
+not region and role). This ADR assumes the limit is checked when leave is *approved*;
+there was no approval anywhere in the product until
+[ADR-0047](0047-absorb-the-self-service-portal.md), so until then the check only ever ran
+at plan time.
 
 ## Context
 
@@ -12,19 +17,27 @@ But an overall count of absent people by unit misses the main case.
 
 ## Decision
 
-`AbsenceCapacityRule` has `scope: UNIT | ROLE_POOL(roleId)` and
+`AbsenceCapacityRule` has `scope: UNIT | SHIFT_POOL(shiftId)` and
 `durationBucket: SHORT | LONG` with a threshold in workdays.
 
 ```
 AbsenceCapacityRule {
   unitId
-  scope: UNIT | ROLE_POOL(roleId)
+  scope: UNIT | SHIFT_POOL(shiftId)
   durationBucket: SHORT | LONG
   longThresholdWorkdays: 5
   maxConcurrent
-  countsTypes: [VACATION, COMP_DAY, TRAINING]
+  countsTypes: [VACATION, ...]
+  countsCompDays: bool
 }
 ```
+
+> **As shipped.** Written as `ROLE_POOL(roleId)`; roles and shifts were collapsed into
+> one entity by [ADR-0033](0033-one-shift-entity-absolute-window.md), so the scope is
+> `SHIFT_POOL(shiftId)`. The original also listed `TRAINING` among `countsTypes`, which
+> [ADR-0017](0017-absence-range-cell-projection.md) removed — in-hours training is the
+> `Cover` shift and counts toward coverage, so it is not an absence at all. Comp days are
+> counted by their own flag rather than by being an absence type.
 
 ## Consequences
 

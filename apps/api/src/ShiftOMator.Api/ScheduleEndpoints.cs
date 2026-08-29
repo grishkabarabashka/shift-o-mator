@@ -1,5 +1,8 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Requests;
+using ShiftOMator.Application.Requests;
 using ShiftOMator.Api.Contracts.Schedule;
 using ShiftOMator.Application;
 using ShiftOMator.Application.Drafts;
@@ -19,11 +22,12 @@ public static class ScheduleEndpoints
     public static void MapScheduleEndpoints(this WebApplication app)
     {
         app.MapGet("/api/schedule", async (
-            string unitId, DateOnly from, DateOnly to, string? draftId, ScheduleDbContext db, CancellationToken ct) =>
+            string unitId, DateOnly from, DateOnly to, string? draftId,
+            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
         {
             if (to < from) return Results.BadRequest(new InvalidRangeResponse("INVALID_RANGE", "to must not be before from."));
 
-            var dataset = await ScheduleDatasetLoader.LoadAsync(db, ct);
+            var dataset = await ScheduleDatasetLoader.LoadAsync(db, from, to, ct);
 
             DraftSession? draft = null;
             if (!string.IsNullOrEmpty(draftId))
@@ -46,6 +50,7 @@ public static class ScheduleEndpoints
                 Assignments = assignments,
                 Absences = absences,
                 CompDays = compDays,
+                Presence = dataset.Presence,
                 Acknowledgements = dataset.Acknowledgements,
                 History = dataset.History,
             };
@@ -80,21 +85,70 @@ public static class ScheduleEndpoints
             var rangeCompDays = compDays.Where(c => c.EarnedForDate >= from && c.EarnedForDate <= to
                 || (c.ProposedDate is not null && c.ProposedDate >= from && c.ProposedDate <= to)
                 || (c.ActualDate is not null && c.ActualDate >= from && c.ActualDate <= to)).ToList();
+            var rangePresence = dataset.Presence
+                .Where(p => DateHelpers.RangesOverlap(p.From, p.To, from, to)).ToList();
+
+            var pending = await PendingRequestsAsync(db, user, actors, from, to, dataset.People, dataset.Units, ct);
 
             return Results.Ok(new ScheduleResponse(
                 unitIds,
-                new SchedulePlan(rangeAssignments, rangeAbsences, rangeCompDays),
+                new SchedulePlan(rangeAssignments, rangeAbsences, rangeCompDays, rangePresence),
                 coverage,
                 issues,
                 acknowledged,
                 dayConfigs,
-                draftId));
+                draftId,
+                pending));
         })
         .WithName("GetSchedule")
         .Produces<ScheduleResponse>()
         .Produces<InvalidRangeResponse>(StatusCodes.Status400BadRequest)
         .Produces<DraftNotFoundResponse>(StatusCodes.Status404NotFound)
-        .RequireAuthorization(AuthPolicies.ViewerOrAbove);
+        .RequireAuthorization(AuthPolicies.Authenticated);
+    }
+
+    /// <summary>
+    /// Requests still awaiting a decision over this window, with whether *this* caller can
+    /// act on each. Route resolution is not expressible in SQL, so it runs in memory —
+    /// which is fine at this scale and is the same work the inbox does.
+    /// </summary>
+    private static async Task<List<PendingRequestSummary>> PendingRequestsAsync(
+        ScheduleDbContext db, ClaimsPrincipal user, ActorResolver actors,
+        DateOnly from, DateOnly to, List<Person> people,
+        List<PlanningUnit> units, CancellationToken ct)
+    {
+        var open = await db.Requests.AsNoTracking().Include(r => r.Decisions)
+            .Where(r => r.State == RequestState.Submitted && r.From <= to && r.To >= from)
+            .ToListAsync(ct);
+        if (open.Count == 0) return [];
+
+        var actorId = await actors.RequireAsync(user, ct);
+        var types = await db.RequestTypes.AsNoTracking().ToListAsync(ct);
+        var roles = await db.RoleAssignments.AsNoTracking().ToListAsync(ct);
+
+        // WHY no unit filter: the pending marks are a per-cell overlay, and the grid shows
+        // rows outside the selected unit on purpose -- your own row always (ADR-0046), and
+        // everyone holding a shift in the unit when that toggle is on (ADR-0032). Filtering
+        // by the request's unit hid the mark on exactly those rows, so a request raised by
+        // an admin from another unit vanished as soon as the scope changed. Membership of
+        // the roster below is the only filter that matters.
+        var summaries = new List<PendingRequestSummary>();
+        foreach (var request in open)
+        {
+            var type = types.FirstOrDefault(t => t.Id == request.TypeId);
+            var subject = people.FirstOrDefault(p => p.Id == request.SubjectPersonId);
+            if (type is null || subject is null) continue;
+
+            var approvers = RequestService.ApproversFor(request, roles, people);
+
+            summaries.Add(new PendingRequestSummary(
+                request.Id, type.Id, type.Code, type.Label, type.Category,
+                subject.Id, subject.DisplayName, request.From, request.To, request.Portion,
+                request.CreatedAt,
+                approvers.Contains(actorId)));
+        }
+
+        return summaries;
     }
 
     /// <summary>PlanningUnit is now the single computation scope (Region deleted, Phase

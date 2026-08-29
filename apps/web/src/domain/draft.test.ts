@@ -17,6 +17,7 @@ const emptyPlan: PlanData = {
   assignments: [],
   absences: [],
   compDays: [],
+  presence: [],
   acknowledgements: [],
 };
 
@@ -72,10 +73,12 @@ describe('absence and comp-day changes', () => {
   const absence: Absence = {
     id: 'abs-1',
     personId: 'p-1',
-    type: 'VACATION',
+    eventTypeId: 'et-vacation',
+        portion: 'FULL',
     from: '2026-09-09',
     to: '2026-09-11',
     source: 'MANUAL',
+    version: 1,
   };
 
   const entry: CompDayEntry = {
@@ -86,6 +89,7 @@ describe('absence and comp-day changes', () => {
     trigger: 'SATURDAY',
     proposedDate: '2026-09-03',
     status: 'PROPOSED',
+    version: 1,
   };
 
   it('adds and removes an absence by id', () => {

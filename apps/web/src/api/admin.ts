@@ -23,8 +23,10 @@ import {
   absenceCapacityRuleFromWire,
   camelToUpperSnake,
   dayConfigurationFromWire,
+  eventTypeFromWire,
   holidayFromWire,
   locationFromWire,
+  presenceTypeFromWire,
   shiftFromWire,
   timeToWire,
   unitFromWire,
@@ -35,14 +37,16 @@ import { referenceQueryKey } from './queries.ts';
 import type {
   AbsenceCapacityRule,
   AbsenceDurationBucket,
-  AbsenceType,
+
   CompOffPolicy,
   DayConfiguration,
   DayConfigKey,
+  EventType,
   GroupBy,
   Holiday,
   Location,
   PlanningUnit,
+  PresenceType,
   Shift,
   UnitKind,
 } from '../domain/types.ts';
@@ -175,6 +179,82 @@ export function holidayToWire(h: Pick<Holiday, 'date' | 'name' | 'locationIds' |
 
 export const adminHolidays = adminResource<Holiday, HolidayRequest>('holidays', holidayFromWire as never);
 
+// -- Event types ------------------------------------------------------------
+//
+// The kinds of non-working day: colour, short label, and the four flags that decide how
+// one behaves (ADR-0049). There is no delete — an absence points at these by id, so a
+// retired kind is `isActive: false` and keeps its name for the rows that already use it.
+
+export interface EventTypeRequest {
+  readonly code: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly color: string;
+  readonly category: string;
+  readonly blocksAssignment: boolean;
+  readonly countsTowardCapacity: boolean;
+  readonly requiresApproval: boolean;
+  readonly allowsHalfDay: boolean;
+  readonly isActive: boolean;
+  readonly sortOrder: number;
+}
+
+export function eventTypeToWire(t: EventType): EventTypeRequest {
+  return {
+    code: t.code,
+    label: t.label,
+    shortLabel: t.shortLabel,
+    color: t.color,
+    category: upperSnakeToCamel(t.category),
+    blocksAssignment: t.blocksAssignment,
+    countsTowardCapacity: t.countsTowardCapacity,
+    requiresApproval: t.requiresApproval,
+    allowsHalfDay: t.allowsHalfDay,
+    isActive: t.isActive,
+    sortOrder: t.sortOrder,
+  };
+}
+
+export const adminEventTypes = adminResource<EventType, EventTypeRequest>(
+  'event-types',
+  eventTypeFromWire as never,
+);
+
+// -- Presence types ---------------------------------------------------------
+//
+// Full CRUD (ADR-0054). Deleting is refused by the server once anything points at the
+// type, because a presence record names its type and carries nothing else — retiring with
+// `isActive = false` is the ordinary answer and keeps history readable.
+
+export interface PresenceTypeRequest {
+  readonly label: string;
+  readonly glyph: string;
+  readonly color: string;
+  readonly namesALocation: boolean;
+  readonly countsAs: string;
+  readonly requiresApproval: boolean;
+  readonly isActive: boolean;
+  readonly sortOrder: number;
+}
+
+export function presenceTypeToWire(t: PresenceType): PresenceTypeRequest {
+  return {
+    label: t.label,
+    glyph: t.glyph,
+    color: t.color,
+    namesALocation: t.namesALocation,
+    countsAs: upperSnakeToCamel(t.countsAs),
+    requiresApproval: t.requiresApproval,
+    isActive: t.isActive,
+    sortOrder: t.sortOrder,
+  };
+}
+
+export const adminPresenceTypes = adminResource<PresenceType, PresenceTypeRequest>(
+  'presence-types',
+  presenceTypeFromWire as never,
+);
+
 // -- Units ------------------------------------------------------------------
 //
 // Phase 8 merged Region's editable fields here: name, primary location,
@@ -232,7 +312,7 @@ export interface AbsenceCapacityRuleRequest {
   readonly durationBucket: string;
   readonly longThresholdWorkdays: number;
   readonly maxConcurrent: number;
-  readonly countsTypes: readonly string[];
+  readonly countsEventTypeIds: readonly string[];
   readonly countsCompDays: boolean;
 }
 
@@ -244,7 +324,7 @@ export function absenceCapacityRuleToWire(r: AbsenceCapacityRule): AbsenceCapaci
     durationBucket: upperSnakeToCamel(r.durationBucket as AbsenceDurationBucket),
     longThresholdWorkdays: r.longThresholdWorkdays,
     maxConcurrent: r.maxConcurrent,
-    countsTypes: r.countsTypes.map((t) => upperSnakeToCamel(t as AbsenceType)),
+    countsEventTypeIds: [...r.countsEventTypeIds],
     countsCompDays: r.countsCompDays,
   };
 }

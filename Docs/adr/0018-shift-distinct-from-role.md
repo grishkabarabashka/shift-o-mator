@@ -1,6 +1,8 @@
 # ADR-0018. A shift is a person's contracted window; a role carries the duty window
 
-**Status:** accepted — amends [ADR-0001](0001-role-carries-time.md)
+**Status:** ~~accepted~~ — **superseded by [ADR-0033](0033-one-shift-entity-absolute-window.md)**,
+which deletes `ShiftDefinition` and collapses the two entities into one `Shift` carrying
+an absolute window. This ADR had amended [ADR-0001](0001-role-carries-time.md).
 
 ## Context
 

@@ -1,7 +1,8 @@
 # ADR-0003. A planning unit is an organizational, not a geographic, boundary
 
-**Status:** accepted — amended by
-[ADR-0020](0020-planning-unit-and-region.md). The core claim holds: a region is a rule
+**Status:** ~~accepted~~ — **superseded by [ADR-0032](0032-planning-unit-single-rule-axis.md)**
+(PlanningUnit is the single rule axis; Region is deleted entirely), by way of the
+now-also-superseded [ADR-0020](0020-planning-unit-and-region.md). The core claim holds: a region is a rule
 boundary, and AMER includes Pune. What this ADR got wrong was collapsing *rules* and
 *planning* into one entity. They are two orthogonal axes: a person has a region (which
 rules apply) and a planning unit (whose screen). Service Transition is a cross-region

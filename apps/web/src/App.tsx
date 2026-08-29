@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
-import { AuthProvider } from './auth/AuthProvider.tsx';
+import { AuthProvider, useAuth } from './auth/AuthProvider.tsx';
 import { TooltipProvider } from './ui/primitives.tsx';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
@@ -19,6 +19,8 @@ import { usePlanningView } from './features/planning/usePlanningView.ts';
 import { DayDrilldownPage } from './pages/DayDrilldownPage.tsx';
 import { OverviewPage } from './pages/OverviewPage.tsx';
 import { PeoplePage } from './pages/PeoplePage.tsx';
+import { MyCalendarPage } from './pages/MyCalendarPage.tsx';
+import { RequestsPage } from './pages/RequestsPage.tsx';
 import { SchedulePage } from './pages/SchedulePage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 
@@ -29,16 +31,23 @@ export function App() {
   const load = useSchedule((s) => s.load);
   const status = useSchedule((s) => s.status);
   const error = useSchedule((s) => s.error);
+  // WHY identity is a dependency: what the server returns is filtered by who is asking —
+  // the inbox, which requests are decidable, what the grid lets you touch. Without this,
+  // switching identity left every screen showing the previous person's answer until
+  // something else happened to change the unit or the period.
+  const currentUserId = useSchedule((s) => s.currentUserId);
 
   const view = usePlanningView(TODAY);
   const now = useNow();
 
   useEffect(() => {
     void load(unitId, range);
-  }, [load, unitId, range]);
+  }, [load, unitId, range, currentUserId]);
 
   return (
     <AuthProvider>
+      <IdentityBridge />
+      <UnsavedWorkGuard />
       <TooltipProvider>
         <BrowserRouter>
           <AppShell>
@@ -53,6 +62,8 @@ export function App() {
                 <Route path="/schedule" element={<SchedulePage view={view} asOf={TODAY} />} />
                 <Route path="/schedule/day/:date" element={<DayDrilldownPage view={view} now={now} />} />
                 <Route path="/people" element={<PeoplePage view={view} asOf={TODAY} />} />
+                <Route path="/me" element={<MyCalendarPage />} />
+                <Route path="/requests" element={<RequestsPage view={view} />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 {/* NOTE: dashboard and timeline merged into Overview — old links still resolve. */}
                 <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
@@ -65,6 +76,52 @@ export function App() {
       </TooltipProvider>
     </AuthProvider>
   );
+}
+
+/**
+ * NOTE: Copies the server-resolved identity into the Zustand store (ADR-0039).
+ *
+ * WHY a component: the store is outside React, and the identity arrives asynchronously
+ * from `GET /api/auth/me`. Before this, `useSchedule.load()` guessed the current user
+ * from reference data, and that guess ended up as `createdBy`/`updatedBy` on every edit
+ * — a different answer from the one the server wrote into the audit trail.
+ */
+function IdentityBridge() {
+  const identity = useAuth();
+  const setCurrentUser = useSchedule((s) => s.setCurrentUser);
+
+  useEffect(() => {
+    setCurrentUser(identity.resolved ? identity.personId : undefined);
+  }, [setCurrentUser, identity.resolved, identity.personId]);
+
+  return null;
+}
+
+/**
+ * NOTE: Refuses to close the tab while edits are still on their way to the server.
+ *
+ * Draft changes are debounced by ~400ms and retried on failure, so there is a real
+ * window in which the grid shows an edit the server has never seen. Closing the tab in
+ * that window loses it silently.
+ */
+function UnsavedWorkGuard() {
+  const pendingSync = useSchedule((s) => s.pendingSync);
+  const syncError = useSchedule((s) => s.syncError);
+  const atRisk = pendingSync || syncError !== undefined;
+
+  useEffect(() => {
+    if (!atRisk) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Browsers ignore custom text now and show their own wording; assigning
+      // returnValue is still what triggers the prompt at all.
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [atRisk]);
+
+  return null;
 }
 
 function Placeholder({ title, body }: { readonly title: string; readonly body: string }) {

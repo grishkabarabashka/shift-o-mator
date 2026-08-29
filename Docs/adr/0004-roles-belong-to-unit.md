@@ -1,6 +1,8 @@
 # ADR-0004. Roles belong to a unit; there is no global role catalog
 
-**Status:** accepted
+**Status:** ~~accepted~~ — **superseded by [ADR-0032](0032-planning-unit-single-rule-axis.md)**.
+The claim itself survives, narrowed: shifts belong to a **planning unit**, and matching
+codes across units are coincidental. Only the axis they hang off changed.
 
 ## Context
 

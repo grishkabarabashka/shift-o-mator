@@ -4,7 +4,7 @@
 
 The single most important structural decision ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)): **a planning unit is the sole rule boundary** — which rules apply, whose screen a person appears on, everything.
 
-- **PlanningUnit** answers *which rules apply* and *whose screen this person appears on* — roles, shifts, day configurations, coverage requirements, comp-off policy.
+- **PlanningUnit** answers *which rules apply* and *whose screen this person appears on* — shifts, day configurations, coverage requirements, comp-off policy.
 
 Units come in two kinds:
 - **REGION** units: `unit-amer`, `unit-emea`, `unit-apac` — each is a region's roster.
@@ -31,18 +31,35 @@ Location
 
 Person
  ├─ belongs to a PlanningUnit    → rules, shifts, coverage, whose screen
- ├─ has a Location and a default Shift
+ ├─ has a Location                → calendar and display timezone only (ADR-0002)
+ ├─ has a presence baseline       → where they work when nothing says otherwise
+ ├─ may have a Manager            → an input to approval routing, not the route (ADR-0046)
  └─ has ShiftEligibility, availability, constraints, preferences
 
-Assignment            one person + one date + (working shift | roster marker)
+Assignment            one person + one date + one working shift
  ├─ published, or held as a DraftChange
  ├─ contributes to the computed CoverageSnapshot
- ├─ may earn a CompDayEntry
- └─ has append-only AssignmentHistory
+ └─ may earn a CompDayEntry
 
 Absence               one person + an inclusive date range + a leave type
+PresenceRecord        one person + an inclusive date range + where they work.
+                      Orthogonal to Assignment: both are true at once (ADR-0043)
 CompDayEntry          an accrual with a balance, linked to the earning assignment
 Holiday               a date + name + affected locations
+
+Request               something asked for about one person
+ ├─ shaped by a RequestType       → what it is, and what an approval produces
+ ├─ decided by the Approvers of the subject's unit (ADR-0051)
+ ├─ collects append-only ApprovalDecisions
+ └─ on approval, writes an Absence or a PresenceRecord (ADR-0045)
+
+RoleAssignment        one person + one role + one unit (or global): who may do what,
+                      and where (ADR-0051)
+
+Notification          one person's inbox item, written in the same transaction
+                      as the change that caused it (ADR-0044)
+
+ChangeHistoryEntry    append-only, for every entity — not just assignments (ADR-0040)
 
 DraftSession          one editor + one unit + one period
  └─ ordered DraftChanges → applied atomically on Publish
@@ -66,18 +83,38 @@ erDiagram
     DAY_CONFIGURATION ||--o{ SHIFT_REQUIREMENT : contains
     SHIFT_REQUIREMENT }o--|| SHIFT : requires
 
-    LOCATION ||--o{ PERSON : locates
+    LOCATION ||--o{ PERSON : "calendar and timezone"
     LOCATION ||--o{ HOLIDAY : observes
-    SHIFT ||--o{ PERSON : "contracts (default)"
+    LOCATION |o--o{ PRESENCE_RECORD : "is the office for"
+    SHIFT |o--o{ PERSON : "default (exception only, ADR-0038)"
 
     PERSON ||--o{ ASSIGNMENT : holds
     PERSON ||--o{ ABSENCE : takes
+    PERSON ||--o{ PRESENCE_RECORD : declares
     PERSON ||--o{ COMP_DAY_ENTRY : accrues
     PERSON ||--o{ DRAFT_SESSION : edits
+    PERSON ||--o{ REQUEST : "is subject of"
+    PERSON ||--o{ APPROVAL_DECISION : decides
+    PERSON ||--o{ NOTIFICATION : receives
+    PERSON ||--o{ ROLE_ASSIGNMENT : "is granted"
+    PLANNING_UNIT ||--o{ ROLE_ASSIGNMENT : "scopes (null = global)"
 
     SHIFT ||--o{ ASSIGNMENT : fills
     ASSIGNMENT |o--o| COMP_DAY_ENTRY : "may earn"
-    ASSIGNMENT ||--o{ ASSIGNMENT_HISTORY_ENTRY : logs
+
+    EVENT_TYPE ||--o{ ABSENCE : classifies
+    EVENT_TYPE |o--o| REQUEST_TYPE : "asked for via"
+
+    REQUEST_TYPE ||--o{ REQUEST : shapes
+    REQUEST ||--o{ APPROVAL_DECISION : "audited by"
+    REQUEST |o--o| ABSENCE : creates
+    REQUEST |o--o| PRESENCE_RECORD : creates
+    REQUEST |o--o| COMP_DAY_ENTRY : places
+    REQUEST ||--o{ NOTIFICATION : triggers
+
+    ASSIGNMENT ||--o{ CHANGE_HISTORY_ENTRY : logs
+    ABSENCE ||--o{ CHANGE_HISTORY_ENTRY : logs
+    PRESENCE_RECORD ||--o{ CHANGE_HISTORY_ENTRY : logs
 
     DRAFT_SESSION ||--o{ DRAFT_CHANGE : contains
     PLANNING_UNIT ||--o{ DRAFT_SESSION : scopes
@@ -91,7 +128,55 @@ erDiagram
         string unitId FK
         string locationId FK
         string defaultShiftId FK
+        string defaultPresenceKind
+        string defaultSiteLocationId FK
+        string managerId FK
         boolean isIncluded
+    }
+    PRESENCE_RECORD {
+        string id PK
+        string personId FK
+        string kind
+        string siteLocationId FK
+        string from
+        string to
+        string requestId FK
+        int version
+    }
+    REQUEST {
+        string id PK
+        string typeId FK
+        string subjectPersonId FK
+        string unitId FK
+        string from
+        string to
+        string state
+        string materializedEntityId
+        int version
+    }
+    APPROVAL_DECISION {
+        string id PK
+        string requestId FK
+        int step
+        string decision
+        string byPersonId FK
+        string comment
+    }
+    NOTIFICATION {
+        string id PK
+        string recipientPersonId FK
+        string kind
+        string subjectType
+        string subjectId
+        string readAt
+    }
+    CHANGE_HISTORY_ENTRY {
+        string id PK
+        string entityType
+        string entityId
+        string personId FK
+        string action
+        string actorId FK
     }
     ASSIGNMENT {
         string id PK
@@ -120,6 +205,90 @@ erDiagram
         string status
     }
 ```
+
+## Two write flows
+
+Everything that changes data goes down one of two paths, and which one is decided by
+**what is being written**, never by who is writing it
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+
+```mermaid
+flowchart LR
+    subgraph rota["The rota — reviewed by publishing"]
+        direction TB
+        A1[Planner paints cells] --> A2[DraftSession]
+        A2 --> A3{Publish}
+        A3 -->|serializable txn| A4[(Assignments)]
+        A3 --> A5[(CompDayEntry<br/>accrued)]
+    end
+
+    subgraph selfservice["Time off and presence — reviewed by approving"]
+        direction TB
+        B1[Anyone, on a cell] --> B2{requiresApproval?}
+        B2 -->|no| B3[(Absence / PresenceRecord)]
+        B2 -->|yes| B4[Request]
+        B4 --> B5[Approvers of<br/>the subject's unit]
+        B5 -->|approve| B3
+        B5 -->|approve<br/>comp day| B6[(CompDayEntry<br/>ActualDate set)]
+    end
+
+    A5 -.->|engineer picks a day| B4
+```
+
+The dotted line is the one place they meet: a comp day is **accrued** by publishing a
+weekend shift, and **placed** by asking for a day off.
+
+| | Draft + publish | Direct write | Request + approval |
+|---|---|---|---|
+| Shift assignment | ✓ | | |
+| Comp-day accrual | ✓ | | |
+| Comp-day placement | | | ✓ |
+| Absence, `requiresApproval` | | | ✓ |
+| Absence, no approval (`Not available`) | | ✓ | |
+| Presence — office, travel, customer site | | ✓ | |
+| Presence — remote | | | ✓ |
+| Acknowledging a warning | | ✓ | |
+| Configuration, role grants | | ✓ | |
+
+**Why not one mechanism.** A draft's value is *review before it becomes real*, by the
+person staging the batch. Time off already has a review step, and it is a better one,
+because it names the human who decided and records their comment. Putting time off in a
+draft meant a sick day stayed invisible until an unrelated planner happened to publish
+something — and that recording one called a planner-only endpoint, so a viewer reporting
+their own sickness got a 403.
+
+## Roles
+
+Roles are a **set**, granted per planning unit, with no ordering between them
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)). Holding two grants both; holding one
+grants only it.
+
+```mermaid
+flowchart TB
+    P[Person] -->|RoleAssignment<br/>unitId, or null = global| R{ }
+
+    R --> V["**Viewer**<br/>everyone signed in<br/>· reads the rota<br/>· self-service on own row"]
+    R --> PL["**Planner**<br/>· shifts, painting<br/>· drafts and publishing<br/>· acts on rows in their unit"]
+    R --> AP["**Approver**<br/>· decides requests from<br/>&nbsp;&nbsp;their unit's people"]
+    R --> AD["**Admin**<br/>· configuration<br/>· grants roles<br/>· global grant for<br/>&nbsp;&nbsp;cross-unit settings"]
+
+    PL -.->|cannot| X1[approve leave]
+    AD -.->|cannot| X2[assign shifts]
+```
+
+The two dotted lines are the point. Before ADR-0051 the policies compared roles by
+ordinal, so `Admin > Planner` made every administrator a planner of every unit — a right
+nobody granted and nobody could withhold.
+
+**Scope.** A grant names a unit, or is global (`unitId` null). Global widens *scope*, never
+*privilege*: a global Admin is an admin everywhere and still not a planner anywhere. It
+exists for configuration that belongs to no unit — locations, holidays, the units
+themselves — and for the cross-unit planner who covers for everybody.
+
+**Where the checks live.** Endpoint policies can only ask "holds this role *somewhere*",
+because a policy runs before the request body is read and cannot know which unit is being
+written to. The decision is the unit-scoped `Capabilities` check in the handler. A policy
+alone is never sufficient authorization for a write.
 
 ## Draft session lifecycle
 
@@ -153,7 +322,7 @@ PlanningUnit {
 ```
 
 Default units: `unit-amer`, `unit-emea`, `unit-apac` (kind `REGION`, grouped by location) and
-`unit-st` (kind `CROSS_REGION`, grouped by region).
+`unit-st` (kind `CROSS_REGION`, grouped by location).
 
 **A unit is a default filter, not a hard boundary** when displayed on screen — the Schedule screen defaults to
 the selected unit's people and offers a toggle to show all people working that unit's shifts. Because every
@@ -282,19 +451,29 @@ Person {
   id                        stable; history stays attached to it
   displayName, initials, employeeId?
   unitId                    rules, coverage, whose screen
-  locationId, defaultShiftId
+  locationId                calendar and display timezone only (ADR-0002)
   orgCategory               SUPPORT | SERVICE_TRANSITION | MANAGEMENT
   isActive                  deactivation ≠ deletion
   isIncluded                participates in planning at all
   eligibility[]
   availableWeekdays[]
-  defaultShiftId?           the ordinary-day default used by auto-populate
+  defaultShiftId?           an exception mechanism, null for nearly everyone (ADR-0038)
   weekendEligible
   constraints  { minRestHours, maxConsecutiveDays, maxWeekendsPerQuarter }
   preferences  { avoidsWeekdays[], preferredPartnerIds[], blackoutDates[] }
   calendarToken
+  defaultPresenceKind       OFFICE | REMOTE | TRAVEL | CUSTOMER_SITE  (ADR-0043)
+  defaultSiteLocationId?    which office is the baseline
+  managerId?                an input to approval routing (ADR-0046)
 }
 ```
+
+> **`defaultShiftId` is the exception, not the rule.** The shift that absorbs everyone on
+> an ordinary day belongs to the **day configuration** — the requirement marked
+> `isDefault` with no `max` ([ADR-0038](adr/0038-day-configuration-owns-the-default-shift.md)).
+> `Person.defaultShiftId` survives only for Service Transition, whose engineers hold one
+> shift each, and is null for everyone else. Engineers do not have a default shift; they
+> have shifts they cannot do.
 
 **There is no separate work-pattern entity**
 ([ADR-0005](adr/0005-no-work-pattern-entity.md)). `defaultShiftId` and
@@ -319,15 +498,14 @@ Eligibility stores a **target share, not a boolean**
 
 ## Assignment
 
-One person, one date, and either a working shift or a roster marker.
+One person, one date, one working shift.
 
 ```
 Assignment {
   id
   personId, date            date is local to the shift's timezone
   unitId                    denormalized from the person's unit
-  content                   { kind: 'SHIFT',   shiftId, timeOverride? }
-                          | { kind: 'MARKER', marker: 'OFF' | 'NOT_SCHEDULED' }
+  content                   { kind: 'SHIFT', shiftId, timeOverride? }
   isWeekend                 by the person's location calendar
   note?
   source                    MANUAL | GENERATED | IMPORTED
@@ -340,9 +518,15 @@ Assignment {
 day — including on-call, which is an ordinary shift code occupying the day like any
 other. This is a hard uniqueness constraint, not a soft rule.
 
-`OFF` is the spreadsheet's `Off` / `W-Off`: a planned day off. `NOT_SCHEDULED` is `0`:
-an explicit "no duty", used for weekends in the monthly matrices. Neither is leave, and
-both differ from an empty cell, which means **no decision recorded**.
+**An assignment is a shift.** It used to be a union with a marker arm carrying `OFF`
+(the spreadsheet's `Off` / `W-Off`) and `NOT_SCHEDULED` (`0`), on the reasoning that
+"considered and deliberately not scheduled" differs from "nobody has looked at this yet".
+The team did not use the distinction, nothing forced a planner to record it, and what
+people actually wanted — "do not put me on a shift that weekend" — is now the
+`UNAVAILABLE` event type, which every screen that understands absences already
+understands ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+
+An empty cell means **no shift**. Nothing more.
 
 ## Absence
 
@@ -368,6 +552,135 @@ maps to `Cover`, not to leave, and therefore counts toward coverage.
 
 `lastSeenInImportAt` detects records that vanished from a later export. Import never
 overwrites a `MANUAL` record.
+
+## Presence
+
+Where a person physically works. **Orthogonal to whether they work at all** — someone on
+the `Crew` shift is *also* either remote or in an office, and both facts are true at once
+([ADR-0043](adr/0043-presence-is-an-orthogonal-range-entity.md)).
+
+```
+PresenceRecord {
+  id, personId
+  kind              OFFICE | REMOTE | TRAVEL | CUSTOMER_SITE
+  siteLocationId?   which office, when kind = OFFICE
+  siteLabel?        free text for TRAVEL / CUSTOMER_SITE, which have no location row
+  from, to          inclusive, same shape as Absence
+  source            MANUAL | REQUEST | IMPORT | PORTAL
+  requestId?        set when it came from an approved request
+  externalId?, lastSeenInSyncAt?
+  note?, version
+  createdBy, createdAt, updatedBy, updatedAt
+}
+```
+
+Three things this is deliberately **not**:
+
+- **Not a field on `Assignment`.** Presence exists on days with no assignment, it is
+  owned by a different person than the roster is, and it is declared in blocks rather
+  than cell by cell.
+- **Not a member of `CellValue`.** That union resolves a precedence chain and produces one
+  winner; presence has no precedence relationship with anything in it. It is a second,
+  independent projection over the same cell keys.
+- **Not an input to coverage.** A remote person on `Crew` covers `Crew`. If on-site
+  staffing ever becomes a requirement it belongs on `ShiftRequirement`, which is already
+  effective-dated.
+
+`Person.defaultPresenceKind` / `defaultSiteLocationId` are the **baseline**, and the grid
+shows only departures from it. Rendering every office day would put a glyph in all ~2500
+cells and say nothing.
+
+Reusing `Location` as a *place* does not widen [ADR-0002](adr/0002-location-is-calendar-only.md):
+Pune-the-holiday-calendar and Pune-the-office are the same real thing, and the calendar
+responsibility is unchanged.
+
+## Requests and approvals
+
+Something a person asks for about themselves, routed to approvers, and — once approved —
+written into the plan ([ADR-0045](adr/0045-generic-request-envelope-typed-materialization.md)).
+
+```
+RequestType {                     configuration, admin-editable
+  id, code, label
+  category        PRESENCE | LEAVE | SWAP | COMP_DAY | OTHER
+  materializer    NONE | PRESENCE | ABSENCE
+  presenceKind? / absenceType?    what an approval produces
+  routeId, isActive, sortOrder
+}
+
+Request {
+  id, typeId, subjectPersonId, unitId
+  from, to                        columns, not payload — the inbox and the capacity
+                                  check both read them
+  payloadJson?                    type-specific detail
+  note?, state
+  failureReason?, materializedEntityId?
+  createdBy, createdAt, updatedAt?, decidedAt?, version
+}
+
+RoleAssignment {                  who may do what, and where (ADR-0051)
+  id, personId
+  unitId?                         null = global: every unit, and the configuration
+                                  that belongs to none
+  role      VIEWER | PLANNER | APPROVER | ADMIN
+  grantedBy, grantedAt            the grant is itself an auditable act
+}
+
+ApprovalDecision {                append-only, one row per human act
+  id, requestId
+  decision  APPROVE | REJECT | RETURN
+  byPersonId, comment?, at
+}
+```
+
+The envelope is generic so that adding a request type is a row rather than a deployment;
+the **outcome** is typed, because the coverage, validation and cell-projection engines all
+read typed rows and would be blind to a JSON blob.
+
+```mermaid
+stateDiagram-v2
+    [*] --> SUBMITTED: raise
+    SUBMITTED --> DRAFT: returned to the requester
+    DRAFT --> SUBMITTED: resubmit
+    SUBMITTED --> REJECTED: declined
+    SUBMITTED --> APPROVED: approved at the last step
+    APPROVED --> APPLIED: the Absence or PresenceRecord is written
+    APPROVED --> APPLY_FAILED: the write could not be made
+    APPLY_FAILED --> APPLIED: retry
+    SUBMITTED --> CANCELLED: withdrawn
+    APPLIED --> CANCELLED: withdrawn; what it created is removed
+    REJECTED --> [*]
+    CANCELLED --> [*]
+    APPLIED --> [*]
+```
+
+**`APPROVED` and `APPLIED` are separate on purpose.** Approval is a decision a human made;
+application is a write that can fail. Collapsing them would silently un-approve a human
+decision on a technical fault, and neither the requester nor the approver would learn that
+nothing happened.
+
+**Routing is not authorization** ([ADR-0046](adr/0046-routing-is-not-authorization.md)).
+A route decides whose *inbox* a request lands in; the policy decides who *may* act. A step
+that resolves to nobody is skipped rather than stalling the request, and only when no step
+resolves does `fallbackPersonId` apply.
+
+## Notification
+
+One person's inbox item, written **inside the same transaction** as the change that caused
+it ([ADR-0044](adr/0044-in-app-inbox-first.md)) — so it cannot be lost to a crash between
+the state change and the send, because there is no send.
+
+```
+Notification {
+  id, recipientPersonId
+  kind          REQUEST_SUBMITTED | REQUEST_APPROVED | REQUEST_REJECTED
+              | REQUEST_APPLY_FAILED | COMP_DAY_AGING | COVERAGE_GAP
+  title, body?
+  subjectType?, subjectId?              for deep links
+  createdAt, readAt?
+  channel?, deliveredAt?, deliveryAttempts    reserved: the outbox columns
+}
+```
 
 ## Comp day
 
@@ -428,21 +741,23 @@ projection is the single place where precedence lives.
 
 ```
 CellValue =
-  | { kind: 'SHIFT',   shift, assignment }
-  | { kind: 'STATUS', status: 'OFF' | 'NOT_SCHEDULED' | 'PH'
-                            | 'COMP_OFF' | 'VACATION' | 'SICK' | 'OTHER' }
-  | { kind: 'EMPTY' }                            no decision recorded
+  | { kind: 'SHIFT',  shift, assignment, event?, conflict? }
+  | { kind: 'STATUS', status: 'PH' | 'COMP_OFF' | 'ABSENT', event? }
+  | { kind: 'EMPTY' }                            no shift
 ```
+
+`ABSENT` carries the kind of absence in `event` rather than enumerating it in the status
+([ADR-0049](adr/0049-event-types-are-data.md)), so an admin adding a leave type does not
+widen a union.
 
 Precedence, first match wins:
 
-1. an `Assignment` with a working shift — a person can be scheduled on a holiday or a
-   weekend, and that must win over any non-working signal;
+1. an `Assignment` — a person can be scheduled on a holiday or a weekend, and that must
+   win over any non-working signal;
 2. an `Absence` covering the date;
 3. a `CompDayEntry` that is `SCHEDULED` or `TAKEN` on the date;
 4. a `Holiday` affecting the person's location → `PH`;
-5. an `Assignment` with a marker → `OFF` / `NOT_SCHEDULED`;
-6. otherwise `EMPTY`.
+5. otherwise `EMPTY`.
 
 When rule 1 fires and rule 2, 3 or 4 would also have fired, the cell additionally
 carries a **conflict** — see
@@ -516,20 +831,44 @@ the two units' actual windows are the source of truth, not a cached overlap.
 ## Access and audit
 
 ```
-AssignmentHistory { id, assignmentId, action, snapshot, actorId, at }   append-only
+ChangeHistoryEntry {
+  id
+  entityType   ASSIGNMENT | ABSENCE | COMP_DAY | PRESENCE | PERSON | CONFIGURATION
+  entityId
+  action       CREATED | UPDATED | DELETED
+  snapshotJson?    state after the action; null on delete
+  personId?        who the record is about, when there is one
+  summary?         prose, for entities whose snapshot is not worth rendering
+  actorId, at
+}                                                                   append-only
+
 Acknowledgement   { issueKey, comment, byPersonId, at }
 ```
 
-Three application roles, and **no regional scoping**
+Three application roles, and **no unit scoping**
 ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)):
 
 | Role | Can |
 |---|---|
-| Viewer | Read published data |
-| Planner | Draft and publish in **any** unit |
-| Admin | Everything a planner can, plus configuration and force-publish |
+| Viewer | Read published data; record **their own** presence; raise **their own** requests |
+| Planner | Draft and publish in **any** unit; record presence and requests for others |
+| Admin | Everything a planner can, plus configuration and break-glass approval |
 
 The team is small and nobody edits another team's rota without reason. The control is
-**a complete audit trail**, not a permission matrix: every published change records who
-made it, when, and what the previous value was. This removes unit-scope claims,
-cross-unit permission checks entirely.
+**a complete audit trail**, not a permission matrix: every change records who made it,
+when, and what the previous value was.
+
+Two things had to become true before that argument actually held:
+
+- **The actor is the authenticated principal, never a request field**
+  ([ADR-0039](adr/0039-actor-identity-from-the-token.md)). A body-supplied actor id made
+  the trail forgeable by exactly the people it was meant to constrain.
+- **The trail covers every entity, not just assignments**
+  ([ADR-0040](adr/0040-one-change-history-for-every-entity.md)). Leave, comp days,
+  presence, profile edits and configuration changes previously left no record at all —
+  and two of those decide tomorrow's roster.
+
+Self-service adds exactly one kind of denial, and it is not unit scoping returning by
+another door: **another person's own record**. "Can I edit my own presence" and "am I on
+this request's route" are per-resource questions that ADR-0032 never addressed, because
+self-service did not exist ([ADR-0046](adr/0046-routing-is-not-authorization.md)).

@@ -49,31 +49,33 @@ public enum AssignmentSource
     Imported,
 }
 
-/// <summary>Off = planned day off (Off/W-Off). NotScheduled = explicit "0", not blank.</summary>
-public enum RosterMarker
-{
-    Off,
-    NotScheduled,
-}
+// RosterMarker (Off / NotScheduled) and AssignmentContentKind are deleted (ADR-0052).
+// An assignment is a shift; there is nothing else it can be. The markers existed to
+// record "considered, and deliberately not scheduled" as distinct from "nobody has looked
+// at this yet" — a distinction the team did not use and which duplicated what a
+// non-working calendar day and an absence already said. An engineer who wants to be left
+// off a particular day now records the `UNAVAILABLE` event type, which is an absence and
+// therefore visible to every screen that already understands absences.
 
-public enum AssignmentContentKind
+/// <summary>
+/// Which half of a day something covers (ADR-0050).
+///
+/// Deliberately not times. Comparing an AM/PM half against a shift's actual window would
+/// need a boundary hour, and any boundary we picked would be invented — so coverage stays
+/// whole-day and this drives rendering and conflict wording only.
+/// </summary>
+public enum DayPortion
 {
-    Shift,
-    Marker,
-}
-
-/// <summary>Training is not an absence — it is the Cover shift (ADR-0017).</summary>
-public enum AbsenceType
-{
-    Vacation,
-    Sick,
-    Other,
+    Full,
+    Morning,
+    Afternoon,
 }
 
 public enum AbsenceSource
 {
     Import,
     Manual,
+    Request,
 }
 
 public enum CompDayTrigger
@@ -164,10 +166,18 @@ public enum DraftOp
     Delete,
 }
 
+/// <summary>
+/// What a draft change is about. **Absence is not here** (ADR-0052): a draft publishes the
+/// rota, and time off is decided by approval on its own schedule, by different people.
+/// Staging it here meant a sick day sat invisible until an unrelated planner published.
+///
+/// CompDay stays, because a comp day is *earned by* a weekend shift in the same draft:
+/// accruing one for a shift that might still be withdrawn before publication would be
+/// crediting work nobody has committed to yet.
+/// </summary>
 public enum DraftTargetType
 {
     Assignment,
-    Absence,
     CompDay,
 }
 
@@ -179,14 +189,28 @@ public enum HistoryAction
 }
 
 /// <summary>
-/// App-level authorization shifts (Phase 4). Ordinal order is the privilege order
-/// (Viewer &lt; Planner &lt; Admin) — policies compare by <c>(int)</c>, not by name, so
-/// this is a hierarchy, not a flag set. Point 3 (ADR-0020/0025): no regional scoping of
-/// write access — a shift is global, the control is the audit trail, not a boundary.
+/// What somebody is allowed to do. **A set, not a ladder** (ADR-0051).
+///
+/// WHY the ordinal comparison is gone: it made every higher role a superset of every
+/// lower one, so an Admin could assign shifts purely because <c>Admin &gt; Planner</c>.
+/// That is not the org: administering settings and planning a rota are different jobs
+/// held by different people. Nothing may compare these by <c>(int)</c> — hold the role
+/// or you do not.
+///
+/// Roles are granted per planning unit, or globally; see <see cref="RoleAssignment"/>.
 /// </summary>
 public enum AppRole
 {
+    /// <summary>Read the rota, and self-service on your own row. Everyone has it.</summary>
     Viewer,
+
+    /// <summary>Owns the rota: shifts, markers, comp days, publishing. Owns nothing
+    /// else — leave for another person is an approval question, not a planning one.</summary>
     Planner,
+
+    /// <summary>Decides requests raised by people in the unit.</summary>
+    Approver,
+
+    /// <summary>Edits configuration. Explicitly **cannot** assign shifts.</summary>
     Admin,
 }

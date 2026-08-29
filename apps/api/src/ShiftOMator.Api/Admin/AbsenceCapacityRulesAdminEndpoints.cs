@@ -13,7 +13,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
 {
     public static void MapAbsenceCapacityRulesAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/absence-capacity-rules").RequireAuthorization(AuthPolicies.AdminOnly);
+        var group = app.MapGroup("/api/admin/absence-capacity-rules").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(await db.AbsenceCapacityRules.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct)))
@@ -33,7 +33,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
                 DurationBucket = req.DurationBucket,
                 LongThresholdWorkdays = req.LongThresholdWorkdays,
                 MaxConcurrent = req.MaxConcurrent,
-                CountsTypes = req.CountsTypes,
+                CountsEventTypeIds = req.CountsEventTypeIds,
                 CountsCompDays = req.CountsCompDays,
             };
             db.AbsenceCapacityRules.Add(rule);
@@ -57,7 +57,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
             rule.DurationBucket = req.DurationBucket;
             rule.LongThresholdWorkdays = req.LongThresholdWorkdays;
             rule.MaxConcurrent = req.MaxConcurrent;
-            rule.CountsTypes = req.CountsTypes;
+            rule.CountsEventTypeIds = req.CountsEventTypeIds;
             rule.CountsCompDays = req.CountsCompDays;
             await db.SaveChangesAsync(ct);
             return Results.Ok(rule);
