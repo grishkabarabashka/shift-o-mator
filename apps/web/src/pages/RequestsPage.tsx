@@ -24,6 +24,7 @@ import {
 import type { Location } from '../domain/types.ts';
 import { Select, type SelectOption } from '../ui/primitives.tsx';
 import { useSchedule } from '../store/useSchedule.ts';
+import { PageHeader } from '../ui/PageHeader.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
 /** NOTE: Plain words, not enum names — this is the only place the state is user-facing. */
@@ -58,6 +59,8 @@ export function RequestsPage({ view }: { readonly view: PlanningView }) {
        characters of white space after it. Settings already does this at 1200px — a form is
        narrower still. */
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[880px] flex-col gap-3 overflow-y-auto p-4">
+      <PageHeader title="Requests" context="Ask for something, and decide what is waiting on you" />
+
       <NewRequestCard locations={view.locations} />
 
 

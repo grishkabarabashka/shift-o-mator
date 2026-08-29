@@ -831,8 +831,54 @@
    * now: a single tinted surface with one shadow under it, so the chrome reads as chrome
    * and the canvas below it reads as the work.
    */
+  /* Off-screen rather than hidden: `display: none` and `visibility: hidden` both take an
+     element out of the tab order, which is the one thing this must stay in. Written as a
+     class rather than a stack of `focus:` utilities because Tailwind's `not-sr-only` resets
+     `position` to static, and whether it or `focus:absolute` won came down to rule order. */
+  .skip-link {
+    position: absolute;
+    top: -100px;
+    left: var(--space-3);
+    z-index: 100;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    color: var(--accent);
+    font-size: var(--fs-base);
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: var(--elev-3);
+  }
+  .skip-link:focus-visible {
+    top: var(--space-3);
+  }
+
   .masthead {
     background: var(--surface);
+    transition: filter 200ms;
+  }
+
+  /* --- Focus mode (ADR-0056) --------------------------------------------------
+   *
+   * While a draft is open, colour drains out of the chrome. The grid is already the
+   * brightest and busiest thing on the page; what stops it *reading* that way is a header
+   * full of blue tabs, a lit clock strip and an accent Publish button all competing at the
+   * same volume.
+   *
+   * Saturation only. Nothing moves, nothing collapses and nothing becomes unreachable —
+   * somebody mid-edit is the last person who should have to hunt for a control that
+   * quietly went away, and the panels beside the grid (the issue list above all) are what
+   * they are editing *against*.
+   *
+   * The draft pill is exempt: it is the one piece of chrome that is about this state, and
+   * dimming the indicator for the mode is a joke the user does not get to be in on. */
+  .shell[data-editing='true'] .masthead {
+    filter: saturate(0.55);
+  }
+  .shell[data-editing='true'] .masthead .pill--warn,
+  .shell[data-editing='true'] .masthead .pill--accent {
+    filter: saturate(2.2);
   }
   /* The lower half of the band, and the only edge either bar has: one gradient across the
      pair rather than one per bar, which would put a seam between them. */

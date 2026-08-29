@@ -55,12 +55,38 @@ const NAV_ITEMS: readonly NavItem[] = [
 ];
 
 export function AppShell({ children }: { readonly children: ReactNode }) {
+  // Focus mode (ADR-0056). While a draft is open the chrome steps back so the grid is the
+  // brightest thing on screen. Deliberately restrained: colour drains out of the header and
+  // the tabs, and nothing moves, collapses or becomes unreachable — a planner mid-edit is
+  // the last person who should have to hunt for a control that quietly went away.
+  const editing = useSchedule((s) => s.session !== undefined);
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="shell flex h-full min-h-0 flex-col" data-editing={editing}>
+      <SkipLink />
       <ProductHeader />
       <Masthead />
-      <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+      {/* A real landmark, and the target of the skip link: the shell was header + nav + a
+          plain div, so "skip to content" had nowhere to land and a screen reader had no
+          main region to jump to. */}
+      <main id="content" className="min-h-0 flex-1 overflow-auto">
+        {children}
+      </main>
     </div>
+  );
+}
+
+/**
+ * The first thing Tab reaches, and invisible until it is reached.
+ *
+ * Without it, every keyboard user pays for the header — brand, unit picker, four clocks,
+ * the bell, the identity block — on every single navigation before arriving at the work.
+ */
+function SkipLink() {
+  return (
+    <a href="#content" className="skip-link">
+      Skip to content
+    </a>
   );
 }
 

@@ -43,6 +43,7 @@ import {
 import { useSchedule } from '../store/useSchedule.ts';
 import { TODAY, useUi } from '../store/useUi.ts';
 import { useElementWidth } from '../ui/useElementWidth.ts';
+import { PageHeader } from '../ui/PageHeader.tsx';
 import { OverviewPeriodControl } from '../features/shell/OverviewPeriodControl.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
@@ -166,9 +167,11 @@ export function OverviewPage({ view, now }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-4">
+      <PageHeader title="Overview" context="Are we covered, right now and either side of it" />
+
       <OverviewPeriodControl />
 
-      <section className="card grid shrink-0 grid-cols-2 divide-x divide-line sm:grid-cols-4">
+      <section className="card grid shrink-0 grid-cols-2 divide-x divide-line overflow-hidden sm:grid-cols-4">
         <Stat label="On shift now" value={onShiftNow} />
         <Stat label="People" value={people} />
         <IssueStat
@@ -195,7 +198,7 @@ export function OverviewPage({ view, now }: Props) {
         />
       ) : null}
 
-      <section className="card flex min-h-0 flex-1 flex-col overflow-hidden">
+      <section className="card flex min-h-0 flex-1 flex-col overflow-hidden shadow-elev-2">
         <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2.5">
           <h2 className="text-[13.5px] font-semibold">Coverage timeline</h2>
         </header>
@@ -557,7 +560,7 @@ function barTitle(bar: DayDetailRangeBar, zone: string): string {
 function Stat({ label, value }: { readonly label: string; readonly value: number }) {
   return (
     <div className="px-4 py-2.5">
-      <div className="text-[20px] leading-none font-semibold tracking-tight">{value}</div>
+      <div className="tabular text-[20px] leading-none font-semibold tracking-tight">{value}</div>
       <div className="mt-1 text-[10px] font-medium tracking-wide text-faint uppercase">{label}</div>
     </div>
   );
@@ -591,15 +594,19 @@ function IssueStat({
   if (issues.length === 0) {
     return (
       <div className="px-4 py-2.5">
-        <div className="text-[20px] leading-none font-semibold tracking-tight text-ok">0</div>
+        <div className="tabular text-[20px] leading-none font-semibold tracking-tight text-ok">0</div>
         <div className="mt-1 text-[10px] font-medium tracking-wide text-faint uppercase">{label}</div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-2.5">
-      <div className={`text-[20px] leading-none font-semibold tracking-tight ${tone === 'bad' ? 'text-bad' : 'text-warn'}`}>
+    /* A count that is not zero gets the whole tile, not just a coloured digit. Four tiles
+       of identical white with one red number in them is a row of statistics; a tile that
+       has changed colour is something that happened. The zero case stays plain on
+       purpose — "nothing wrong" is not an event and must not compete for attention. */
+    <div className={`px-4 py-2.5 ${tone === 'bad' ? 'bg-bad-soft' : 'bg-warn-soft'}`}>
+      <div className={`tabular text-[20px] leading-none font-semibold tracking-tight ${tone === 'bad' ? 'text-bad' : 'text-warn'}`}>
         {issues.length}
       </div>
       <button

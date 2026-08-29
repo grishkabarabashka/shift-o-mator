@@ -33,6 +33,7 @@ import { HeatmapGrid } from '../features/planning/HeatmapGrid.tsx';
 import { PlanningGrid } from '../features/planning/PlanningGrid.tsx';
 import { ReviewDialog } from '../features/planning/ReviewDialog.tsx';
 import { ShiftPalette } from '../features/planning/ShiftPalette.tsx';
+import { PageHeader } from '../ui/PageHeader.tsx';
 import { DateRangeControl } from '../features/shell/DateRangeControl.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
 
@@ -109,6 +110,15 @@ export function SchedulePage({ view, asOf }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+      <PageHeader
+        title="Schedule"
+        context={
+          editing
+            ? 'Your draft is open — nothing here is published until you publish it'
+            : 'The published rota. Right-click to start editing.'
+        }
+      />
+
       <DateRangeControl />
 
       {/* WHY a banner and not the full-screen error state: a failed publish leaves the
@@ -144,7 +154,7 @@ export function SchedulePage({ view, asOf }: Props) {
 
       <div className="flex min-h-0 flex-1 gap-3">
         <section
-          className="card flex min-w-0 flex-1 flex-col overflow-hidden"
+          className="card flex min-w-0 flex-1 flex-col overflow-hidden shadow-elev-2"
           style={{ '--cell-w': `${cellWidth}px` } as React.CSSProperties}
         >
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
