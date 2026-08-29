@@ -159,7 +159,7 @@ export function SchedulePage({ view, asOf }: Props) {
 
       <div className="flex min-h-0 flex-1 gap-3">
         <section
-          className="card flex min-w-0 flex-1 flex-col overflow-hidden shadow-elev-2"
+          className="card workbench flex min-w-0 flex-1 flex-col overflow-hidden shadow-elev-2"
           style={{ '--cell-w': `${cellWidth}px` } as React.CSSProperties}
         >
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">

@@ -8,7 +8,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { NavLink } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider.tsx';
 import { type Location, type Person } from '../../domain/types.ts';
 import { isAllUnits, scopeIncludes } from '../../domain/unitScope.ts';
@@ -30,6 +30,8 @@ import { Select, type SelectOption } from '../../ui/primitives.tsx';
 import { useRoleAssignments } from '../../api/roleAssignments.ts';
 import { useCapabilities } from '../../auth/useCapabilities.ts';
 import { NotificationBell } from './NotificationBell.tsx';
+import { BrandMark } from '../../ui/BrandMark.tsx';
+import { SkyIcon } from './SkyIcon.tsx';
 import { ToastViewport } from '../../ui/ToastViewport.tsx';
 
 export interface NavItem {
@@ -57,10 +59,15 @@ const NAV_ITEMS: readonly NavItem[] = [
 ];
 
 export function AppShell({ children }: { readonly children: ReactNode }) {
-  // Focus mode (ADR-0057). While a draft is open the chrome steps back so the grid is the
-  // brightest thing on screen. Deliberately restrained: colour drains out of the header and
-  // the tabs, and nothing moves, collapses or becomes unreachable — a planner mid-edit is
-  // the last person who should have to hunt for a control that quietly went away.
+  // Focus mode (ADR-0057). While a draft is open the chrome carries an accent rail, the
+  // canvas takes a hint of accent, and the `.workbench` surface is lifted a rung — see the
+  // rules in `theme.css`. Nothing moves, collapses or becomes unreachable: a planner
+  // mid-edit is the last person who should hunt for a control that quietly went away.
+  //
+  // WHY it is `session !== undefined` and not `hasDraftChanges`: the draft opens on the
+  // first edit and stays open until it is published or discarded, so this is on for exactly
+  // as long as there is unpublished work — including after an undo takes the count back to
+  // zero, which is still a draft somebody else can see staged.
   const editing = useSchedule((s) => s.session !== undefined);
 
   return (
@@ -130,25 +137,21 @@ function ProductHeader() {
   const primaryLocationIds = new Set(units.map((u) => u.primaryLocationId));
 
   return (
+    /* One row, everything optically centred on it. The controls used to be 22px pills,
+       26px clocks, 32px fields and a 32px avatar all on `items-center` with a 12px gap,
+       which is why the row read as ragged rather than as a bar. Heights are now uniform
+       (`--control-h`), the clock widget is the one deliberate exception because it carries
+       two lines, and the groups are separated by rules rather than by guessed spacing. */
     <header className="masthead flex h-14 shrink-0 items-center gap-3 px-4">
-      <div className="flex shrink-0 items-center gap-2.5">
-        <span aria-hidden className="brand__mark">
-          S
-        </span>
-        <span className="brand__name hidden flex-none whitespace-nowrap lg:block">
-          shift<em>·</em>o<em>·</em>mator
-        </span>
-      </div>
+      <Brand />
 
-      <div className="h-6 w-px shrink-0 bg-line" />
+      <span aria-hidden className="masthead__rule" />
 
-      <div className="flex shrink-0 items-center gap-2">
-        {/* NOTE: A unit is a filter, not a boundary (ADR-0020): any combination
-            can be selected, "all" is the default. */}
-        <UnitScopePicker units={units} scope={unitId} onChange={setUnit} />
-      </div>
+      {/* NOTE: A unit is a filter, not a boundary (ADR-0020): any combination
+          can be selected, "all" is the default. */}
+      <UnitScopePicker units={units} scope={unitId} onChange={setUnit} />
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex min-w-0 items-center gap-3">
         <AbsenceFreshness absences={publishedAbsences} />
 
         {editing ? (
@@ -159,14 +162,18 @@ function ProductHeader() {
 
         <LocationClockStrip locations={strip} primaryLocationIds={primaryLocationIds} />
 
+        <span aria-hidden className="masthead__rule" />
+
         <NotificationBell />
 
-        <div className="h-6 w-px bg-line" />
-
         <div className="flex items-center gap-2.5">
-          <div className="hidden text-right leading-tight sm:block">
-            <div className="text-[12.5px] font-semibold">{identity.displayName}</div>
-            <div className="text-[11px] text-faint">{describeGrants(identity)}</div>
+          {/* `leading-tight` on two lines of different size needs a fixed box, or the
+              block's own height drifts with the longer of the two strings. */}
+          <div className="hidden min-w-0 text-right sm:block">
+            <div className="truncate text-sm leading-4 font-semibold">{identity.displayName}</div>
+            <div className="truncate text-2xs leading-4 tracking-normal text-faint">
+              {describeGrants(identity)}
+            </div>
           </div>
           <span aria-hidden className="avatar">
             {initialsOf(identity.displayName)}
@@ -175,6 +182,28 @@ function ProductHeader() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The mark and the wordmark, and a way home.
+ *
+ * It was not a link. Every other product on the intranet goes to the front page when you
+ * click its name, and this one did nothing at all — which is a small thing that quietly
+ * tells somebody the software is unfinished.
+ *
+ * The wordmark keeps its interpuncts in accent, because that is the one piece of the old
+ * treatment that was doing work: it breaks `shiftomator` into three readable parts without
+ * a hyphen, and it ties the name to the mark beside it.
+ */
+function Brand() {
+  return (
+    <Link to="/overview" className="brand" aria-label="shift-o-mator — go to Overview">
+      <BrandMark />
+      <span className="brand__name">
+        shift<em>·</em>o<em>·</em>mator
+      </span>
+    </Link>
   );
 }
 
@@ -227,6 +256,51 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
  * location keeps its own axis on Overview regardless, which is what made the effect look
  * smaller than it is.
  */
+/**
+ * One clock.
+ *
+ * Three parts on one baseline-free grid: the phase glyph, the place, the time. The first
+ * version put the name and the time side by side on `align-items: baseline` at two
+ * different sizes inside a fixed 26px box — so the pair sat on a shared baseline that was
+ * itself off-centre in the box, which is precisely why the row looked crooked. Stacking
+ * them removes the shared baseline entirely, and the grid centres the whole block.
+ */
+function Clock({
+  location,
+  now,
+  active,
+  onSelect,
+}: {
+  readonly location: Location;
+  readonly now: string;
+  readonly active: boolean;
+  readonly onSelect: () => void;
+}) {
+  const phase = skyPhase(now, location.timeZone);
+
+  return (
+    <button
+      type="button"
+      className="clock"
+      role="radio"
+      aria-checked={active}
+      data-active={active}
+      data-phase={phase}
+      onClick={onSelect}
+      // WHY the phase is written out as well as drawn: colour and a glyph are both
+      // shorthand, and neither is a fact somebody can quote back or a screen reader can
+      // read. The sky is the fast path, not the only one.
+      title={`${PHASE_LABEL[phase]} in ${location.name} — click to read every time on screen in ${location.name} time (${location.timeZone})`}
+    >
+      <SkyIcon phase={phase} />
+      <span className="clock__text">
+        <span className="clock__name">{location.name}</span>
+        <span className="clock__time">{formatInZone(now, location.timeZone)}</span>
+      </span>
+    </button>
+  );
+}
+
 const PHASE_LABEL: Record<SkyPhase, string> = {
   night: 'Night',
   dawn: 'Dawn',
@@ -265,6 +339,10 @@ function LocationClockStrip({
 
   return (
     <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Display timezone">
+      {/* The neutral option, built from the same two lines as a real clock so the row is one
+          set of widgets rather than a text button standing next to five of them. It has no
+          sky and no glyph on purpose — it is not a place, and giving it weather would claim
+          something untrue. */}
       <button
         type="button"
         className="clock clock--abstract"
@@ -272,31 +350,22 @@ function LocationClockStrip({
         aria-checked={displayZone === 'shift'}
         data-active={displayZone === 'shift'}
         onClick={() => setDisplayZone('shift')}
-        title="Read every time in the shift's own timezone"
+        title="Read every time in the shift's own timezone, wherever it is worked"
       >
-        Shift time
+        <span className="clock__text">
+          <span className="clock__name">Neutral</span>
+          <span className="clock__time">Shift time</span>
+        </span>
       </button>
-      {clocks.map((location) => {
-        const phase = skyPhase(now, location.timeZone);
-        return (
-          <button
-            key={location.timeZone}
-            type="button"
-            className="clock"
-            role="radio"
-            aria-checked={displayZone === location.timeZone}
-            data-active={displayZone === location.timeZone}
-            data-phase={phase}
-            onClick={() => setDisplayZone(location.timeZone)}
-            // WHY the phase is in the title too: the sky is colour, and colour alone is
-            // not a fact anybody can quote back. It also has to survive a screen reader.
-            title={`${PHASE_LABEL[phase]} in ${location.name} — click to read every time in ${location.name} time (${location.timeZone})`}
-          >
-            <span>{location.name}</span>
-            <span className="clock__time">{formatInZone(now, location.timeZone)}</span>
-          </button>
-        );
-      })}
+      {clocks.map((location) => (
+        <Clock
+          key={location.timeZone}
+          location={location}
+          now={now}
+          active={displayZone === location.timeZone}
+          onSelect={() => setDisplayZone(location.timeZone)}
+        />
+      ))}
     </div>
   );
 }
@@ -333,15 +402,16 @@ function CollapsedClocks({
           aria-label="Display timezone"
           title="Choose which timezone every time on screen is read in"
         >
-          {selected ? (
-            <>
-              <span>{selected.name}</span>
-              <span className="clock__time">{formatInZone(now, selected.timeZone)}</span>
-            </>
-          ) : (
-            'Shift time'
-          )}
-          <span aria-hidden>▾</span>
+          {phase ? <SkyIcon phase={phase} /> : null}
+          <span className="clock__text">
+            <span className="clock__name">{selected ? selected.name : 'Reading in'}</span>
+            <span className="clock__time">
+              {selected ? formatInZone(now, selected.timeZone) : 'Shift time'}
+            </span>
+          </span>
+          <span aria-hidden className="clock__caret">
+            ▾
+          </span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -354,28 +424,25 @@ function CollapsedClocks({
           >
             <button
               type="button"
-              className="clock clock--abstract w-full justify-between"
+              className="clock clock--abstract w-full"
               role="radio"
               aria-checked={displayZone === 'shift'}
               data-active={displayZone === 'shift'}
               onClick={() => setDisplayZone('shift')}
             >
-              Shift time
+              <span className="clock__text">
+                <span className="clock__name">Neutral</span>
+                <span className="clock__time">Shift time</span>
+              </span>
             </button>
             {clocks.map((location) => (
-              <button
+              <Clock
                 key={location.timeZone}
-                type="button"
-                className="clock w-full justify-between"
-                role="radio"
-                aria-checked={displayZone === location.timeZone}
-                data-active={displayZone === location.timeZone}
-                data-phase={skyPhase(now, location.timeZone)}
-                onClick={() => setDisplayZone(location.timeZone)}
-              >
-                <span>{location.name}</span>
-                <span className="clock__time">{formatInZone(now, location.timeZone)}</span>
-              </button>
+                location={location}
+                now={now}
+                active={displayZone === location.timeZone}
+                onSelect={() => setDisplayZone(location.timeZone)}
+              />
             ))}
           </div>
         </Popover.Content>

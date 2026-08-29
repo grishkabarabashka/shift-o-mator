@@ -197,8 +197,12 @@
     /* Dimmer skies. The light-theme values are lit for a white masthead and glow like
        lamps against a dark one — the phase has to stay readable without becoming the
        brightest thing in the chrome. */
-    --sky-night: linear-gradient(160deg, #1b2540, #121a2e);
-    --sky-night-ink: #b9c6e2;
+    /* Lighter than it looks like it should be. Night at #1b2540 is *darker* than the
+       #141920 masthead it sits on, so the widget dissolved into the chrome and the clock
+       read as a moon and some text floating there. A night sky still has to sit above the
+       surface behind it. */
+    --sky-night: linear-gradient(160deg, #2a3860, #1d2848);
+    --sky-night-ink: #cbd8f2;
     --sky-dawn: linear-gradient(160deg, #7d4a33, #5a3626);
     --sky-dawn-ink: #f3d6c4;
     --sky-day: linear-gradient(160deg, #2a4666, #1e3350);
@@ -507,29 +511,63 @@
    *
    * They are still radio buttons for the display timezone, and still say so to a screen
    * reader; the sky is the label, not a decoration bolted beside it. */
+  /* A grid, not a baseline row.
+     The first version laid the name and the time side by side on `align-items: baseline` at
+     two different font sizes inside a fixed 26px box: the pair shared a baseline, that
+     baseline was not centred in the box, and the four clocks therefore sat at four
+     different optical heights. Stacking the two lines removes the shared baseline
+     altogether, and `align-items: center` centres the block as one object. */
   .clock {
-    display: inline-flex;
-    align-items: baseline;
+    display: inline-grid;
+    grid-auto-flow: column;
+    align-items: center;
     gap: var(--space-2);
-    height: 26px;
-    padding: 0 var(--space-3);
-    border: 1px solid transparent;
-    border-radius: var(--r-full);
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    height: 36px;
+    padding: 0 10px;
+    /* Derived from the sky's own ink, so every phase gets an edge that contrasts with its
+       own fill in both themes. Without it a night clock — deep navy on a #141920 masthead —
+       lost its outline entirely in dark mode and read as text floating on the chrome. */
+    border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+    /* A rounded rectangle, not a pill. Pills in this product are status badges; this is a
+       control with two lines in it, and at 36px a full radius turns the ends into lozenges
+       that crowd the text. */
+    border-radius: var(--r-md);
     white-space: nowrap;
     cursor: pointer;
-    /* The clock re-renders every minute. Proportional digits would re-lay out the whole
-       strip as 09 becomes 10, which reads as the chrome twitching. */
+    /* The strip re-renders every minute. Proportional digits would re-lay the whole row out
+       as 09 becomes 10, which reads as the chrome twitching. */
     font-variant-numeric: tabular-nums;
-    transition: box-shadow 140ms, border-color 140ms, opacity 140ms;
+    transition: box-shadow 140ms, border-color 140ms, filter 140ms;
+  }
+  .clock__text {
+    display: grid;
+    /* `justify-items: start` rather than centre: the name is shorter than the time, and
+       centring the two makes a ragged left edge inside a left-aligned row. */
+    justify-items: start;
+    gap: 1px;
+    min-width: 0;
+  }
+  .clock__name {
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    /* The place is the label; the time is the value. Without this they compete, and the
+       eye has to decide which one it came for. */
+    opacity: 0.78;
   }
   .clock__time {
     font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  .clock__caret {
+    font-size: 9px;
+    line-height: 1;
+    opacity: 0.6;
   }
 
   .clock[data-phase='night'] {
@@ -549,13 +587,15 @@
     color: var(--sky-dusk-ink);
   }
 
-  /* Unselected zones are informational, and four lit skies in a row would compete with
-     everything else in the header. They sit back until asked for. */
+  /* Unselected zones sit back — four lit skies at full strength would out-shout everything
+     else in the header. `filter`, not `opacity`: opacity blends the sky into the masthead
+     underneath it and the result was muddy rather than quiet, with the ink losing contrast
+     against its own background at the same rate as the background lost saturation. */
   .clock:not([data-active='true']) {
-    opacity: 0.62;
+    filter: saturate(0.72) brightness(1.04);
   }
   .clock:hover {
-    opacity: 1;
+    filter: none;
   }
 
   /* The selected zone rises off the band rather than being flooded with accent: the sky is
@@ -891,24 +931,46 @@
 
   /* --- Focus mode (ADR-0057) --------------------------------------------------
    *
-   * While a draft is open, colour drains out of the chrome. The grid is already the
-   * brightest and busiest thing on the page; what stops it *reading* that way is a header
-   * full of blue tabs, a lit clock strip and an accent Publish button all competing at the
-   * same volume.
+   * While a draft is open, the app says so and the working surface comes forward.
    *
-   * Saturation only. Nothing moves, nothing collapses and nothing becomes unreachable —
-   * somebody mid-edit is the last person who should have to hunt for a control that
-   * quietly went away, and the panels beside the grid (the issue list above all) are what
-   * they are editing *against*.
+   * The first attempt at this was `filter: saturate(0.55)` on the masthead, and it was
+   * invisible — for the obvious reason, once stated: the chrome is white, grey hairlines
+   * and near-black text, so desaturating it changes almost nothing. Draining colour only
+   * works where there is colour to drain.
    *
-   * The draft pill is exempt: it is the one piece of chrome that is about this state, and
-   * dimming the indicator for the mode is a joke the user does not get to be in on. */
-  .shell[data-editing='true'] .masthead {
-    filter: saturate(0.55);
+   * What is visible is a **positive** mark rather than a subtraction: an accent rail across
+   * the foot of the chrome, a canvas tinted a hair towards accent, and the working surface
+   * lifted a rung with an accent edge. Together they read, without a caption, as "you are
+   * in a draft, and this is the thing you are editing".
+   *
+   * Still nothing moves, collapses or becomes unreachable: somebody mid-edit is the last
+   * person who should hunt for a control that quietly went away, and the issue panel is
+   * what they are editing *against*. */
+  /* A 3px accent rail under the whole of the chrome. This is the standard shape of "you are
+     in a mode" — wide, unmissable at the edge of vision, and carrying no content of its own
+     so it cannot be mistaken for something needing a reply. */
+  .shell[data-editing='true'] .masthead--foot {
+    border-bottom-color: var(--accent);
+    border-bottom-width: 3px;
+    box-shadow:
+      0 1px 3px rgb(16 24 40 / 0.06),
+      0 10px 24px -14px color-mix(in srgb, var(--accent) 70%, transparent);
   }
-  .shell[data-editing='true'] .masthead .pill--warn,
-  .shell[data-editing='true'] .masthead .pill--accent {
-    filter: saturate(2.2);
+
+  /* A tint, not a wash: enough to register when the eye is elsewhere, far too little to
+     fight the coverage colours the grid is painted in. */
+  .shell[data-editing='true'] main {
+    background: color-mix(in srgb, var(--accent) 5%, var(--canvas));
+  }
+
+  /* The surface being edited. `.workbench` marks it — the same card that carries `--elev-2`
+     normally, so focus mode raises the thing that was already the answer to "what is this
+     screen for" rather than introducing a second idea of importance. */
+  .shell[data-editing='true'] .workbench {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    box-shadow:
+      var(--elev-3),
+      0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
   }
   /* The lower half of the band, and the only edge either bar has: one gradient across the
      pair rather than one per bar, which would put a seam between them. */
@@ -920,33 +982,73 @@
       0 6px 16px -12px rgb(16 24 40 / 0.30);
   }
 
-  /* The mark. A gradient tile with a coloured halo under it: at 28px there is no room for
-     a logo, and a flat square of accent is a placeholder. */
-  .brand__mark {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
+  /* A vertical hairline between groups of controls. The header separated its groups with
+     guessed gaps, which is why the row read as a list of unrelated widgets rather than a
+     bar with sections in it. */
+  .masthead__rule {
     flex: none;
-    border-radius: var(--r-lg);
-    background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent) 55%, color-mix(in srgb, var(--accent) 72%, black));
-    color: var(--accent-ink);
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    width: 1px;
+    height: 24px;
+    background: var(--line);
+  }
+
+  /* The brand, and the way home. It was not a link at all — every other product on an
+     intranet goes to its front page when you click its name, and the one that does nothing
+     reads as unfinished. */
+  .brand {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    margin-left: calc(var(--space-2) * -1);
+    border-radius: var(--r-md);
+    color: var(--ink);
+    text-decoration: none;
+    transition: background 140ms;
+  }
+  .brand:hover {
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+
+  /* The tile behind the ring (`ui/BrandMark.tsx`). The gradient stops are variables because
+     the SVG cannot read a Tailwind class, and this keeps the tile, its halo and the ink in
+     one place instead of three that drift apart in dark mode. */
+  .brand__mark {
+    --brand-tile-from: color-mix(in srgb, var(--accent) 86%, white);
+    --brand-tile-to: color-mix(in srgb, var(--accent) 76%, black);
+    --brand-ink: var(--accent-ink);
+    flex: none;
+    border-radius: 9px;
     box-shadow:
       0 1px 2px rgb(16 24 40 / 0.24),
-      0 4px 10px -4px color-mix(in srgb, var(--accent) 55%, transparent),
-      inset 0 1px 0 rgb(255 255 255 / 0.35);
+      0 4px 12px -5px color-mix(in srgb, var(--accent) 60%, transparent);
   }
+
   .brand__name {
-    font-size: 14.5px;
+    /* Hidden below `lg`, where the mark carries the identity alone — a wordmark is the
+       first thing that should go when the row runs out of room. */
+    display: none;
+    font-size: 15px;
     font-weight: 650;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
   }
+  @media (width >= 64rem) {
+    .brand__name {
+      display: block;
+    }
+  }
+  /* The interpuncts, in accent. They are the part of the old wordmark that was doing work:
+     they break `shiftomator` into three readable parts without a hyphen, and they rhyme
+     with the gaps between the arcs in the mark beside them. Raised and tightened so they
+     read as marks between words rather than as three characters of their own. */
   .brand__name em {
+    padding: 0 1px;
     font-style: normal;
+    font-size: 0.85em;
     color: var(--accent);
+    vertical-align: 0.1em;
   }
 
   .tab {

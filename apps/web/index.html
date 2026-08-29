@@ -4,9 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>shift-o-mator</title>
+    <!--
+      The same three-arc ring as `ui/BrandMark.tsx`. Kept as a data URI rather than a file
+      in `public/` so the repository stays free of binary-ish assets, and hard-coded to the
+      light-theme accent because a favicon cannot read a CSS variable.
+
+      If the mark changes, this changes with it — they are one design in two places, and a
+      tab icon that disagrees with the header is worse than a plain one.
+    -->
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='16' y='23' font-family='system-ui,sans-serif' font-size='20' font-weight='700' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232563eb'/%3E%3Cg fill='none' stroke='white' stroke-width='3' stroke-linecap='round' pathLength='100' transform='rotate(-90 16 16)'%3E%3Ccircle cx='16' cy='16' r='9.5' stroke-dasharray='30 70'/%3E%3Ccircle cx='16' cy='16' r='9.5' stroke-dasharray='24 76' stroke-dashoffset='-35' opacity='.72'/%3E%3Ccircle cx='16' cy='16' r='9.5' stroke-dasharray='30 70' stroke-dashoffset='-64' opacity='.45'/%3E%3C/g%3E%3C/svg%3E"
     />
   </head>
   <body>
