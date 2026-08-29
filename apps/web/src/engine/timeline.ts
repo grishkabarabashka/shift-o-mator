@@ -818,6 +818,38 @@ export interface NightBand {
 const NIGHT_FROM = 20;
 const NIGHT_UNTIL = 6;
 
+/** How light it is where somebody is, in the only granularity this product needs. */
+export type SkyPhase = 'night' | 'dawn' | 'day' | 'dusk';
+
+/**
+ * The sky over one location, right now (ADR-0056).
+ *
+ * The header clocks are painted with this, so "which office is awake" is answered by
+ * looking rather than by subtracting hours in your head.
+ *
+ * WHY it lives here beside `nightBands` and shares its constants rather than getting its
+ * own: both answer "is it night in this zone", and two definitions would drift. A clock
+ * showing dusk above an axis already washed as night is the kind of disagreement nobody
+ * reports as a bug and everybody stops trusting.
+ *
+ * Night is exactly `nightBands`' night, and dawn and dusk are taken from the *day* side of
+ * it — the first lit hour and the last one. Taking them from the night side instead would
+ * paint 20:00 as dusk on a clock sitting above an axis already washed as night, and a
+ * disagreement that small is the kind nobody reports and everybody stops trusting.
+ *
+ * This is not astronomy: it knows neither latitude nor season, and a solar calculation
+ * would put sunrise in Reykjavik at 03:00 in June, which tells a planner in Chicago
+ * nothing they can use.
+ */
+export function skyPhase(instant: IsoInstant, zone: string): SkyPhase {
+  const local = Number(formatInZone(instant, zone, 'H'));
+
+  if (local >= NIGHT_FROM || local < NIGHT_UNTIL) return 'night';
+  if (local === NIGHT_UNTIL) return 'dawn';
+  if (local === NIGHT_FROM - 1) return 'dusk';
+  return 'day';
+}
+
 /**
  * Night, per location, across the axis.
  *

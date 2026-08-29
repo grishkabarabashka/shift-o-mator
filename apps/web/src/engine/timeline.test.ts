@@ -15,6 +15,7 @@ import {
   buildDayDetailRange,
   buildTimelineRange,
   nightBands,
+  skyPhase,
   positionOf,
 } from './timeline.ts';
 
@@ -267,5 +268,41 @@ describe('nightBands', () => {
 
   it('is empty for an axis with no width', () => {
     expect(nightBands({ start: axis.start, end: axis.start }, 'UTC')).toEqual([]);
+  });
+});
+
+describe('skyPhase', () => {
+  /** The instant at a given UTC hour on a fixed day, so a case reads as the hour it tests. */
+  const atUtc = (hour: number) =>
+    `2026-09-07T${String(hour).padStart(2, '0')}:30:00.000Z` as const;
+
+  it('agrees with nightBands about what night is', () => {
+    // The clock sits above an axis nightBands has already washed. Two definitions would
+    // drift, and a clock showing dusk over a night band is a disagreement nobody reports.
+    expect(skyPhase(atUtc(20), 'UTC')).toBe('night');
+    expect(skyPhase(atUtc(23), 'UTC')).toBe('night');
+    expect(skyPhase(atUtc(0), 'UTC')).toBe('night');
+    expect(skyPhase(atUtc(5), 'UTC')).toBe('night');
+  });
+
+  it('takes dawn and dusk from the lit side of the boundary', () => {
+    expect(skyPhase(atUtc(6), 'UTC')).toBe('dawn');
+    expect(skyPhase(atUtc(19), 'UTC')).toBe('dusk');
+    expect(skyPhase(atUtc(7), 'UTC')).toBe('day');
+    expect(skyPhase(atUtc(18), 'UTC')).toBe('day');
+  });
+
+  it('reads the local hour, not the UTC one', () => {
+    // 03:30 UTC is the middle of the night in London and mid-morning in Tokyo. This is the
+    // whole reason the header draws one clock per zone.
+    expect(skyPhase(atUtc(3), 'Europe/London')).toBe('night');
+    expect(skyPhase(atUtc(3), 'Asia/Tokyo')).toBe('day');
+  });
+
+  it('handles a zone offset by half an hour', () => {
+    // 00:30 UTC is 06:00 in Kolkata (+05:30) — dawn exactly, which a whole-hour offset
+    // would never land on.
+    expect(skyPhase('2026-09-07T00:30:00.000Z', 'Asia/Kolkata')).toBe('dawn');
+    expect(skyPhase('2026-09-07T00:00:00.000Z', 'Asia/Kolkata')).toBe('night');
   });
 });

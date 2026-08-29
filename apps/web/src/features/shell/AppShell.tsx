@@ -16,6 +16,7 @@ import { UnitScopePicker } from './UnitScopePicker.tsx';
 import { absenceFreshness } from '../../engine/absenceImport.ts';
 import { daysBetween, formatInZone, parseDate } from '../../engine/dates.ts';
 import { dedupeLocationsByZone } from '../../engine/locationClocks.ts';
+import { skyPhase, type SkyPhase } from '../../engine/timeline.ts';
 import { hasDraftChanges, useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { useNow } from '../../ui/useNow.ts';
@@ -176,6 +177,16 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
  * Location clocks — one per location actually in play, and **the display-timezone
  * picker**: click a clock to read every time in that zone.
  *
+ * Each clock carries its own sky (ADR-0056): night is deep and cold, dawn and dusk are
+ * warm, daytime is light. WHY: the question these exist to answer is "who is awake right
+ * now", and as four identical grey pills that question was answered by reading four
+ * numbers and subtracting. The phase comes from `skyPhase`, which shares its definition of
+ * night with the bands Overview draws behind its axis — the clock and the axis disagreeing
+ * about whether it is dark in London is a bug nobody would report and everybody would feel.
+ *
+ * The sky is never the only carrier: the phase is named in the title, and selection is a
+ * ring rather than a wash, so the chosen zone still shows its own weather.
+ *
  * WHY the control is here and not on a screen of its own: it went to Settings, then to a
  * Display menu beside the avatar, and both were the same mistake in different places — a
  * separate control for a choice the clocks already display. The clocks say which zone is
@@ -187,6 +198,13 @@ function AbsenceFreshness({ absences }: { readonly absences: readonly { lastSeen
  * location keeps its own axis on Overview regardless, which is what made the effect look
  * smaller than it is.
  */
+const PHASE_LABEL: Record<SkyPhase, string> = {
+  night: 'Night',
+  dawn: 'Dawn',
+  day: 'Daytime',
+  dusk: 'Dusk',
+};
+
 function LocationClockStrip({
   locations,
   primaryLocationIds,
@@ -209,7 +227,7 @@ function LocationClockStrip({
     >
       <button
         type="button"
-        className="pill"
+        className="clock clock--abstract"
         role="radio"
         aria-checked={displayZone === 'shift'}
         data-active={displayZone === 'shift'}
@@ -218,21 +236,27 @@ function LocationClockStrip({
       >
         Shift time
       </button>
-      {clocks.map((location) => (
-        <button
-          key={location.timeZone}
-          type="button"
-          className="pill"
-          role="radio"
-          aria-checked={displayZone === location.timeZone}
-          data-active={displayZone === location.timeZone}
-          onClick={() => setDisplayZone(location.timeZone)}
-          title={`Read every time in ${location.name} time (${location.timeZone})`}
-        >
-          <span className="font-medium">{location.name}</span>{' '}
-          <span className="font-mono">{formatInZone(now, location.timeZone)}</span>
-        </button>
-      ))}
+      {clocks.map((location) => {
+        const phase = skyPhase(now, location.timeZone);
+        return (
+          <button
+            key={location.timeZone}
+            type="button"
+            className="clock"
+            role="radio"
+            aria-checked={displayZone === location.timeZone}
+            data-active={displayZone === location.timeZone}
+            data-phase={phase}
+            onClick={() => setDisplayZone(location.timeZone)}
+            // WHY the phase is in the title too: the sky is colour, and colour alone is
+            // not a fact anybody can quote back. It also has to survive a screen reader.
+            title={`${PHASE_LABEL[phase]} in ${location.name} — click to read every time in ${location.name} time (${location.timeZone})`}
+          >
+            <span>{location.name}</span>
+            <span className="clock__time">{formatInZone(now, location.timeZone)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

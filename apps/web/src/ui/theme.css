@@ -468,6 +468,83 @@
     color: var(--accent-ink);
   }
 
+  /* --- Location clocks (ADR-0056) --------------------------------------------
+   *
+   * The signature element. These were four flat pills of identical grey, which made the
+   * one question they exist to answer — who is awake right now — something you worked out
+   * by reading four numbers and subtracting. Each one now carries its own sky, so the
+   * answer arrives before the reading does.
+   *
+   * They are still radio buttons for the display timezone, and still say so to a screen
+   * reader; the sky is the label, not a decoration bolted beside it. */
+  .clock {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    height: 26px;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--r-full);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    /* The clock re-renders every minute. Proportional digits would re-lay out the whole
+       strip as 09 becomes 10, which reads as the chrome twitching. */
+    font-variant-numeric: tabular-nums;
+    transition: box-shadow 140ms, border-color 140ms, opacity 140ms;
+  }
+  .clock__time {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .clock[data-phase='night'] {
+    background: var(--sky-night);
+    color: var(--sky-night-ink);
+  }
+  .clock[data-phase='dawn'] {
+    background: var(--sky-dawn);
+    color: var(--sky-dawn-ink);
+  }
+  .clock[data-phase='day'] {
+    background: var(--sky-day);
+    color: var(--sky-day-ink);
+  }
+  .clock[data-phase='dusk'] {
+    background: var(--sky-dusk);
+    color: var(--sky-dusk-ink);
+  }
+
+  /* Unselected zones are informational, and four lit skies in a row would compete with
+     everything else in the header. They sit back until asked for. */
+  .clock:not([data-active='true']) {
+    opacity: 0.62;
+  }
+  .clock:hover {
+    opacity: 1;
+  }
+
+  /* The selected zone rises off the band rather than being flooded with accent: the sky is
+     what identifies it, and painting over it would throw away the thing being selected.
+     The ring says "chosen", the sky still says "night in London". */
+  .clock[data-active='true'] {
+    border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+    box-shadow:
+      var(--elev-2),
+      0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  /* "Shift time" is not a place and has no sky — it is the neutral option, and dressing it
+     as weather would claim something untrue about it. */
+  .clock--abstract {
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+  }
+
   /* --- Input fields -------------------------------------------------------- */
   .field {
     height: 32px;
