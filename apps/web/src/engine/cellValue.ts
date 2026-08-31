@@ -123,7 +123,7 @@ export function projectCells(input: CellProjectionInput): CellProjection {
 
     const existing = byCell.get(key);
     if (existing?.kind === 'SHIFT') {
-      byCell.set(key, { ...existing, conflict: existing.conflict ?? 'COMP_DAY' });
+      byCell.set(key, { ...existing, conflict: existing.conflict ?? 'COMP_DAY', compDayId: entry.id });
     } else {
       byCell.set(key, { kind: 'STATUS', status: 'COMP_OFF', compDayId: entry.id });
     }

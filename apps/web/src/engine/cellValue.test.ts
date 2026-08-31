@@ -131,7 +131,43 @@ describe('precedence — a working role wins and produces a conflict', () => {
     });
     const value = cellValueAt(p, 'p-1', '2026-09-10');
     expect(value.kind).toBe('SHIFT');
-    if (value.kind === 'SHIFT') expect(value.conflict).toBe('COMP_DAY');
+    if (value.kind === 'SHIFT') {
+      expect(value.conflict).toBe('COMP_DAY');
+      // The placed comp day has to survive onto the shift cell, or nothing distinguishes
+      // an approved placement from a shift with no comp day at all — the day off reads
+      // as though it never happened.
+      expect(value.compDayId).toBe('cd-1');
+    }
+  });
+
+  it('a comp day placed on a different date than the system proposed', () => {
+    // The engineer asked for a day other than the auto-suggested one — the entry keeps
+    // its original `proposedDate` and only `actualDate` moves. The old proposed date must
+    // not keep showing anything, and the new date must show the placement.
+    const moved: CompDayEntry = {
+      id: 'cd-1',
+      personId: 'p-1',
+      earnedForAssignmentId: 'as-x',
+      earnedForDate: '2026-09-05',
+      trigger: 'SATURDAY',
+      proposedDate: '2026-09-08',
+      actualDate: '2026-09-11',
+      status: 'SCHEDULED',
+      version: 1,
+    };
+    const p = project({
+      assignments: [makeAssignment('p-1', leadShift.id, '2026-09-11')],
+      compDays: [moved],
+    });
+
+    expect(cellValueAt(p, 'p-1', '2026-09-08')).toEqual({ kind: 'EMPTY' });
+
+    const value = cellValueAt(p, 'p-1', '2026-09-11');
+    expect(value.kind).toBe('SHIFT');
+    if (value.kind === 'SHIFT') {
+      expect(value.conflict).toBe('COMP_DAY');
+      expect(value.compDayId).toBe('cd-1');
+    }
   });
 
   it('working on a holiday is normal, but flagged', () => {

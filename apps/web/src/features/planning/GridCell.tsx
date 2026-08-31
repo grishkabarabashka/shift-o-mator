@@ -67,6 +67,10 @@ interface Props {
   /** NOTE: A comp day the system suggested for this day, not yet asked for or agreed.
    * A boolean, not the id: the cell is memoized on primitives (CLAUDE.md). */
   readonly proposedCompDay?: boolean | undefined;
+  /** NOTE: A comp day approved for this date, coexisting with a shift already assigned
+   * to it (ADR-0052 conflict, not a block). Drawn solid, not dashed — unlike
+   * `proposedCompDay` this is a decided fact, not a proposal. */
+  readonly compDayPlaced?: boolean | undefined;
   /** NOTE: Where the person normally is — drawn quieter than an away day. */
   readonly presenceAtBaseline?: boolean | undefined;
   /** NOTE: A request covering this cell that nobody has decided yet (ADR-0045). Drawn
@@ -104,6 +108,7 @@ function GridCellInner({
   presencePortion,
   presenceColor,
   proposedCompDay,
+  compDayPlaced,
   presenceAtBaseline,
   pendingGlyph,
   pendingLabel,
@@ -232,7 +237,7 @@ function GridCellInner({
           coexist with whatever the cell already says — a person can be on `Crew` *and*
           remote *and* have leave awaiting approval. The chip owns the top of the cell;
           this owns the bottom, split in half when only part of the day is covered. */}
-      {presenceGlyph || pendingGlyph || proposedCompDay ? (
+      {presenceGlyph || pendingGlyph || proposedCompDay || compDayPlaced ? (
         <span className="cell__band" aria-hidden>
           {/* A proposed comp day is a dashed hint — the day is still free, and nobody has
               agreed to it. It used to be drawn only on an *empty* cell, so on a rota where
@@ -242,6 +247,11 @@ function GridCellInner({
           {proposedCompDay ? (
             <span className="cell__band-part cell__band-part--pending">C-Off?</span>
           ) : null}
+          {/* An approved placement, not a proposal — solid, not dashed. Without this an
+              approved comp day on a day that already held a shift rendered as nothing but
+              a bare conflict flag: the shift chip stayed, the dashed proposal it replaced
+              was gone, and nothing said where the day off went. */}
+          {compDayPlaced ? <span className="cell__band-part">C-Off</span> : null}
           {pendingGlyph ? (
             <span
               className="cell__band-part cell__band-part--pending"

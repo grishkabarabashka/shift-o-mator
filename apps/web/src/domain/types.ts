@@ -755,6 +755,10 @@ export type CellValue =
        */
       readonly event?: CellEventInfo;
       readonly absenceId?: AbsenceId;
+      /** NOTE: A confirmed comp day off underneath a shift on the same date — the same
+       * "both are true at once" treatment as `absenceId` above, missing here until now,
+       * which is why an approved placement rendered as nothing but a bare conflict flag. */
+      readonly compDayId?: CompDayEntryId;
     }
   | {
       readonly kind: 'STATUS';

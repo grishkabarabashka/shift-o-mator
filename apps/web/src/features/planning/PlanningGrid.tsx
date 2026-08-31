@@ -648,9 +648,17 @@ function proposedCompDayAt(value: CellValue): boolean {
   return (value.kind === 'EMPTY' || value.kind === 'SHIFT') && value.proposedCompDay !== undefined;
 }
 
+/** NOTE: A confirmed comp day off underneath a shift — same reasoning as
+ * `proposedCompDayAt`, for the placement once it is approved rather than while it is
+ * still a proposal. */
+function compDayPlacedAt(value: CellValue): boolean {
+  return value.kind === 'SHIFT' && value.compDayId !== undefined;
+}
+
 function compDayIdOf(picker: PickerTarget): string | undefined {
   const { value } = picker;
   if (value.kind === 'STATUS') return value.compDayId;
+  if (value.kind === 'SHIFT') return value.compDayId ?? value.proposedCompDay;
   return value.proposedCompDay;
 }
 
@@ -813,6 +821,7 @@ const PersonRow = memo(function PersonRow({
             presencePortion={view.presence.byCell.get(key)?.portion}
             presenceColor={view.presence.byCell.get(key)?.color}
             proposedCompDay={proposedCompDayAt(value)}
+            compDayPlaced={compDayPlacedAt(value)}
             presenceAtBaseline={view.presence.byCell.get(key)?.atBaseline}
             pendingGlyph={layers.requests ? view.requests.byCell.get(key)?.glyph : undefined}
             pendingLabel={view.requests.byCell.get(key)?.label}
@@ -839,16 +848,20 @@ const EMPTY_ISSUES: readonly never[] = [];
 function maskLayers(value: CellValue, layers: GridLayers): CellValue {
   if (value.kind === 'SHIFT') {
     if (!layers.shifts) {
-      // The shift is hidden, but an absence underneath it is not the shift — it becomes
-      // the cell's own content rather than disappearing with it.
-      if (!layers.timeOff || !value.event) return { kind: 'EMPTY' };
-      return value.absenceId
-        ? { kind: 'STATUS', status: 'ABSENT', event: value.event, absenceId: value.absenceId }
-        : { kind: 'STATUS', status: 'ABSENT', event: value.event };
+      // The shift is hidden, but an absence or a placed comp day underneath it is not the
+      // shift — it becomes the cell's own content rather than disappearing with it.
+      if (!layers.timeOff) return { kind: 'EMPTY' };
+      if (value.event) {
+        return value.absenceId
+          ? { kind: 'STATUS', status: 'ABSENT', event: value.event, absenceId: value.absenceId }
+          : { kind: 'STATUS', status: 'ABSENT', event: value.event };
+      }
+      if (value.compDayId) return { kind: 'STATUS', status: 'COMP_OFF', compDayId: value.compDayId };
+      return { kind: 'EMPTY' };
     }
     if (layers.timeOff) return value;
-    const { event: _event, absenceId: _absenceId, ...withoutAbsence } = value;
-    return withoutAbsence;
+    const { event: _event, absenceId: _absenceId, compDayId: _compDayId, ...withoutTimeOff } = value;
+    return withoutTimeOff;
   }
 
   if (value.kind === 'STATUS' && value.status === 'ABSENT' && !layers.timeOff) {
