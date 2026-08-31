@@ -448,6 +448,7 @@ export interface AdminPersonSummary {
   readonly displayName: string;
   readonly initials: string;
   readonly employeeId?: string;
+  readonly email?: string;
   readonly unitId: string;
   readonly locationId: string;
   readonly orgCategory: string;
@@ -459,6 +460,7 @@ export interface PersonAdminRequest {
   readonly displayName: string;
   readonly initials: string;
   readonly employeeId: string | null;
+  readonly email: string | null;
   readonly unitId: string;
   readonly locationId: string;
   readonly orgCategory: string;
@@ -470,6 +472,7 @@ export function personAdminToWire(p: {
   displayName: string;
   initials: string;
   employeeId?: string;
+  email?: string;
   unitId: string;
   locationId: string;
   orgCategory: string;
@@ -483,6 +486,9 @@ export function personAdminToWire(p: {
     // value the unique index would enforce, and every person who left the
     // field blank would collide with every other one.
     employeeId: p.employeeId?.trim() ? p.employeeId.trim() : null,
+    // Same reason, plus lowercasing: the server stores it lowercased so a sign-in
+    // matches regardless of how the token cased it (ADR-0058).
+    email: p.email?.trim() ? p.email.trim().toLowerCase() : null,
     unitId: p.unitId,
     locationId: p.locationId,
     orgCategory: upperSnakeToCamel(p.orgCategory),
@@ -496,6 +502,7 @@ function adminPersonFromWire(w: {
   displayName: string;
   initials: string;
   employeeId?: string | null;
+  email?: string | null;
   unitId: string;
   locationId: string;
   orgCategory: string;
@@ -507,6 +514,7 @@ function adminPersonFromWire(w: {
     displayName: w.displayName,
     initials: w.initials,
     ...(w.employeeId ? { employeeId: w.employeeId } : {}),
+    ...(w.email ? { email: w.email } : {}),
     unitId: w.unitId,
     locationId: w.locationId,
     orgCategory: camelToUpperSnake(w.orgCategory),

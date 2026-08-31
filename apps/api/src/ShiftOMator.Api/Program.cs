@@ -196,7 +196,45 @@ using (var scope = app.Services.CreateScope())
     }
 
     await db.Database.MigrateAsync();
-    await FixtureSeeder.SeedAsync(db, includeDemoData);
+
+    // Applied only while no person has an email at all, so it is inert on a running
+    // system — see AuthOptions.BootstrapAdminEmail and ADR-0058. Logged either way,
+    // because "why can nobody sign in" is otherwise answered by reading the seeder.
+    var bootstrapAdminEmail = builder.Configuration[$"{AuthOptions.SectionName}:BootstrapAdminEmail"];
+    var linkedBefore = await db.People.AnyAsync(p => p.Email != null);
+
+    await FixtureSeeder.SeedAsync(db, includeDemoData, bootstrapAdminEmail);
+
+    if (!string.IsNullOrWhiteSpace(bootstrapAdminEmail))
+    {
+        if (linkedBefore)
+        {
+            app.Logger.LogInformation(
+                "Auth:BootstrapAdminEmail is set but ignored: somebody is already linked. "
+                + "Sign-in accounts are managed on Settings → People.");
+        }
+        else
+        {
+            var linked = await db.People.AsNoTracking()
+                .Where(p => p.Email != null)
+                .Select(p => new { p.Id, p.DisplayName })
+                .FirstOrDefaultAsync();
+
+            if (linked is null)
+            {
+                app.Logger.LogWarning(
+                    "Auth:BootstrapAdminEmail is set but nobody was linked — no person holds a "
+                    + "global Admin grant to attach it to.");
+            }
+            else
+            {
+                app.Logger.LogWarning(
+                    "Auth:BootstrapAdminEmail linked {Email} to {Person} ({PersonId}), who holds the "
+                    + "global Admin grant. Remove the setting once other people are linked.",
+                    bootstrapAdminEmail, linked.DisplayName, linked.Id);
+            }
+        }
+    }
 }
 
 /// <summary>

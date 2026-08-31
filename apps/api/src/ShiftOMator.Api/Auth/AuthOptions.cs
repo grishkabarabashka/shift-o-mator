@@ -19,4 +19,14 @@ public class AuthOptions
     /// <summary>Which person the stub acts as. Empty lets <see cref="ActorResolver"/>
     /// pick a deterministic one from the roster.</summary>
     public string StubPersonId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Work email to link to the global admin on a database where nobody can sign in yet
+    /// (ADR-0058). Applied at startup and **only** while no person has an email at all, so
+    /// it is inert on any running system and safe to leave configured.
+    ///
+    /// Exists because linking is otherwise circular: you must be signed in to reach the
+    /// screen that lets anybody sign in.
+    /// </summary>
+    public string BootstrapAdminEmail { get; set; } = string.Empty;
 }

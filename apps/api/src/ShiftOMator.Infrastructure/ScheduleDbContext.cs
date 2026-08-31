@@ -85,6 +85,11 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
             // but it's optional today, and SQL Server's default unique index treats
             // every NULL as distinct from every other NULL only when filtered like this.
             e.HasIndex(x => x.EmployeeId).IsUnique().HasFilter("[EmployeeId] IS NOT NULL");
+            // Same shape, different key: Email is what an Entra ID sign-in is matched by
+            // (ADR-0058). SQL Server's default collation is case-insensitive, so this
+            // index also enforces that two people cannot differ only by casing — which is
+            // exactly the guarantee the lookup in ActorResolver needs.
+            e.HasIndex(x => x.Email).IsUnique().HasFilter("[Email] IS NOT NULL");
             ConfigureList(e.Property(x => x.AvailableWeekdays));
             e.OwnsOne(x => x.Constraints);
             e.OwnsOne(x => x.Preferences, p =>

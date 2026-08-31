@@ -2283,6 +2283,7 @@ export interface components {
             displayName: string;
             initials: string;
             employeeId: null | string;
+            email: null | string;
             unitId: string;
             locationId: string;
             orgCategory: components["schemas"]["OrgCategory"];
@@ -2816,6 +2817,7 @@ export interface components {
             displayName: string;
             initials: string;
             employeeId?: null | string;
+            email?: null | string;
             unitId: string;
             locationId: string;
             orgCategory?: components["schemas"]["OrgCategory"];

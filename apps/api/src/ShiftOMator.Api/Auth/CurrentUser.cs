@@ -14,6 +14,21 @@ public static class CurrentUser
     /// <summary>The person id the token claims, or <c>null</c>. Not verified against the roster.</summary>
     public static string? PersonIdOrNull(this ClaimsPrincipal user) =>
         user.FindFirst(PersonIdClaim)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    /// <summary>
+    /// The email an Entra ID token carries, or <c>null</c>. Not verified against the roster —
+    /// <see cref="ActorResolver"/> does that (ADR-0058).
+    ///
+    /// WHY three claim types: Entra ID puts the work email in <c>preferred_username</c> for
+    /// most tenants, in <c>email</c> when the optional claim is configured, and in <c>upn</c>
+    /// for federated accounts. Which one arrives depends on tenant configuration nobody here
+    /// controls, so all three are read rather than one being assumed.
+    /// </summary>
+    public static string? EmailOrNull(this ClaimsPrincipal user) =>
+        user.FindFirst("preferred_username")?.Value
+        ?? user.FindFirst(ClaimTypes.Email)?.Value
+        ?? user.FindFirst("email")?.Value
+        ?? user.FindFirst(ClaimTypes.Upn)?.Value;
 }
 
 /// <summary>
@@ -23,7 +38,12 @@ public static class CurrentUser
 /// </summary>
 public class UnmappedPrincipalException(string? claimedPersonId)
     : InvalidOperationException(
-        $"The authenticated principal ({claimedPersonId ?? "no personId claim"}) maps to no person.")
+        // The claimed identifier is echoed back deliberately: outside Stub mode it is the
+        // signed-in email, and a person who sees it can send it to whoever administers
+        // their unit to be linked. Without it, "403" is the whole of what they can report
+        // and an admin has to go looking in the directory first (ADR-0058).
+        $"The authenticated principal ({claimedPersonId ?? "no identifying claim"}) maps to no person "
+        + "in the roster. An administrator links it on Settings → People.")
 {
     public string? ClaimedPersonId { get; } = claimedPersonId;
 }

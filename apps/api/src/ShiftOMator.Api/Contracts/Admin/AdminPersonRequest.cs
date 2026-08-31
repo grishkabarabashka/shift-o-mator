@@ -8,5 +8,5 @@ namespace ShiftOMator.Api.Contracts.Admin;
 /// though they live in different namespaces (they answer to two different callers,
 /// and a shared name would blur that at a glance).</summary>
 public record AdminPersonRequest(
-    string DisplayName, string Initials, string? EmployeeId, string UnitId,
+    string DisplayName, string Initials, string? EmployeeId, string? Email, string UnitId,
     string LocationId, OrgCategory OrgCategory, bool IsActive, bool IsIncluded);

@@ -9,14 +9,22 @@ namespace ShiftOMator.Api.Auth;
 /// <summary>
 /// Turns the person the token names into the roles they hold (ADR-0051).
 ///
-/// WHY the grants come from the database and not from the token: they are scoped to
-/// planning units, and a planning unit is this product's own concept — an identity
+/// WHY the *scoped* grants come from the database and not from the token: they are scoped
+/// to planning units, and a planning unit is this product's own concept — an identity
 /// provider has no idea what <c>unit-emea</c> is and no reason to learn. The token
-/// establishes *who you are*; what you may do is data an admin edits on a Settings screen
-/// and which takes effect on the next request, not on the next token refresh.
+/// establishes *who you are*; what you may do in a given unit is data an admin edits on a
+/// Settings screen and which takes effect on the next request, not on the next token
+/// refresh.
+///
+/// Entra ID app roles are read too, and are **added to** the stored grants rather than
+/// replacing them — holding two roles grants both, which is already how the model works
+/// (ADR-0051). They can only ever be *global* grants (<c>unitId: null</c>), because the
+/// directory has no unit to scope them to; per-unit access stays a database concern
+/// (ADR-0058).
 ///
 /// Everyone authenticated is a Viewer. It is not stored, because a row per person saying
-/// "may read the rota" is a row that can only ever be wrong.
+/// "may read the rota" is a row that can only ever be wrong — and it is also the answer
+/// for somebody who signs in successfully but is in no list at all: they read, nothing more.
 /// </summary>
 public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTransformation
 {
@@ -45,6 +53,21 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
             }
 
             return principal;
+        }
+
+        // Entra ID app roles arrive as `roles` claims. Anything that isn't one of ours is
+        // ignored rather than rejected: a directory may assign roles for other apps to the
+        // same account, and that is not this app's business.
+        //
+        // Materialized before the loop, and that is load-bearing: `FindAll` is a lazy view
+        // over the identity's own claim collection, so adding to it while enumerating
+        // throws "Collection was modified" — a 500 on every request from anybody who holds
+        // an app role, and only from them.
+        var appRoles = principal.FindAll("roles").ToList();
+        foreach (var claim in appRoles)
+        {
+            if (Enum.TryParse<AppRole>(claim.Value.Trim(), ignoreCase: true, out var appRole))
+                identity.AddClaim(Capabilities.ClaimFor(appRole, null));
         }
 
         using var scope = scopes.CreateScope();

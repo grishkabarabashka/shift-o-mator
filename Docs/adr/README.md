@@ -58,6 +58,7 @@ not something else?"
 | [0055](0055-a-personal-calendar-and-a-feed.md) | A personal calendar, and a feed anybody can subscribe to (extends 0050) | accepted |
 | [0056](0056-one-live-comp-day-request.md) | At most one live comp-day placement request (narrows 0052) | accepted |
 | [0057](0057-a-language-of-surfaces.md) | A language of surfaces: light, measure, elevation (extends 0022, 0013) | accepted |
+| [0058](0058-entra-id-identity-is-linked-by-email.md) | An Entra ID sign-in is linked to a person by email, by hand (narrows 0039, extends 0051) | accepted |
 
 ## Superseded decisions (archive)
 

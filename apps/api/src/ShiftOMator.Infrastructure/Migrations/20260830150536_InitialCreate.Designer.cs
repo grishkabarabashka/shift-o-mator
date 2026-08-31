@@ -12,7 +12,7 @@ using ShiftOMator.Infrastructure;
 namespace ShiftOMator.Infrastructure.Migrations
 {
     [DbContext(typeof(ScheduleDbContext))]
-    [Migration("20260828130343_InitialCreate")]
+    [Migration("20260830150536_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -613,6 +613,9 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("EmployeeId")
                         .HasColumnType("nvarchar(450)");
 
@@ -644,6 +647,10 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
 
                     b.HasIndex("EmployeeId")
                         .IsUnique()

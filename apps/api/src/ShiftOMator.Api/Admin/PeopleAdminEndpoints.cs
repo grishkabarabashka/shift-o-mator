@@ -35,6 +35,7 @@ public static class PeopleAdminEndpoints
                 DisplayName = req.DisplayName,
                 Initials = req.Initials,
                 EmployeeId = req.EmployeeId,
+                Email = NormalizeEmail(req.Email),
                 UnitId = req.UnitId,
                 LocationId = req.LocationId,
                 OrgCategory = req.OrgCategory,
@@ -60,6 +61,7 @@ public static class PeopleAdminEndpoints
             person.DisplayName = req.DisplayName;
             person.Initials = req.Initials;
             person.EmployeeId = req.EmployeeId;
+            person.Email = NormalizeEmail(req.Email);
             person.UnitId = req.UnitId;
             person.LocationId = req.LocationId;
             person.OrgCategory = req.OrgCategory;
@@ -116,6 +118,23 @@ public static class PeopleAdminEndpoints
             await db.People.AnyAsync(p => p.EmployeeId == req.EmployeeId && p.Id != currentId, ct))
             v.Add(nameof(req.EmployeeId), "EMPLOYEE_ID_TAKEN — already assigned to another person.");
 
+        // Email is what an Entra ID sign-in resolves to a person by (ADR-0058), so a
+        // duplicate is not a cosmetic clash: it would make which person a token maps to
+        // depend on row order. Same filtered-unique-index mirror as EmployeeId above.
+        var email = NormalizeEmail(req.Email);
+        if (email is not null)
+        {
+            if (!email.Contains('@') || email.StartsWith('@') || email.EndsWith('@'))
+                v.Add(nameof(req.Email), "Not a valid email address.");
+            else if (await db.People.AnyAsync(p => p.Email == email && p.Id != currentId, ct))
+                v.Add(nameof(req.Email), "EMAIL_TAKEN — already assigned to another person.");
+        }
+
         return v;
     }
+
+    /// <summary>Trims and lowercases, so a link is not lost to how somebody typed it —
+    /// the token's email casing is not ours to predict.</summary>
+    private static string? NormalizeEmail(string? email) =>
+        string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
 }

@@ -905,6 +905,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
     displayName: p.displayName,
     initials: p.initials,
     ...(p.employeeId ? { employeeId: p.employeeId } : {}),
+    ...(p.email ? { email: p.email } : {}),
     unitId: p.unitId,
     locationId: p.locationId,
     orgCategory: p.orgCategory,
@@ -922,6 +923,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
         displayName: '',
         initials: '',
         employeeId: '',
+        email: '',
         unitId: reference.units[0]?.id ?? '',
         locationId: reference.locations[0]?.id ?? '',
         orgCategory: 'SUPPORT',
@@ -933,6 +935,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
           <th>Name</th>
           <th>Initials</th>
           <th>Employee ID</th>
+          <th>Email (sign-in)</th>
           <th>Unit</th>
           <th>Location</th>
           <th>Active</th>
@@ -960,6 +963,18 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
               onChange={(v) => setField('employeeId', v)}
             />
             <FieldErrorList errors={errors?.employeeId} />
+          </td>
+          <td>
+            {/* What an Entra ID sign-in resolves to this person by (ADR-0058). Blank
+                means they cannot sign in — the token's email matches nobody and the API
+                answers 403 PRINCIPAL_NOT_MAPPED, naming the address to link. */}
+            <TextField
+              mono
+              value={draft.email ?? ''}
+              ariaLabel="Email (sign-in)"
+              onChange={(v) => setField('email', v)}
+            />
+            <FieldErrorList errors={errors?.email} />
           </td>
           <td>
             <NativeSelectField

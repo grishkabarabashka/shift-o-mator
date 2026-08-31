@@ -253,6 +253,9 @@ export interface Person {
   readonly displayName: string;
   readonly initials: string;
   readonly employeeId?: string;
+  /** NOTE: What an Entra ID sign-in is matched to this person by (ADR-0058). Unset
+   * means this person cannot sign in yet — an admin links them on Settings → People. */
+  readonly email?: string;
   /** NOTE: Whose rules apply and whose screen this person is planned on. */
   readonly unitId: UnitId;
   readonly locationId: LocationId;

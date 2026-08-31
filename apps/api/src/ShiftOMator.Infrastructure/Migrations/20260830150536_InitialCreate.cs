@@ -217,6 +217,7 @@ namespace ShiftOMator.Infrastructure.Migrations
                     DisplayName = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Initials = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     EmployeeId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(450)", nullable: true),
                     UnitId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     LocationId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     OrgCategory = table.Column<int>(type: "int", nullable: false),
@@ -665,6 +666,13 @@ namespace ShiftOMator.Infrastructure.Migrations
                 name: "IX_Notifications_RecipientPersonId_ReadAt",
                 table: "Notifications",
                 columns: new[] { "RecipientPersonId", "ReadAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_People_Email",
+                table: "People",
+                column: "Email",
+                unique: true,
+                filter: "[Email] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_People_EmployeeId",

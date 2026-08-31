@@ -21,6 +21,13 @@ namespace ShiftOMator.Api.Auth;
 /// is what the client used to paper over by guessing "the first manager in scope" — the
 /// stub resolves to one real, deterministic person. Outside Stub mode there is no
 /// fallback at all: an unmapped principal is refused.
+///
+/// WHY email outside Stub mode: an Entra ID token names a directory account, and nothing
+/// in it knows this product's person ids. Email is the one identifier both sides hold, and
+/// an admin links it by hand on Settings → People (ADR-0058). A <c>personId</c> claim is
+/// only ever issued by the stub handler, so trusting one from a real token would mean
+/// trusting a claim the IdP never sets — hence the two paths are kept apart rather than
+/// falling through from one to the other.
 /// </summary>
 public sealed class ActorResolver(
     ScheduleDbContext db,
@@ -36,12 +43,30 @@ public sealed class ActorResolver(
     {
         if (_cached is not null) return _cached;
 
+        var isStub = string.Equals(authOptions.Value.Mode, "Stub", StringComparison.OrdinalIgnoreCase);
+
+        if (!isStub)
+        {
+            // Lowercased to match how the admin screen stores it; the database collation
+            // is case-insensitive anyway, but a provider that is not would silently stop
+            // matching, and that failure looks like "my account stopped working".
+            var email = user.EmailOrNull()?.Trim().ToLowerInvariant()
+                ?? throw new UnmappedPrincipalException(null);
+
+            // EF translates this to SQL, where the default collation is case-insensitive
+            // and the filtered unique index on Email enforces that at most one row matches.
+            var byEmail = await db.People.AsNoTracking()
+                .Where(p => p.Email == email)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync(ct)
+                ?? throw new UnmappedPrincipalException(email);
+
+            return _cached = byEmail;
+        }
+
         var claimed = user.PersonIdOrNull();
         if (claimed is not null && await db.People.AsNoTracking().AnyAsync(p => p.Id == claimed, ct))
             return _cached = claimed;
-
-        var isStub = string.Equals(authOptions.Value.Mode, "Stub", StringComparison.OrdinalIgnoreCase);
-        if (!isStub) throw new UnmappedPrincipalException(claimed);
 
         var fallback = await db.People.AsNoTracking()
             .Where(p => p.IsActive)

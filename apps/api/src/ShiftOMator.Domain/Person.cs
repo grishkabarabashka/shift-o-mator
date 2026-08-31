@@ -27,6 +27,21 @@ public class Person
     public required string DisplayName { get; set; }
     public required string Initials { get; set; }
     public string? EmployeeId { get; set; }
+
+    /// <summary>
+    /// Work email — the key an Entra ID sign-in is matched to a person by (ADR-0058).
+    ///
+    /// WHY email and not the `oid` claim: a GUID cannot be typed in from memory or
+    /// recognised in a list, so linking by it would mean an admin visiting the Entra
+    /// portal for every person. Email is the identifier the roster already knows and the
+    /// only one both sides can read. It is *less* stable than `oid` — people get renamed
+    /// — but a rename that breaks a link produces a loud 403 that an admin fixes by
+    /// editing the field, not a silent mis-attribution.
+    ///
+    /// Nullable and matched case-insensitively; unique when set (filtered index, the same
+    /// shape as <see cref="EmployeeId"/>). Null means "this person cannot sign in yet".
+    /// </summary>
+    public string? Email { get; set; }
     /// <summary>Which rules apply and whose screen this person is planned on — one axis
     /// now, not two (Region deleted).</summary>
     public required string UnitId { get; set; }

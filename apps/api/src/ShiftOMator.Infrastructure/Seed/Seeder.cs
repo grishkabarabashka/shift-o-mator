@@ -52,7 +52,11 @@ public static class FixtureSeeder
     ///   and never touched again; re-running it would duplicate a plan somebody may have
     ///   edited.
     /// </summary>
-    public static async Task SeedAsync(ScheduleDbContext db, bool includeDemoData, CancellationToken ct = default)
+    public static async Task SeedAsync(
+        ScheduleDbContext db,
+        bool includeDemoData,
+        string? bootstrapAdminEmail = null,
+        CancellationToken ct = default)
     {
         await SeedEventTypesAsync(db, ct);
         await SeedPresenceTypesAsync(db, ct);
@@ -83,7 +87,55 @@ public static class FixtureSeeder
         // upgraded database came up with nobody able to plan, approve or administer
         // anything, and the only symptom was every screen being read-only.
         await SeedRolesAsync(db, ct);
+        await BootstrapAdminAsync(db, bootstrapAdminEmail, ct);
         await UpgradeCalendarTokensAsync(db, ct);
+    }
+
+    /// <summary>
+    /// Gives one named person a way in, on a database where nobody has one yet (ADR-0058).
+    ///
+    /// The problem this solves is circular. Outside Stub mode a caller is resolved by
+    /// matching their token's email against <see cref="Person.Email"/>, which an admin
+    /// fills in on Settings → People — a screen nobody can reach until somebody is already
+    /// linked. A fresh database has a full roster, sensible role grants, and not one row
+    /// anybody can sign in as.
+    ///
+    /// WHY the guard is "no person has an email" and not "no admin exists": role grants are
+    /// seeded, so admins always exist; what does not exist is any way to *be* one. The
+    /// moment a single person is linked the setting stops doing anything at all, which is
+    /// the property that makes it safe to leave configured — it cannot promote anybody on a
+    /// system that is already running, and it cannot silently re-grant after somebody
+    /// deliberately removed a grant.
+    ///
+    /// WHY it links rather than creates: inventing a Person would put a row in the roster
+    /// that no planner asked for and that coverage would have to be taught to ignore. The
+    /// email is attached to somebody who already holds a global Admin grant — the person
+    /// the seed already decided owns cross-unit configuration.
+    /// </summary>
+    private static async Task BootstrapAdminAsync(ScheduleDbContext db, string? email, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return;
+
+        // Normalized the same way the admin screen and ActorResolver do it, or the link
+        // would exist and still not match the token that arrives.
+        var normalized = email.Trim().ToLowerInvariant();
+
+        if (await db.People.AnyAsync(p => p.Email != null, ct)) return;
+
+        var globalAdminId = await db.RoleAssignments.AsNoTracking()
+            .Where(r => r.Role == AppRole.Admin && r.UnitId == null)
+            .OrderBy(r => r.PersonId)
+            .Select(r => r.PersonId)
+            .FirstOrDefaultAsync(ct);
+
+        var target = globalAdminId is null
+            ? null
+            : await db.People.FirstOrDefaultAsync(p => p.Id == globalAdminId, ct);
+
+        if (target is null) return;
+
+        target.Email = normalized;
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>
