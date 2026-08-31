@@ -1,0 +1,30 @@
+shift-o-mator deployed to namespace {{ .Release.Namespace }}.
+
+{{ if .Values.ingress.enabled -}}
+  API:  https://{{ .Values.ingress.host }}/api
+  Web:  https://{{ .Values.ingress.host }}/
+{{- else -}}
+  No ingress. Find the addresses with:
+    kubectl -n {{ .Release.Namespace }} get svc
+{{- end }}
+
+Before this starts successfully:
+
+  1. SQL: the managed identity must have a database user
+     (CREATE USER [...] FROM EXTERNAL PROVIDER; plus db_datareader/db_datawriter, and
+     db_ddladmin while the app applies migrations at startup). Azure cannot grant this —
+     it lives inside the database. See deploy/README.md section 5.
+{{ if .Values.workloadIdentity.enabled }}
+  2. Workload identity {{ .Values.workloadIdentity.clientId | default "(clientId NOT SET)" }}
+     must have a federated credential for
+     system:serviceaccount:{{ .Release.Namespace }}:{{ .Values.serviceAccount.name }}.
+{{- end }}
+{{- if .Values.azureKeyVault.enabled }}
+  3. Key Vault {{ .Values.azureKeyVault.keyvaultName | default "(NOT SET)" }} must hold every
+     object listed in azureKeyVault.secrets, and the identity above must have "get" on
+     them — a CSI mount fails outright on an object that is not there.
+{{- end }}
+
+  Last: the web image must already have been built with the right VITE_API_URL and
+  VITE_AUTH_MODE (apps/web/Dockerfile build args). This chart cannot change them
+  afterwards — Vite inlines them at build time.

@@ -1,0 +1,51 @@
+# Not deployed yet — see deploy/README.md section 8. Kept in step with the chart so the
+# shape is reviewable, not because anything runs from it.
+
+image:
+  registry: shiftomatorprod.azurecr.io
+
+replicaCount:
+  api: 3
+  web: 2
+
+api:
+  env: Production
+  resources:
+    requests: { cpu: 250m, memory: 384Mi }
+    limits: { cpu: 1000m, memory: 768Mi }
+  config:
+    authMode: EntraId
+    corsAllowedOrigins:
+      - https://shift-o-mator.example.com
+    seedIncludeDemoData: "false"
+
+    # Managed identity, so no password and nothing secret here.
+    connectionString: "Server=tcp:shift-o-mator-prod.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
+
+    jwtAuthority: ""    # https://login.microsoftonline.com/<tenant-id>/v2.0
+    jwtAudience: ""     # api://<app-id>
+
+    # Left empty on purpose. Production should be linked by an administrator through
+    # Settings → People, not by a startup setting — the bootstrap exists for a database
+    # nobody can yet sign in to, which is a first-run problem, not a production one.
+    bootstrapAdminEmail: ""
+
+web:
+  apiUrl: https://api.shift-o-mator.example.com
+
+ingress:
+  host: shift-o-mator.example.com
+  tls:
+    secretName: shift-o-mator-prod-tls
+
+# The Anthropic key is the only genuinely secret value left once SQL uses managed
+# identity. Set `enabled: false` if AI explanations are not wanted.
+azureKeyVault:
+  enabled: true
+  authMethod: workloadIdentity
+  keyvaultName: shift-o-mator-prod-kv
+  tenantId: ""        # az account show --query tenantId
+
+workloadIdentity:
+  enabled: true
+  clientId: ""        # the prod user-assigned identity's client id

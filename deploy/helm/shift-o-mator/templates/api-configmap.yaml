@@ -1,0 +1,30 @@
+# Non-secret config only. The connection string belongs here when SQL uses managed
+# identity (it then carries no password); a password-bearing one, and the Anthropic key,
+# come from the Key Vault-backed Secret instead — see secretproviderclass.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shift-o-mator-api-config
+  labels:
+    {{- include "shift-o-mator.labels" . | nindent 4 }}
+data:
+  ASPNETCORE_ENVIRONMENT: {{ .Values.api.env | quote }}
+  Auth__Mode: {{ .Values.api.config.authMode | quote }}
+  Ai__Provider: {{ .Values.api.config.aiProvider | quote }}
+  Ai__Model: {{ .Values.api.config.aiModel | quote }}
+  Seed__IncludeDemoData: {{ .Values.api.config.seedIncludeDemoData | quote }}
+  {{- with .Values.api.config.connectionString }}
+  ConnectionStrings__Schedule: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.api.config.jwtAuthority }}
+  Auth__Jwt__Authority: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.api.config.jwtAudience }}
+  Auth__Jwt__Audience: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.api.config.bootstrapAdminEmail }}
+  Auth__BootstrapAdminEmail: {{ . | quote }}
+  {{- end }}
+  {{- range $i, $origin := .Values.api.config.corsAllowedOrigins }}
+  Cors__AllowedOrigins__{{ $i }}: {{ $origin | quote }}
+  {{- end }}

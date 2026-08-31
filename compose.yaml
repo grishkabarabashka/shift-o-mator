@@ -1,0 +1,31 @@
+# Local smoke-test only (podman-compose up / docker compose up), not a deployment
+# artifact — AKS deployment is the Helm chart under deploy/helm/shift-o-mator.
+#
+# Needs a reachable SQL Server; there is no container for it here because the project
+# targets SQL Server (LocalDB in dev), which has no official Linux image suitable for
+# a throwaway container the same way Postgres/MySQL do. Point CONNECTION_STRING at a
+# SQL Server instance you already have (host network, existing container, or Azure SQL).
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Schedule: ${CONNECTION_STRING:?set CONNECTION_STRING to a reachable SQL Server}
+      Auth__Mode: Stub
+      Cors__AllowedOrigins__0: http://localhost:8081
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "5106:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5106
+    ports:
+      - "8081:8080"
+    depends_on:
+      - api

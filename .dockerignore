@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/bin
+**/obj
+apps/web/dist
+apps/web/coverage
+.git
+.vscode
+Docs
+*.md

@@ -1,0 +1,110 @@
+# Defaults common to every environment. Override in values-sandbox.yaml / values-prod.yaml
+# (helm upgrade --install -f values.yaml -f values-<env>.yaml).
+
+image:
+  registry: ""            # e.g. myregistry.azurecr.io — set per environment
+  api:
+    repository: shift-o-mator/api
+    tag: ""                # set per deploy (git sha or release tag), never "latest"
+  web:
+    repository: shift-o-mator/web
+    tag: ""
+  pullPolicy: IfNotPresent
+
+replicaCount:
+  api: 2
+  web: 2
+
+api:
+  port: 8080
+  env: Production
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  # Non-secret config, mounted as env vars via ConfigMap. Anything here is readable by
+  # anyone who can `kubectl describe configmap` — genuinely secret values go in
+  # `azureKeyVault.secrets`, not here.
+  config:
+    authMode: EntraId
+    corsAllowedOrigins: []       # e.g. ["https://shift-o-mator.example.com"]
+    aiProvider: anthropic
+    aiModel: claude-opus-5
+    seedIncludeDemoData: "false"
+
+    # Managed identity, so this carries no password and is therefore not a secret:
+    #   Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;
+    #   Authentication=Active Directory Default;Encrypt=True;
+    # `Active Directory Default` resolves through Azure.Identity's credential chain, which
+    # means the *same* string works locally (your `az login`) and in the cluster (workload
+    # identity) — nothing environment-specific to keep in step. Leave empty to supply the
+    # connection string from Key Vault instead (SQL authentication).
+    connectionString: ""
+
+    # Both are public by nature — an issuer URL and an Application ID URI, neither of which
+    # authenticates anything on its own. They live here rather than in Key Vault so a
+    # deployment using managed identity for SQL needs no vault at all.
+    jwtAuthority: ""
+    jwtAudience: ""
+
+    # One-time link so somebody can sign in on a fresh database (ADR-0058). Applied only
+    # while no person has an email at all, so it is inert once anyone is linked and safe
+    # to leave set. Not a credential — it grants nothing by itself.
+    bootstrapAdminEmail: ""
+
+web:
+  port: 8080
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  apiUrl: ""   # baked into the image at build time (Dockerfile ARG VITE_API_URL) — not a runtime setting
+  service:
+    type: ClusterIP   # sandbox overrides to LoadBalancer (or leave ClusterIP + kubectl port-forward for true $0)
+
+ingress:
+  enabled: true
+  className: azure-application-gateway
+  host: ""
+  tls:
+    enabled: true
+    secretName: shift-o-mator-tls
+
+# Azure Key Vault CSI driver, for values that really are secret. Secrets are never stored
+# in values.yaml or in a git-committed Secret manifest: SecretProviderClass mounts them as
+# files and syncs them into a native k8s Secret the deployment reads via envFrom
+# (templates/secretproviderclass.yaml).
+#
+# With `Authentication=Active Directory Default` for SQL (see api.config.connectionString)
+# the only genuinely secret value left is the Anthropic key — and AI is optional, so an
+# environment that does not use it can set `enabled: false` and have no vault at all.
+azureKeyVault:
+  enabled: true
+  # "workloadIdentity": the pod's own identity (top-level `workloadIdentity`), which SQL
+  #   already needs — one grant, not two. The default, and what values-prod.yaml uses.
+  # "addonManagedIdentity": the AKS Key Vault add-on's own identity, granted `get`/`list`
+  #   directly. Only worth it where the pod has no identity of its own.
+  authMethod: workloadIdentity
+  keyvaultName: ""
+  tenantId: ""
+  # A CSI mount fails outright on an object the vault does not hold, so list only what is
+  # actually there. Add `shift-o-mator-connection-string → ConnectionStrings__Schedule`
+  # here if you use SQL authentication instead of managed identity.
+  secrets:
+    - objectName: shift-o-mator-anthropic-api-key
+      envVarName: ANTHROPIC_API_KEY
+
+# The identity the *pod itself* presents to Azure. Needed by anything the app calls as
+# itself — SQL with `Authentication=Active Directory Default`, and Key Vault when
+# `azureKeyVault.authMethod` is `workloadIdentity`.
+#
+# Deliberately its own block rather than a field under `azureKeyVault`: it used to live
+# there, which read as "this is a Key Vault concern" and was wrong the moment SQL started
+# using it too. A deployment can need this and no vault at all.
+workloadIdentity:
+  enabled: true
+  # A user-assigned managed identity federated with this cluster's OIDC issuer for
+  # `system:serviceaccount:<namespace>:<serviceAccount.name>` — see deploy/README.md.
+  clientId: ""
+
+serviceAccount:
+  create: true
+  name: shift-o-mator

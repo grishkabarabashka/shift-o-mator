@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shift-o-mator
+description: shift-o-mator API and web frontend, deployed to AKS
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -353,7 +353,14 @@ dotnet test
   already there. Startup refuses with a message naming the fix
   (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
   `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
-  `ShiftOMatorTests` still needs dropping by hand when the schema moves
+  The **three** test databases still need dropping by hand when the schema moves:
+  `ShiftOMatorTests` (shared by almost everything), plus `ShiftOMatorBootstrapTests` and
+  `ShiftOMatorPersonEmailTests`. Those two exist because their subjects are properties of a
+  whole table — "nobody has an email yet" for the bootstrap admin, and the exact roster
+  size `ReferenceEndpointsTests` asserts — which any other test writing a person or an
+  email would silently invalidate. `ApiTestFactory.DatabaseName` is how a test opts out.
+  **Dropping a test database and immediately re-running races**: several collections then
+  create it at once and fail on duplicate keys. Run twice, or drop between runs, not during
 - **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
   keeps all 76 people because the Phase 8 baseline comparison is only meaningful over the
   full team, while the database gets `DemoPeoplePerUnit` working people per unit plus every
@@ -466,9 +473,21 @@ manager plans, approves and administers their own unit; one global Admin).
 Not bugs — things the design names and has not built. Full list in
 `Docs/13-roadmap.md`.
 
-- **Entra ID is a config branch, not an implementation.** `Auth:Mode != "Stub"` binds an
-  `Auth:Jwt` section that does not exist; there is no `roles` array-claim mapping and no
-  `Person.externalObjectId` to map a token onto. In stub mode the identity is
+- **Entra ID works end to end, and both halves must be switched together.** Server:
+  `Auth:Mode=EntraId` validates against `Auth:Jwt` (`Authority`/`Audience`, from Key
+  Vault), resolves the acting person by matching the token's email claim against
+  `Person.Email`, and maps `roles` app-role claims to **global** grants that add to the
+  per-unit ones in the database (ADR-0058). Client: `VITE_AUTH_MODE=entra` turns on
+  `EntraGate` (MSAL, redirect flow, `sessionStorage`), which installs a token provider
+  into `api/client.ts` via `setAccessTokenProvider` — **injected, never imported**, because
+  MSAL lives in `auth/` which sits *above* `api/` in the layering. Nothing checks the two
+  `Mode` settings against each other: mismatched, either the token is ignored or none is
+  sent. Linking is deliberately manual — an admin types the work email on Settings →
+  People; there is no directory sync, and self-linking is refused by design.
+  `Auth:BootstrapAdminEmail` breaks the first-run circle (nobody linked → nobody can reach
+  the screen that links people) and is guarded on **no person having an email at all**, so
+  it disarms itself permanently once anyone is linked. In
+  stub mode the identity is
   **switchable** — `Auth:StubPersonId`, or `X-Debug-PersonId` per request — so role
   behaviour is testable without a restart. **`Auth:StubRole` must stay empty**: it is a
   role *override*, and it used to default to `"Planner"` in both `Program.cs` and

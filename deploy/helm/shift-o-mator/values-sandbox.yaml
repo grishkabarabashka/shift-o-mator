@@ -1,0 +1,78 @@
+# Throwaway test environment — 1-node Spot AKS, Azure SQL Serverless free-tier, SQL
+# reached by managed identity. Provision per deploy/README.md section 5; tear down with
+# `az group delete --name <rg> --yes --no-wait`.
+#
+# Key Vault holds exactly one thing here: the Anthropic key for AI explanations. With
+# managed identity for SQL nothing else is secret — the connection string carries no
+# password, and the JWT authority/audience are a public URL and a public app id URI.
+# Set `azureKeyVault.enabled: false` if AI is not wanted, and the environment needs no
+# vault at all.
+#
+# NOT for anything resembling production: a single Spot node (evictable at any moment,
+# with no second node to fail over to), no ingress controller, no TLS.
+
+image:
+  registry: ""   # the ACR from deploy/README.md section 5, e.g. shiftomatorsandbox.azurecr.io
+
+replicaCount:
+  api: 1
+  web: 1
+
+api:
+  env: Development
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { cpu: 300m, memory: 384Mi }
+  config:
+    # Stub is local-only. The sandbox validates real Entra ID tokens and resolves people
+    # by email (ADR-0058). The web image must be built with VITE_AUTH_MODE=entra and the
+    # matching client id/tenant/scope, or it sends no token and every call is refused.
+    authMode: EntraId
+    corsAllowedOrigins:
+      - "*"        # sandbox only — the app sends a bearer token, never cookies
+    seedIncludeDemoData: "true"
+
+    # No password: `Active Directory Default` authenticates as the pod's managed identity,
+    # which was granted a database user in section 5.
+    #
+    # For a database that cannot do Entra auth — a standalone SQL Server on a VM, say —
+    # leave this empty and put the password-bearing string in Key Vault instead, as
+    # `shift-o-mator-connection-string → ConnectionStrings__Schedule` under
+    # `azureKeyVault.secrets`. The Secret is applied after the ConfigMap, so it wins.
+    connectionString: "Server=tcp:<sql-server>.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
+
+    jwtAuthority: "https://login.microsoftonline.com/<tenant-id>/v2.0"
+    jwtAudience: "api://<app-id>"
+
+    # Your work email. On a fresh database this links you to the person holding the global
+    # Admin grant, so somebody can sign in and link everybody else; it stops doing anything
+    # the moment any person has an email (ADR-0058).
+    bootstrapAdminEmail: ""
+
+web:
+  apiUrl: ""       # http://<api LoadBalancer IP> — build the web image with it (see README section 7)
+  service:
+    type: LoadBalancer   # simplest external access without an ingress controller; a small Standard LB fee
+
+ingress:
+  enabled: false
+
+azureKeyVault:
+  enabled: true
+  authMethod: workloadIdentity   # the same pod identity SQL uses — one grant, not two
+  keyvaultName: ""               # from deploy/README.md section 5
+  tenantId: ""                   # from deploy/README.md section 5
+  # A CSI mount fails outright on an object the vault does not hold, so this list must
+  # match what is actually there.
+  secrets:
+    - objectName: shift-o-mator-anthropic-api-key
+      envVarName: ANTHROPIC_API_KEY
+
+# How the pod authenticates to Azure: SQL, and Key Vault above. Needed even with no vault.
+workloadIdentity:
+  enabled: true
+  clientId: ""     # from deploy/README.md section 5
+
+serviceAccount:
+  create: true
+  name: shift-o-mator
