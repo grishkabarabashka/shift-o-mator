@@ -26,6 +26,8 @@ import {
   useIdentitySwitcher,
   type AuthIdentity,
 } from '../../auth/AuthProvider.tsx';
+import { isEntraMode } from '../../auth/entraConfig.ts';
+import { signOut } from '../../auth/msalInstance.ts';
 import { Select, type SelectOption } from '../../ui/primitives.tsx';
 import { useRoleAssignments } from '../../api/roleAssignments.ts';
 import { useCapabilities } from '../../auth/useCapabilities.ts';
@@ -179,9 +181,27 @@ function ProductHeader() {
             {initialsOf(identity.displayName)}
           </span>
           {identity.stubMode ? <IdentitySwitcher people={people} current={identity} /> : null}
+          {isEntraMode ? <SignOutButton /> : null}
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Ends the Entra session. Only rendered when the build signs people in at all —
+ * in stub mode there is no session to end.
+ */
+function SignOutButton() {
+  return (
+    <button
+      type="button"
+      className="btn btn--sm"
+      title="Sign out"
+      onClick={() => void signOut()}
+    >
+      Sign out
+    </button>
   );
 }
 
@@ -201,7 +221,7 @@ function Brand() {
     <Link to="/overview" className="brand" aria-label="shift-o-mator — go to Overview">
       <BrandMark />
       <span className="brand__name">
-        shift<em>·</em>o<em>·</em>mator
+        SHIFT-O-MATOR
       </span>
     </Link>
   );

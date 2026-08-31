@@ -10,6 +10,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, useAuth } from './auth/AuthProvider.tsx';
+import { EntraGate } from './auth/EntraGate.tsx';
 import { TooltipProvider } from './ui/primitives.tsx';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
@@ -46,6 +47,10 @@ export function App() {
   }, [load, unitId, range, currentUserId]);
 
   return (
+    // Outside AuthProvider: `/api/auth/me` must not be called before there is a token to
+    // send, or it comes back 401 and the identity resolves to nothing (ADR-0058).
+    // In stub mode the gate is transparent and this nesting costs nothing.
+    <EntraGate>
     <AuthProvider>
       <IdentityBridge />
       <UnsavedWorkGuard />
@@ -89,6 +94,7 @@ export function App() {
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
+    </EntraGate>
   );
 }
 

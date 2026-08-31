@@ -45,15 +45,34 @@ export function setDebugIdentity(next: { personId?: string; role?: string } | un
 }
 
 /**
- * NOTE: no `Authorization` header yet — stub auth issues an identity without reading a
- * token. This is where `Bearer` belongs once `Auth:Mode` switches to `EntraId`.
+ * How a request gets its bearer token, when there is one to get.
+ *
+ * WHY injected rather than imported: layering runs `features → store → api → …`, and MSAL
+ * lives above this file in `auth/`. Importing it here would invert that, and would also
+ * pull the whole library into a stub-mode build that never signs anybody in.
+ *
+ * Returning `undefined` means "no token" — the correct answer in stub mode, where the
+ * server issues an identity without reading one.
  */
+type AccessTokenProvider = () => Promise<string | undefined>;
+
+let accessTokenProvider: AccessTokenProvider | undefined;
+
+export function setAccessTokenProvider(next: AccessTokenProvider | undefined): void {
+  accessTokenProvider = next;
+}
+
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  // Awaited per request, not cached here: MSAL keeps its own cache and renews the token
+  // when it is close to expiring, so asking every time is cheap and asking once is wrong.
+  const token = await accessTokenProvider?.();
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(debugIdentity?.personId ? { 'X-Debug-PersonId': debugIdentity.personId } : {}),
       ...(debugIdentity?.role ? { 'X-Debug-Role': debugIdentity.role } : {}),
       ...init?.headers,
