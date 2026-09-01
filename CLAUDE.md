@@ -14,8 +14,9 @@ self-service portal; **Phase 10** made the grid one grid for everybody; **Phase 
 rebuilt authorization (roles are a scoped set) and split the write paths (drafts publish
 the rota; time off and presence are written directly and reviewed by approval);
 **Phase 12** gave the UI a design language (elevation, measure, a type scale, real
-breakpoints) and a feedback layer. Code and design agree; the ADR index is complete
-through 0057.
+breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and the app
+deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
+Code and design agree; the ADR index is complete through 0059.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -37,7 +38,8 @@ workspace root at the repository root with no other members.
   `RequestsPage`, `SettingsPage` (admin-only: the nav hides it from anyone who
   administers nothing); routed in `App.tsx`
 - `ui/` — Radix UI wrappers, `theme.css` (Tailwind tokens), shared styles
-- `auth/` — `AuthProvider`, stub identity for development
+- `auth/` — `AuthProvider`, stub identity for development, `EntraGate` (MSAL sign-in) and
+  `SetupGate` (the first-run wizard; sits between them — see ADR-0059)
 
 **Backend** (`apps/api/src/`):
 
@@ -353,12 +355,15 @@ dotnet test
   already there. Startup refuses with a message naming the fix
   (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
   `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
-  The **three** test databases still need dropping by hand when the schema moves:
-  `ShiftOMatorTests` (shared by almost everything), plus `ShiftOMatorBootstrapTests` and
-  `ShiftOMatorPersonEmailTests`. Those two exist because their subjects are properties of a
-  whole table — "nobody has an email yet" for the bootstrap admin, and the exact roster
-  size `ReferenceEndpointsTests` asserts — which any other test writing a person or an
-  email would silently invalidate. `ApiTestFactory.DatabaseName` is how a test opts out.
+  The test databases still need dropping by hand when the schema moves: `ShiftOMatorTests`
+  (shared by almost everything), plus `ShiftOMatorPersonEmailTests`,
+  `ShiftOMatorEntraTests` and `ShiftOMatorSeedIdempotenceTests`. Each of those exists
+  because its subject is a property of a *whole table* — the exact roster size
+  `ReferenceEndpointsTests` asserts, which any other test writing a person or an email
+  would silently invalidate. `ApiTestFactory.DatabaseName` is how a test opts out.
+  `SetupEndpointsTests` is the exception that drops and recreates its own databases in the
+  test itself: a `SystemSetup` row surviving between runs would make a rerun see a system
+  that thinks it is already set up (ADR-0059).
   **Dropping a test database and immediately re-running races**: several collections then
   create it at once and fail on duplicate keys. Run twice, or drop between runs, not during
 - **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
@@ -366,13 +371,36 @@ dotnet test
   full team, while the database gets `DemoPeoplePerUnit` working people per unit plus every
   manager. A unit with no manager gets its first person granted Planner/Approver/Admin —
   otherwise it comes up with nobody able to do anything in it
-- **Seeding has two rules, and confusing them was a live bug.** Reference data with fixed
-  ids — event types, request types, role grants — is **topped up per row** on every start,
-  so a database seeded before a type existed picks it up. The roster and demo plan are
-  written once into an empty database, because they have no natural key. The seeder used
-  to guard whole blocks with "if any row exists, skip", which left upgraded databases
-  without the newer types and — because the role step sat after an early return — without
-  any role grants at all, so every screen came up read-only with no explanation
+- **Startup seeds reference data and nothing else** (ADR-0059). Rows with fixed ids —
+  event types, presence types, request types — are **topped up per row** on every start,
+  so a database seeded before a type existed picks it up; `SeedRolesAsync` runs
+  unconditionally beside them, as a topped-up derivation over whatever roster exists (a
+  no-op before setup, self-healing after). The seeder used to guard whole blocks with "if
+  any row exists, skip", which left upgraded databases without the newer types and —
+  because the role step sat after an early return — without any role grants at all, so
+  every screen came up read-only with no explanation.
+  **The roster and demo plan are not seeded at all any more**: they are what the setup
+  wizard writes. `FixtureSeeder.SeedDemoAsync` is called by `SetupService`, never by
+  `Program.cs`
+- **What a fresh database starts as is a screen, not configuration** (ADR-0059).
+  `SystemSetup` is one row with a fixed primary key, and its presence is the whole of "this
+  system has content" — not an inferred condition like "no planning units exist", which a
+  half-written database would satisfy and reopen the wizard on top of itself.
+  `SetupGateMiddleware` sits **before** authentication and answers `503 SETUP_REQUIRED` to
+  everything but `/health/*`, `/api/setup/*`, `/openapi` and `/scalar` (the last two
+  because `npm run api:schema` fetches the document against a database nobody has set up).
+  Two presets: **Bare** (one location, one unit, the caller from their own token claims,
+  a global Admin grant) and **Demo** (the fixture entire). Settings → Maintenance carries
+  the two operations afterwards. **`Seed:IncludeDemoData`, `--seed-demo` and
+  `Auth:BootstrapAdminEmail` are deleted** — do not reintroduce a config key that decides
+  content
+- **Reset means migrated-and-empty, never dropped.** `SetupService.ResetAsync` deletes rows
+  in dependency order inside one transaction. It cannot be a `DROP DATABASE`: the app holds
+  the connection it would have to drop, a second replica holds another, recreating it would
+  mean running migrations from inside a request, and it would need the app's managed
+  identity to hold rights nothing else it does needs. The delete order is hand-maintained
+  and the reset→demo→reset test is what keeps it honest. **`--reset-db` is the other thing**
+  — argv-only, for a regenerated `InitialCreate`, and absent from the UI
 - **AI is optional and explanation-only**: `Ai:Provider` + `ANTHROPIC_API_KEY`, behind
   `IChatClient` so no code names a provider. Unconfigured is a *supported state* —
   `/api/insights/gap-summary` answers 503 `AI_NOT_CONFIGURED`, and
@@ -422,12 +450,16 @@ dotnet test
   `CellSelfServiceMenu` in a floating shell. Nothing about what a day means or what needs
   approving is decided twice. It reads its own long window through `['my-calendar']`, so
   every direct write and every request mutation invalidates that key as well.
-- **The calendar feed is the only anonymous route**, and `Person.CalendarToken` is the
-  whole of its authentication — a subscribing calendar client cannot carry a bearer token.
-  Hence: 256 bits, `[JsonIgnore]` so `/api/reference` cannot hand out everybody's,
-  seed-time replacement of the fixture's guessable `tok-{personId}` on **every** start, and
-  a reset button beside the copy button. A wrong token answers 404 exactly as an unknown
-  route does.
+- **There are exactly two anonymous routes**, and both are anonymous because the caller
+  provably cannot have a token yet. The **calendar feed** is one: `Person.CalendarToken` is
+  the whole of its authentication, because a subscribing calendar client cannot carry a
+  bearer token. Hence 256 bits, `[JsonIgnore]` so `/api/reference` cannot hand out
+  everybody's, seed-time replacement of the fixture's guessable `tok-{personId}` on
+  **every** start, and a reset button beside the copy button. A wrong token answers 404
+  exactly as an unknown route does. **`GET /api/setup/state`** is the other: it has to
+  answer before there is a system to sign in to, and it returns `required` and `stubMode`
+  and nothing else — a fingerprint of an unconfigured system is not worth handing out
+  (ADR-0059). Adding a third needs the same argument.
 - **A person's `employeeId` is a unique external key** once set (filtered unique index;
   `null` is unconstrained) — the field an eventual HR import will match people by.
   `AbsenceImportDialog`'s client-side `matchPeople` already tries it first.
@@ -484,9 +516,11 @@ Not bugs — things the design names and has not built. Full list in
   `Mode` settings against each other: mismatched, either the token is ignored or none is
   sent. Linking is deliberately manual — an admin types the work email on Settings →
   People; there is no directory sync, and self-linking is refused by design.
-  `Auth:BootstrapAdminEmail` breaks the first-run circle (nobody linked → nobody can reach
-  the screen that links people) and is guarded on **no person having an email at all**, so
-  it disarms itself permanently once anyone is linked. In
+  The **setup wizard** breaks the first-run circle (nobody linked → nobody can reach the
+  screen that links people): outside stub mode it reads the caller's own email and name
+  from their token, and either creates them (Bare) or links them to the fixture's global
+  admin (Demo). It runs once, and only a deliberate Settings → Maintenance reset brings it
+  back (ADR-0059, replacing `Auth:BootstrapAdminEmail`). In
   stub mode the identity is
   **switchable** — `Auth:StubPersonId`, or `X-Debug-PersonId` per request — so role
   behaviour is testable without a restart. **`Auth:StubRole` must stay empty**: it is a

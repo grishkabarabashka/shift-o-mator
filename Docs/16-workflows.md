@@ -189,6 +189,7 @@ in the header.
 | Leave types | Global — a kind of leave means the same in every unit |
 | Presence | Global — same reason. Retire with Offered off; delete is refused once anything points at the type |
 | Roles | The unit; a global grant needs a global admin |
+| Maintenance | Global — it replaces the whole system's content |
 
 Settings tabs that need a **global** grant say so and **name who holds it** — one seeded
 administrator is easy to miss among twenty-seven people, and "you need a global admin" with
@@ -199,6 +200,40 @@ admin can make a global one — otherwise any unit admin could promote themselve
 their unit. Revoking the last global admin is refused, since nothing else could grant it
 back. Every grant writes a history row: "who made them an approver" is the first question
 after a bad approval.
+
+## Starting a system
+
+**Who:** whoever opens it first — and after that, a **global** `Admin`.
+
+This is the one workflow with no role requirement, because before it runs there is nobody
+to hold a role ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). A database with no
+`SystemSetup` row answers `503 SETUP_REQUIRED` to everything but `/health/*`,
+`/api/setup/*` and the OpenAPI document, and the browser shows a wizard instead of the
+product:
+
+| Preset | What it writes |
+|---|---|
+| **Bare** | One location, one planning unit, and you — global `Admin`, created from your own token's name and email. Shifts, day configurations and the rest of the roster are entered on Settings afterwards |
+| **Demo** | The fixture entire: four units, a trimmed roster, shifts, day configurations and a sample rota. Your email is linked to the seeded global admin so you can sign back in |
+
+Outside stub mode the name and email come from the caller's token and **anything sent in
+the body is ignored** — a typo there would produce a system whose only administrator
+cannot sign in. Stub mode has no claims to read, so it is the one path that asks.
+
+It runs **once**: a second `POST /api/setup` answers `409 SETUP_COMPLETE`, guarded by a
+fixed primary key rather than by the check that precedes it, so two simultaneous callers
+cannot both succeed. Trusting the first visitor is deliberate — the window between first
+boot and setup is minutes, in Entra mode they still have to hold a valid tenant token, and
+`SystemSetup` records who did it and when.
+
+Afterwards, **Settings → Maintenance** carries the same two operations:
+
+- **Load demo data**, offered only while nobody has added a person or scheduled anything —
+  the fixture has fixed ids, and merging it into a system somebody has typed real data into
+  produces a roster nobody can reason about. Shown disabled with the reason, not hidden.
+- **Reset to empty**, confirmed by typing the environment name. It deletes rows in
+  dependency order and returns to *migrated and empty* — never a dropped database — so the
+  next visit is the wizard again.
 
 ## What is always true
 

@@ -20,11 +20,14 @@ public static class MaintenanceAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/maintenance").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        app.MapGet("/api/admin/maintenance/can-load-demo-data", async (ScheduleDbContext db, CancellationToken ct) =>
+        // Read-only, so it stops at the group's "administers something" policy rather than
+        // the global-admin check the two writes below make: the button it feeds is only
+        // rendered for a global admin anyway, and a unit admin learning that the system is
+        // untouched tells them nothing they could not see by looking at it.
+        group.MapGet("/can-load-demo-data", async (ScheduleDbContext db, CancellationToken ct) =>
             Results.Ok(new CanLoadDemoDataResponse(await SetupService.CanLoadDemoDataAsync(db, ct))))
             .WithName("CanLoadDemoData")
-            .Produces<CanLoadDemoDataResponse>()
-            .RequireAuthorization(AuthPolicies.AdminSomewhere);
+            .Produces<CanLoadDemoDataResponse>();
 
         group.MapPost("/load-demo-data", async (
             ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>

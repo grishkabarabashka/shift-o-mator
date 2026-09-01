@@ -50,33 +50,43 @@ Ensure SQL Server LocalDB is installed (`MSSQLLocalDB` instance).
 # Install Entity Framework CLI tool (one time)
 dotnet tool install --global dotnet-ef
 
-# Build and run the backend with demo seed data
-dotnet run --project src/ShiftOMator.Api -- --seed-demo
+# Build and run the backend
+dotnet run --project src/ShiftOMator.Api
 ```
 
-Two kinds of seed data, with two different rules.
+Then open the app. A database with nothing in it serves the **setup wizard** instead of
+the product, and what it starts as is chosen there rather than in a config file
+([ADR-0059](Docs/adr/0059-setup-is-a-screen-not-a-flag.md)):
 
-**Reference data** — event types, request types, role grants — has fixed ids and is
-**topped up on every start**: whatever is missing gets inserted, and what is already there
-is left alone. That is what makes it safe to add a type in a later release and have
-existing databases pick it up. Editing a seeded row keeps your edit; retiring one is
-`isActive = false` rather than a delete, since a deleted row comes back on the next start.
-
-**The roster and the demo plan** — locations, units, shifts, day configurations, holidays,
-people, and behind `--seed-demo` the assignments, absences and comp days — are written
-once, into an empty database. They have no natural key, so re-running them would duplicate
-a roster somebody may have edited. A first production run does not come up pre-populated
-with fabricated shifts.
+- **Bare** — one location, one planning unit, and you as the global administrator.
+  Everything else is entered on Settings afterwards. This is what a real rollout uses.
+- **Demo** — the fixture entire: four planning units, a trimmed roster, shifts, day
+  configurations and a sample rota. This is what local development uses.
 
 The roster is **trimmed** on its way in: `fixture-dataset.json` holds the real team's 76
 people because the Phase 8 baseline comparison is only meaningful at that size, while the
 database gets a handful per unit plus every manager. Enough to exercise coverage, gaps and
 approvals; few enough to read.
 
+**Reference data is the exception, and is not a choice.** Event types, presence types and
+request types have fixed ids and are **topped up on every start** — whatever is missing
+gets inserted, and what is already there is left alone. That is what makes it safe to add
+a type in a later release and have existing databases pick it up. A leave type the product
+ships is part of the product, not something an admin decides the existence of; what they
+decide is which are offered. Editing a seeded row keeps your edit; retiring one is
+`isActive = false` rather than a delete, since a deleted row comes back on the next start.
+
 ### Starting over
 
+Settings → Maintenance → **Reset to empty** deletes every location, unit, person, shift
+and record and hands the setup wizard back, without touching the schema. That is the
+normal way, and it needs no restart.
+
+`--reset-db` is the other one, and it is for a different problem — the schema itself
+moving:
+
 ```bash
-dotnet run --project src/ShiftOMator.Api -- --reset-db --seed-demo
+dotnet run --project src/ShiftOMator.Api -- --reset-db
 ```
 
 `--reset-db` drops the database and rebuilds it from the single migration. It exists

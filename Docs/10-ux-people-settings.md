@@ -151,6 +151,29 @@ per-resource question.
 > rather than accepting them into limbo), and `materializer` decides whether an approval
 > writes anything at all.
 
+### Maintenance
+
+**Global admin only**, and the one tab that does not edit a row — it replaces the whole
+system's content ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). Two buttons, both
+outside the dirty-state machinery below, because neither is an edit that can be batched or
+cancelled:
+
+**Load demo data** replaces a Bare system with the fixture entire. Offered only while
+nobody has added a person or scheduled anything — the fixture carries fixed ids, and
+merging it into a system somebody has typed real data into produces a roster nobody can
+reason about. When unavailable it is shown **disabled with the reason**, not hidden: a
+missing control is indistinguishable from a bug.
+
+**Reset to empty** deletes every location, unit, person, shift and record and hands the
+setup wizard back. Confirmed by **typing the environment name**, not by pressing "Yes" — a
+confirm dialog for something this destructive is a reflex, and typing is not. It returns
+to *migrated and empty*, never a dropped database, so it needs no restart and no rights the
+app does not already have.
+
+Both write a history row. Reset is the exception that only logs: it clears
+`ChangeHistoryEntry` itself, and a row describing the deletion that deleted it is not a
+record.
+
 ### Dirty state
 
 The moment configuration differs from the saved snapshot, `Unsaved changes` appears

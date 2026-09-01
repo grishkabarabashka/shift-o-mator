@@ -1,6 +1,6 @@
 # Roadmap and Phase History
 
-## Current state: Phases 0–11 complete
+## Current state: Phases 0–14 complete
 
 The first Frontend-only MVP built roadmap stages 1–14 above an in-memory fixture layer.
 Phases 0–6 reworked the entire stack to move domain logic to a real backend and align
@@ -9,7 +9,9 @@ the model rework (Region deleted, one absolute-time Shift entity). Phase 9 made 
 product production-shaped and absorbed the separate self-service portal. Phase 10 made the
 grid one grid for everybody. Phase 11 rebuilt the authorization model and split the write
 paths: drafts publish the rota, everything else is written directly and reviewed by
-approval.
+approval. Phase 12 gave the UI a design language. Phase 13 made Entra ID sign-in real and
+the app deployable to AKS. Phase 14 replaced the seeding flags with a first-run setup
+screen.
 
 **Phases completed:**
 
@@ -17,7 +19,7 @@ approval.
 |---|---|---|
 | 0 | Initial rework planning and repository setup | foundation laid |
 | 1 | Merge Dashboard and Timeline into Overview (ADR-0025), update shell navigation | Overview at `/overview`, old routes redirect |
-| 2 | .NET backend structure: Domain/Application/Infrastructure/Api layers with seeded fixture data | backend runs with `dotnet run --project api/src/ShiftOMator.Api -- --seed-demo` |
+| 2 | .NET backend structure: Domain/Application/Infrastructure/Api layers with seeded fixture data | backend runs with `dotnet run --project api/src/ShiftOMator.Api` (the `--seed-demo` flag it shipped with was replaced by the setup wizard in Phase 14) |
 | 3 | Port coverage, validation, comp-day, candidate ranking engines to C# as the single implementation; add DraftService for server-side draft persistence | All domain logic now server-side; validation runs server-side on `POST /api/drafts/{id}/publish` |
 | 4 | Add stubbed-but-real auth scaffold: bearer token, role claims, `[Authorize]` attribute on endpoints | identity available via `GET /api/auth/me`, endpoints gated by role |
 | 5 | HTTP cutover: HttpScheduleRepository replaces in-memory store, all CRUD over REST; TanStack Query for server state, Zustand only for UI state and draft metadata; OpenAPI type generation | Frontend talks entirely to backend over `/api/*` endpoints; `npm run api:schema:check` validates type generation |
@@ -25,31 +27,20 @@ approval.
 | 7–8 | Model rework: Region deleted, PlanningUnit becomes the single rule axis, Role and Shift collapse into one absolute-time entity, zero minimums legalised (ADR-0032/0033/0034) | Guarded by a frozen baseline comparison (`Phase8Baseline`) proving non-ST coverage and issues came out byte-identical |
 | 9 | **Production readiness and self-service.** Actor identity from the token; one change history for every entity; scoped dataset loading; version tokens on absences and comp days; presence; requests, approvals and an in-app inbox; AI explanations (ADR-0039–0048) | The audit trail ADR-0032 depends on is now real and complete; the separate portal is absorbed |
 | 10 | **One grid, configurable absences, half-days.** Event types as data; `portion` on absences and presence; the cell splits into chip and band; the grid is gated by role and carries self-service; approvers named per unit; a per-cell audit timeline; a switchable stub identity (ADR-0049–0050) | The role-blind grid — a live defect where a viewer's click did nothing and said nothing — is fixed; the schema is one migration again |
-
 | 11 | **Roles, and the two flows.** Roles become a set granted per planning unit, with the ordinal comparison deleted and approval routes replaced by the `Approver` grant; drafts narrow to the rota, absences and presence become direct writes gated by approval; roster markers deleted; an absence fills the cell; comp days are placed by the person taking them (ADR-0051–0052) | An Admin can no longer assign shifts by accident of enum order, and a viewer can record their own sick day |
+| 12 | **A design language.** An elevation ladder, a type scale, real breakpoints, the header's own sky, and a toast layer beside the three existing failure surfaces (ADR-0057) | The app has one visual system instead of per-screen decisions; success has a channel it never had |
+| 13 | **Entra ID, and a deployable app.** Real JWT validation, identity linked to a person by email, app roles as global grants; container images and a Helm chart for AKS (ADR-0058) | A real token signs a real person in; `helm upgrade` is the deployment |
+| 14 | **First-run setup.** `SystemSetup` is the flag, a middleware gate refuses everything until it exists, and a wizard writes either a Bare system or the Demo fixture; Settings → Maintenance carries load-demo and reset afterwards (ADR-0059) | What a database starts as is a decision the product asks for, not a config key set before it runs — and it can be changed afterwards |
 
-**Next: Phase 14 — first-run setup and maintenance ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)).**
-
-What a fresh database starts as stops being a deployment decision and becomes a screen. A
-system with no `SystemSetup` row answers `503 SETUP_REQUIRED` everywhere except
-`/health/*` and `/api/setup/*`, and the browser shows a wizard: pick **Bare** (one
-location, one unit, you as the global Admin, taken from your token) or **Demo** (the
-fixture entire). Afterwards Settings → Maintenance carries the same two operations —
-**Load demo data**, guarded on the system still being untouched, and **Reset to empty**,
-which deletes rows in dependency order and hands the wizard back. `Seed:IncludeDemoData`,
-`--seed-demo` and `Auth:BootstrapAdminEmail` are deleted; `--reset-db` stays as the
-development recovery for a regenerated `InitialCreate`.
-
-| Step | Work |
-|---|---|
-| 1 | `SystemSetup` entity, `InitialCreate` regenerated, `ScheduleDbContext` mapping with the fixed key |
-| 2 | `SetupGateMiddleware` after authentication, before routing; the allowlist is `/health/*` and `/api/setup/*` |
-| 3 | `SetupService` in Application: the two presets, the `Person`-from-claims path, the reset, and the delete order — pure enough to test against a real database, not spread across endpoints |
-| 4 | `SetupEndpoints`: anonymous `GET /api/setup/state`, `POST /api/setup` (409 `SETUP_COMPLETE` once the row exists) |
-| 5 | `MaintenanceAdminEndpoints`: load-demo and reset, `AdminSomewhere`, both through `ChangeAudit` |
-| 6 | Client: `SetupGate` above `AuthProvider` (the state call carries no token), the wizard screen, and Settings → Maintenance with the typed confirmation |
-| 7 | Delete the flags: `Program.cs`, `appsettings*.json`, `values.yaml`, `values-*.yaml`, `compose.yaml`, `deploy/README.md`, and the `BootstrapAdminAsync` path in the seeder |
-| 8 | Tests: reset → demo → reset (proves the delete order), the gate's allowlist, `409` on a second setup, and the demo button's guard |
+Phase 14 in detail, since it deleted configuration other environments may still set:
+a system with no `SystemSetup` row answers `503 SETUP_REQUIRED` everywhere except
+`/health/*`, `/api/setup/*` and the OpenAPI document, and the browser shows a wizard: pick
+**Bare** (one location, one unit, you as the global Admin, taken from your token) or
+**Demo** (the fixture entire). Afterwards Settings → Maintenance carries the same two
+operations — **Load demo data**, guarded on the system still being untouched, and **Reset
+to empty**, which deletes rows in dependency order and hands the wizard back.
+`Seed:IncludeDemoData`, `--seed-demo` and `Auth:BootstrapAdminEmail` are deleted;
+`--reset-db` stays as the development recovery for a regenerated `InitialCreate`.
 
 **Remaining, not yet scheduled:**
 
@@ -62,23 +53,28 @@ development recovery for a regenerated `InitialCreate`.
   actually blocks it is integer minimums running through `CoverageCalculator`, `Validator`,
   the coverage strip, `IssueDigest` and their tests ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
 
-- **Real Entra ID.** The seam exists and the policy surface is real, but the JWT branch has
-  no `Auth:Jwt` configuration, no `roles` array-claim mapping and no tested path. Until it
-  lands, the stub issues a **switchable** identity: `Auth:StubPersonId` pins one, and the
-  `X-Debug-PersonId` / `X-Debug-Role` headers override per request so role behaviour can
-  be tested without a restart. `X-Debug-Role` is comma-separated, because roles are a set;
-  the literal `Viewer` strips an account to nothing, and an absent header means "use their
-  real grants". The in-app switcher uses only the person header — grants belong on
-  Settings → Roles, and a global override was a state the product cannot produce. Those headers are read only by `StubAuthenticationHandler`,
-  which exists only in stub mode.
-- **`Person.externalObjectId`** — the column that links a token to a roster row. Without
-  it, a real IdP has nothing to map onto.
+- **Directory sync for the roster.** Entra ID sign-in itself landed in Phase 13, and a
+  person is linked to their account by an admin typing their work email on Settings →
+  People ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)). What is not built
+  is the joiner/mover/leaver half: a Graph sync, and an answer to "the directory says this
+  person left". For ~80 people, typing is tractable; it is a real gap all the same.
+  Stub mode remains the local loop, with a **switchable** identity: `Auth:StubPersonId`
+  pins one, and the `X-Debug-PersonId` / `X-Debug-Role` headers override per request so
+  role behaviour can be tested without a restart. `X-Debug-Role` is comma-separated,
+  because roles are a set; the literal `Viewer` strips an account to nothing, and an absent
+  header means "use their real grants". The in-app switcher uses only the person header —
+  grants belong on Settings → Roles, and a global override was a state the product cannot
+  produce. Those headers are read only by `StubAuthenticationHandler`, which exists only in
+  stub mode.
 - **External notification delivery** — the outbox columns exist and are unused; Phase B is
   one in-process dispatcher sending via Graph ([ADR-0044](adr/0044-in-app-inbox-first.md)).
-- **Admin screens for event types and request types.** Both are ordinary tables with a
-  seeded starting set, so adding one is a row — but until the Settings cards exist, that
-  row is added in the seed or the database. Approval routes no longer need a screen: who
-  approves is the `Approver` grant, edited on Settings → Roles.
+- **An admin screen for request types.** Event types have one (Settings → Leave types) and
+  so do presence types (Settings → Presence); request types do not, so adding one still
+  means a row in the seed or the database. Most are now derivable from those two screens —
+  one per approval-needing event type, one per presence kind — which is why the card has
+  not been built: the open question is whether it should exist at all rather than be
+  generated. Approval routes need no screen: who approves is the `Approver` grant, edited
+  on Settings → Roles.
 - **Export** — XLSX, CSV, ICS, print with timezone stamping.
 - **Effective-dated configuration editing** — Settings UI for changing minimums and shifts
   with past-data protection.

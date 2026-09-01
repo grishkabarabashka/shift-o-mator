@@ -22,16 +22,25 @@ Requires SQL Server LocalDB (`MSSQLLocalDB` instance) and the EF Core tools:
 
 ```
 dotnet tool install --global dotnet-ef
-dotnet run --project src/ShiftOMator.Api -- --seed-demo
+dotnet run --project src/ShiftOMator.Api
 ```
 
-`--seed-demo` loads the same demo plan data (assignments, absences, comp days) the
-frontend fixtures ship with. Without it, only reference data seeds (regions, roles, day
-configurations, people, ...) — what a real deployment should come up with.
+Startup seeds **reference data only** — event types, presence types, request types, and
+the role grants derived from whatever roster already exists. It is topped up row by row on
+every start, because a leave type the product ships is part of the product rather than a
+choice about whether the row exists.
 
-Reference data is seeded from `src/ShiftOMator.Infrastructure/Seed/fixture-dataset.json`,
-a JSON export of the TypeScript client's own `domain/fixtures.ts`, not a hand-transcribed
-copy — see `FixtureSeeder`'s remarks for how to regenerate it.
+Everything else is chosen in the app. Until a `SystemSetup` row exists the API answers
+`503 SETUP_REQUIRED` to everything but `/health/*`, `/api/setup/*` and the OpenAPI
+document, and the web client shows the setup wizard: **Bare** (one location, one unit, you
+as global admin) or **Demo** (the fixture entire, including the sample plan the frontend
+tests use). Afterwards Settings → Maintenance can load the demo data into an untouched
+Bare system, or reset back to empty. See
+[ADR-0059](../../Docs/adr/0059-setup-is-a-screen-not-a-flag.md).
+
+The fixture lives in `src/ShiftOMator.Infrastructure/Seed/fixture-dataset.json`, a JSON
+export of the TypeScript client's own `domain/fixtures.ts`, not a hand-transcribed copy —
+see `FixtureSeeder`'s remarks for how to regenerate it.
 
 ## Verifying
 

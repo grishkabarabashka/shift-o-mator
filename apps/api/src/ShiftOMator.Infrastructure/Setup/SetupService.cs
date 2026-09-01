@@ -61,6 +61,20 @@ public static class SetupService
             PrimaryLocationId = location.Id,
             LocationIds = [location.Id],
             Locations = [location],
+            // Not `new()`: every field of the default is a degenerate policy. A zero search
+            // window means a comp day can only be placed on the very day that earned it —
+            // which the shift that earned it already occupies — so every single one would
+            // fall straight to PENDING_APPROVAL; and `AgingThresholdDays = 0` flags every
+            // outstanding comp day as overdue the moment it exists. These are the same
+            // values every seeded unit carries, and they are editable on Settings → Units.
+            CompOffPolicy = new CompOffPolicy
+            {
+                WindowBeforeDays = 14,
+                WindowAfterDays = 14,
+                ExcludedWeekdays = [IsoWeekday.Monday, IsoWeekday.Friday],
+                AgingThresholdDays = 14,
+                RequiresApprovalWhenNoSlot = true,
+            },
         };
 
         var person = new Person
