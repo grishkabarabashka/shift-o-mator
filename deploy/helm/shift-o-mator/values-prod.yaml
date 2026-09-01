@@ -17,18 +17,12 @@ api:
     authMode: EntraId
     corsAllowedOrigins:
       - https://shift-o-mator.example.com
-    seedIncludeDemoData: "false"
 
     # Managed identity, so no password and nothing secret here.
     connectionString: "Server=tcp:shift-o-mator-prod.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
 
     jwtAuthority: ""    # https://login.microsoftonline.com/<tenant-id>/v2.0
     jwtAudience: ""     # api://<app-id>
-
-    # Left empty on purpose. Production should be linked by an administrator through
-    # Settings → People, not by a startup setting — the bootstrap exists for a database
-    # nobody can yet sign in to, which is a first-run problem, not a production one.
-    bootstrapAdminEmail: ""
 
 web:
   apiUrl: https://api.shift-o-mator.example.com

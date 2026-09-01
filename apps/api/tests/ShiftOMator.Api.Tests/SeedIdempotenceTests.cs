@@ -19,8 +19,19 @@ namespace ShiftOMator.Api.Tests;
 /// skip. The demo plan keeps the all-or-nothing rule, because it has no natural key and
 /// re-running it would duplicate a roster somebody may have edited.
 /// </summary>
-public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTestFactory>
+public class SeedIdempotenceTests(SeedIdempotenceTests.Factory factory) : IClassFixture<SeedIdempotenceTests.Factory>
 {
+    /// <summary>
+    /// Its own database, not the "Api" collection's shared one: xUnit runs collections in
+    /// parallel, and this class reaches for a bare <see cref="ApiTestFactory"/> outside
+    /// that collection, so sharing the default database name would race the shared
+    /// factory's own startup seeding against this one's.
+    /// </summary>
+    public sealed class Factory : ApiTestFactory
+    {
+        public Factory() => DatabaseName = "ShiftOMatorSeedIdempotenceTests";
+    }
+
     private async Task<(IServiceScope Scope, ScheduleDbContext Db)> OpenAsync()
     {
         // Creating a client is what boots the app and runs the startup migrate+seed.
@@ -41,7 +52,7 @@ public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTes
         await db.EventTypes.Where(t => t.Id == EventTypeIds.Unavailable).ExecuteDeleteAsync();
         Assert.False(await db.EventTypes.AnyAsync(t => t.Id == EventTypeIds.Unavailable));
 
-        await FixtureSeeder.SeedAsync(db, includeDemoData: true);
+        await FixtureSeeder.SeedAsync(db);
 
         Assert.True(await db.EventTypes.AnyAsync(t => t.Id == EventTypeIds.Unavailable));
     }
@@ -57,7 +68,7 @@ public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTes
         await db.RequestTypes.Where(t => t.Id == "rt-sick").ExecuteDeleteAsync();
         Assert.True(await db.RequestTypes.AnyAsync(), "other request types should still be there");
 
-        await FixtureSeeder.SeedAsync(db, includeDemoData: true);
+        await FixtureSeeder.SeedAsync(db);
 
         Assert.True(await db.RequestTypes.AnyAsync(t => t.Id == "rt-sick"));
     }
@@ -73,7 +84,7 @@ public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTes
         await db.RoleAssignments.ExecuteDeleteAsync();
         Assert.True(await db.PlanningUnits.AnyAsync(), "units should already be there");
 
-        await FixtureSeeder.SeedAsync(db, includeDemoData: true);
+        await FixtureSeeder.SeedAsync(db);
 
         var grants = await db.RoleAssignments.AsNoTracking().ToListAsync();
         Assert.NotEmpty(grants);
@@ -89,7 +100,7 @@ public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTes
         var (scope, db) = await OpenAsync();
         using var _ = scope;
 
-        await FixtureSeeder.SeedAsync(db, includeDemoData: true);
+        await FixtureSeeder.SeedAsync(db);
         var before = (
             await db.EventTypes.CountAsync(),
             await db.RequestTypes.CountAsync(),
@@ -97,7 +108,7 @@ public class SeedIdempotenceTests(ApiTestFactory factory) : IClassFixture<ApiTes
             await db.People.CountAsync(),
             await db.Assignments.CountAsync());
 
-        await FixtureSeeder.SeedAsync(db, includeDemoData: true);
+        await FixtureSeeder.SeedAsync(db);
         var after = (
             await db.EventTypes.CountAsync(),
             await db.RequestTypes.CountAsync(),

@@ -11,7 +11,8 @@ namespace ShiftOMator.Api.Tests;
 /// <c>Admin &gt; Planner</c> made every administrator a planner of every unit — a right
 /// nobody had granted and nobody could withhold.
 /// </summary>
-public class RoleModelTests(ApiTestFactory factory) : IClassFixture<ApiTestFactory>
+[Collection("Api")]
+public class RoleModelTests(ApiTestFactory factory)
 {
     private static HttpRequestMessage As(HttpMethod method, string url, string roles)
     {

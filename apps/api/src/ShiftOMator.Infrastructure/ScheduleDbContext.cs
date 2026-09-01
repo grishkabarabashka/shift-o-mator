@@ -29,6 +29,7 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
     public DbSet<ChangeHistoryEntry> ChangeHistory => Set<ChangeHistoryEntry>();
     public DbSet<DraftSession> DraftSessions => Set<DraftSession>();
     public DbSet<DraftChange> DraftChanges => Set<DraftChange>();
+    public DbSet<SystemSetup> SystemSetups => Set<SystemSetup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -205,6 +206,17 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         });
 
         modelBuilder.Entity<DraftChange>(e => e.HasKey(x => x.Id));
+
+        // Fixed PK, not a natural key — there is exactly one row, ever (ADR-0059). The
+        // fixed key is what makes a concurrent second `POST /api/setup` fail on a
+        // duplicate rather than write a second row nobody asked for. `ValueGeneratedNever`
+        // because EF's default for an `int` PK is an identity column, which refuses the
+        // explicit `Id = 1` this entity always writes.
+        modelBuilder.Entity<SystemSetup>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+        });
     }
 
     private static void ConfigureList<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<List<T>> builder)

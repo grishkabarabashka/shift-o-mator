@@ -272,6 +272,11 @@ function overlayPlan(session?: MockSession) {
 const base = API_BASE_URL;
 
 export const handlers = [
+  // ADR-0059: `SetupGate` checks this before rendering anything else. The mock backend
+  // always starts already set up — the wizard itself is exercised in its own test file,
+  // not by every other suite that renders `<App />`.
+  http.get(`${base}/api/setup/state`, () => HttpResponse.json({ required: false, stubMode: true })),
+
   // ADR-0039: the client asks the server who it is instead of assuming.
   http.get(`${base}/api/auth/me`, () =>
     HttpResponse.json({

@@ -29,6 +29,15 @@ public static class CurrentUser
         ?? user.FindFirst(ClaimTypes.Email)?.Value
         ?? user.FindFirst("email")?.Value
         ?? user.FindFirst(ClaimTypes.Upn)?.Value;
+
+    /// <summary>
+    /// The display name an Entra ID token carries, or <c>null</c>. Used exactly once — by
+    /// the setup wizard's Bare preset, to create the first person without asking anybody
+    /// to type it (ADR-0059). Not verified against anything: there is no roster yet for it
+    /// to be verified against.
+    /// </summary>
+    public static string? DisplayNameOrNull(this ClaimsPrincipal user) =>
+        user.FindFirst("name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value;
 }
 
 /// <summary>

@@ -11,6 +11,8 @@ import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, useAuth } from './auth/AuthProvider.tsx';
 import { EntraGate } from './auth/EntraGate.tsx';
+import { SetupGate } from './auth/SetupGate.tsx';
+import { useSetupState } from './api/setup.ts';
 import { TooltipProvider } from './ui/primitives.tsx';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
@@ -42,15 +44,23 @@ export function App() {
   const view = usePlanningView(TODAY);
   const now = useNow();
 
+  // Setup not done yet means `/api/schedule` (and everything else) answers
+  // `SETUP_REQUIRED` — loading it would just stash an error the wizard has no use for,
+  // and one nothing re-triggers once setup finishes and `SetupGate` starts rendering the
+  // rest of the tree (ADR-0059).
+  const setupRequired = useSetupState().data?.required ?? true;
+
   useEffect(() => {
+    if (setupRequired) return;
     void load(unitId, range);
-  }, [load, unitId, range, currentUserId]);
+  }, [load, unitId, range, currentUserId, setupRequired]);
 
   return (
     // Outside AuthProvider: `/api/auth/me` must not be called before there is a token to
     // send, or it comes back 401 and the identity resolves to nothing (ADR-0058).
     // In stub mode the gate is transparent and this nesting costs nothing.
     <EntraGate>
+    <SetupGate>
     <AuthProvider>
       <IdentityBridge />
       <UnsavedWorkGuard />
@@ -94,6 +104,7 @@ export function App() {
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
+    </SetupGate>
     </EntraGate>
   );
 }

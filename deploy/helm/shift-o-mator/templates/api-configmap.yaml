@@ -12,7 +12,6 @@ data:
   Auth__Mode: {{ .Values.api.config.authMode | quote }}
   Ai__Provider: {{ .Values.api.config.aiProvider | quote }}
   Ai__Model: {{ .Values.api.config.aiModel | quote }}
-  Seed__IncludeDemoData: {{ .Values.api.config.seedIncludeDemoData | quote }}
   {{- with .Values.api.config.connectionString }}
   ConnectionStrings__Schedule: {{ . | quote }}
   {{- end }}
@@ -21,9 +20,6 @@ data:
   {{- end }}
   {{- with .Values.api.config.jwtAudience }}
   Auth__Jwt__Audience: {{ . | quote }}
-  {{- end }}
-  {{- with .Values.api.config.bootstrapAdminEmail }}
-  Auth__BootstrapAdminEmail: {{ . | quote }}
   {{- end }}
   {{- range $i, $origin := .Values.api.config.corsAllowedOrigins }}
   Cors__AllowedOrigins__{{ $i }}: {{ $origin | quote }}

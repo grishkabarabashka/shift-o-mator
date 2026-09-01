@@ -7,8 +7,11 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ShiftOMator.Infrastructure;
+using ShiftOMator.Infrastructure.Setup;
 
 namespace ShiftOMator.Api.Tests;
 
@@ -66,9 +69,10 @@ public class EntraIdentityTests
 
     /// <summary>
     /// `Auth:Mode` is anything but "Stub", which is what puts <c>ActorResolver</c> on its
-    /// email path with no fallback. `BootstrapAdminEmail` gives the database exactly one
-    /// person who can sign in — the same escape from the linking circle a real first
-    /// deployment uses.
+    /// email path with no fallback. Seeding here does what the setup wizard's Demo preset
+    /// would do outside Stub mode: seed the fixture, then link <see cref="AdminEmail"/> to
+    /// whichever seeded manager holds the global Admin grant — the same escape from the
+    /// linking circle a real first deployment uses (ADR-0059).
     /// </summary>
     private sealed class EntraFactory : ApiTestFactory
     {
@@ -91,16 +95,20 @@ public class EntraIdentityTests
                         FakeTokenHandler.SchemeName, _ => { });
             });
         }
+
+        protected override async Task SeedAsync(IHost host)
+        {
+            using var scope = host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+            if (await SetupService.IsRequiredAsync(db))
+                await SetupService.CompleteDemoAsync(db, callerEmail: AdminEmail);
+        }
     }
 
     private static EntraFactory Factory() => new()
     {
         DatabaseName = DatabaseName,
-        Settings = new Dictionary<string, string>
-        {
-            ["Auth:Mode"] = "EntraId",
-            ["Auth:BootstrapAdminEmail"] = AdminEmail,
-        },
+        Settings = new Dictionary<string, string> { ["Auth:Mode"] = "EntraId" },
     };
 
     [Fact]

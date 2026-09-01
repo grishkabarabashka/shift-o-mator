@@ -28,6 +28,29 @@ approval.
 
 | 11 | **Roles, and the two flows.** Roles become a set granted per planning unit, with the ordinal comparison deleted and approval routes replaced by the `Approver` grant; drafts narrow to the rota, absences and presence become direct writes gated by approval; roster markers deleted; an absence fills the cell; comp days are placed by the person taking them (ADR-0051–0052) | An Admin can no longer assign shifts by accident of enum order, and a viewer can record their own sick day |
 
+**Next: Phase 14 — first-run setup and maintenance ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)).**
+
+What a fresh database starts as stops being a deployment decision and becomes a screen. A
+system with no `SystemSetup` row answers `503 SETUP_REQUIRED` everywhere except
+`/health/*` and `/api/setup/*`, and the browser shows a wizard: pick **Bare** (one
+location, one unit, you as the global Admin, taken from your token) or **Demo** (the
+fixture entire). Afterwards Settings → Maintenance carries the same two operations —
+**Load demo data**, guarded on the system still being untouched, and **Reset to empty**,
+which deletes rows in dependency order and hands the wizard back. `Seed:IncludeDemoData`,
+`--seed-demo` and `Auth:BootstrapAdminEmail` are deleted; `--reset-db` stays as the
+development recovery for a regenerated `InitialCreate`.
+
+| Step | Work |
+|---|---|
+| 1 | `SystemSetup` entity, `InitialCreate` regenerated, `ScheduleDbContext` mapping with the fixed key |
+| 2 | `SetupGateMiddleware` after authentication, before routing; the allowlist is `/health/*` and `/api/setup/*` |
+| 3 | `SetupService` in Application: the two presets, the `Person`-from-claims path, the reset, and the delete order — pure enough to test against a real database, not spread across endpoints |
+| 4 | `SetupEndpoints`: anonymous `GET /api/setup/state`, `POST /api/setup` (409 `SETUP_COMPLETE` once the row exists) |
+| 5 | `MaintenanceAdminEndpoints`: load-demo and reset, `AdminSomewhere`, both through `ChangeAudit` |
+| 6 | Client: `SetupGate` above `AuthProvider` (the state call carries no token), the wizard screen, and Settings → Maintenance with the typed confirmation |
+| 7 | Delete the flags: `Program.cs`, `appsettings*.json`, `values.yaml`, `values-*.yaml`, `compose.yaml`, `deploy/README.md`, and the `BootstrapAdminAsync` path in the seeder |
+| 8 | Tests: reset → demo → reset (proves the delete order), the gate's allowlist, `409` on a second setup, and the demo button's guard |
+
 **Remaining, not yet scheduled:**
 
 - **Half-day shifts, and half coverage.** Today a half-day absence beside a shift is a

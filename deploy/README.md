@@ -84,7 +84,8 @@ Defaults to `Auth:Mode=Stub` and LocalDB (`apps/api/src/ShiftOMator.Api/appsetti
 (`http://localhost:5106`, the API's default port). The in-app identity switcher only
 appears when the server reports `stubMode: true` from `GET /api/auth/me`.
 
-Seed demo data: `dotnet run --project src/ShiftOMator.Api -- --seed-demo`.
+The database comes up empty apart from reference data (leave types, presence types,
+request types). Open the app and it shows the setup wizard: pick Bare or Demo (ADR-0059).
 
 ## 2a. Entra ID for local development (optional)
 
@@ -142,14 +143,11 @@ secrets (`dotnet user-secrets set …` from `apps/api/src/ShiftOMator.Api`):
 }
 ```
 
-Finally, **link yourself**: your work email must be in `Person.Email` for some row, or
-every request comes back `403 PRINCIPAL_NOT_MAPPED` (section 6.2). On a fresh database
-nobody is linked, so set this in the same `appsettings.Development.json` and restart —
-it attaches your email to the global admin, and does nothing at all once anyone is linked:
-
-```json
-{ "Auth": { "BootstrapAdminEmail": "you@example.com" } }
-```
+Finally, **run the setup wizard**: your work email must be in `Person.Email` for some
+row, or every request comes back `403 PRINCIPAL_NOT_MAPPED` (section 6.2). On a fresh
+database nobody is linked yet — open the app with Entra ID mode already switched on and
+it shows the wizard, which creates you (Bare) or links you to the fixture's admin (Demo)
+using the email in your token (ADR-0059). There is nothing to configure for this.
 
 ## 3. Configuration reference
 
@@ -168,7 +166,6 @@ environment variables (`Section__Key`) → command line.
 | `Cors:AllowedOrigins` | `["http://localhost:5173"]` | the deployed web origin(s) | array — set via `Cors__AllowedOrigins__0`, `__1`, ... |
 | `Ai:Provider` / `Ai:Model` | `anthropic` / `claude-opus-5` | same | non-secret |
 | `ANTHROPIC_API_KEY` | user secrets or unset (AI returns 503) | from Key Vault | environment variable, not an `Ai:` key — see `ChatModel.FromConfiguration` |
-| `Seed:IncludeDemoData` | via `--seed-demo` flag | `true` in sandbox, `false` in production | |
 
 ### Frontend (`apps/web/.env.*`)
 
@@ -345,7 +342,6 @@ Sorting every value the API needs by whether it is actually a secret:
 | Connection string, managed identity | No — no credential in it | ConfigMap |
 | `Auth:Jwt:Authority` | No — a public Microsoft URL | ConfigMap |
 | `Auth:Jwt:Audience` | No — a public Application ID URI | ConfigMap |
-| `Auth:BootstrapAdminEmail` | No — grants nothing by itself | ConfigMap |
 | `VITE_ENTRA_CLIENT_ID` / scope | No — public by design in a SPA | Baked into the web image |
 
 So the vault is not decoration, but it is also not on the critical path for SQL. Two
@@ -425,13 +421,13 @@ reasoning; the mechanics:
   administers their unit rather than an admin having to go look it up in the portal first.
 
 **The first administrator** is the circular case: nobody is linked, so nobody can reach
-Settings → People to link anyone. Set `Auth:BootstrapAdminEmail` (Helm:
-`api.config.bootstrapAdminEmail`) to your work email. At startup it attaches that address
-to whoever holds the global Admin grant — but **only while no person has an email at
-all**. One person linked and the setting is inert, which is what makes it safe to leave
-configured: it cannot promote anybody on a running system, and cannot silently re-grant
-after somebody deliberately removed a grant. The API logs what it did, or why it did
-nothing, on every start.
+Settings → People to link anyone. A database with no `SystemSetup` row serves the setup
+wizard instead of the app, to anybody who reaches it — the Bare preset creates you from
+your token's own email and name, the Demo preset links you to whichever seeded manager
+holds the global Admin grant ([ADR-0059](../Docs/adr/0059-setup-is-a-screen-not-a-flag.md)).
+It runs once: a second `POST /api/setup` answers `409 SETUP_COMPLETE`, and the only way
+back to the wizard is Settings → Maintenance → Reset, which an existing global admin has
+to do on purpose.
 
 ### 6.2a Which token goes where
 
@@ -608,7 +604,7 @@ does not roll back the database.
 | SQL errors mentioning `CREATE TABLE` permission | the identity lacks `db_ddladmin`, which EF migrations need at startup |
 | `Active Directory Default` picks the wrong identity, or none | the pod is missing `azure.workload.identity/use: "true"` — check `workloadIdentity.enabled` is true and the cluster has `--enable-workload-identity` |
 | `403` on every write, `Settings` never appears for anyone | `Auth:StubRole` got set to something non-empty — it must stay empty; see CLAUDE.md, this exact bug happened once |
-| `403 PRINCIPAL_NOT_MAPPED` for a real Entra ID user | nobody in the roster has that email in `Person.Email` — an admin links it on Settings → People (the error message names the address); for the very first admin use `Auth:BootstrapAdminEmail` (section 6.2). Also check the token carries an email claim for your tenant |
+| `403 PRINCIPAL_NOT_MAPPED` for a real Entra ID user | nobody in the roster has that email in `Person.Email` — an admin links it on Settings → People (the error message names the address); if `GET /api/setup/state` still says `required: true` the setup wizard has not run yet (section 6.2). Also check the token carries an email claim for your tenant |
 | Browser console: CORS error calling the API | the web origin isn't in `api.config.corsAllowedOrigins` for that environment's values file — or the app registration uses a "Web" platform instead of **SPA** (section 6.1), which surfaces the same way |
 | Web app calls the wrong API host, or sends no token | the web image was built with the wrong (or no) `VITE_API_URL` / `VITE_AUTH_MODE` build-arg — rebuild, Helm values can't fix this after the fact |
 | `SecretProviderClass` pod events show `AADSTS` errors | the federated credential's `--subject` doesn't match `system:serviceaccount:<namespace>:<serviceAccount.name>` exactly, or the identity lacks `get` on the Key Vault |
@@ -618,8 +614,8 @@ does not roll back the database.
 - No CI/CD pipeline — every build/push/deploy step above is manual, on purpose, until a
   registry and a real target exist to automate against.
 - **Linking every other person is manual**, one email at a time on Settings → People.
-  `Auth:BootstrapAdminEmail` solves only the first one. For ~80 people that is tedious
-  but tractable; a directory sync is the eventual answer and is deliberately not built
+  The setup wizard solves only the first one. For ~80 people that is tedious but
+  tractable; a directory sync is the eventual answer and is deliberately not built
   (ADR-0058).
 - **No token refresh across a closed tab.** `sessionStorage` is deliberate (shared
   machines), so each new browser session signs in again — silently, if the Entra session

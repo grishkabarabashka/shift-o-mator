@@ -6,6 +6,7 @@ using Scalar.AspNetCore;
 using ShiftOMator.Api;
 using ShiftOMator.Api.Admin;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Setup;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 using ShiftOMator.Infrastructure.Seed;
@@ -128,6 +129,11 @@ app.UseHttpsRedirection();
 
 app.UseCors(ClientCorsPolicy);
 
+// Before authentication: a blocked request needs no identity to be told "not yet", and
+// deferring this would mean validating a bearer token on every request while the system
+// has nothing behind it to authenticate for (ADR-0059).
+app.UseMiddleware<ShiftOMator.Api.Setup.SetupGateMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -135,6 +141,7 @@ app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
 app.MapGet("/health/ready", async (ScheduleDbContext db) =>
     await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 
+app.MapSetupEndpoints();
 app.MapReferenceEndpoints();
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
@@ -162,11 +169,7 @@ app.MapAbsenceCapacityRulesAdminEndpoints();
 app.MapShiftsAdminEndpoints();
 app.MapDayConfigurationsAdminEndpoints();
 app.MapPeopleAdminEndpoints();
-
-// NOTE: reference data is always seeded (guarded by an idempotency check in
-// FixtureSeeder). The demo plan (assignments/absences/comp days) only goes in behind
-// an explicit flag — the first production run must not come up with made-up shifts.
-var includeDemoData = args.Contains("--seed-demo") || builder.Configuration.GetValue<bool>("Seed:IncludeDemoData");
+app.MapMaintenanceAdminEndpoints();
 
 // `--reset-db` drops the database and builds it again from the single migration.
 //
@@ -197,44 +200,11 @@ using (var scope = app.Services.CreateScope())
 
     await db.Database.MigrateAsync();
 
-    // Applied only while no person has an email at all, so it is inert on a running
-    // system — see AuthOptions.BootstrapAdminEmail and ADR-0058. Logged either way,
-    // because "why can nobody sign in" is otherwise answered by reading the seeder.
-    var bootstrapAdminEmail = builder.Configuration[$"{AuthOptions.SectionName}:BootstrapAdminEmail"];
-    var linkedBefore = await db.People.AnyAsync(p => p.Email != null);
-
-    await FixtureSeeder.SeedAsync(db, includeDemoData, bootstrapAdminEmail);
-
-    if (!string.IsNullOrWhiteSpace(bootstrapAdminEmail))
-    {
-        if (linkedBefore)
-        {
-            app.Logger.LogInformation(
-                "Auth:BootstrapAdminEmail is set but ignored: somebody is already linked. "
-                + "Sign-in accounts are managed on Settings → People.");
-        }
-        else
-        {
-            var linked = await db.People.AsNoTracking()
-                .Where(p => p.Email != null)
-                .Select(p => new { p.Id, p.DisplayName })
-                .FirstOrDefaultAsync();
-
-            if (linked is null)
-            {
-                app.Logger.LogWarning(
-                    "Auth:BootstrapAdminEmail is set but nobody was linked — no person holds a "
-                    + "global Admin grant to attach it to.");
-            }
-            else
-            {
-                app.Logger.LogWarning(
-                    "Auth:BootstrapAdminEmail linked {Email} to {Person} ({PersonId}), who holds the "
-                    + "global Admin grant. Remove the setting once other people are linked.",
-                    bootstrapAdminEmail, linked.DisplayName, linked.Id);
-            }
-        }
-    }
+    // Reference data only — event types, presence types, request types, and the role
+    // grants derived from whatever roster already exists. What a fresh database starts as
+    // beyond that is answered once, by whoever opens the app first, on the setup wizard
+    // (ADR-0059) — this call writes nothing on a database the wizard has not reached yet.
+    await FixtureSeeder.SeedAsync(db);
 }
 
 /// <summary>

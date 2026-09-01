@@ -12,7 +12,7 @@ using ShiftOMator.Infrastructure;
 namespace ShiftOMator.Infrastructure.Migrations
 {
     [DbContext(typeof(ScheduleDbContext))]
-    [Migration("20260830150536_InitialCreate")]
+    [Migration("20260901005658_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -1062,6 +1062,25 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.HasIndex("DayConfigurationId");
 
                     b.ToTable("ShiftRequirements");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.SystemSetup", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CompletedByPersonId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Preset")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SystemSetups");
                 });
 
             modelBuilder.Entity("LocationPlanningUnit", b =>

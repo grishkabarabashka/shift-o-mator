@@ -374,6 +374,20 @@ namespace ShiftOMator.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SystemSetups",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false),
+                    Preset = table.Column<int>(type: "int", nullable: false),
+                    CompletedByPersonId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CompletedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SystemSetups", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "DraftChanges",
                 columns: table => new
                 {
@@ -805,6 +819,9 @@ namespace ShiftOMator.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Shifts");
+
+            migrationBuilder.DropTable(
+                name: "SystemSetups");
 
             migrationBuilder.DropTable(
                 name: "Requests");

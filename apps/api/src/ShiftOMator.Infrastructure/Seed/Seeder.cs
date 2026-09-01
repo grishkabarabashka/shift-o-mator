@@ -35,7 +35,11 @@ public static class FixtureSeeder
     };
 
     /// <summary>
-    /// Brings a database up to the starting set, whatever state it is in.
+    /// Brings a database's **reference data** up to the starting set, whatever state it
+    /// is in. Runs on every start, on every database — including one that has not been
+    /// through the setup wizard yet (ADR-0059): a leave type or a request type the
+    /// product ships is part of the product, not a choice an admin makes about whether
+    /// the row exists.
     ///
     /// WHY it is not one all-or-nothing guard: reference data with **fixed ids** — event
     /// types, request types — is a set the product needs to exist, and a database that has
@@ -43,68 +47,69 @@ public static class FixtureSeeder
     /// whole block if any row of it existed, so a database seeded before a type was added
     /// never got that type, and the failure was invisible until something asked for it.
     ///
-    /// Two different things, two different rules:
+    /// WHY the roster, the demo plan and role grants are **not** here any more: they used
+    /// to be written automatically behind an `includeDemoData` flag, which meant a first
+    /// production run came up with an invented roster nobody chose (`Seed:IncludeDemoData`
+    /// only ever gated the plan, never the seventy-six people). What a database starts as
+    /// is now answered once, by whoever opens the app first, on the setup screen — see
+    /// <see cref="SeedDemoAsync"/> and <c>SetupService</c> in
+    /// <c>ShiftOMator.Infrastructure.Setup</c>.
     ///
-    /// - **Reference data** is topped up row by row, keyed on its fixed id. Idempotent, and
-    ///   safe to run on every start.
-    /// - **The demo plan** — the roster, assignments, absences, comp days — is sample data
-    ///   with generated ids and no natural key. It is written once, into an empty database,
-    ///   and never touched again; re-running it would duplicate a plan somebody may have
-    ///   edited.
+    /// <see cref="SeedRolesAsync"/> stays here, unconditional: it is a topped-up derivation
+    /// over whatever roster already exists, so it is a no-op on a database the wizard has
+    /// not touched yet and a self-healing pass over one it has.
     /// </summary>
-    public static async Task SeedAsync(
-        ScheduleDbContext db,
-        bool includeDemoData,
-        string? bootstrapAdminEmail = null,
-        CancellationToken ct = default)
+    public static async Task SeedAsync(ScheduleDbContext db, CancellationToken ct = default)
     {
         await SeedEventTypesAsync(db, ct);
         await SeedPresenceTypesAsync(db, ct);
         await SeedRequestTypesAsync(db, ct);
-
-        if (!await db.PlanningUnits.AnyAsync(ct))
-        {
-            var dataset = Trimmed(BuildScheduleDataset(includeDemoData));
-
-            db.Locations.AddRange(dataset.Locations);
-            db.Holidays.AddRange(dataset.Holidays);
-            db.PlanningUnits.AddRange(dataset.Units);
-            db.People.AddRange(dataset.People);
-
-            if (includeDemoData)
-            {
-                db.Assignments.AddRange(dataset.Assignments);
-                db.Absences.AddRange(dataset.Absences);
-                db.CompDayEntries.AddRange(dataset.CompDays);
-            }
-
-            await db.SaveChangesAsync(ct);
-        }
-
-        // Last, and outside the block above: the grants are derived from the roster, and
-        // the roster may have been seeded on an earlier run. This used to sit inside that
-        // block, which made it unreachable on any database that already had units — so an
-        // upgraded database came up with nobody able to plan, approve or administer
-        // anything, and the only symptom was every screen being read-only.
         await SeedRolesAsync(db, ct);
-        await BootstrapAdminAsync(db, bootstrapAdminEmail, ct);
         await UpgradeCalendarTokensAsync(db, ct);
     }
 
     /// <summary>
-    /// Gives one named person a way in, on a database where nobody has one yet (ADR-0058).
+    /// Writes the fixture entire — locations, holidays, units, the trimmed roster, shifts,
+    /// day configurations, absence-capacity rules, and the demo plan — plus the role
+    /// grants it implies. The content half of the setup wizard's Demo preset (ADR-0059).
+    ///
+    /// Guarded on <c>PlanningUnits</c> being empty as a safety net, not as the real
+    /// control: the real control is the caller checking <c>SystemSetup</c> first, the same
+    /// way this used to be guarded before the wizard existed at all.
+    /// </summary>
+    public static async Task SeedDemoAsync(ScheduleDbContext db, CancellationToken ct = default)
+    {
+        if (await db.PlanningUnits.AnyAsync(ct)) return;
+
+        var dataset = Trimmed(BuildScheduleDataset(includeDemoData: true));
+
+        db.Locations.AddRange(dataset.Locations);
+        db.Holidays.AddRange(dataset.Holidays);
+        db.PlanningUnits.AddRange(dataset.Units);
+        db.People.AddRange(dataset.People);
+        db.Assignments.AddRange(dataset.Assignments);
+        db.Absences.AddRange(dataset.Absences);
+        db.CompDayEntries.AddRange(dataset.CompDays);
+
+        await db.SaveChangesAsync(ct);
+        await SeedRolesAsync(db, ct);
+    }
+
+    /// <summary>
+    /// Gives one named person a way in, by attaching their email to whoever already holds
+    /// the global Admin grant (ADR-0058, adapted for ADR-0059's setup wizard).
     ///
     /// The problem this solves is circular. Outside Stub mode a caller is resolved by
     /// matching their token's email against <see cref="Person.Email"/>, which an admin
     /// fills in on Settings → People — a screen nobody can reach until somebody is already
-    /// linked. A fresh database has a full roster, sensible role grants, and not one row
-    /// anybody can sign in as.
+    /// linked. The Demo preset gives a fresh database a full roster, sensible role grants,
+    /// and not one row anybody can sign in as; this is the wizard's last step, attaching
+    /// the address of whoever just ran it.
     ///
     /// WHY the guard is "no person has an email" and not "no admin exists": role grants are
     /// seeded, so admins always exist; what does not exist is any way to *be* one. The
-    /// moment a single person is linked the setting stops doing anything at all, which is
-    /// the property that makes it safe to leave configured — it cannot promote anybody on a
-    /// system that is already running, and it cannot silently re-grant after somebody
+    /// moment a single person is linked this stops doing anything at all — it cannot
+    /// promote a second person later, and cannot silently re-grant after somebody
     /// deliberately removed a grant.
     ///
     /// WHY it links rather than creates: inventing a Person would put a row in the roster
@@ -112,15 +117,13 @@ public static class FixtureSeeder
     /// email is attached to somebody who already holds a global Admin grant — the person
     /// the seed already decided owns cross-unit configuration.
     /// </summary>
-    private static async Task BootstrapAdminAsync(ScheduleDbContext db, string? email, CancellationToken ct)
+    public static async Task<Person?> LinkGlobalAdminEmailAsync(ScheduleDbContext db, string email, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(email)) return;
-
         // Normalized the same way the admin screen and ActorResolver do it, or the link
         // would exist and still not match the token that arrives.
         var normalized = email.Trim().ToLowerInvariant();
 
-        if (await db.People.AnyAsync(p => p.Email != null, ct)) return;
+        if (await db.People.AnyAsync(p => p.Email != null, ct)) return null;
 
         var globalAdminId = await db.RoleAssignments.AsNoTracking()
             .Where(r => r.Role == AppRole.Admin && r.UnitId == null)
@@ -132,10 +135,11 @@ public static class FixtureSeeder
             ? null
             : await db.People.FirstOrDefaultAsync(p => p.Id == globalAdminId, ct);
 
-        if (target is null) return;
+        if (target is null) return null;
 
         target.Email = normalized;
         await db.SaveChangesAsync(ct);
+        return target;
     }
 
     /// <summary>

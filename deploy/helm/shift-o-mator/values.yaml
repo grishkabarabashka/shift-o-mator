@@ -29,7 +29,6 @@ api:
     corsAllowedOrigins: []       # e.g. ["https://shift-o-mator.example.com"]
     aiProvider: anthropic
     aiModel: claude-opus-5
-    seedIncludeDemoData: "false"
 
     # Managed identity, so this carries no password and is therefore not a secret:
     #   Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;
@@ -45,11 +44,6 @@ api:
     # deployment using managed identity for SQL needs no vault at all.
     jwtAuthority: ""
     jwtAudience: ""
-
-    # One-time link so somebody can sign in on a fresh database (ADR-0058). Applied only
-    # while no person has an email at all, so it is inert once anyone is linked and safe
-    # to leave set. Not a credential — it grants nothing by itself.
-    bootstrapAdminEmail: ""
 
 web:
   port: 8080

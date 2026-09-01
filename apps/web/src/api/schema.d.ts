@@ -70,6 +70,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompleteSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reference": {
         parameters: {
             query?: never;
@@ -633,6 +665,22 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/maintenance/can-load-demo-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CanLoadDemoData"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2209,6 +2257,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/maintenance/load-demo-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/maintenance/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2340,6 +2481,15 @@ export interface components {
             lockedAssignmentIds: null | string[];
             draftId?: null | string;
         };
+        BareSetupRequest: {
+            locationName: string;
+            timeZone: string;
+            holidayCalendarKey: string;
+            unitName: string;
+            unitKind: components["schemas"]["UnitKind"];
+            displayName: null | string;
+            email: null | string;
+        };
         CalendarFeedResponse: {
             url: string;
         };
@@ -2380,6 +2530,9 @@ export interface components {
             excluded: components["schemas"]["ExcludedCandidate"][];
             /** Format: double */
             teamWeekendAverage: number | string;
+        };
+        CanLoadDemoDataResponse: {
+            available: boolean;
         };
         CellEvent: {
             /** Format: date-time */
@@ -3030,6 +3183,21 @@ export interface components {
             overlaidDraftId: null | string;
             pendingRequests: components["schemas"]["PendingRequestSummary"][];
         };
+        /** @enum {unknown} */
+        SetupPreset: "bare" | "demo";
+        SetupRequest: {
+            preset: components["schemas"]["SetupPreset"];
+            bare: null | components["schemas"]["BareSetupRequest"];
+        };
+        SetupResponse: {
+            preset: components["schemas"]["SetupPreset"];
+            adminPersonId: null | string;
+            adminDisplayName: null | string;
+        };
+        SetupStateResponse: {
+            required: boolean;
+            stubMode: boolean;
+        };
         Shift: {
             id: string;
             unitId: string;
@@ -3205,6 +3373,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    GetSetupState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStateResponse"];
+                };
+            };
+        };
+    };
+    CompleteSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     GetReference: {
         parameters: {
             query?: never;
@@ -4533,6 +4763,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleAssignment"][];
+                };
+            };
+        };
+    };
+    CanLoadDemoData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanLoadDemoDataResponse"];
                 };
             };
         };

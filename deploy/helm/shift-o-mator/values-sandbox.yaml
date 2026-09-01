@@ -30,7 +30,6 @@ api:
     authMode: EntraId
     corsAllowedOrigins:
       - "*"        # sandbox only — the app sends a bearer token, never cookies
-    seedIncludeDemoData: "true"
 
     # No password: `Active Directory Default` authenticates as the pod's managed identity,
     # which was granted a database user in section 5.
@@ -43,11 +42,6 @@ api:
 
     jwtAuthority: "https://login.microsoftonline.com/<tenant-id>/v2.0"
     jwtAudience: "api://<app-id>"
-
-    # Your work email. On a fresh database this links you to the person holding the global
-    # Admin grant, so somebody can sign in and link everybody else; it stops doing anything
-    # the moment any person has an email (ADR-0058).
-    bootstrapAdminEmail: ""
 
 web:
   apiUrl: ""       # http://<api LoadBalancer IP> — build the web image with it (see README section 7)
