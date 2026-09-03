@@ -10,7 +10,7 @@ in the masthead, the global controls and page cards instead.
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ ● Shift-o-mator  [Units ▾]  ✏️Draft  🕐 clocks  🔔  ⬤ Name ▾            │  product header
 ├──────────────────────────────────────────────────────────────────────────┤
-│  Overview   Schedule   People   Requests   Settings                      │  masthead
+│  Overview  Schedule  People  My calendar  Requests  Settings             │  masthead
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │   page canvas — light gray, white cards                                  │
@@ -38,16 +38,38 @@ planner who genuinely covers everywhere; the audit trail still provides accounta
 ([ADR-0032](adr/0032-planning-unit-single-rule-axis.md), made real by
 [ADR-0039](adr/0039-actor-identity-from-the-token.md)).
 
-**Masthead:** Overview, Schedule, People, Requests, Settings. Active item visually
-selected. Requests is in the main nav rather than behind a menu because it is the only
-screen most of the eighty people ever need
+**Masthead:** Overview, Schedule, People, My calendar (`/me`), Requests, Settings. Active
+item visually selected. **Settings is hidden from anyone who administers nothing**
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)) — a tab that 403s on arrival is worse
+than no tab. Requests and My calendar sit in the main nav rather than behind a menu
+because they are the screens most of the eighty people ever need
 ([ADR-0047](adr/0047-absorb-the-self-service-portal.md)).
+
+### What runs before the shell
+
+Three gates, in this order, and the order is the point:
+
+1. **`EntraGate`** (`VITE_AUTH_MODE=entra`) — MSAL, redirect flow, `sessionStorage`.
+   It installs a token provider into `api/client.ts` via `setAccessTokenProvider`:
+   **injected, never imported**, because MSAL lives in `auth/`, which sits *above* `api/`
+   in the layering ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)).
+2. **`SetupGate`** — a system with no `SystemSetup` row answers `503 SETUP_REQUIRED` to
+   everything, and this is the wizard that fixes it: **Bare** or **Demo**
+   ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). It sits *after* sign-in outside
+   stub mode, because Bare takes the first admin from the caller's own token claims.
+3. **`AuthProvider`** — asks the **server** who it is (`GET /api/auth/me` →
+   `useSchedule.setCurrentUser`). It used to guess ("the first MANAGEMENT person in scope"),
+   and that guess disagreed with both `/api/auth/me` and the audit trail. Never reintroduce
+   a client-side identity heuristic.
+
+Nothing checks the client's `VITE_AUTH_MODE` against the server's `Auth:Mode`. Mismatched,
+either the token is ignored or none is sent — the two halves must be switched together.
 
 ## Global controls
 
 | Control | Scope | Effect |
 |---|---|---|
-| Unit picker | Overview, Schedule, People | `ALL`, one unit, or any subset. **A default filter, not a boundary** — everyone can write everywhere. With more than one unit on screen the Schedule grid groups by unit first, then by the unit's own grouping, so two cities of the same name from different units cannot be confused. |
+| Unit picker | Overview, Schedule, People | `ALL`, one unit, or any subset. **A default filter, not a permission boundary** — but write access *is* scoped to a unit since [ADR-0051](adr/0051-roles-are-a-scoped-set.md), so seeing a unit and being able to edit it are separate questions. With more than one unit on screen the Schedule grid groups by unit first, then by the unit's own grouping, so two cities of the same name from different units cannot be confused. |
 | Display timezone | All time-bearing detail (timelines, schedule, people) | Set in the **Display** menu beside the avatar. Repositions displayed windows to the chosen timezone: shift time (the shift's fixed window), UTC, or any configured location. Never changes stored definitions. |
 | Date range | Overview, Schedule | Back / Today / forward and zoom. **Overview and Schedule hold independent periods** ([ADR-0036](adr/0036-overview-and-schedule-independent-periods.md)): Overview is a 1/3/7-day window; Schedule is month / 2 months / quarter / half-year, running **forward from the selected day** rather than snapped to a calendar month. `‹ ›` step one day, `« »` one month. The day strip and year scrubber move the anchor; they no longer build an arbitrary custom range. |
 | Display options | Schedule | Show or hide off days and weekends; toggle gap and conflict emphasis. |
@@ -86,6 +108,63 @@ it is a letter, not a hue, and its meaning is spelled out in the cell's tooltip 
 
 Red and amber are otherwise reserved for coverage and conflict states, so a hole in the
 schedule is visible peripherally.
+
+### Elevation, measure and the type scale
+
+The rules above describe *colour*. The rules that give a screen **hierarchy** are
+[ADR-0057](adr/0057-a-language-of-surfaces.md), and they are what stops every surface
+carrying the same weight:
+
+- **Elevation is a ladder of five** (`--elev-0` … `--elev-4`) with one rule that makes it
+  mean anything: **exactly one surface per screen sits on `--elev-2`** — the one the screen
+  exists for (the grid on Schedule, the timeline on Overview, the months on My calendar).
+  Everything else rests at 1 or below; 3 and 4 float above the page.
+- **Dark mode inverts the mechanism, not the values.** A drop shadow on a `#0b0e13` canvas
+  is invisible because there is no light for it to block, so every rung leads with a lit top
+  edge and the shadow only deepens the separation beneath.
+- **Only the planning grid is full-bleed.** My calendar is `clamp(340px, 40vw, 560px)` and
+  centred; Requests caps at 880px. The grid keeps the whole width and earns it — eighty rows
+  and a horizontal axis — and reads as *the instrument* precisely because it is the only
+  screen that does.
+- **One page header and one scale.** `ui/PageHeader.tsx` is `h1` + one line of context + a
+  slot for actions. The type scale is `--fs-*` in `:root`, exported to Tailwind's `text-*`
+  family from `@theme inline` under **different names**: a `@theme` entry referencing a
+  `:root` property of its own name is a circular reference that silently resolves to
+  nothing.
+- **Focus mode drains saturation, and nothing else.** While a draft is open the chrome
+  desaturates; nothing moves, collapses or becomes unreachable. The issue panel stays at
+  full strength — it is what the planner is editing against — and the draft pill is exempt,
+  because dimming the indicator for the mode is a joke the user does not get to be in on.
+
+### The sky is a separate colour family
+
+The header clocks carry the state of their own sky — night deep and cold, dawn and dusk
+warm, daytime light — computed by `skyPhase`, which lives beside `nightBands` and shares its
+constants so the header and Overview's axis cannot disagree about what night is.
+
+`--sky-*` is deliberately **not** part of the semantic palette above. A warm sunset drawn in
+`--warn` would read as a warning about Chicago. Sky colours appear nowhere a semantic colour
+can, and the sky never carries anything alone: the phase is named in the `title`, and the
+selected zone is marked by a ring and a lift rather than a wash of accent, so choosing
+London does not paint over the fact that it is night there.
+
+This is not astronomy and must not become one. `skyPhase` knows neither latitude nor season:
+a solar calculation would put sunrise in Reykjavik at 03:00 in June, which tells a planner
+in Chicago nothing they can use.
+
+### Success has a channel, and failure keeps its own
+
+Failure had three surfaces — the Schedule banner, the "Not saved — retrying" pill, the
+`beforeunload` guard — and success had none, so publishing, approving and saving settings
+were confirmed only by something disappearing, which is indistinguishable from never having
+been sent. `ui/toasts.ts` plus one `ToastViewport`: `role="status"` for success,
+`role="alert"` for failure — before this the app had **no live region anywhere**.
+
+It does not replace the three failure surfaces. A failed publish keeps its banner, because
+that message belongs beside the draft it is about, and field errors stay at their fields;
+the toast reports the outcome of the batch. **Toasts are raised from `features`, never from
+`store`** — the layering runs downward, and `store` reaching up into `ui` would be the first
+edge going the wrong way.
 
 ## Widget catalogue
 
@@ -149,8 +228,14 @@ schedule is visible peripherally.
 
 - Primary editing target is desktop ≥1280px; 1024px remains usable via horizontal
   scroll.
-- Below 1024px prioritize read-only Overview and people-focused views. Dense
-  editing may be **disabled rather than made unsafe**.
+- **Narrow viewports get a different control, never a missing one**
+  ([ADR-0057](adr/0057-a-language-of-surfaces.md)): the clock strip collapses to one clock
+  plus a popover, the issue panel becomes a drawer, My calendar stacks. These use
+  `useMediaQuery` rather than a Tailwind breakpoint, because rendering both and hiding one
+  would mount two issue panels with two scroll positions fighting over one piece of state.
+- **What is still missing is touch, not layout.** There are no touch or pointer handlers
+  anywhere, so painting, range selection and the year scrubber are mouse-only. A phone can
+  read this product and cannot plan with it.
 - The grid supports arrow navigation, **Shift+F10 or the Menu key** to open the picker,
   Escape to close, and Ctrl/Cmd+Z to undo. **Tab leaves the grid** — it is deliberately
   not bound to cell movement, which used to make the grid a keyboard trap with no way out.

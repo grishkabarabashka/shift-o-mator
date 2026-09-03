@@ -3,7 +3,7 @@
 **Status:** accepted. Supersedes the role model in
 [ADR-0046](0046-routing-is-not-authorization.md) and the "no unit scoping of write
 access" rule in [ADR-0032](0032-planning-unit-single-rule-axis.md). Deletes
-`ApprovalRoute` from [ADR-0045](0045-generic-request-envelope.md).
+`ApprovalRoute` from [ADR-0045](0045-generic-request-envelope-typed-materialization.md).
 
 ## Context
 

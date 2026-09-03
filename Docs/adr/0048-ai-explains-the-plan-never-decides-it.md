@@ -1,6 +1,8 @@
 # ADR-0048. AI explains the plan and never decides it
 
-**Status:** accepted
+**Status:** accepted. Which provider answers, and how it is credentialed, was narrowed by
+[ADR-0060](0060-the-model-is-a-deployment-not-a-vendor.md); everything below about digests
+and the model never writing stands.
 
 ## Context
 

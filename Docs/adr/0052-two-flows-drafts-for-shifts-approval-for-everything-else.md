@@ -1,7 +1,7 @@
 # ADR-0052. Two flows: drafts for shifts, approval for everything else
 
 **Status:** accepted. Supersedes the roster markers in
-[ADR-0017](0017-absence-is-a-range.md), narrows the draft scope in
+[ADR-0017](0017-absence-range-cell-projection.md), narrows the draft scope in
 [ADR-0015](0015-optimistic-drafts-and-publication.md), amends the cell rendering in
 [ADR-0050](0050-one-grid-half-days-and-the-split-cell.md), and reverses the sickness
 default in [ADR-0049](0049-event-types-are-data.md).

@@ -41,8 +41,13 @@ Assignment            one person + one date + one working shift
  ├─ contributes to the computed CoverageSnapshot
  └─ may earn a CompDayEntry
 
-Absence               one person + an inclusive date range + a leave type
-PresenceRecord        one person + an inclusive date range + where they work.
+EventType             a kind of time off, as a row: what it blocks, whether it counts
+                      toward capacity, whether it needs approving (ADR-0049)
+PresenceType          a way of working, as a row: whether it names a Location, and
+                      what the coverage strip counts it as (ADR-0054)
+
+Absence               one person + an inclusive date range + an EventType + a portion
+PresenceRecord        one person + an inclusive date range + a PresenceType + a portion.
                       Orthogonal to Assignment: both are true at once (ADR-0043)
 CompDayEntry          an accrual with a balance, linked to the earning assignment
 Holiday               a date + name + affected locations
@@ -63,6 +68,9 @@ ChangeHistoryEntry    append-only, for every entity — not just assignments (AD
 
 DraftSession          one editor + one unit + one period
  └─ ordered DraftChanges → applied atomically on Publish
+
+SystemSetup           one row, fixed key: this system has content, and which preset
+                      wrote it (ADR-0059)
 
 CellValue             a projection: what the grid shows for (person, date)
 ```
@@ -128,7 +136,7 @@ erDiagram
         string unitId FK
         string locationId FK
         string defaultShiftId FK
-        string defaultPresenceKind
+        string defaultPresenceTypeId FK
         string defaultSiteLocationId FK
         string managerId FK
         boolean isIncluded
@@ -449,7 +457,10 @@ they never mutate the previous one.
 ```
 Person {
   id                        stable; history stays attached to it
-  displayName, initials, employeeId?
+  displayName, initials
+  email?                    the work address an Entra ID sign-in resolves by (ADR-0058);
+                            filtered unique index — a credential in all but name
+  employeeId?               a unique external key once set; what an HR import will match on
   unitId                    rules, coverage, whose screen
   locationId                calendar and display timezone only (ADR-0002)
   orgCategory               SUPPORT | SERVICE_TRANSITION | MANAGEMENT
@@ -461,10 +472,10 @@ Person {
   weekendEligible
   constraints  { minRestHours, maxConsecutiveDays, maxWeekendsPerQuarter }
   preferences  { avoidsWeekdays[], preferredPartnerIds[], blackoutDates[] }
-  calendarToken
-  defaultPresenceKind       OFFICE | REMOTE | TRAVEL | CUSTOMER_SITE  (ADR-0043)
+  calendarToken             256 bits, [JsonIgnore]; the ICS feed's whole authentication (ADR-0055)
+  defaultPresenceTypeId     → PresenceType; the baseline way of working (ADR-0054)
   defaultSiteLocationId?    which office is the baseline
-  managerId?                an input to approval routing (ADR-0046)
+  managerId?                context, not a route: who approves is the `Approver` grant (ADR-0051)
 }
 ```
 
@@ -528,6 +539,32 @@ understands ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everyt
 
 An empty cell means **no shift**. Nothing more.
 
+## Event type
+
+**A kind of time off is a row, not an enum arm**
+([ADR-0049](adr/0049-event-types-are-data.md)). Adding "floating holiday" is data, and an
+admin adding one on Settings → Leave types cannot change what coverage counts, because
+anything that counts as coverage is a `Shift`.
+
+```
+EventType {
+  id, code
+  label, shortLabel, color
+  category              LEAVE | SICKNESS | OTHER      display grouping only
+  blocksAssignment      may a shift sit on the same day
+  countsTowardCapacity  does it consume an absence-capacity slot
+  requiresApproval      refused on /api/absences; must go through a request
+  allowsHalfDay         may it carry a MORNING / AFTERNOON portion
+  isActive, sortOrder
+}
+```
+
+There is deliberately **no `countsAsCoverage`**: that is what makes `CoverageCalculator`
+untouched by an admin adding a leave type. Sickness *requires* approval
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md),
+reversing ADR-0049) and still does not count against capacity. The only seeded type needing
+no approval is `UNAVAILABLE` — a declaration of availability, not a request for time.
+
 ## Absence
 
 Leave is a **range**, and the range is the source of truth
@@ -537,12 +574,14 @@ system as a range, and simultaneous-absence limits are computed over ranges.
 ```
 Absence {
   id, personId
-  type                  VACATION | SICK | OTHER
+  eventTypeId           → EventType; the behaviour is that row's columns
+  portion               FULL | MORNING | AFTERNOON    (ADR-0050)
   from, to              inclusive
   source                IMPORT | MANUAL
   importBatchId?, lastSeenInImportAt?
   syncedToHrAt?
   note?
+  version               int, round-tripped untouched (ADR-0042)
 }
 ```
 
@@ -550,8 +589,38 @@ Absence {
 `Cover` shift — the person is at work. A `Training` value in a historical spreadsheet
 maps to `Cover`, not to leave, and therefore counts toward coverage.
 
+**One day, one record.** A direct write or an approved request **supersedes** what already
+covered those days, trimming the old range rather than deleting it, so the days it did not
+lose survive. `RangeSupersede` holds the arithmetic: a whole day beats anything, the same
+half beats itself, and a half never trims a whole day — that would discard the other half.
+Changing the kind of leave is a new request, not an edit
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+
 `lastSeenInImportAt` detects records that vanished from a later export. Import never
 overwrites a `MANUAL` record.
+
+## Presence type
+
+**A way of working is a row, and the set is open**
+([ADR-0054](adr/0054-presence-types-are-an-open-set.md), reopening ADR-0053). `PresenceKind`
+is deleted; the two things code used to branch on are columns.
+
+```
+PresenceType {
+  id, label, glyph, color
+  namesALocation    true → siteLocationId points at a Location; false → free-text siteLabel
+  countsAs          ON_SITE | REMOTE | AWAY    the coverage strip's headcount — a CLOSED set
+  requiresApproval  enforced by the server (APPROVAL_REQUIRED), not by the cell menu
+  isActive, sortOrder
+}
+```
+
+`countsAs` stays closed on purpose: a strip row cannot grow a column per type an admin
+invents. Full CRUD lives on Settings → Presence, and **DELETE is refused once anything
+points at the type** — the answer is to untick Offered. A type that needs approving **owns a
+request type**, created and retired with it; otherwise ticking the box makes a menu item
+with nowhere to send the request. `engine/presence.ts` draws `?` for a type it does not
+hold, because a blank glyph reads as "nothing recorded".
 
 ## Presence
 
@@ -562,9 +631,10 @@ the `Crew` shift is *also* either remote or in an office, and both facts are tru
 ```
 PresenceRecord {
   id, personId
-  kind              OFFICE | REMOTE | TRAVEL | CUSTOMER_SITE
-  siteLocationId?   which office, when kind = OFFICE
-  siteLabel?        free text for TRAVEL / CUSTOMER_SITE, which have no location row
+  typeId            → PresenceType (ADR-0054); the kind enum is deleted
+  siteLocationId?   which office, when the type namesALocation
+  siteLabel?        free text for a type that does not, e.g. travel or a customer site
+  portion           FULL | MORNING | AFTERNOON   (ADR-0050)
   from, to          inclusive, same shape as Absence
   source            MANUAL | REQUEST | IMPORT | PORTAL
   requestId?        set when it came from an approved request
@@ -581,14 +651,17 @@ Three things this is deliberately **not**:
   than cell by cell.
 - **Not a member of `CellValue`.** That union resolves a precedence chain and produces one
   winner; presence has no precedence relationship with anything in it. It is a second,
-  independent projection over the same cell keys.
+  independent projection over the same cell keys (`engine/presence.ts`). If a change to
+  presence makes you want to edit `cellValue.ts`, the change is wrong.
 - **Not an input to coverage.** A remote person on `Crew` covers `Crew`. If on-site
   staffing ever becomes a requirement it belongs on `ShiftRequirement`, which is already
   effective-dated.
 
-`Person.defaultPresenceKind` / `defaultSiteLocationId` are the **baseline**, and the grid
-shows only departures from it. Rendering every office day would put a glyph in all ~2500
-cells and say nothing.
+`Person.defaultPresenceTypeId` / `defaultSiteLocationId` are the **baseline**. The grid
+draws **every** recorded day, coloured by type and quieter when it matches the baseline —
+ADR-0043's "draw only a departure" rule was reversed by
+[ADR-0050](adr/0050-one-grid-half-days-and-the-split-cell.md), because records are sparse
+and drawing only departures hid the only ones there were.
 
 Reusing `Location` as a *place* does not widen [ADR-0002](adr/0002-location-is-calendar-only.md):
 Pune-the-holiday-calendar and Pune-the-office are the same real thing, and the calendar
@@ -845,20 +918,29 @@ ChangeHistoryEntry {
 Acknowledgement   { issueKey, comment, byPersonId, at }
 ```
 
-Three application roles, and **no unit scoping**
-([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)):
+```
+RoleAssignment { id, personId, unitId?, role }      unitId null = global
+SystemSetup    { id = 1, preset, completedByPersonId?, completedAt }
+```
 
-| Role | Can |
-|---|---|
-| Viewer | Read published data; record **their own** presence; raise **their own** requests |
-| Planner | Draft and publish in **any** unit; record presence and requests for others |
-| Admin | Everything a planner can, plus configuration and break-glass approval |
+Who may do what is the scoped role set described under [Roles](#roles)
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)) — not a hierarchy, and not a claim in the
+token: grants live in the database, because planning units are ours and no IdP knows them.
+Entra ID app roles can map to **global** grants that add to the per-unit ones, but they are
+**off by default** behind `Auth:DirectoryRoles`
+([ADR-0062](adr/0062-one-source-of-roles-by-default.md)): the database is the single source,
+so Settings → Roles tells the whole truth. A directory grant can only ever be global and
+only ever additive, which is why the switch is a boolean and not a choice of three.
 
-The team is small and nobody edits another team's rota without reason. The control is
+`SystemSetup` is one row with a fixed primary key, and its **presence** is the whole of
+"this system has content" ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). It is not
+an inferred condition like "no planning units exist", which a half-written database would
+satisfy and reopen the wizard on top of itself.
+
+ADR-0032 argued that write access needs no unit scoping because the control is
 **a complete audit trail**, not a permission matrix: every change records who made it,
-when, and what the previous value was.
-
-Two things had to become true before that argument actually held:
+when, and what the previous value was. Two things had to become true before that argument
+actually held:
 
 - **The actor is the authenticated principal, never a request field**
   ([ADR-0039](adr/0039-actor-identity-from-the-token.md)). A body-supplied actor id made
@@ -866,9 +948,23 @@ Two things had to become true before that argument actually held:
 - **The trail covers every entity, not just assignments**
   ([ADR-0040](adr/0040-one-change-history-for-every-entity.md)). Leave, comp days,
   presence, profile edits and configuration changes previously left no record at all —
-  and two of those decide tomorrow's roster.
+  and two of those decide tomorrow's roster. A new write path with no history row is a bug.
 
-Self-service adds exactly one kind of denial, and it is not unit scoping returning by
-another door: **another person's own record**. "Can I edit my own presence" and "am I on
-this request's route" are per-resource questions that ADR-0032 never addressed, because
-self-service did not exist ([ADR-0046](adr/0046-routing-is-not-authorization.md)).
+The trail remains load-bearing; what changed is that it stopped being the *only* control.
+Approval is a decision made before the fact, and "whose leave may I sign off" is not a
+question an audit trail answers afterwards — hence the per-unit grant
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)).
+
+Self-service adds one more kind of denial, and it is not unit scoping returning by another
+door: **another person's own record**. "Can I edit my own presence" is a per-resource
+question that ADR-0032 never addressed, because self-service did not exist
+([ADR-0046](adr/0046-routing-is-not-authorization.md)).
+
+A batch of person edits saves as **one unit of work** — ops that release a unique value
+(`Email`, `EmployeeId`) applied first, everything in one transaction, all-or-nothing, and a
+history row per person ([ADR-0061](adr/0061-settings-saves-people-as-one-unit.md)).
+
+**Where the trail is still incomplete.** Person edits write history since ADR-0061;
+locations, units, shifts, day configurations, holidays and absence capacity rules do
+**not** — those admin endpoints write no `ChangeHistoryEntry` at all, which is a live gap
+against ADR-0040 rather than a decision.

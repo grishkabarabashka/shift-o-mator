@@ -129,11 +129,13 @@ dotnet test                 # the API tests use a real LocalDB, not an in-memory
 | `Auth:Mode` | `Stub` | Anything else wires real JWT bearer validation from `Auth:Jwt` |
 | `Auth:StubPersonId` | *(empty)* | Pins which person the stub acts as; empty lets `ActorResolver` pick one |
 | `Auth:StubRole` | *(empty)* | **Leave it empty.** It *overrides* the person's real grants, so setting it means `RoleAssignment` is never read — which is how Settings and the Approve button went missing for everybody |
+| `Auth:DirectoryRoles` | `false` | Reads Entra ID app roles *in addition to* the database grants, always globally. Off because a directory grant is invisible to Settings → Roles and cannot be revoked there (ADR-0062) |
 | `Cors:AllowedOrigins` | `http://localhost:5173` | Explicit origins, never a wildcard |
 | `Holidays:AllowedCalendarHosts` | `["calendar.google.com"]` | Hosts the holiday import may fetch a calendar from. An admin endpoint that fetches an arbitrary URL is a request-forgery proxy pointed at whatever the server can reach, so this list is the control, not a formality. Pasting a `.ics` file needs nothing here |
-| `Ai:Provider` | `anthropic` | `none` disables it; unconfigured is a supported state, not an error |
-| `Ai:Model` | `claude-opus-5` | |
-| `ANTHROPIC_API_KEY` | — | Environment only, never a settings file |
+| `Ai:Provider` | `none` | `azure-openai`, `openai`, or `none`. Unconfigured is a supported state, not an error — see `deploy/README.md` section 2b to switch it on locally |
+| `Ai:Model` | *(empty)* | For `azure-openai` this is the **deployment** name, not the model family |
+| `Ai:Endpoint` | *(empty)* | Required by `azure-openai` (the resource URL). Optional for `openai`, where it points the same branch at any OpenAI-compatible gateway — including a model runtime on localhost, which needs no key at all |
+| `Ai:ApiKey` | — | Set it as the `Ai__ApiKey` environment variable or through user-secrets, never a settings file. Needed by neither `azure-openai` (which authenticates as itself via `DefaultAzureCredential`) nor a keyless local endpoint |
 
 ## Scripts (repo root)
 

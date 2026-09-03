@@ -68,6 +68,22 @@ Recognized case-insensitively and normalized:
 Unknown codes produce an **import warning requiring a mapping decision**, never a
 silently accepted shift.
 
+
+## Holiday import
+
+The other real external source, and the only one that is a feed rather than a paste.
+`POST /api/admin/holidays/import` reads an iCalendar document — pasted, uploaded, or
+fetched from a host on the `Holidays:AllowedCalendarHosts` allow-list — and **adds days
+that are missing, never removing one**.
+
+Not removing is the whole design, not a shortcut. A sync would have to answer "the feed
+dropped a day people are already rostered off for", and there is no safe automatic answer
+to that: the roster is already built on the old fact. A scheduler and that answer are both
+missing, so this is deliberately an import that a person runs and reviews.
+
+The allow-list exists because the endpoint fetches a URL the caller supplies, which is a
+server-side request forgery primitive if it is left open.
+
 ## Reverse flow to HR
 
 Double entry can't be eliminated without an API, but it can be reduced to a checklist:
@@ -81,12 +97,22 @@ Double entry can't be eliminated without an API, but it can be reduced to a chec
 
 ## Calendar
 
-ICS. An engineer subscribes once and sees their shifts in Outlook, including comp days
-and absences.
+ICS, and it is built ([ADR-0055](adr/0055-a-personal-calendar-and-a-feed.md)). An engineer
+subscribes once and sees their shifts in Outlook, including comp days and absences.
 
-- MVP: export `.ics` for a period.
-- Production: a stable per-person subscription URL keyed by `Person.calendarToken`,
-  which is already in the model.
+- `GET /api/me/calendar-feed` hands the signed-in person their own subscription URL, and
+  `POST /api/me/calendar-feed/reset` mints a new token when they want the old one dead.
+- `GET /api/calendar/{token}.ics` is the feed itself, and it is **anonymous by necessity**:
+  a subscribing calendar client cannot carry a bearer token. `Person.CalendarToken` is the
+  whole of its authentication — hence 256 bits, `[JsonIgnore]` so `/api/reference` cannot
+  hand out everybody's, replacement of the fixture's guessable `tok-{personId}` on every
+  start, and a reset button beside the copy button. A wrong token answers 404 exactly as an
+  unknown route does.
+
+It is one of **exactly two** anonymous routes, and both are anonymous because the caller
+provably cannot have a token yet; the other is `GET /api/setup/state`
+([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). Adding a third needs the same
+argument.
 
 Events carry the shift window in the shift's timezone, with the shift code and long name
 in the summary.

@@ -77,46 +77,53 @@ statutory minima across five countries are a different product.
 
 ## Users and access
 
-| User | What they need | Product behavior |
-|---|---|---|
-| **Viewer** | Understand coverage, find personal duties, ask for things | Reads published data, chooses a display timezone, browses Overview / Schedule / People / Requests. Records **their own** presence and raises **their own** requests. Cannot alter the published plan. |
-| **Planner** | Build and maintain a valid rota | Opens a draft, assigns eligible shifts, marks non-working states, checks gaps, undoes, generates suggestions, reviews and publishes — **in any planning unit**. |
-| **Administrator** | Maintain the scheduling model | Everything a planner can, plus people, eligibility, shifts, day configurations, shift requirements, colors, holidays and comp-off policy. May force-publish, explicitly and audited. |
+**Roles are a set, granted per planning unit, with no ordering between them**
+([ADR-0051](adr/0051-roles-are-a-scoped-set.md)). Holding two grants both; a grant names a
+unit, or is global — and global widens *scope*, never *privilege*. Grants live in the
+database, edited on Settings → Roles, because planning units are ours and no directory
+knows them. [16-workflows.md](16-workflows.md) is the authority on which role each step of
+each workflow needs.
 
-**There is no unit scoping of write access**
-([ADR-0032](adr/0032-planning-unit-single-rule-axis.md)). The team is small and nobody edits
-another team's rota without reason; the control is a **complete audit trail** — who
-changed what, when, and what it was before — not a permission matrix. This removes
-unit-scope claims and permission checks from the model entirely.
+| Role | What they need | Product behavior | Cannot |
+|---|---|---|---|
+| **Viewer** | Understand coverage, find personal duties, ask for things | Reads published data, picks a display timezone, browses Overview / Schedule / People / My calendar / Requests. Records **their own** presence, raises **their own** requests, places **their own** comp days, reads any cell's history. **Everyone signed in holds it.** | Touch anybody else's row |
+| **Planner** | Build and maintain a valid rota | Opens a draft, paints eligible shifts, watches gaps and issues, undoes, generates suggestions, reviews and publishes — in the units they hold it for. Records presence and raises requests on behalf of their unit's people | **Approve anything**, including leave they raised themselves |
+| **Approver** | Decide what people ask for | Decides requests raised by people in the units they hold it for; an approval writes the real `Absence` or `PresenceRecord` | Touch the rota |
+| **Admin** | Maintain the scheduling model | People, eligibility, shifts, day configurations, requirements, colors, event and presence types, holidays, comp-off policy and role grants, in the units they hold it for. A **global** grant also covers what belongs to no unit — locations, holidays, units — and Settings → Maintenance | **Assign shifts** |
 
-Two things had to become true for that argument to hold, and neither did until recently:
-the trail has to name the person who actually acted
-([ADR-0039](adr/0039-actor-identity-from-the-token.md)), and it has to cover everything,
-not just assignments ([ADR-0040](adr/0040-one-change-history-for-every-entity.md)).
+An Admin being unable to plan is the point, not an oversight: policies used to compare
+roles by ordinal, so `Admin > Planner` made every administrator a planner of every unit —
+a right nobody granted and nobody could withhold.
 
-The only writes anyone is refused are to **another person's own record** — their presence,
-their requests. That is not unit scoping returning by another door: it is a question
-ADR-0032 never addressed, because self-service did not exist
-([ADR-0046](adr/0046-routing-is-not-authorization.md)).
+**What happened to "no unit scoping".** [ADR-0032](adr/0032-planning-unit-single-rule-axis.md)
+removed unit-scope claims from the model entirely, on the argument that the team is small
+and the control is a **complete audit trail** — who changed what, when, and what it was
+before — rather than a permission matrix. That argument held for the rota and stopped
+holding once approvals existed: whose leave you may sign off is not a question an audit
+trail answers after the fact. ADR-0051 therefore scoped the grant to a unit and kept the
+global grant for the planner who genuinely covers everywhere. The audit trail is still
+load-bearing, and two things had to become true for it to be: it has to name the person
+who actually acted ([ADR-0039](adr/0039-actor-identity-from-the-token.md)), and it has to
+cover everything, not just assignments
+([ADR-0040](adr/0040-one-change-history-for-every-entity.md)).
 
-Identity comes from authenticated access rules, and the acting person is resolved from
-the token rather than from anything the client sends
+Identity comes from the token, never from anything the client sends
 ([ADR-0039](adr/0039-actor-identity-from-the-token.md)) — otherwise the audit trail this
-model rests on would be forgeable by the people it constrains. Any in-app role switcher
-is a development convenience and must not ship to ordinary users.
+model rests on would be forgeable by the people it constrains. A real sign-in is Entra ID,
+linked to a person by their work email, by hand
+([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)); the in-app identity
+switcher exists only in stub mode, picks a **person** and never a role, and is gated on the
+server saying it is in stub mode.
 
 **Everyone is also an employee.** Recording where you are working and asking for leave is
-available to every authenticated person, and is not a role
+available to every authenticated person and is not a role
 ([ADR-0046](adr/0046-routing-is-not-authorization.md)): "can I edit my own record" is a
-per-resource question.
+per-resource question, answered by `subjectPersonId == principal.personId`.
 
-**Roles are a set, granted per planning unit**
-([ADR-0051](adr/0051-roles-are-a-scoped-set.md)): `Viewer`, `Planner`, `Approver`, `Admin`,
-with **no ordering between them**. An Admin edits configuration and cannot assign shifts; a
-Planner owns the rota and cannot approve leave; holding two grants both. A grant names a
-unit, or is global. This narrows ADR-0032's "a planner may edit any unit" to a default
-rather than a rule — the global grant is still there for the planner who genuinely covers
-everywhere.
+**And approval is a property of the thing, not of who asks.** A planner recording leave on
+somebody else's row raises a request like anybody else; `EventType.requiresApproval` and
+`PresenceType.requiresApproval` decide, and the server enforces it
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
 
 ## Vocabulary
 
@@ -126,8 +133,10 @@ everywhere.
 | Draft | A private set of proposed changes owned by a planner for a unit and period. |
 | Planning unit | A scheduling and **planning** boundary (`unit-amer`, `unit-emea`, `unit-apac`, `unit-st`). Owns all rules that apply: shifts, requirements, policies and comp-off policy. Defines whose screen a person appears on (a default filter, not a permission boundary). |
 | Shift | Work performed that day: `Lead`, `Crew`, `E`, `BM`, `M`, `Primary`, `ST:AMER`. `Cover` is engineering work, including in-hours training. Shifts belong to a planning unit and carry an absolute time window. |
-| Marker | A roster state that is not work and not leave: `Off`, `0`. |
-| Status | The resolved non-working state of a cell: `Off`, `PH`, `Comp-Off`, `Vacation`, `Sick`, `0`. |
+| Event type | A kind of time off, as a row rather than an enum arm — vacation, sick, floating holiday, `UNAVAILABLE`. Its columns (`blocksAssignment`, `countsTowardCapacity`, `requiresApproval`, `allowsHalfDay`) are the behaviour ([ADR-0049](adr/0049-event-types-are-data.md)). |
+| Presence type | A way of working, as a row — office, remote, travel, a customer site, anything an admin adds. `namesALocation` says whether it points at a `Location`; `countsAs` (`OnSite`, `Remote`, `Away`) is the only thing the coverage strip counts ([ADR-0054](adr/0054-presence-types-are-an-open-set.md)). |
+| Portion | `FULL`, `MORNING` or `AFTERNOON` on an absence or a presence record. Never a time — coverage stays whole-day ([ADR-0050](adr/0050-one-grid-half-days-and-the-split-cell.md)). |
+| Status | The resolved non-working state of a cell: `PH`, `Comp-Off`, or an absence carrying its event type. The `Off` / `0` roster markers are deleted; an empty cell means no shift, and "do not schedule me" is the `UNAVAILABLE` event type ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)). |
 | Day configuration | The set of shift requirements that applies to a group of weekdays (or a specific date for events). |
 | Requirement | Minimum and optional maximum people for a shift on a day type. Zero minimum is legal (e.g., Service Transition optional shifts). |
 | Coverage | Comparison of actual assignments against requirements. |
@@ -139,7 +148,24 @@ everywhere.
 | Rotation | Fair ordering of eligible people for specialist or weekend work. |
 | Presence | Where someone physically works on a day — remote, an office, travel, a customer site. Orthogonal to whether they work at all ([ADR-0043](adr/0043-presence-is-an-orthogonal-range-entity.md)). |
 | Request | Something a person asks for about themselves — leave, remote days, a desk. Routed to approvers and, once approved, written into the plan ([ADR-0045](adr/0045-generic-request-envelope-typed-materialization.md)). |
-| Approval route | Whose inbox a request lands in, in what order. **Not** a permission — the policy decides who may act ([ADR-0046](adr/0046-routing-is-not-authorization.md)). |
+| Approver | Who a request goes to: the `Approver`s of the subject's planning unit, falling through to admins when a unit has none. `ApprovalRoute` and multi-step approval are **deleted** — routing is the grant ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)). |
+| Layer | What the grid draws — Shifts / Time off / Presence / Requests — toggled in the toolbar and masked at render, never in the projection ([ADR-0050](adr/0050-one-grid-half-days-and-the-split-cell.md)). |
+| Setup | The one-time choice a fresh database asks for: **Bare** or **Demo**. `SystemSetup` is the row that records it, and its absence is what the gate refuses on ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). |
+
+## What a system starts as
+
+A fresh database has no content and says so: everything except `/health/*`,
+`/api/setup/*` and the OpenAPI document answers `503 SETUP_REQUIRED`, and the browser
+shows a first-run wizard ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)). It offers
+**Bare** — one location, one planning unit, and the caller from their own token as the
+global Admin — or **Demo**, the fixture entire. Afterwards Settings → Maintenance carries
+the same two operations. There is no configuration key that decides content, and there must
+not be one again.
+
+Deployment is two container images and a Helm chart on AKS: SQL and the optional model are
+both reached by workload identity, which is why neither environment needs a Key Vault
+([ADR-0060](adr/0060-the-model-is-a-deployment-not-a-vendor.md)). The operator guide is
+[../deploy/README.md](../deploy/README.md).
 
 ## Scale
 

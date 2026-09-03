@@ -100,6 +100,27 @@ long the debt has been outstanding, not when someone last moved it.
 The threshold is configuration, expected to be somewhere around one to two weeks. It is
 a prompt to act, never an enforcement.
 
+## Who places the day
+
+**Accrual and placement are two different acts, and only the first belongs to the planner**
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+Publishing a draft accrues the day, because the weekend shift that earned it is in that
+draft. Placing it is the engineer asking for a day, and an approver signing it off.
+
+1. The engineer opens the comp day from the grid or My calendar and asks for the proposed
+   date, or any other date the policy allows.
+2. `CompDayPlacement.Check` holds those rules, so the client and the server cannot disagree
+   about which dates are offered — the menu and the endpoint ask the same function.
+3. **At most one request stays live per comp day**
+   ([ADR-0056](adr/0056-one-live-comp-day-request.md)). Asking again cancels the earlier
+   one: an approver's inbox must never be asked to decide between two proposals for the same
+   day off, and there is no sensible answer to "both were approved".
+4. Asking does not move the day. Only the approval sets the date and blocks the day.
+
+This is why a comp day is not written through a draft even though it is *created* by one: a
+draft is review by the person staging the batch, and a day off already has a better review
+step — approval, which names the human who decided.
+
 ## Links and deletion
 
 `CompDayEntry.earnedForAssignmentId` is the link back to the earning weekend or holiday

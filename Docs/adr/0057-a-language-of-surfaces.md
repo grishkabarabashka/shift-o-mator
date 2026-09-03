@@ -1,7 +1,7 @@
 # ADR-0057. A language of surfaces: light, measure, elevation
 
 **Status:** accepted. Extends [ADR-0022](0022-tailwind-for-tokens-and-layout.md) (Tailwind
-for tokens and layout) and [ADR-0013](0013-headless-ui.md) (headless UI); does not narrow
+for tokens and layout) and [ADR-0013](0013-headless-ui-layer.md) (headless UI); does not narrow
 either.
 
 ## Context

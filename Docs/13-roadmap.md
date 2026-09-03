@@ -29,7 +29,7 @@ screen.
 | 10 | **One grid, configurable absences, half-days.** Event types as data; `portion` on absences and presence; the cell splits into chip and band; the grid is gated by role and carries self-service; approvers named per unit; a per-cell audit timeline; a switchable stub identity (ADR-0049–0050) | The role-blind grid — a live defect where a viewer's click did nothing and said nothing — is fixed; the schema is one migration again |
 | 11 | **Roles, and the two flows.** Roles become a set granted per planning unit, with the ordinal comparison deleted and approval routes replaced by the `Approver` grant; drafts narrow to the rota, absences and presence become direct writes gated by approval; roster markers deleted; an absence fills the cell; comp days are placed by the person taking them (ADR-0051–0052) | An Admin can no longer assign shifts by accident of enum order, and a viewer can record their own sick day |
 | 12 | **A design language.** An elevation ladder, a type scale, real breakpoints, the header's own sky, and a toast layer beside the three existing failure surfaces (ADR-0057) | The app has one visual system instead of per-screen decisions; success has a channel it never had |
-| 13 | **Entra ID, and a deployable app.** Real JWT validation, identity linked to a person by email, app roles as global grants; container images and a Helm chart for AKS (ADR-0058) | A real token signs a real person in; `helm upgrade` is the deployment |
+| 13 | **Entra ID, and a deployable app.** Real JWT validation, identity linked to a person by email, app roles as global grants (switched **off by default** since [ADR-0062](adr/0062-one-source-of-roles-by-default.md)); container images and a Helm chart for AKS (ADR-0058) | A real token signs a real person in; `helm upgrade` is the deployment |
 | 14 | **First-run setup.** `SystemSetup` is the flag, a middleware gate refuses everything until it exists, and a wizard writes either a Bare system or the Demo fixture; Settings → Maintenance carries load-demo and reset afterwards (ADR-0059) | What a database starts as is a decision the product asks for, not a config key set before it runs — and it can be changed afterwards |
 
 Phase 14 in detail, since it deleted configuration other environments may still set:
@@ -42,30 +42,72 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
 `Seed:IncludeDemoData`, `--seed-demo` and `Auth:BootstrapAdminEmail` are deleted;
 `--reset-db` stays as the development recovery for a regenerated `InitialCreate`.
 
+
+**Since Phase 14, two decisions landed that belong to no phase of their own:**
+
+- **The model is a deployment, not a vendor**
+  ([ADR-0060](adr/0060-the-model-is-a-deployment-not-a-vendor.md)).
+  `ChatModel.FromConfiguration` is the only place a provider is named — `azure-openai`,
+  `openai`, or `none` — and everything above it works against `IChatClient`. Under
+  `azure-openai` no key is needed: `DefaultAzureCredential` means `az login` locally and
+  workload identity in AKS, the same chain SQL uses, which is why production carries no AI
+  secret and the chart defaults `azureKeyVault.enabled` to `false`. The sandbox runs the
+  same shape as production so it rehearses the auth path and not just the deployment.
+- **Settings saves people as one unit**
+  ([ADR-0061](adr/0061-settings-saves-people-as-one-unit.md)).
+  `POST /api/admin/people/batch` applies every pending person edit or none, releases before
+  claims, in one transaction — because `Email` and `EmployeeId` carry unique indexes and
+  moving a sign-in address between two people, sent row at a time, ended with the address on
+  nobody and somebody locked out of the product. Person edits now write history, which
+  ADR-0040 had required all along.
+
 **Remaining, not yet scheduled:**
 
-- **Half-day shifts, and half coverage.** Today a half-day absence beside a shift is a
-  flagged conflict, because coverage is whole-day and there is no way to express "off this
-  morning, working this afternoon" as a roster. The fix is shifts that carry halves, so
-  coverage counts halves and the combination can then be forbidden outright. ADR-0050
-  rejected this on the grounds that the boundary hour would be invented; that argument is
-  weaker than it looked — the boundary is derivable from the shift's own window. What
-  actually blocks it is integer minimums running through `CoverageCalculator`, `Validator`,
-  the coverage strip, `IssueDigest` and their tests ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+- **Half coverage — half-day *shifts*, not half-days.** Half-days themselves shipped in
+  Phase 10: `portion` (`FULL | MORNING | AFTERNOON`) is on `Absence` and `PresenceRecord`,
+  it travels through requests and `RangeSupersede`, and the cell splits to draw it
+  ([ADR-0050](adr/0050-one-grid-half-days-and-the-split-cell.md)). What is missing is the
+  other side: **`CoverageCalculator` has no notion of `portion` at all**, so a person is
+  counted whole or not counted. A half-day absence beside a shift is therefore a flagged
+  conflict rather than a representable roster — there is no way to say "off this morning,
+  working this afternoon" as a rota.
 
-- **Directory sync for the roster.** Entra ID sign-in itself landed in Phase 13, and a
-  person is linked to their account by an admin typing their work email on Settings →
-  People ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)). What is not built
-  is the joiner/mover/leaver half: a Graph sync, and an answer to "the directory says this
-  person left". For ~80 people, typing is tractable; it is a real gap all the same.
-  Stub mode remains the local loop, with a **switchable** identity: `Auth:StubPersonId`
-  pins one, and the `X-Debug-PersonId` / `X-Debug-Role` headers override per request so
-  role behaviour can be tested without a restart. `X-Debug-Role` is comma-separated,
-  because roles are a set; the literal `Viewer` strips an account to nothing, and an absent
-  header means "use their real grants". The in-app switcher uses only the person header —
-  grants belong on Settings → Roles, and a global override was a state the product cannot
-  produce. Those headers are read only by `StubAuthenticationHandler`, which exists only in
+  The fix is shifts that carry halves, so coverage counts halves and the combination can
+  then be forbidden outright. ADR-0050 rejected it on the grounds that the boundary hour
+  would be invented; that argument is weaker than it looked — the boundary is derivable
+  from the shift's own window. What actually blocks it is integer minimums running through
+  `CoverageCalculator`, `Validator`, the coverage strip, `IssueDigest` and their tests
+  ([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+
+- **Directory sync for the roster — joiner, mover, leaver.** Signing in works: a token is
+  validated and resolved to a person by matching its email claim against `Person.Email`
+  ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)). **Linking is manual** —
+  an admin types the work address on Settings → People, and self-linking is refused by
+  design. What does not exist is any traffic in the other direction, from Microsoft Graph
+  into the roster:
+
+  - a new hire does not appear as a `Person`; somebody adds the row;
+  - a transfer does not move `unitId`, `locationId` or `managerId`;
+  - **a leaver stays active.** Their Entra account is disabled and they can no longer sign
+    in, but the roster row goes on being planned, counted in coverage and offered as a
+    candidate until somebody deactivates it by hand.
+
+  The last one is the reason this is a real gap rather than a convenience: the product has
+  no way to learn that somebody left. Building it needs a Graph application permission,
+  admin consent, a credential, a scheduler, and an answer to "the directory says this person
+  left, and they are rostered for next Tuesday" — which is a policy question, not a sync
+  question. For ~80 people, typing is tractable in the meantime.
+
+- **Stub mode** is the local loop, and is not a gap — it is how role behaviour is tested
+  without an IdP. The identity is **switchable**: `Auth:StubPersonId` pins one, and the
+  `X-Debug-PersonId` / `X-Debug-Role` headers override per request. `X-Debug-Role` is
+  comma-separated, because roles are a set; the literal `Viewer` strips an account to
+  nothing, and an absent header means "use their real grants". The in-app switcher uses
+  only the person header — grants belong on Settings → Roles, and a global override was a
+  state the product cannot produce, so what it tested was a configuration nobody could ever
+  be in. Both headers are read only by `StubAuthenticationHandler`, which exists only in
   stub mode.
+
 - **External notification delivery** — the outbox columns exist and are unused; Phase B is
   one in-process dispatcher sending via Graph ([ADR-0044](adr/0044-in-app-inbox-first.md)).
 - **An admin screen for request types.** Event types have one (Settings → Leave types) and
@@ -75,6 +117,15 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   not been built: the open question is whether it should exist at all rather than be
   generated. Approval routes need no screen: who approves is the `Approver` grant, edited
   on Settings → Roles.
+- **Admin CRUD writes no history.** ADR-0040 says every entity, and person edits got there
+  with [ADR-0061](adr/0061-settings-saves-people-as-one-unit.md) — but locations, units,
+  shifts, day configurations, holidays and absence capacity rules still write no
+  `ChangeHistoryEntry` at all. "Who raised this minimum, and when" has no answer, which is
+  exactly the question effective dating exists to make askable.
+- **No batch save outside people.** The criterion is stated in ADR-0061: an entity needs a
+  batch when its rows can invalidate each other. Nothing else currently can, so nothing else
+  has one; a generic `POST /api/admin/changes` is where this goes if a second entity ever
+  does.
 - **Export** — XLSX, CSV, ICS, print with timezone stamping.
 - **Effective-dated configuration editing** — Settings UI for changing minimums and shifts
   with past-data protection.

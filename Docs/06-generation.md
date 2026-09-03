@@ -127,8 +127,10 @@ so a reader can check one against the other.
 
 Which model answers is configuration, not code: the service talks to `IChatClient`
 (Microsoft.Extensions.AI), and the `Ai` section names the provider and model
-(`"Provider": "anthropic" | "none"`), with the key coming from the provider's environment
-variable. With nothing configured the endpoint answers `503 AI_NOT_CONFIGURED` and the
+(`"Provider": "azure-openai" | "openai" | "none"`), with `Ai:Endpoint` naming the resource
+or gateway. The sandbox and production both use an Azure OpenAI deployment, which needs no
+key at all because the app authenticates as itself; locally it is off unless switched on
+(ADR-0060, and `deploy/README.md` section 2b). With nothing configured the endpoint answers `503 AI_NOT_CONFIGURED` and the
 panel does not appear. Nothing in planning depends on it — the model explains the plan,
 it never decides it.
 

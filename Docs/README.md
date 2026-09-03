@@ -8,8 +8,12 @@ Shift planning and coverage for a global application support team.
 > (Phase 0); [adr/](adr/) is now the authority on why the model looks the way it does,
 > including every place the design has diverged since — ADR-0015 onward, especially
 > ADR-0032–0034 for the Phase 8 model change, ADR-0039–0048 for Phase 9 (production
-> readiness, presence, self-service and AI) and ADR-0049–0050 for Phase 10 (configurable
-> event types, half-days, and one grid for everybody).
+> readiness, presence, self-service and AI), ADR-0049–0050 for Phase 10 (configurable
+> event types, half-days, and one grid for everybody), ADR-0051–0056 for Phase 11 (roles
+> as a scoped set, and the two write paths), ADR-0057 for Phase 12 (the design language),
+> ADR-0058 and ADR-0060 for Phase 13 (Entra ID, a deployable app, and a model that is a
+> deployment rather than a vendor) and ADR-0059 and ADR-0061 for Phase 14 (first-run setup,
+> and Settings saving people as one unit).
 
 ## Product and model
 
@@ -31,17 +35,18 @@ Shift planning and coverage for a global application support team.
 | [08-ux-schedule.md](08-ux-schedule.md) | The planning grid: layout, grouping, cells, coverage, picker, keyboard, bulk, review |
 | [09-ux-dashboard-timeline.md](09-ux-dashboard-timeline.md) | Overview (merged dashboard + timeline), day drill-down, reports |
 | [10-ux-people-settings.md](10-ux-people-settings.md) | People roster and fairness; Settings and administration |
-| [15-self-service.md](15-self-service.md) | Presence, requests, who approves, and the inbox |
+| [15-self-service.md](15-self-service.md) | Presence, requests, comp-day placement, My calendar and the ICS feed, who approves, and the inbox |
 | [16-workflows.md](16-workflows.md) | **Start here for "who does what"** — every workflow end to end, and the role each step needs |
 
 ## Delivery
 
 | File | Contents |
 |---|---|
-| [11-integrations.md](11-integrations.md) | Absence import, status vocabulary, HR reverse flow, ICS, export |
-| [12-architecture.md](12-architecture.md) | Stack, layering, engines, data boundary, target API, scale, testing |
+| [11-integrations.md](11-integrations.md) | Absence import, status vocabulary, HR reverse flow, holiday feed import, the ICS feed, export |
+| [12-architecture.md](12-architecture.md) | Stack, layering, engines, data boundary, the API surface, setup and deployment, scale, testing |
 | [13-roadmap.md](13-roadmap.md) | What exists, what changes, and the stage sequence |
 | [14-open-questions.md](14-open-questions.md) | What the prototype closed, and what is still open |
+| [../deploy/README.md](../deploy/README.md) | The operator guide: running locally, container images, Entra ID registration, AKS and Helm |
 
 ## Decisions
 
@@ -109,3 +114,9 @@ superseded, if you only want what's still true today.
 | [0054](adr/0054-presence-types-are-an-open-set.md) | Presence types are an open set; the two branches become columns | accepted |
 | [0055](adr/0055-a-personal-calendar-and-a-feed.md) | A personal calendar, and a feed anybody can subscribe to | accepted |
 | [0056](adr/0056-one-live-comp-day-request.md) | At most one live comp-day placement request | accepted |
+| [0057](adr/0057-a-language-of-surfaces.md) | A language of surfaces: light, measure, elevation | accepted |
+| [0058](adr/0058-entra-id-identity-is-linked-by-email.md) | An Entra ID sign-in is linked to a person by email, by hand | accepted; its bootstrap replaced by 0059 |
+| [0059](adr/0059-setup-is-a-screen-not-a-flag.md) | Setup is a screen, not a flag | accepted |
+| [0060](adr/0060-the-model-is-a-deployment-not-a-vendor.md) | The model is a deployment, not a vendor | accepted |
+| [0061](adr/0061-settings-saves-people-as-one-unit.md) | Settings saves people as one unit | accepted |
+| [0062](adr/0062-one-source-of-roles-by-default.md) | One source of roles by default: the database | accepted |

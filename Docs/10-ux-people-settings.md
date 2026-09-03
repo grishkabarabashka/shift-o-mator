@@ -51,13 +51,30 @@ and **must never silently alter an open draft**.
 - Shift-eligibility checkboxes with target shares, default shift, default entry, weekend
   eligibility, `maxWeekendsPerQuarter`, blackout dates and preferred partners.
 - History stays attached to the stable person ID.
+- **`isIncluded` decides who is *planned*, never who is *drawn*.** Managers are
+  `isIncluded = false` and hold no shifts, and coverage and auto-populate ignore them — but
+  everyone active gets a grid row, because a row is the only place leave and presence can be
+  recorded.
+- **Identity fields live on Settings → People**, not here: the work email an Entra ID
+  sign-in resolves by, and `employeeId`. This screen is about how somebody is *planned*;
+  that tab is about who they *are*, and it saves as one batch
+  ([ADR-0061](adr/0061-settings-saves-people-as-one-unit.md)).
 
 ## Settings — the scheduling model
 
 **User question:** "What rules drive the schedule, and how should the product display
 it?"
 
-A vertically scrolling sequence of cards.
+**Eleven tabs**, in this order: Units, Locations, Shifts, Day configs, Holidays, Absence
+limits, Leave types, Presence, People, Roles, Maintenance. One tab is one subject, and the
+dirty-state machinery below spans the screen rather than a card, because a configuration
+change often touches two tabs at once (a shift and the day configuration that requires it).
+
+**Settings is an administrator's screen** and the nav hides it from anyone who administers
+nothing ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)): every tab on it is configuration,
+and a tab that 403s on arrival is worse than no tab. The one setting that was *not*
+configuration — which timezone you read the grid in — lives in the profile menu beside the
+avatar, where everybody still has it.
 
 ### User Preferences
 
@@ -101,28 +118,70 @@ Monday–Thursday" configuration rather than code
 
 ### Holidays
 
-Per location and per year. Add, edit, delete, CSV import, and **a preview of which
-people and which coverage requirements a change affects** before it is saved.
+Per location and per year. Add, edit, delete, and **a preview of which people and which
+coverage requirements a change affects** before it is saved.
 
-### Access
+**Import reads an iCalendar feed** — pasted, uploaded, or fetched from a host on the
+`Holidays:AllowedCalendarHosts` allow-list — and **adds days that are missing, never
+removing one**. That is deliberate and it is why this is called import and not sync: a real
+sync needs a scheduler and an answer to "the feed dropped a day people are already rostered
+off for", and neither exists.
 
-The dev identity switcher (stub mode only) picks a **person**, not a role: you get
-whatever grants that person holds, which is the only configuration the real product can
-produce. To change what somebody can do, change the grant here.
+### Leave types
 
-**Settings is an administrator's screen** and the nav hides it from everyone else
-([ADR-0051](adr/0051-roles-are-a-scoped-set.md)): every tab on it is configuration, and a
-tab that 403s on arrival is worse than no tab. The one setting that was *not* configuration
-— which timezone you read the grid in — moved to the profile menu beside the avatar, where
-everybody still has it.
+Full CRUD over `EventType` ([ADR-0049](adr/0049-event-types-are-data.md)). Each row carries
+its behaviour as checkboxes — blocks assignment, counts toward capacity, requires approval,
+allows half-days — plus label, short label, colour and category. There is no
+"counts as coverage": anything that does is a `Shift`, which is what keeps
+`CoverageCalculator` untouched by an admin adding a leave type.
 
-Role grants live on **Settings → Roles**: a matrix of people against `Planner`, `Approver`
-and `Admin`, filtered by planning unit
+### Presence
+
+Full CRUD over `PresenceType` ([ADR-0054](adr/0054-presence-types-are-an-open-set.md)):
+label, glyph, colour, `namesALocation`, `countsAs` (`ON_SITE` / `REMOTE` / `AWAY`), offered,
+requires approval, sort order. Two rules the card enforces rather than explains:
+
+- **DELETE is refused once anything points at the type**, and says to untick Offered
+  instead — a way of working that people have already recorded days against is history, not
+  a mistake.
+- **A type that needs approving owns a request type**, created and retired with it.
+  Otherwise ticking the box makes a menu item with nowhere to send the request.
+
+`requiresApproval` is enforced by the **server** (`APPROVAL_REQUIRED`), exactly as
+`/api/absences` does. It used to be one `if` in the cell menu, so any caller could write the
+record directly.
+
+### People
+
+The roster's identity and roster fields — including the **work email** an Entra ID sign-in
+is resolved by ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)) and the
+`employeeId` an eventual HR import will match on. Both carry filtered unique indexes.
+
+**The whole screenful saves as one unit** ([ADR-0061](adr/0061-settings-saves-people-as-one-unit.md)):
+`POST /api/admin/people/batch` applies every pending edit or none of them, with ops that
+*release* a unique value ordered before ops that claim it. Moving a sign-in address from one
+person to another is a release and a claim that are only valid together — sent one at a
+time, the claim is rejected, the release commits, and the address ends up on nobody with
+the person it belonged to locked out. A rejected batch leaves **every** row dirty, and the
+UI must not soften that: telling somebody half their changes saved, when nothing did, is
+the failure the decision exists to remove. Errors come back keyed by the op's index in the
+request the caller sent, so each one lands beside its own field.
+
+### Roles
+
+A matrix of people against `Planner`, `Approver` and `Admin`, filtered by planning unit
 ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)). Roles are a **set with no ordering** —
 an Admin is not thereby a Planner — and each grant names a unit, or is global.
 
 `Viewer` has no column: everyone signed in has it, and a checkbox that can only ever be
 ticked is a lie about what is configurable.
+
+**And it is the only source, by default** ([ADR-0062](adr/0062-one-source-of-roles-by-default.md)):
+`Auth:DirectoryRoles` is `false`, so Entra ID app roles are not read at all. They could only
+ever be global, and the server cannot list *other* people's app roles without Microsoft Graph
+— so a directory grant would appear on this screen as an unticked box that nonetheless
+grants, with no way to revoke it from inside the product. Switching the flag on restores the
+old behaviour, and the old problem with it.
 
 Read-only for somebody who does not administer the unit on screen, because "who approves my
 leave" is a fair question for the person waiting on the answer. Only a **global** admin can
@@ -133,6 +192,11 @@ Self-service is still not a role
 ([ADR-0046](adr/0046-routing-is-not-authorization.md)): every authenticated person records
 their own presence and raises their own requests, and "can I edit my own record" is a
 per-resource question.
+
+**The dev identity switcher** (stub mode only, gated on the server saying so) sits here too.
+It picks a **person**, never a role: you get whatever grants that person holds, which is the
+only configuration the real product can produce. A global role override was a state nothing
+could reach, so what it tested was a configuration nobody could ever be in.
 
 ### Request types
 

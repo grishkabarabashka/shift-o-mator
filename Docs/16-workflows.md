@@ -52,7 +52,7 @@ the human who decided.
 3. **Generate** fills what is left and ranks candidates, as a preview you accept or
    discard ([06-generation.md](06-generation.md)).
 4. **Watch coverage and issues.** Gaps, conflicts and warnings are all visible and none of
-   them blocks ([ADR-0035](adr/0035-only-blocking-blocks.md)): they are decisions still to
+   them blocks ([ADR-0035](adr/0035-coverage-gap-does-not-block-publication.md)): they are decisions still to
    be made, not corrupt data. Only a double assignment or an unknown shift is `BLOCKING`.
 5. **Publish.** One atomic transaction. A version conflict returns 409 with a typed diff
    and **the draft survives** — a failed publish never clears your work.

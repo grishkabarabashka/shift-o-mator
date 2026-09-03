@@ -21,13 +21,15 @@ and any combination below runs.
 | | Local | Sandbox (AKS) | Production |
 |---|---|---|---|
 | **Sign-in** | `stub` by default; `entra` works too (section 2a) | `entra` — that is what it exists to test | corporate Entra |
-| **Where roles come from** | DB grants; app roles if signed in with Entra | both | Entra app roles, fed by whatever provisions the corporate directory, **plus** per-unit grants in the DB |
+| **Where roles come from** | database grants (Settings → Roles) | the same | the same, **plus** Entra app roles if `Auth:DirectoryRoles` is switched on — off by default, see 6.3 |
 | **Database auth** | Windows auth (LocalDB) | managed identity | managed identity, *or* a service account + password if the database is standalone |
-| **Key Vault** | none — user secrets | for the Anthropic key | for the Anthropic key, and for the SQL password if there is one |
+| **Key Vault** | none — user secrets | not needed | not needed; only for a SQL password, if the database cannot do Entra auth |
+| **AI model** | off by default; Foundry Local or a cloud deployment (section 2b) | an Azure OpenAI deployment, by managed identity | the same, inside the corporate tenant |
 
 Two consequences worth stating plainly:
 
-- **Roles never come from Entra alone.** App roles can only be global — the directory has
+- **Roles do not come from Entra at all by default** (ADR-0062), and never from Entra
+  alone. App roles can only be global — the directory has
   no idea what `unit-emea` is. Per-unit access is always a database grant edited on
   Settings → Roles. Wiring the corporate joiner/mover/leaver process into Entra app roles
   is a separate piece of work, and it can only ever deliver the global half.
@@ -114,9 +116,10 @@ your app**):
   client secret and rejects the PKCE flow the browser uses, with a CORS error that does
   not mention the real cause.
 - **Expose an API → Add a scope**, named `access_as_user`, admin+user consent. This is
-  what makes `api://<app-id>/access_as_user` a real scope. Optionally **App roles** →
-  add `Planner`/`Approver`/`Admin` and assign yourself under **Enterprise applications →
-  Users and groups** (see section 6.3).
+  what makes `api://<app-id>/access_as_user` a real scope.
+- **App roles** (optional) → add `Planner`/`Approver`/`Admin`, *then* assign yourself under
+  **Enterprise applications → Users and groups**. That order is not a suggestion: the
+  assignment screen can only offer roles that already exist. Section 6.3 explains the split.
 
 Then, client side — copy `apps/web/.env.example` to `apps/web/.env.development.local`
 (git-ignored) and set:
@@ -128,26 +131,145 @@ VITE_ENTRA_TENANT_ID=<tenant id>
 VITE_ENTRA_API_SCOPE=api://<app id>/access_as_user
 ```
 
-And server side — `apps/api/src/ShiftOMator.Api/appsettings.Development.json`, or user
-secrets (`dotnet user-secrets set …` from `apps/api/src/ShiftOMator.Api`):
+And server side — **user secrets**, from `apps/api/src/ShiftOMator.Api`:
 
-```json
-{
-  "Auth": {
-    "Mode": "EntraId",
-    "Jwt": {
-      "Authority": "https://login.microsoftonline.com/<tenant id>/v2.0",
-      "Audience": "api://<app id>"
-    }
-  }
-}
+```bash
+dotnet user-secrets set "Auth:Mode" "EntraId"
+dotnet user-secrets set "Auth:Jwt:Authority" "https://login.microsoftonline.com/<tenant id>/v2.0"
+dotnet user-secrets set "Auth:Jwt:Audience" "api://<app id>"   # or the bare app id — both are accepted
+dotnet user-secrets list          # where they went, if you lose them
 ```
+
+**Not `appsettings.json`, and not `appsettings.Development.json`.** Both are committed and
+shared: the first is what makes `Auth:Mode=Stub` the default local loop for everybody, and
+the second already carries shared logging settings. Your tenant and app registration are
+yours — the next person has different ones — so putting them in either file means a
+permanent uncommitted diff that eventually gets committed by accident. User secrets live
+outside the repository, under `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`,
+and cannot be committed at all. It is also where `Ai:ApiKey` belongs (section 2b), which
+genuinely is a secret.
+
+Switching `appsettings.json` to `EntraId` instead has one more consequence worth knowing:
+the API test suite reads that file too. `ApiTestFactory` now pins `Auth:Mode` to `Stub` so
+it cannot happen again, but the symptom was every test failing on 401 with nothing in the
+diff to explain it.
 
 Finally, **run the setup wizard**: your work email must be in `Person.Email` for some
 row, or every request comes back `403 PRINCIPAL_NOT_MAPPED` (section 6.2). On a fresh
 database nobody is linked yet — open the app with Entra ID mode already switched on and
 it shows the wizard, which creates you (Bare) or links you to the fixture's admin (Demo)
 using the email in your token (ADR-0059). There is nothing to configure for this.
+
+## 2b. AI explanations for local development (optional)
+
+AI is **off by default** (`"Ai": { "Provider": "none" }`), and that is a fully supported
+state, not a broken one: `/api/insights/gap-summary` answers `503 AI_NOT_CONFIGURED` and
+its panel simply does not appear, while `/api/insights/candidate-explanation` still returns
+its computed deciding factor. Nothing in planning depends on a model being reachable, so
+skip this section entirely unless you are working on an insight surface.
+
+Two ways to get one locally. They differ in where the tokens are processed and what you
+have to own — not in application code, which never names a provider (ADR-0060).
+
+|  | Foundry Local | Azure OpenAI in the cloud |
+|---|---|---|
+| Cost | free | pay per token — around **$1/month** at this app's usage |
+| Needs an Azure subscription | no | yes |
+| Prompts leave the machine | no | yes |
+| Matches what sandbox/production run | no | **yes** |
+| Setup cost | a download and a few GB of disk | one resource, one role assignment |
+
+Pick Foundry Local if you want zero cost and zero egress; pick the cloud one if you are
+debugging behaviour that has to match a deployed environment. Neither is a commitment —
+the two are three lines of configuration apart.
+
+### Option A — Foundry Local (on-device, free)
+
+[Foundry Local](https://learn.microsoft.com/en-us/azure/foundry-local/what-is-foundry-local)
+runs the model on your own hardware and exposes an OpenAI-compatible REST API, so it needs
+no Azure subscription and no API key. Note it is in **public preview** and Microsoft
+documents its REST surface as subject to breaking changes — fine for a local convenience,
+which is the only place this guide uses it.
+
+```bash
+# Install (Windows), then start a model — the alias picks the right build for your CPU/GPU/NPU.
+winget install Microsoft.FoundryLocal
+foundry model run phi-4-mini
+
+# The port is assigned dynamically; never hardcode it. Read it back:
+foundry service status
+# or: curl http://localhost:5272/openai/status   # -> {"Endpoints":["http://localhost:5272"], ...}
+
+# The exact id to configure as Ai:Model — an alias is not the loaded model's name:
+curl http://localhost:5272/openai/models
+# -> ["Phi-4-mini-instruct-generic-cpu"]
+```
+
+Then, from `apps/api/src/ShiftOMator.Api`:
+
+```bash
+dotnet user-secrets set Ai:Provider "openai"
+dotnet user-secrets set Ai:Endpoint "http://localhost:5272/v1"   # note the /v1 suffix
+dotnet user-secrets set Ai:Model "Phi-4-mini-instruct-generic-cpu"
+```
+
+**No `Ai:ApiKey`, deliberately.** A model server on localhost authenticates nobody, so an
+endpoint on its own counts as a complete configuration — see `ChatModel.FromConfiguration`.
+It is only when *neither* a key nor an endpoint is set that the feature reports itself
+unconfigured.
+
+Two things that will bite otherwise:
+
+- **The port changes between restarts of the service.** If insights start failing after a
+  reboot, re-read `foundry service status` and update `Ai:Endpoint`. There is no discovery
+  in the app on purpose: the endpoint is configuration, and the API does not depend on a
+  local runtime being installed.
+- **`Ai:Model` is the loaded model id, not the alias.** `phi-4-mini` starts it;
+  `Phi-4-mini-instruct-generic-cpu` is what the API answers to.
+
+### Option B — Azure OpenAI (the shape sandbox and production use)
+
+Provision a small deployment and grant *yourself* the data-plane role — the same role the
+pod identity gets in sections 5 and 8, so this rehearses the deployed configuration:
+
+```bash
+RG=rg-shiftomator-dev
+AOAI=shift-o-mator-dev-aoai
+az group create -n $RG -l eastus
+az cognitiveservices account create -g $RG -n $AOAI --kind OpenAI --sku S0 -l eastus
+az cognitiveservices account deployment create -g $RG -n $AOAI \
+  --deployment-name gpt-4o-mini --model-name gpt-4o-mini --model-version "2024-07-18" \
+  --model-format OpenAI --sku-name Standard --sku-capacity 10
+
+AOAI_ID=$(az cognitiveservices account show -g $RG -n $AOAI --query id -o tsv)
+ME_OID=$(az ad signed-in-user show --query id -o tsv)
+az role assignment create --assignee-object-id $ME_OID --assignee-principal-type User \
+  --role "Cognitive Services OpenAI User" --scope $AOAI_ID
+```
+
+```bash
+dotnet user-secrets set Ai:Provider "azure-openai"
+dotnet user-secrets set Ai:Endpoint "https://$AOAI.openai.azure.com/"
+dotnet user-secrets set Ai:Model "gpt-4o-mini"          # the *deployment* name
+```
+
+**No key here either**, and for a better reason: with `Ai:ApiKey` empty the app uses
+`DefaultAzureCredential`, which resolves to your `az login` locally and to workload
+identity in the cluster. That is the same credential chain the SQL connection string uses,
+which is why one configuration works in both places. Keys are supported
+(`dotnet user-secrets set Ai:ApiKey …`) but there is no reason to prefer one.
+
+If you get `401`/`403` on the first call, the role assignment has not propagated yet — it
+takes a minute or two — or `az login` is pointed at a different tenant than the resource.
+
+### Turning it back off
+
+```bash
+dotnet user-secrets set Ai:Provider "none"
+```
+
+A typo in the provider name fails at **startup**, deliberately: a config that was asked for
+and misspelled must surface rather than silently disable the feature.
 
 ## 3. Configuration reference
 
@@ -161,11 +283,14 @@ environment variables (`Section__Key`) → command line.
 | `ConnectionStrings:Schedule` | LocalDB, hardcoded | from Key Vault | SQL Server connection string |
 | `Auth:Mode` | `Stub` | `EntraId` | switches `StubAuthenticationHandler` vs `AddJwtBearer` in `Program.cs` |
 | `Auth:StubPersonId` / `Auth:StubRole` | empty (real grants) | unused in EntraId mode | **must stay empty** in Stub mode — see CLAUDE.md, this was a live bug once |
+| `Auth:DirectoryRoles` | `false` | `false` | Reads Entra app roles *in addition to* the database grants. Off by default: what the directory grants is invisible to Settings → Roles (ADR-0062, section 6.3) |
 | `Auth:Jwt:Authority` | — | from Key Vault | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | `Auth:Jwt:Audience` | — | from Key Vault | the Entra ID app registration's Application ID URI |
 | `Cors:AllowedOrigins` | `["http://localhost:5173"]` | the deployed web origin(s) | array — set via `Cors__AllowedOrigins__0`, `__1`, ... |
-| `Ai:Provider` / `Ai:Model` | `anthropic` / `claude-opus-5` | same | non-secret |
-| `ANTHROPIC_API_KEY` | user secrets or unset (AI returns 503) | from Key Vault | environment variable, not an `Ai:` key — see `ChatModel.FromConfiguration` |
+| `Ai:Provider` | `none` — see section 2b | `azure-openai` | `azure-openai`, `openai`, `none` — non-secret |
+| `Ai:Model` | — | the **deployment** name | under `azure-openai` this names the deployment, not the model family |
+| `Ai:Endpoint` | — | the resource URL | required by `azure-openai`. For `openai` it is optional, but on its own it is enough: a keyless endpoint is a complete configuration |
+| `Ai:ApiKey` | user secrets, if the endpoint needs one | **unset** | `azure-openai` authenticates as the pod instead — see `ChatModel.FromConfiguration` |
 
 ### Frontend (`apps/web/.env.*`)
 
@@ -226,9 +351,10 @@ acceptable for throwaway testing, not for anything real), no Application Gateway
 web Service is exposed directly via a Kubernetes LoadBalancer), Azure SQL Serverless on
 the free-tier quota (auto-pauses after idle, so the first request after a pause is slow).
 
-**No SQL password anywhere**: the pod reaches SQL as its own managed identity. Key Vault
-is still created, for the one thing that genuinely is a secret — the Anthropic API key.
-See "What Key Vault is for" at the end of this section.
+**No secrets anywhere**: the pod reaches SQL as its own managed identity, and the model
+the same way. So no Key Vault is created below and `azureKeyVault.enabled` stays `false` —
+the sandbox rehearses production's auth path, not just its deployment. See "What Key Vault
+is for" at the end of this section for what would bring a vault back.
 
 ```bash
 RG=rg-shiftomator-sandbox
@@ -269,13 +395,24 @@ az identity federated-credential create \
   --subject system:serviceaccount:$NAMESPACE:shift-o-mator \
   --audience api://AzureADTokenExchange
 
-# --- Key Vault, read by the same identity. Only the Anthropic key lives here; skip the
-#     whole block (and set azureKeyVault.enabled: false) if AI is not wanted.
-az keyvault create --name $KV --resource-group $RG --location $LOCATION
-az keyvault secret set --vault-name $KV -n shift-o-mator-anthropic-api-key --value "<anthropic api key>"
-
 IDENTITY_PRINCIPAL_ID=$(az identity show -g $RG -n $IDENTITY --query principalId -o tsv)
-az keyvault set-policy --name $KV --object-id $IDENTITY_PRINCIPAL_ID --secret-permissions get list
+
+# --- AI explanations (optional): an Azure OpenAI (Azure AI Foundry) deployment the *same*
+#     identity may call. No key, so no Key Vault — which is why this environment has none.
+#     Skip the block and leave aiProvider: none if you do not want AI in the sandbox.
+AOAI=shift-o-mator-sandbox-aoai
+az cognitiveservices account create -g $RG -n $AOAI --kind OpenAI --sku S0 --location $LOCATION
+az cognitiveservices account deployment create -g $RG -n $AOAI \
+  --deployment-name gpt-4o-mini --model-name gpt-4o-mini --model-version "2024-07-18" \
+  --model-format OpenAI --sku-name Standard --sku-capacity 10
+
+AOAI_ID=$(az cognitiveservices account show -g $RG -n $AOAI --query id -o tsv)
+az role assignment create --assignee-object-id $IDENTITY_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services OpenAI User" --scope $AOAI_ID
+
+# Then in values-sandbox.yaml: aiProvider: azure-openai, aiEndpoint
+# https://<aoai-name>.openai.azure.com/, aiModel gpt-4o-mini (the *deployment* name).
 
 # --- Azure SQL: server + serverless database on the free-tier quota ---
 # The Entra admin is *you*, so you can create the database user below. No SQL login,
@@ -337,7 +474,8 @@ Sorting every value the API needs by whether it is actually a secret:
 
 | Value | Secret? | Where it lives |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | **Yes** | Key Vault |
+| `Ai:ApiKey`, under `openai` against a hosted endpoint | **Yes** | Key Vault, as `Ai__ApiKey` |
+| `Ai:Endpoint` / `Ai:Model`, under `azure-openai` | No — a resource URL and a deployment name | ConfigMap; there is no key at all |
 | Connection string, **with a password** | **Yes** | Key Vault — see below |
 | Connection string, managed identity | No — no credential in it | ConfigMap |
 | `Auth:Jwt:Authority` | No — a public Microsoft URL | ConfigMap |
@@ -347,7 +485,10 @@ Sorting every value the API needs by whether it is actually a secret:
 So the vault is not decoration, but it is also not on the critical path for SQL. Two
 cases keep it:
 
-1. **AI explanations** — the Anthropic key, which is what the sandbox provisions it for.
+1. **A model reached by key** — `openai` pointed at a hosted gateway. Neither environment
+   here does that: both use an `azure-openai` deployment, which the pod calls as itself
+   with a `Cognitive Services OpenAI User` grant on the resource, exactly as it reaches
+   SQL. This case exists for a deployment that has no such resource available.
 2. **A database that cannot do Entra authentication.** A standalone SQL Server on a VM
    inside the perimeter has no managed identity to grant, so it needs a service account
    and a password, and that password needs somewhere to live. Leave
@@ -361,8 +502,8 @@ cases keep it:
      secrets:
        - objectName: shift-o-mator-connection-string
          envVarName: ConnectionStrings__Schedule
-       - objectName: shift-o-mator-anthropic-api-key
-         envVarName: ANTHROPIC_API_KEY
+       - objectName: shift-o-mator-ai-api-key
+         envVarName: Ai__ApiKey
    ```
 
    The Secret is applied to the pod *after* the ConfigMap, so on a key present in both the
@@ -396,9 +537,12 @@ Two things the CLI does poorly; do them in the portal (**App registrations → y
   `http://<api LoadBalancer IP>` — or whatever origin the web app is served from. It must
   be the **SPA** platform: a "Web" platform expects a client secret, rejects the browser's
   PKCE flow, and reports it as a CORS error that says nothing about the real cause.
-- **Expose an API → Add a scope** named `access_as_user`. Optionally **App roles** →
-  `Planner`/`Approver`/`Admin`, assigned under **Enterprise applications → Users and
-  groups** (section 6.3).
+- **Expose an API → Add a scope** named `access_as_user`.
+- **App roles** → `Planner`/`Approver`/`Admin`, if you want any. Optional for the app —
+  everyone signs in as Viewer without them and per-unit rights come from Settings → Roles
+  — but **not optional in the order you do things**: until a role exists here, the
+  assignment screen under Enterprise applications has nothing to offer and appears broken.
+  Section 6.3 covers both halves and why they are two different blades.
 
 Put the authority and audience into `values-sandbox.yaml` (`api.config.jwtAuthority` /
 `jwtAudience`) — neither is a secret, so neither needs a vault.
@@ -458,25 +602,201 @@ Order matters: sign-in completes *before* the first `/api/auth/me`. `EntraGate` 
 `AuthProvider` for exactly this reason — otherwise the identity call goes out
 unauthenticated, comes back 401, and the app resolves to nobody.
 
-### 6.3 Roles: Entra ID app roles plus database grants
+### 6.3 Roles: database grants, and optionally Entra ID app roles
 
-Both, and they add up:
+**By default, roles come from the database only** (ADR-0062). Everything in this section
+about app roles applies when `Auth:DirectoryRoles` is `true`, which is a deliberate opt-in
+— skip to "What unassigned actually means" if you have not set it.
 
-- **Entra ID app roles** (the `roles` claim) are read and granted **globally**
-  (`unitId: null`) — the directory has no idea what `unit-emea` is, so it can only say
-  "this person administers the whole thing". Values must match `AppRole`
-  (`Viewer`/`Planner`/`Approver`/`Admin`); anything else in the claim is ignored, since
-  the same account may hold roles for other apps.
-- **Per-unit grants** stay in the database, edited on Settings → Roles, and take effect on
-  the next request rather than the next token refresh.
-- **Someone in no list at all is a Viewer** — signs in fine, reads the rota, writes
-  nothing. That's the existing behaviour for anyone with no grants, not a special case.
+The reason for the default is worth knowing before you turn it on: **Settings → Roles reads
+the database only.** A person granted Admin through the directory shows no ticked box on
+the screen whose job is to answer "who can do what here", an administrator can untick
+everything for them and change nothing, and ticking a box mints a *second*, independent
+grant that has to be revoked somewhere else. Listing other people's app roles would need
+Microsoft Graph, an application permission and admin consent, so the honest default is one
+source.
 
-To define app roles on the registration, add them in the Azure portal under **App
-registrations → your app → App roles** (value = `Planner`, `Approver`, or `Admin`), then
-assign users under **Enterprise applications → your app → Users and groups**. Assigning
-nobody is a valid state: everyone signs in as Viewer and per-unit grants come from
-Settings → Roles.
+With the switch on, a person's rights are the **union** of what the token says and what the
+database stores. Neither overrides the other.
+
+| | Entra ID app roles | Database grants |
+|---|---|---|
+| Scope it can express | **global only** (`unitId: null`) | global **or** one planning unit |
+| Where it is edited | Azure portal / `az` | Settings → Roles, in the app |
+| When a change takes effect | next **token**, so after a fresh sign-in | next **request** |
+| Who it suits | the handful of people who act across every unit; joiner/mover/leaver automation | almost everybody, because almost everybody works in one unit |
+
+The split is not a preference, it is a limitation with a reason: the directory has no idea
+what `unit-emea` is, so it can only ever say "this person administers the whole thing".
+Per-unit scope is ours, so it lives in our database (ADR-0051).
+
+**Nothing is implied by ordering.** An Admin cannot assign shifts and a Planner cannot
+approve leave; holding two roles grants both, and `Viewer` is what everyone signing in
+already has. Granting somebody `Admin` and expecting them to plan is the single most
+common mistake here — give them `Planner` as well.
+
+**Someone in no list at all is a Viewer**: signs in fine, reads the rota, writes nothing.
+That is the ordinary behaviour for anyone with no grants, not a special case. And the
+*first* Admin comes from neither mechanism — the setup wizard makes whoever runs it a
+global Admin (ADR-0059), which is what breaks the circle of "nobody can reach the screen
+that grants roles".
+
+#### The two objects, and why the portal makes this confusing
+
+Your app exists in Entra ID as **two separate objects** with the same `appId`, in two
+different blades. Roles are **defined** on one and **handed out** on the other, which is the
+single thing that makes this step feel broken:
+
+```text
+Microsoft Entra ID tenant
+│
+├── App registrations → "shift-o-mator-sandbox"      the DEFINITION
+│     │                                              created by `az ad app create`
+│     ├── Authentication   → SPA redirect URI
+│     ├── Expose an API    → api://<app-id>/access_as_user   (the JWT audience)
+│     └── App roles        → Planner | Approver | Admin
+│                            ▲
+│                            └── roles are CREATED here, and nowhere else
+│
+└── Enterprise applications → "shift-o-mator-sandbox"  the INSTANCE (a service principal)
+      │                                                created by `az ad sp create`
+      ├── Properties        → "Assignment required?"  (No by default)
+      └── Users and groups  → alice ── Planner
+                              carol ── Admin
+                              bob   ── not listed
+                              ▲
+                              └── roles are HANDED OUT here, and nowhere else
+```
+
+**"I can only add a user, and there is no role to pick."** That is this exact split, and it
+has one cause: **no app role is defined yet on the App registration**, so the assignment
+dialog has nothing to offer and shows only *Default Access*. Section 6.1 lists App roles as
+optional, which is true of the app and untrue of this screen — do that step first, then come
+back. Two rarer causes of the same symptom:
+
+- the role was created with **Allowed member types = Applications** instead of
+  **Users/Groups** — a role for daemons cannot be assigned to a person;
+- the role exists but is **disabled** (`isEnabled: false`).
+
+A newly created role shows up in the assignment dialog straight away; if it does not,
+reload the portal tab rather than recreating it.
+
+#### Defining the app roles
+
+Portal: **App registrations → your app → App roles → Create app role**.
+
+| Field | Value |
+|---|---|
+| Display name | anything readable, e.g. `Planner` |
+| Allowed member types | **Users/Groups** — not Applications |
+| Value | `Planner`, `Approver`, or `Admin` — **this** is what lands in the token |
+| Description | anything |
+
+Only **Value** matters to the app. It is matched case-insensitively against `AppRole`, and
+anything that is not one of ours is **ignored, not rejected** — the same account may hold
+app roles for other applications, and that is none of this app's business. Repeat for each
+role you want to hand out; there is no need to define all three.
+
+The CLI equivalent, if you would rather not click. Each role needs its own fresh GUID, and
+`az` replaces the whole array, so define them in one call:
+
+```bash
+APP_ID=<the app registration's appId>
+cat > /tmp/app-roles.json <<'JSON'
+[
+  { "allowedMemberTypes": ["User"], "description": "Plans the rota",       "displayName": "Planner",  "isEnabled": true, "value": "Planner",  "id": "PLANNER_GUID" },
+  { "allowedMemberTypes": ["User"], "description": "Approves requests",    "displayName": "Approver", "isEnabled": true, "value": "Approver", "id": "APPROVER_GUID" },
+  { "allowedMemberTypes": ["User"], "description": "Administers settings", "displayName": "Admin",    "isEnabled": true, "value": "Admin",    "id": "ADMIN_GUID" }
+]
+JSON
+# Substitute a distinct uuid for each placeholder before applying.
+az ad app update --id $APP_ID --app-roles @/tmp/app-roles.json
+```
+
+`allowedMemberTypes: ["User"]` is what makes them assignable to people — it covers groups
+too, despite the name.
+
+#### Handing them out
+
+**Enterprise applications → your app → Users and groups → Add user/group.** Pick the
+person, then pick the role. If the app is missing from that blade entirely, `az ad sp
+create --id $APP_ID` never ran and there is no instance to assign anything on.
+
+**"Only one role can be selected."** That limit is per *assignment*, not per person. To
+give somebody two roles, add them again and pick the second one — they then appear twice
+in the list, once per role, and the token carries both. Each row is an independent
+assignment and can be removed on its own.
+
+This matters more here than in most apps, because **nothing is implied by ordering**
+(ADR-0051): a global Admin who also has to plan needs a second assignment as Planner, not
+a "higher" role. There is no role that contains another.
+
+Scripted, one call per role — repeat with a different `appRoleId`:
+
+```bash
+SP_ID=$(az ad sp show --id $APP_ID --query id -o tsv)
+USER_ID=$(az ad user show --id alice@example.com --query id -o tsv)
+ROLE_ID=$(az ad app show --id $APP_ID --query "appRoles[?value=='Planner'].id | [0]" -o tsv)
+
+az rest --method POST \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SP_ID/appRoleAssignedTo" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"$USER_ID\",\"resourceId\":\"$SP_ID\",\"appRoleId\":\"$ROLE_ID\"}"
+```
+
+**Before stacking app roles, ask whether you want a database grant instead.** App roles
+are global — `Planner` here means planner of *every* unit, which is the cross-unit role a
+couple of people hold, not the normal case. Somebody who plans `unit-emea` and approves in
+it wants two rows on **Settings → Roles**, scoped to that unit, which also take effect on
+their next request instead of their next sign-in. Reach for app roles when the answer is
+genuinely "across the whole thing", and for database grants otherwise.
+
+#### What "unassigned" actually means
+
+This is the part worth reading slowly, because "assignment" sounds like permission to use
+the app and is not:
+
+| | Can sign in? | Gets a `roles` claim? | Rights in the app |
+|---|---|---|---|
+| Not listed under Users and groups | **yes** | no | Viewer — reads the rota, writes nothing |
+| Listed, with a role | yes | yes | that role, **globally** |
+
+By default **Properties → "Assignment required?" is No**, so anyone in your tenant can sign
+in whether or not you have ever heard of them. Assignment does not gate the door; it only
+decides whether the token carries a `roles` claim at all. An unassigned user therefore
+signs in perfectly, sees the rota, and can change nothing — which looks like a broken
+account and is the intended default.
+
+So the failure mode to recognise is: *"they signed in fine, so the app must be broken"* —
+no, they are a Viewer, and the fix is an assignment here or a grant on Settings → Roles.
+
+Assigning nobody is a valid, and initially the normal, state: everyone signs in as Viewer
+and every real right comes from Settings → Roles. If you would rather the app refuse
+unknown people outright, set **Assignment required? → Yes**; then only the listed accounts
+can sign in at all.
+
+#### Two traps
+
+- **Group membership is not read.** The app looks at the `roles` claim and nothing else, so
+  assigning a *group* to an app role works (the members get the role), but emitting a
+  `groups` claim and expecting it to mean something does not.
+- **A role change needs a new token, not a reload.** Refreshing the page reuses the cached
+  one. Sign out, or clear `sessionStorage` for the site, then sign in again. Database
+  grants have no such delay — they are read per request, which is one more reason to prefer
+  them for anything that changes.
+
+#### Checking what actually arrived
+
+```bash
+# In the app: Settings → Roles lists the database grants.
+# From the API, as the signed-in user — this is the union, after transformation:
+curl -H "Authorization: Bearer <token>" https://<api-host>/api/auth/me
+# -> { "personId": "...", "displayName": "...", "roles": [...], "stubMode": false }
+```
+
+If `roles` holds only `Viewer` when you expected more: the app-role assignment is missing
+or the token predates it, and the database grant — if there was meant to be one — is on a
+different unit than the screen you are looking at.
 
 ## 7. Deploy (sandbox)
 
@@ -555,18 +875,37 @@ az aks update -g $RG -n $AKS --attach-acr $ACR
 
 OIDC_ISSUER=$(az aks show -g $RG -n $AKS --query "oidcIssuerProfile.issuerUrl" -o tsv)
 
-# Only the Anthropic key is secret; connection string and JWT settings are ConfigMap
-# values (see "Do we need Key Vault?" in section 5). Skip the vault entirely if AI
-# explanations are not wanted, and set azureKeyVault.enabled: false.
-az keyvault create -g $RG -n $KV --location $LOCATION
-az keyvault secret set --vault-name $KV -n shift-o-mator-anthropic-api-key --value "<anthropic api key>"
+# No vault by default: SQL and the model are both reached by managed identity, and the
+# connection string and JWT settings are ConfigMap values (see "What Key Vault is for" in
+# section 5). Create one only for a SQL password or a key-authenticated model endpoint,
+# and set azureKeyVault.enabled: true with the matching entry under azureKeyVault.secrets.
+# az keyvault create -g $RG -n $KV --location $LOCATION
 
 az identity create -g $RG -n $IDENTITY
 IDENTITY_CLIENT_ID=$(az identity show -g $RG -n $IDENTITY --query clientId -o tsv)
 IDENTITY_PRINCIPAL_ID=$(az identity show -g $RG -n $IDENTITY --query principalId -o tsv)
 TENANT_ID=$(az account show --query tenantId -o tsv)
 
-az keyvault set-policy -n $KV --secret-permissions get list --object-id $IDENTITY_PRINCIPAL_ID
+# --- AI explanations: an Azure OpenAI (Azure AI Foundry) deployment the *same* identity
+#     may call. This is why production has no AI secret: one role assignment replaces a
+#     key, a vault, a CSI mount and a rotation policy. Use the resource your tenant
+#     already provides if there is one, and skip straight to the role assignment.
+AOAI=shift-o-mator-prod-aoai
+az cognitiveservices account create -g $RG -n $AOAI --kind OpenAI --sku S0 --location $LOCATION
+az cognitiveservices account deployment create -g $RG -n $AOAI \
+  --deployment-name gpt-4o-mini --model-name gpt-4o-mini --model-version "2024-07-18" \
+  --model-format OpenAI --sku-name Standard --sku-capacity 10
+
+AOAI_ID=$(az cognitiveservices account show -g $RG -n $AOAI --query id -o tsv)
+az role assignment create --assignee-object-id $IDENTITY_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services OpenAI User" --scope $AOAI_ID
+
+# Then in values-prod.yaml: aiProvider: azure-openai, aiEndpoint the resource URL
+# (https://<aoai-name>.openai.azure.com/), aiModel the *deployment* name.
+
+# Only needed if you created a vault above:
+# az keyvault set-policy -n $KV --secret-permissions get list --object-id $IDENTITY_PRINCIPAL_ID
 
 az identity federated-credential create \
   --name shift-o-mator-federation --identity-name $IDENTITY -g $RG \

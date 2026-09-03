@@ -16,7 +16,10 @@ the rota; time off and presence are written directly and reviewed by approval);
 **Phase 12** gave the UI a design language (elevation, measure, a type scale, real
 breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and the app
 deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
-Code and design agree; the ADR index is complete through 0059.
+Since Phase 14, three decisions landed outside a phase: the model is a **deployment**,
+not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); and directory
+roles are **off by default**, so the database is the single source (ADR-0062).
+Code and design agree; the ADR index is complete through 0062.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -218,9 +221,20 @@ dotnet test
     (ADR-0039)
 
 20. **One append-only history, for every entity.** `ChangeHistoryEntry` covers
-    assignments, absences, comp days, presence, person edits and all admin CRUD. Draft
-    publishes emit it from `DraftService`; direct writes emit it via `Auth/ChangeAudit`.
-    A new write path with no history row is a bug. (ADR-0040)
+    assignments, absences, comp days, presence and person edits. Draft publishes emit it
+    from `DraftService`; direct writes emit it via `Auth/ChangeAudit`. A new write path
+    with no history row is a bug. **The other admin CRUD endpoints still write none** —
+    locations, units, shifts, day configurations, holidays, absence capacity rules — which
+    is a live gap against this decision, not an exemption from it. (ADR-0040, ADR-0061)
+
+20a. **Settings saves people as one unit.** `POST /api/admin/people/batch` applies every
+    pending person edit or none: ops that *release* a unique value (`Email`, `EmployeeId`)
+    are ordered before ops that claim it, and the whole batch runs in one transaction —
+    SQL Server checks a unique index per *statement*, so a transaction alone does not fix
+    the ordering. Moving a sign-in address between two people, sent row at a time, left the
+    address on nobody and its owner locked out. Errors come back keyed by the op index the
+    caller sent. An entity needs a batch when its rows can invalidate each other; only
+    people currently can. (ADR-0061)
 
 21. **Dataset loads are scoped by date, with a 120-day lookback.** The margin is
     load-bearing, not padding: `CandidateRanker` counts 90 days and `Validator` uses a
@@ -355,15 +369,18 @@ dotnet test
   already there. Startup refuses with a message naming the fix
   (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
   `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
-  The test databases still need dropping by hand when the schema moves: `ShiftOMatorTests`
-  (shared by almost everything), plus `ShiftOMatorPersonEmailTests`,
-  `ShiftOMatorEntraTests` and `ShiftOMatorSeedIdempotenceTests`. Each of those exists
-  because its subject is a property of a *whole table* — the exact roster size
-  `ReferenceEndpointsTests` asserts, which any other test writing a person or an email
-  would silently invalidate. `ApiTestFactory.DatabaseName` is how a test opts out.
-  `SetupEndpointsTests` is the exception that drops and recreates its own databases in the
-  test itself: a `SystemSetup` row surviving between runs would make a rerun see a system
-  that thinks it is already set up (ADR-0059).
+  **There are five test databases and there is a reason for each one** — a new one needs
+  the same. `ShiftOMatorTests` is shared by almost everything; `ShiftOMatorPersonEmailTests`,
+  `ShiftOMatorEntraTests` and `ShiftOMatorSeedIdempotenceTests` opt out via
+  `ApiTestFactory.DatabaseName` because each one's subject is a property of a *whole table*
+  — the exact roster size `ReferenceEndpointsTests` asserts, which any other test writing a
+  person or an email would silently invalidate. Those four need **dropping by hand** when
+  the schema moves. `ShiftOMatorSetupTests` is the exception that drops and recreates
+  itself in the test: a `SystemSetup` row surviving between runs would make a rerun see a
+  system that thinks it is already set up (ADR-0059). All five `SetupEndpointsTests` cases
+  share that **one** database — the class carries no `[Collection]`, so xUnit runs its
+  methods sequentially and each gets it untouched. A database per case is what to reach for
+  only if they ever run in parallel with each other.
   **Dropping a test database and immediately re-running races**: several collections then
   create it at once and fail on duplicate keys. Run twice, or drop between runs, not during
 - **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
@@ -401,10 +418,31 @@ dotnet test
   identity to hold rights nothing else it does needs. The delete order is hand-maintained
   and the reset→demo→reset test is what keeps it honest. **`--reset-db` is the other thing**
   — argv-only, for a regenerated `InitialCreate`, and absent from the UI
-- **AI is optional and explanation-only**: `Ai:Provider` + `ANTHROPIC_API_KEY`, behind
-  `IChatClient` so no code names a provider. Unconfigured is a *supported state* —
-  `/api/insights/gap-summary` answers 503 `AI_NOT_CONFIGURED`, and
-  `/api/insights/candidate-explanation` still returns its computed deciding factor.
+- **AI is optional and explanation-only**, and **the model is a deployment, not a vendor**
+  (ADR-0060). `ChatModel.FromConfiguration` is the only place a provider is named:
+  `azure-openai` (Azure AI Foundry — `Ai:Endpoint` is the resource URL, `Ai:Model` the
+  **deployment** name), `openai` (OpenAI or anything speaking its protocol, `Ai:Endpoint`
+  optional), or `none`. Everything above it works against `IChatClient`
+  (Microsoft.Extensions.AI). **`azure-openai` needs no
+  key** — with `Ai:ApiKey` empty it uses `DefaultAzureCredential`, i.e. `az login` locally
+  and workload identity in AKS, the same chain SQL uses; the grant is
+  `Cognitive Services OpenAI User`. That is why production carries no secret at all and
+  the chart defaults `azureKeyVault.enabled` to `false`.
+  **Nothing requires a key, and that is the design, not an oversight.** Under
+  `azure-openai` a missing key is normal (identity), so a blank `Ai:Endpoint`/`Ai:Model`
+  **throws at startup** — that is what catches a misconfiguration there. Under `openai` a
+  key *or* an endpoint counts as configured, because a model runtime on localhost
+  (Foundry Local, Ollama) authenticates nobody and demanding a key it will ignore would
+  make the honest configuration the broken one; only when **neither** is set does the
+  feature report itself unconfigured.
+  Unconfigured is a *supported state* — `/api/insights/gap-summary` answers 503
+  `AI_NOT_CONFIGURED`, and `/api/insights/candidate-explanation` still returns its computed
+  deciding factor. Helm therefore ships `aiProvider: none` rather than `azure-openai` with
+  a blank endpoint: crash-looping the API over an optional feature is the worse failure.
+  **The sandbox runs the same `azure-openai` shape as production**, so it rehearses the
+  auth path and not just the deployment; neither has a Key Vault, and there is no AI
+  secret anywhere. Locally it is off until switched on — `deploy/README.md` section 2b
+  covers both Foundry Local (free, on-device, keyless) and a cloud deployment.
   Nothing in planning depends on a model being reachable
 - Frontend layering is strictly downward: `features → store → api → data → engine → domain`.
   Backend layering: `Api → Application → Infrastructure → Domain`. Domain logic
@@ -508,8 +546,15 @@ Not bugs — things the design names and has not built. Full list in
 - **Entra ID works end to end, and both halves must be switched together.** Server:
   `Auth:Mode=EntraId` validates against `Auth:Jwt` (`Authority`/`Audience`, from Key
   Vault), resolves the acting person by matching the token's email claim against
-  `Person.Email`, and maps `roles` app-role claims to **global** grants that add to the
-  per-unit ones in the database (ADR-0058). Client: `VITE_AUTH_MODE=entra` turns on
+  `Person.Email` (ADR-0058). **Roles come from the database only** unless
+  `Auth:DirectoryRoles` is switched on (ADR-0062), in which case `roles` app-role
+  claims are mapped to **global** grants that *add* to the per-unit ones stored there.
+  It is off because Settings → Roles reads the database only: a directory grant shows
+  no ticked box on the one screen that answers "who can do what", cannot be revoked
+  from the product, and ticking the box mints a second, independent grant. Listing
+  other people's app roles would need Microsoft Graph, so the honest default is one
+  source. The switch is a **bool, not a choice of three** — a directory grant can only
+  be global, so "directory only" is a mode with nobody able to plan a unit. Client: `VITE_AUTH_MODE=entra` turns on
   `EntraGate` (MSAL, redirect flow, `sessionStorage`), which installs a token provider
   into `api/client.ts` via `setAccessTokenProvider` — **injected, never imported**, because
   MSAL lives in `auth/` which sits *above* `api/` in the layering. Nothing checks the two

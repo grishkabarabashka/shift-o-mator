@@ -145,7 +145,7 @@ One grid for everybody. What differs is what you can touch:
 
 | | Planner | Everyone else |
 |---|---|---|
-| Shifts, markers, painting, publishing | yes | no |
+| Shifts, painting, publishing | yes | no |
 | Their own presence and requests | yes | yes |
 | Somebody else's | yes | no |
 | Cell history | yes | yes |
@@ -199,6 +199,58 @@ either.
 > Before this the grid was role-blind: a viewer saw the palette and the shift picker, the
 > first edit was refused server-side, and the rejection went nowhere — the click did
 > nothing and said nothing.
+
+## My calendar, and a feed
+
+**Your own months, in a different shape** ([ADR-0055](adr/0055-a-personal-calendar-and-a-feed.md)).
+`/me` builds a dataset of **one** person and runs `projectCells`, `projectPresence` and
+`projectRequests` — the same three the grid runs — then hands a day to
+`CellSelfServiceMenu` in a floating shell. Nothing about what a day means, or what needs
+approving, is decided twice.
+
+A day is a box with room for the shift code and its hours, so it reads without decoding.
+Months with no shifts are normal: a rota that has not been published yet is not an error,
+and leave can be booked on a day that has no shift. Managers get no special view — a manager
+is an ordinary person with their own calendar, and looking at the team is what Schedule is
+for.
+
+It reads its own long window through the `['my-calendar']` query key, so every direct write
+and every request mutation has to invalidate that key as well as `['schedule']`.
+
+**Subscribing.** The sidebar carries the address of a personal iCalendar feed — shifts as
+timed events, leave and comp days as whole days. That address **is** the credential: a
+calendar client cannot carry a bearer token, so `Person.CalendarToken` is the whole of the
+feed's authentication. Hence 256 bits, never on any list payload (`[JsonIgnore]`, so
+`/api/reference` cannot hand out everybody's), replaced at seed time so the fixture's
+guessable `tok-{personId}` never survives, and **Reset the address** beside the copy button
+— the button you need the day somebody pastes the link into a shared document. A wrong
+token answers 404 exactly as an unknown route does.
+
+## Taking a comp day
+
+**Who:** the person who earned it. Signed off by an `Approver`
+([ADR-0052](adr/0052-two-flows-drafts-for-shifts-approval-for-everything-else.md)).
+
+The accrual and the placement are two different things, and only the first belongs to the
+planner:
+
+1. A weekend or holiday shift **accrues** a comp day when the draft is published, linked to
+   the assignment that earned it — so "where did this day off come from" always has an
+   answer.
+2. The system **proposes** a date from the unit's comp-off policy: the earliest free
+   eligible day in the search window, excluding Mondays and Fridays by default.
+3. The person opens the comp day from the grid or My calendar and **asks for a day** — the
+   proposal, or any other day the policy allows. `CompDayPlacement.Check` holds those rules
+   so the client and the server cannot disagree about which dates are offered.
+4. **At most one request stays live per comp day**
+   ([ADR-0056](adr/0056-one-live-comp-day-request.md)): asking again cancels the earlier
+   one, so an approver's inbox is never asked to decide between two proposals for the same
+   day off.
+5. Asking does not move the day. An approver signs it off, and only then is the date set and
+   the day blocked.
+
+Comp days never expire; `agingThresholdDays` flags anything outstanding too long — a manager
+alert plus a standing notice for the person ([ADR-0007](adr/0007-comp-day-as-balance.md)).
 
 ## The queue
 
@@ -325,7 +377,7 @@ two roles grants both, and holding one grants only it.
 | Role | Owns | Notably does **not** |
 |---|---|---|
 | `Viewer` | Reads the rota; self-service on their own row. Everyone signed in. | — |
-| `Planner` | Shifts, markers, comp days, painting, publishing | Approve anybody's leave |
+| `Planner` | Shifts, painting, publishing, and the comp-day accrual that comes with them | Approve anybody's leave |
 | `Approver` | Decides requests raised by people in the unit | Touch the rota |
 | `Admin` | Configuration, and role grants | **Assign shifts** |
 
