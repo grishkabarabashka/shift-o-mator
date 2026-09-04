@@ -27,8 +27,18 @@ api:
   config:
     authMode: EntraId
     corsAllowedOrigins: []       # e.g. ["https://shift-o-mator.example.com"]
-    aiProvider: anthropic
-    aiModel: claude-opus-5
+    # AI is off by default. To switch it on, pick one:
+    #   azure-openai — aiEndpoint is the resource URL, aiModel the *deployment* name.
+    #                  Needs no key: the pod authenticates with the same workload
+    #                  identity SQL uses (grant it `Cognitive Services OpenAI User`).
+    #                  Both the sandbox and production use this, which is why neither
+    #                  needs a Key Vault.
+    #   openai       — any other OpenAI-compatible endpoint. aiEndpoint alone is enough
+    #                  for a keyless one (a model runtime on localhost); a hosted one also
+    #                  needs `Ai__ApiKey` from Key Vault.
+    aiProvider: none
+    aiModel: ""
+    aiEndpoint: ""
 
     # Managed identity, so this carries no password and is therefore not a secret:
     #   Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;
@@ -67,11 +77,12 @@ ingress:
 # files and syncs them into a native k8s Secret the deployment reads via envFrom
 # (templates/secretproviderclass.yaml).
 #
-# With `Authentication=Active Directory Default` for SQL (see api.config.connectionString)
-# the only genuinely secret value left is the Anthropic key — and AI is optional, so an
-# environment that does not use it can set `enabled: false` and have no vault at all.
+# Off by default, because with `Authentication=Active Directory Default` for SQL and
+# `azure-openai` for the model there is nothing left that is secret — both authenticate as
+# the pod itself. Switch it on for a SQL password, or for an `Ai__ApiKey` when the model is
+# reached by key (the `openai` provider) rather than by managed identity.
 azureKeyVault:
-  enabled: true
+  enabled: false
   # "workloadIdentity": the pod's own identity (top-level `workloadIdentity`), which SQL
   #   already needs — one grant, not two. The default, and what values-prod.yaml uses.
   # "addonManagedIdentity": the AKS Key Vault add-on's own identity, granted `get`/`list`
@@ -80,11 +91,12 @@ azureKeyVault:
   keyvaultName: ""
   tenantId: ""
   # A CSI mount fails outright on an object the vault does not hold, so list only what is
-  # actually there. Add `shift-o-mator-connection-string → ConnectionStrings__Schedule`
-  # here if you use SQL authentication instead of managed identity.
-  secrets:
-    - objectName: shift-o-mator-anthropic-api-key
-      envVarName: ANTHROPIC_API_KEY
+  # actually there. Examples:
+  #   - objectName: shift-o-mator-connection-string
+  #     envVarName: ConnectionStrings__Schedule
+  #   - objectName: shift-o-mator-ai-api-key
+  #     envVarName: Ai__ApiKey
+  secrets: []
 
 # The identity the *pod itself* presents to Azure. Needed by anything the app calls as
 # itself — SQL with `Authentication=Active Directory Default`, and Key Vault when

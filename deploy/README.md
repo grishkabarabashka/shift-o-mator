@@ -21,7 +21,7 @@ and any combination below runs.
 | | Local | Sandbox (AKS) | Production |
 |---|---|---|---|
 | **Sign-in** | `stub` by default; `entra` works too (section 2a) | `entra` — that is what it exists to test | corporate Entra |
-| **Where roles come from** | database grants (Settings → Roles) | the same | the same, **plus** Entra app roles if `Auth:DirectoryRoles` is switched on — off by default, see 6.3 |
+| **Where roles come from** | database grants (Settings → Roles) | the same | the same, **plus** Entra app roles if the system has directory roles switched on — off by default, and a toggle in the product rather than a setting (ADR-0063); see 6.3 |
 | **Database auth** | Windows auth (LocalDB) | managed identity | managed identity, *or* a service account + password if the database is standalone |
 | **Key Vault** | none — user secrets | not needed | not needed; only for a SQL password, if the database cannot do Entra auth |
 | **AI model** | off by default; Foundry Local or a cloud deployment (section 2b) | an Azure OpenAI deployment, by managed identity | the same, inside the corporate tenant |
@@ -283,7 +283,6 @@ environment variables (`Section__Key`) → command line.
 | `ConnectionStrings:Schedule` | LocalDB, hardcoded | from Key Vault | SQL Server connection string |
 | `Auth:Mode` | `Stub` | `EntraId` | switches `StubAuthenticationHandler` vs `AddJwtBearer` in `Program.cs` |
 | `Auth:StubPersonId` / `Auth:StubRole` | empty (real grants) | unused in EntraId mode | **must stay empty** in Stub mode — see CLAUDE.md, this was a live bug once |
-| `Auth:DirectoryRoles` | `false` | `false` | Reads Entra app roles *in addition to* the database grants. Off by default: what the directory grants is invisible to Settings → Roles (ADR-0062, section 6.3) |
 | `Auth:Jwt:Authority` | — | from Key Vault | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | `Auth:Jwt:Audience` | — | from Key Vault | the Entra ID app registration's Application ID URI |
 | `Cors:AllowedOrigins` | `["http://localhost:5173"]` | the deployed web origin(s) | array — set via `Cors__AllowedOrigins__0`, `__1`, ... |
@@ -605,8 +604,15 @@ unauthenticated, comes back 401, and the app resolves to nobody.
 ### 6.3 Roles: database grants, and optionally Entra ID app roles
 
 **By default, roles come from the database only** (ADR-0062). Everything in this section
-about app roles applies when `Auth:DirectoryRoles` is `true`, which is a deliberate opt-in
-— skip to "What unassigned actually means" if you have not set it.
+about app roles applies only when the system has directory roles switched **on**. That is a
+toggle in the product — not a setting (ADR-0063) — offered once in the setup wizard and
+afterward at the top of **Settings → Roles**, where it sits because it changes what that
+screen means. Nothing to configure here, nothing to redeploy to change it. Skip to "What
+unassigned actually means" if it is off, which is how every system starts.
+
+Changing it takes a **global** Admin, unlike every other admin write: a directory grant is
+global by construction, so an administrator of one unit must not be able to widen every
+unit at once.
 
 The reason for the default is worth knowing before you turn it on: **Settings → Roles reads
 the database only.** A person granted Admin through the directory shows no ticked box on

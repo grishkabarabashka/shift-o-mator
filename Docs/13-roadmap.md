@@ -139,6 +139,15 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   shifts, day configurations, holidays and absence capacity rules still write no
   `ChangeHistoryEntry` at all. "Who raised this minimum, and when" has no answer, which is
   exactly the question effective dating exists to make askable.
+- **Admin writes are not scoped to a unit.** Every `/api/admin/*` write is gated by one
+  policy, `AdminSomewhere`, applied at the route group — and not one of those handlers
+  asks `Capabilities` which unit is being touched. So an Admin of `unit-amer` can edit
+  `unit-emea`'s people, shifts and day configurations.
+  [ADR-0051](adr/0051-roles-are-a-scoped-set.md) says a grant widens *scope*,
+  never privilege, and that every question to `Capabilities` takes a unit; these endpoints
+  ask no question at all. It has not bitten because every administrator today is either
+  global or trusted across units, which is a property of the current roster rather than of
+  the code.
 - **No batch save outside people.** The criterion is stated in ADR-0061: an entity needs a
   batch when its rows can invalidate each other. Nothing else currently can, so nothing else
   has one; a generic `POST /api/admin/changes` is where this goes if a second entity ever

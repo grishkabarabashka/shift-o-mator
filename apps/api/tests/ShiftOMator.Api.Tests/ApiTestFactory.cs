@@ -57,7 +57,14 @@ public class ApiTestFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             "ConnectionStrings:Schedule",
             $"Server=(localdb)\\MSSQLLocalDB;Database={DatabaseName};Trusted_Connection=True;TrustServerCertificate=True");
+        // Pinned, not inherited. `appsettings.json` is a shared, committed file, and a
+        // developer switching it to EntraId to test real sign-in locally used to put the
+        // entire suite behind a bearer token it has no way to produce — 86 tests failing
+        // on 401 with nothing in the diff to explain it. `Settings` is applied after this,
+        // so EntraIdentityTests can still ask for the other mode deliberately.
+        builder.UseSetting("Auth:Mode", "Stub");
         builder.UseSetting("Auth:StubRole", StubRole);
+        builder.UseSetting("Auth:StubPersonId", string.Empty);
 
         foreach (var (key, value) in Settings ?? new Dictionary<string, string>())
             builder.UseSetting(key, value);

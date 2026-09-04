@@ -2,11 +2,10 @@
 # reached by managed identity. Provision per deploy/README.md section 5; tear down with
 # `az group delete --name <rg> --yes --no-wait`.
 #
-# Key Vault holds exactly one thing here: the Anthropic key for AI explanations. With
-# managed identity for SQL nothing else is secret — the connection string carries no
-# password, and the JWT authority/audience are a public URL and a public app id URI.
-# Set `azureKeyVault.enabled: false` if AI is not wanted, and the environment needs no
-# vault at all.
+# There is no Key Vault here at all: SQL and the model are both reached by managed
+# identity, so nothing is secret — the connection string carries no password, and the JWT
+# authority/audience are a public URL and a public app id URI. Switch it on only for a SQL
+# password or a key-authenticated model endpoint.
 #
 # NOT for anything resembling production: a single Spot node (evictable at any moment,
 # with no second node to fail over to), no ingress controller, no TLS.
@@ -31,6 +30,15 @@ api:
     corsAllowedOrigins:
       - "*"        # sandbox only — the app sends a bearer token, never cookies
 
+    # Azure OpenAI, the same shape production uses — so the sandbox rehearses the
+    # production auth path rather than only its deployment. Left off until the resource
+    # exists: `azure-openai` with a blank endpoint fails startup by design, and AI is
+    # optional, so it must not take the API down with it. Fill both in, flip the provider,
+    # and grant the pod identity `Cognitive Services OpenAI User` — there is no key.
+    aiProvider: none
+    aiEndpoint: ""      # https://<resource>.openai.azure.com/
+    aiModel: ""         # the deployment name, e.g. gpt-4o-mini
+
     # No password: `Active Directory Default` authenticates as the pod's managed identity,
     # which was granted a database user in section 5.
     #
@@ -52,15 +60,13 @@ ingress:
   enabled: false
 
 azureKeyVault:
-  enabled: true
+  enabled: false
   authMethod: workloadIdentity   # the same pod identity SQL uses — one grant, not two
   keyvaultName: ""               # from deploy/README.md section 5
   tenantId: ""                   # from deploy/README.md section 5
   # A CSI mount fails outright on an object the vault does not hold, so this list must
   # match what is actually there.
-  secrets:
-    - objectName: shift-o-mator-anthropic-api-key
-      envVarName: ANTHROPIC_API_KEY
+  secrets: []
 
 # How the pod authenticates to Azure: SQL, and Key Vault above. Needed even with no vault.
 workloadIdentity:

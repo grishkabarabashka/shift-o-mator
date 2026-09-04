@@ -169,22 +169,110 @@ function ProductHeader() {
         <NotificationBell />
 
         <div className="flex items-center gap-2.5">
-          {/* `leading-tight` on two lines of different size needs a fixed box, or the
-              block's own height drifts with the longer of the two strings. */}
-          <div className="hidden min-w-0 text-right sm:block">
-            <div className="truncate text-sm leading-4 font-semibold">{identity.displayName}</div>
-            <div className="truncate text-2xs leading-4 tracking-normal text-faint">
-              {describeGrants(identity)}
-            </div>
-          </div>
-          <span aria-hidden className="avatar">
-            {initialsOf(identity.displayName)}
-          </span>
+          <IdentityMenu identity={identity} units={units} />
           {identity.stubMode ? <IdentitySwitcher people={people} current={identity} /> : null}
           {isEntraMode ? <SignOutButton /> : null}
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The name, the badge, and — on click — what the badge is summarising.
+ *
+ * The summary line alone could not answer the question people actually have, which is
+ * "why can I not do this?". It elides duplicates, it is one line wide, and below `sm` it
+ * is hidden outright, so on a narrow screen there was nowhere at all to find out what you
+ * hold. The menu lists every grant with its scope spelled out, and says the thing that
+ * ADR-0051 makes true and nothing in the UI said: roles are a set, and no role implies
+ * another — an Admin who cannot plan is correctly configured, not broken.
+ */
+function IdentityMenu({
+  identity,
+  units,
+}: {
+  readonly identity: AuthIdentity;
+  readonly units: readonly { readonly id: string; readonly name: string }[];
+}) {
+  const unitName = (unitId: string): string =>
+    units.find((u) => u.id === unitId)?.name ?? unitId;
+
+  // Viewer is granted to everyone signed in, so listing it beside the real grants would
+  // pad every menu with a row that distinguishes nobody. It is the baseline line instead.
+  const held = identity.grants.filter((grant) => grant.role !== 'Viewer');
+
+  // Global first — it is the widest thing somebody holds and the answer to "who can
+  // change configuration" — then by unit, then by role. Role order is alphabetical on
+  // purpose: any other order would suggest a ranking, and there is not one.
+  const sorted = [...held].sort(
+    (a, b) =>
+      Number(a.unitId !== null && a.unitId !== undefined) -
+        Number(b.unitId !== null && b.unitId !== undefined) ||
+      unitName(a.unitId ?? '').localeCompare(unitName(b.unitId ?? '')) ||
+      a.role.localeCompare(b.role),
+  );
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-2.5 rounded-lg px-1 py-0.5 hover:bg-hover"
+          aria-label={`Signed in as ${identity.displayName}. Show roles.`}
+        >
+          {/* The name only. The role summary that used to sit under it said something
+              different from the menu below — elided, one line wide, and hidden outright
+              below `sm` — so the header now asks the question and the menu answers it,
+              rather than both half-answering it in different words. */}
+          <span className="hidden min-w-0 truncate text-sm font-semibold sm:block">
+            {identity.displayName}
+          </span>
+          <span aria-hidden className="avatar">
+            {initialsOf(identity.displayName)}
+          </span>
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 w-[260px] rounded-lg border border-line bg-surface p-2 shadow-lg"
+        >
+          <p className="px-1 text-sm font-semibold">{identity.displayName}</p>
+          <p className="px-1 text-[10.5px] text-faint">
+            {identity.resolved ? 'Signed in' : 'Still resolving who you are…'}
+          </p>
+
+          <p className="mt-2 mb-1 px-1 text-[10.5px] tracking-wide text-faint uppercase">Roles</p>
+          {sorted.length === 0 ? (
+            <p className="px-1 text-[12px]">
+              Viewer — you can read the rota and record your own time, and nothing else.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {sorted.map((grant) => (
+                <li
+                  key={`${grant.role}:${grant.unitId ?? 'all'}`}
+                  className="flex items-baseline justify-between gap-2 px-1 text-[12px]"
+                >
+                  <span className="font-medium">{grant.role}</span>
+                  <span className="truncate text-[11px] text-faint">
+                    {grant.unitId ? unitName(grant.unitId) : 'every unit'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="mt-2 px-1 text-[10.5px] text-faint">
+            Roles are a set, and none implies another: an Admin does not plan and a Planner
+            does not approve. Grants are edited on Settings → Roles and take effect on the
+            next request.
+          </p>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -474,6 +562,10 @@ function CollapsedClocks({
 function Masthead() {
   const caps = useCapabilities();
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || caps.administersSomewhere);
+  // Settings edits are component state, so navigating away discards them. This is the only
+  // place that can ask first: there is no route-level blocker without a data router, and
+  // the alternative — losing twenty typed rows to a mis-click on "Schedule" — was silent.
+  const unsavedAdminChanges = useUi((s) => s.unsavedAdminChanges);
 
   return (
     <nav
@@ -481,7 +573,18 @@ function Masthead() {
       aria-label="Sections"
     >
       {items.map((item) => (
-        <NavLink key={item.to} to={item.to} className="tab">
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className="tab"
+          onClick={(event) => {
+            if (unsavedAdminChanges === 0) return;
+            const word = unsavedAdminChanges === 1 ? 'change' : 'changes';
+            if (!window.confirm(`${unsavedAdminChanges} unsaved settings ${word} will be discarded. Leave anyway?`)) {
+              event.preventDefault();
+            }
+          }}
+        >
           {item.label}
         </NavLink>
       ))}

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,8 @@ namespace ShiftOMator.Api.Tests;
 /// Two things are under test and they are easy to conflate. **Resolution**: the token
 /// names a directory account, and <c>ActorResolver</c> turns that into a
 /// <c>Person</c> by matching its email — the only identifier both sides hold.
-/// **Authorization**: Entra app roles are read from the token and *added to* the grants
+/// **Authorization**: Entra app roles are read from the token — only when
+/// <c>SystemSetup.DirectoryRoles</c> is on (ADR-0062, ADR-0063) — and are then *added to* the grants
 /// stored in the database, never substituted for them, because per-unit scope is a
 /// concept no identity provider knows about (ADR-0051).
 ///
@@ -96,18 +98,30 @@ public class EntraIdentityTests
             });
         }
 
+        /// <summary>Whether this system honours Entra app roles — a row, not a setting
+        /// (ADR-0063), so the test writes it where the product reads it.</summary>
+        public bool DirectoryRoles { get; init; }
+
         protected override async Task SeedAsync(IHost host)
         {
             using var scope = host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
             if (await SetupService.IsRequiredAsync(db))
                 await SetupService.CompleteDemoAsync(db, callerEmail: AdminEmail);
+
+            // Set every time, not only on first seed: this database is shared across the
+            // class and outlives the run, so a test that left the switch on would decide
+            // the answer for the next one.
+            var setup = await db.SystemSetups.FirstAsync();
+            setup.DirectoryRoles = DirectoryRoles;
+            await db.SaveChangesAsync();
         }
     }
 
-    private static EntraFactory Factory() => new()
+    private static EntraFactory Factory(bool directoryRoles = false) => new()
     {
         DatabaseName = DatabaseName,
+        DirectoryRoles = directoryRoles,
         Settings = new Dictionary<string, string> { ["Auth:Mode"] = "EntraId" },
     };
 
@@ -192,7 +206,33 @@ public class EntraIdentityTests
     }
 
     [Fact]
-    public async Task An_app_role_from_the_token_adds_to_the_stored_grants()
+    public async Task An_app_role_is_ignored_unless_the_deployment_asked_for_directory_roles()
+    {
+        // The default, and the point of ADR-0062: a grant the directory hands out does not
+        // appear on Settings → Roles and cannot be revoked there, so by default it is not
+        // honoured at all. What the screen shows is then the whole truth.
+        using var factory = Factory();
+        factory.Token.Email = AdminEmail;
+        factory.Token.Roles = ["Planner"];
+
+        var body = await factory.CreateClient().GetFromJsonAsync<JsonElement>("/api/auth/me");
+        var grants = body.GetProperty("roles").EnumerateArray()
+            .Select(r => (
+                Role: r.GetProperty("role").GetString(),
+                Unit: r.GetProperty("unitId").ValueKind == JsonValueKind.Null
+                    ? null
+                    : r.GetProperty("unitId").GetString()))
+            .ToList();
+
+        // The seed gives the linked manager a *unit-scoped* planner grant and a global
+        // admin one. A **global planner** could only have come from the token.
+        Assert.DoesNotContain(grants, g => g is { Role: "planner", Unit: null });
+        // The stored grants are untouched — this switch removes a source, not a person.
+        Assert.Contains(grants, g => g is { Role: "approver", Unit: not null });
+    }
+
+    [Fact]
+    public async Task An_app_role_from_the_token_adds_to_the_stored_grants_when_switched_on()
     {
         // The property most at risk from a refactor: token roles are *additive*. Holding
         // two roles grants both (ADR-0051), and an identity provider that could replace
@@ -201,7 +241,7 @@ public class EntraIdentityTests
         // The seed gives the linked manager planner/approver/admin **of their own unit**
         // plus a **global** admin. So a global *planner* can only have come from the
         // token — that is the assertion.
-        using var factory = Factory();
+        using var factory = Factory(directoryRoles: true);
         factory.Token.Email = AdminEmail;
         factory.Token.Roles = ["Planner"];
 
@@ -225,7 +265,7 @@ public class EntraIdentityTests
         // The same directory account may hold roles for other applications. That is not
         // this app's business, and rejecting the token over it would lock people out of
         // this product for something configured elsewhere.
-        using var factory = Factory();
+        using var factory = Factory(directoryRoles: true);
         factory.Token.Email = AdminEmail;
         factory.Token.Roles = ["SomeOtherApp.Reader", "Approver"];
 

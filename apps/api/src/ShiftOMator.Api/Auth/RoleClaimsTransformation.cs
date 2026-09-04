@@ -16,11 +16,18 @@ namespace ShiftOMator.Api.Auth;
 /// Settings screen and which takes effect on the next request, not on the next token
 /// refresh.
 ///
-/// Entra ID app roles are read too, and are **added to** the stored grants rather than
-/// replacing them — holding two roles grants both, which is already how the model works
-/// (ADR-0051). They can only ever be *global* grants (<c>unitId: null</c>), because the
-/// directory has no unit to scope them to; per-unit access stays a database concern
+/// Entra ID app roles can be read too, and are then **added to** the stored grants rather
+/// than replacing them — holding two roles grants both, which is already how the model
+/// works (ADR-0051). They can only ever be *global* grants (<c>unitId: null</c>), because
+/// the directory has no unit to scope them to; per-unit access stays a database concern
 /// (ADR-0058).
+///
+/// That reading is **off unless <c>SystemSetup.DirectoryRoles</c> says otherwise**
+/// (ADR-0062; moved out of configuration and into a row by ADR-0063).
+/// A directory grant does not appear on Settings → Roles and cannot be revoked there, so
+/// leaving it on by default made the one screen that answers "who can do what" tell half
+/// the truth. See <see cref="ShiftOMator.Domain.SystemSetup.DirectoryRoles"/> for the
+/// full reasoning.
 ///
 /// Everyone authenticated is a Viewer. It is not stored, because a row per person saying
 /// "may read the rota" is a row that can only ever be wrong — and it is also the answer
@@ -55,23 +62,34 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
             return principal;
         }
 
+        using var scope = scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+
         // Entra ID app roles arrive as `roles` claims. Anything that isn't one of ours is
         // ignored rather than rejected: a directory may assign roles for other apps to the
         // same account, and that is not this app's business.
         //
-        // Materialized before the loop, and that is load-bearing: `FindAll` is a lazy view
-        // over the identity's own claim collection, so adding to it while enumerating
-        // throws "Collection was modified" — a 500 on every request from anybody who holds
-        // an app role, and only from them.
-        var appRoles = principal.FindAll("roles").ToList();
-        foreach (var claim in appRoles)
+        // Read only when the system asks for them: what the directory grants is invisible
+        // to Settings → Roles, and a permission nobody can see on the screen that lists
+        // permissions is worse than a permission nobody has (ADR-0062). The switch is a
+        // row rather than a setting (ADR-0063), so this is one more read on the scope just
+        // opened — and it belongs here rather than cached at startup, because the toggle
+        // takes effect on the next request exactly like the grants beside it.
+        //
+        // Sits before the actor is resolved, deliberately: an app role is granted by the
+        // token, so somebody who holds one but maps to no `Person` still holds it.
+        if (await db.SystemSetups.AsNoTracking().Select(x => x.DirectoryRoles).FirstOrDefaultAsync())
         {
-            if (Enum.TryParse<AppRole>(claim.Value.Trim(), ignoreCase: true, out var appRole))
-                identity.AddClaim(Capabilities.ClaimFor(appRole, null));
+            // Materialized before the loop, and that is load-bearing: `FindAll` is a lazy
+            // view over the identity's own claim collection, so adding to it while
+            // enumerating throws "Collection was modified" — a 500 on every request from
+            // anybody who holds an app role, and only from them.
+            foreach (var claim in principal.FindAll("roles").ToList())
+            {
+                if (Enum.TryParse<AppRole>(claim.Value.Trim(), ignoreCase: true, out var appRole))
+                    identity.AddClaim(Capabilities.ClaimFor(appRole, null));
+            }
         }
-
-        using var scope = scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
 
         // WHY the actor is resolved here rather than read straight off the claim: in stub
         // mode with no pinned person the token carries no person id at all, and

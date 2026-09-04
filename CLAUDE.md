@@ -430,7 +430,15 @@ dotnet test
   everything but `/health/*`, `/api/setup/*`, `/openapi` and `/scalar` (the last two
   because `npm run api:schema` fetches the document against a database nobody has set up).
   Two presets: **Bare** (one location, one unit, the caller from their own token claims,
-  a global Admin grant) and **Demo** (the fixture entire). Settings → Maintenance carries
+  a global Admin grant) and **Demo** (the fixture entire). The wizard also asks **which
+  roles** the founding administrator gets — `Admin` is forced, because a system whose only
+  account cannot reach Settings has no way back, and `Planner`/`Approver` are offered
+  because no role implies another (ADR-0051) and a founder who cannot open a draft reads
+  as broken. It shows **who you are as the server sees you** before you commit to a
+  preset — identity, server auth mode, grants, and a warning when the client's
+  `VITE_AUTH_MODE` and the server's `Auth:Mode` disagree, which nothing else checks — and
+  closes on **what the system still lacks**, because Bare deliberately leaves no shifts,
+  no day configurations and nobody who is planned (`GET /api/setup/diagnostics`). Settings → Maintenance carries
   the two operations afterwards. **`Seed:IncludeDemoData`, `--seed-demo` and
   `Auth:BootstrapAdminEmail` are deleted** — do not reintroduce a config key that decides
   content
@@ -571,8 +579,10 @@ Not bugs — things the design names and has not built. Full list in
   Vault), resolves the acting person by matching the token's email claim against
   `Person.Email` (ADR-0058). **Roles come from the database only** unless
   `SystemSetup.DirectoryRoles` is switched on (ADR-0062; a **row**, not a setting, since
-  ADR-0063 — it is read per request, so it needs no restart, and `Auth:DirectoryRoles` in
-  configuration now **throws at startup** rather than being ignored), in which case `roles` app-role
+  ADR-0063 — read per request, so it needs no restart; toggled in the setup wizard and on
+  **Settings → Roles**, where it belongs because it changes what that screen *means*; and
+  `Auth:DirectoryRoles` in configuration now **throws at startup** rather than being
+  ignored). With it on, `roles` app-role
   claims are mapped to **global** grants that *add* to the per-unit ones stored there.
   It is off because Settings → Roles reads the database only: a directory grant shows
   no ticked box on the one screen that answers "who can do what", cannot be revoked

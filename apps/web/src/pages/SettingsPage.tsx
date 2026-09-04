@@ -86,7 +86,13 @@ import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import { APP_ROLES, type AppRole } from '../auth/AuthProvider.tsx';
 import { useCapabilities } from '../auth/useCapabilities.ts';
-import { useGrantRole, useRevokeRole, useRoleAssignments } from '../api/roleAssignments.ts';
+import {
+  useDirectoryRoles,
+  useGrantRole,
+  useRevokeRole,
+  useRoleAssignments,
+  useSetDirectoryRoles,
+} from '../api/roleAssignments.ts';
 import { useCanLoadDemoData, useLoadDemoData, useResetSystem } from '../api/setup.ts';
 import { ApiError } from '../api/client.ts';
 import { toast } from '../ui/toasts.ts';
@@ -1612,6 +1618,56 @@ function EditableTable<T extends { readonly id: string }>({
  * Viewer is absent on purpose: everyone signed in has it, and a checkbox that can only
  * ever be ticked is a lie about what is configurable.
  */
+/**
+ * Whether this screen is telling the whole truth (ADR-0062, ADR-0063).
+ *
+ * With directory roles on, a person can hold a role that has no tick below, that nobody
+ * can revoke from here, and that ticking the box would *duplicate* rather than replace.
+ * The switch therefore belongs on this screen and not in a deploy file: it changes what
+ * everything under it means.
+ *
+ * Only a global Admin may change it — it is not scoped to a unit and cannot be, so an
+ * administrator of one unit must not widen every unit.
+ */
+function DirectoryRolesNotice() {
+  const caps = useCapabilities();
+  const current = useDirectoryRoles();
+  const set = useSetDirectoryRoles();
+  const enabled = current.data?.enabled ?? false;
+
+  if (current.isPending) return null;
+
+  return (
+    <section className={`card p-3 ${enabled ? 'border-warn' : ''}`}>
+      <label className="flex items-center gap-2 text-[12px]">
+        <CheckboxField
+          checked={enabled}
+          ariaLabel="Honour Entra ID app roles"
+          onChange={(v) =>
+            set.mutate(v, {
+              onError: (err) =>
+                toast.bad(
+                  err instanceof ApiError ? err.message : 'The setting could not be changed.',
+                ),
+            })
+          }
+        />
+        Also honour Entra ID app roles
+      </label>
+      <p className="mt-1 text-[11.5px] text-faint">
+        {enabled
+          ? 'On: somebody may hold a role that has no tick below, granted in the directory and revocable only there. This list is not the whole picture.'
+          : 'Off: every role anybody holds is a tick below. Turning it on adds a second, global source that this screen cannot show.'}
+      </p>
+      {!caps.canAdministerGlobally ? (
+        <p className="mt-1 text-[11.5px] text-faint">
+          Changing it takes a global Admin — it affects every unit at once.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function RolesTab({ reference }: { readonly reference: Reference }) {
   const [scope, setScope] = useState<string>(reference.units[0]?.id ?? '');
   const [query, setQuery] = useState('');
@@ -1650,6 +1706,8 @@ function RolesTab({ reference }: { readonly reference: Reference }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <DirectoryRolesNotice />
+
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[12px] font-medium">Grants in</span>
         <div className="segmented">

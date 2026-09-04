@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Admin;
 using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
@@ -25,6 +26,59 @@ public static class RoleAssignmentsAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/role-assignments")
             .RequireAuthorization(AuthPolicies.AdminSomewhere);
+
+        // The one access setting that is a row rather than configuration (ADR-0063), so it
+        // lives beside the grants it changes the meaning of rather than in a deploy file.
+        //
+        // Reading is open to everybody, for the same reason the grant list is: "why does
+        // this person hold Admin when Settings shows no tick" is a fair question, and the
+        // answer — because the directory says so — is not privileged information.
+        app.MapGet("/api/admin/directory-roles", async (ScheduleDbContext db, CancellationToken ct) =>
+            Results.Ok(new DirectoryRolesResponse(
+                await db.SystemSetups.AsNoTracking().Select(s => s.DirectoryRoles).FirstOrDefaultAsync(ct))))
+            .WithName("GetDirectoryRoles")
+            .Produces<DirectoryRolesResponse>()
+            .RequireAuthorization(AuthPolicies.Authenticated);
+
+        // WHY global Admin and not `AdminSomewhere` like every other admin write here: this
+        // is not scoped to a unit, and cannot be — a directory role is global by
+        // construction. An administrator of one unit turning on a second, invisible source
+        // of grants for *every* unit is a widening nobody asked them for (ADR-0051: a
+        // global grant widens scope, never privilege — and this setting is all scope).
+        app.MapPut("/api/admin/directory-roles", async (
+            DirectoryRolesRequest req, ClaimsPrincipal user, ActorResolver actors,
+            ScheduleDbContext db, CancellationToken ct) =>
+        {
+            if (!user.Has(AppRole.Admin, null))
+            {
+                return Results.Json(
+                    new ErrorResponse("GLOBAL_ADMIN_REQUIRED",
+                        "Honouring directory roles affects every unit, so it takes a global Admin."),
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            var setup = await db.SystemSetups.FirstOrDefaultAsync(ct);
+            if (setup is null)
+                return AdminValidation.NotFound("system-setup", "1");
+
+            if (setup.DirectoryRoles == req.Enabled)
+                return Results.Ok(new DirectoryRolesResponse(setup.DirectoryRoles));
+
+            var actorId = await actors.RequireAsync(user, ct);
+            setup.DirectoryRoles = req.Enabled;
+            db.RecordConfiguration(HistoryAction.Updated, "system-setup",
+                req.Enabled
+                    ? "Entra ID app roles are now honoured alongside stored grants"
+                    : "Entra ID app roles are no longer honoured",
+                null, actorId);
+            await db.SaveChangesAsync(ct);
+
+            return Results.Ok(new DirectoryRolesResponse(setup.DirectoryRoles));
+        })
+        .WithName("SetDirectoryRoles")
+        .Produces<DirectoryRolesResponse>()
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+        .RequireAuthorization(AuthPolicies.AdminSomewhere);
 
         // WHY reading is open to everybody while writing is not: "who approves my leave"
         // and "who plans my unit" are fair questions for the person waiting on an answer,

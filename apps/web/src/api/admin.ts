@@ -524,3 +524,58 @@ function adminPersonFromWire(w: {
 }
 
 export const adminPeople = adminResource<AdminPersonSummary, PersonAdminRequest>('people', adminPersonFromWire as never);
+
+/** One pending person edit, in the shape `POST /api/admin/people/batch` takes. */
+export interface PeopleBatchOp {
+  readonly kind: 'create' | 'update' | 'delete';
+  readonly id?: string;
+  readonly tempId?: string;
+  readonly person?: PersonAdminRequest;
+}
+
+/**
+ * Every pending person edit in one request, applied in one transaction (ADR-0061).
+ *
+ * WHY people and not the other admin resources: rows here are not independent. `email`
+ * and `employeeId` carry filtered unique indexes, so moving a sign-in address from one
+ * person to another is a release and a claim that are only valid together. Sent one at a
+ * time, the claim was rejected and the release still committed — the address ended up on
+ * nobody, and the person who held it could no longer sign in.
+ *
+ * Errors come back keyed by the op's index rather than as one flat object, because with
+ * several rows in flight "email is taken" that does not say *which* row cannot be put
+ * beside a field.
+ */
+export class PeopleBatchError extends Error {
+  constructor(readonly byIndex: ReadonlyMap<number, FieldErrors>) {
+    super('The changes were rejected and nothing was saved.');
+    this.name = 'PeopleBatchError';
+  }
+}
+
+export function usePeopleBatch() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (ops: readonly PeopleBatchOp[]) => {
+      try {
+        return await apiPost<{ results: readonly { index: number; tempId?: string; id: string }[] }>(
+          '/api/admin/people/batch',
+          { ops },
+        );
+      } catch (error) {
+        const err = error as { status?: number; body?: { code?: string; errors?: Record<string, FieldErrors> } };
+        if (err?.status === 400 && err.body?.code === 'BATCH_REJECTED' && err.body.errors) {
+          const byIndex = new Map<number, FieldErrors>();
+          for (const [index, fields] of Object.entries(err.body.errors)) byIndex.set(Number(index), fields);
+          throw new PeopleBatchError(byIndex);
+        }
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['admin', 'people'] });
+      void client.invalidateQueries({ queryKey: referenceQueryKey });
+    },
+  });
+}
+

@@ -152,6 +152,10 @@ class MockBackend {
    * request and then assert on the presence record it produced. */
   requests: MockRequest[] = [];
 
+  /** Whether Entra ID app roles count on top of the stored grants (ADR-0063). Off, as
+   * every system starts. */
+  directoryRoles = false;
+
   /** Role grants, as `/api/admin/role-assignments` stores them (ADR-0051). */
   roleAssignments: {
     id: string;
@@ -707,6 +711,17 @@ export const handlers = [
       absences: mockBackend.data.absences.filter((a) => a.id !== params.id),
     };
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // The directory-roles switch (ADR-0063). Unhandled, this hangs the Settings → Roles
+  // notice and every test that renders it times out rather than failing with a reason.
+  http.get(`${base}/api/admin/directory-roles`, () =>
+    HttpResponse.json({ enabled: mockBackend.directoryRoles })),
+
+  http.put(`${base}/api/admin/directory-roles`, async ({ request }) => {
+    const body = (await request.json()) as { enabled: boolean };
+    mockBackend.directoryRoles = body.enabled;
+    return HttpResponse.json({ enabled: mockBackend.directoryRoles });
   }),
 
   http.get(`${base}/api/admin/role-assignments`, ({ request }) => {

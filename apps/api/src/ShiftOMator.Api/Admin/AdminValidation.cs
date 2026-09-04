@@ -53,6 +53,14 @@ public sealed class AdminValidation
             ? char.ToLowerInvariant(field[0]) + field[1..]
             : field;
 
+    /// <summary>
+    /// The same errors the 400 body would carry, for a caller that has to key them by
+    /// something other than the response itself — a batch reports them per operation,
+    /// because "email is taken" without saying which row cannot be put beside a field.
+    /// </summary>
+    public IReadOnlyDictionary<string, IEnumerable<string>> Errors =>
+        _errors.ToDictionary(kv => kv.Key, kv => kv.Value.AsEnumerable());
+
     public IResult? ToBadRequestOrNull() =>
         HasErrors ? Results.BadRequest(new ValidationErrorResponse(_errors.ToDictionary(kv => kv.Key, kv => kv.Value.AsEnumerable()))) : null;
 

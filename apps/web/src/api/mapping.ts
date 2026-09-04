@@ -332,6 +332,7 @@ interface WirePerson {
   readonly displayName: string;
   readonly initials: string;
   readonly employeeId?: string | null;
+  readonly email?: string | null;
   readonly unitId: string;
   readonly locationId: string;
   readonly orgCategory: string;
@@ -366,6 +367,10 @@ export function personFromWire(w: WirePerson): Person {
     displayName: w.displayName,
     initials: w.initials,
     ...(w.employeeId ? { employeeId: w.employeeId } : {}),
+    // Dropping this used to be worse than a blank column on Settings → People: the row
+    // round-trips through `personAdminToWire`, which sends `email: null` when the draft
+    // has none, so saving any person silently unlinked them from their Entra sign-in.
+    ...(w.email ? { email: w.email } : {}),
     unitId: w.unitId,
     locationId: w.locationId,
     orgCategory: camelToUpperSnake(w.orgCategory),

@@ -31,6 +31,59 @@ export interface BareSetupFields {
   /** Stub mode only — ignored by the server in every other mode. */
   readonly displayName?: string;
   readonly email?: string;
+  /**
+   * What the founding administrator holds, globally, on top of `Admin` — which the server
+   * adds whatever this says, because a system whose only account cannot reach Settings has
+   * no way back.
+   *
+   * Asked at all because `Admin` does not imply `Planner` (ADR-0051): without this the
+   * person who just set the system up could not open a draft in it, which is a correct
+   * configuration that reads exactly like a broken one.
+   */
+  readonly roles?: readonly ('planner' | 'approver')[];
+}
+
+export interface SetupDiagnostics {
+  readonly auth: {
+    /** As the server resolved it at startup. Not changeable from here: it decides which
+     * authentication scheme `Program.cs` registered (ADR-0063). */
+    readonly mode: string;
+    readonly authority: string | null;
+    readonly audience: string | null;
+    readonly directoryRoles: boolean;
+  };
+  readonly caller: {
+    readonly personId: string | null;
+    readonly displayName: string | null;
+    readonly tokenEmail: string | null;
+    readonly linked: boolean;
+    readonly grants: readonly { readonly role: string; readonly unitId: string | null }[];
+  };
+  readonly content: {
+    readonly people: number;
+    readonly plannedPeople: number;
+    readonly units: number;
+    readonly shifts: number;
+    readonly dayConfigurations: number;
+  };
+  readonly ai: { readonly provider: string; readonly configured: boolean };
+}
+
+/**
+ * What this system is and who you are in it. Authenticated but not necessarily *anybody*:
+ * the caller who most needs this is the one whose token matches no person.
+ *
+ * `staleTime: 0` because it is read either side of a write that changes every answer in
+ * it — the wizard asks before setting up and again to say what is still missing.
+ */
+export function useSetupDiagnostics(enabled = true) {
+  return useQuery({
+    queryKey: ['setup', 'diagnostics'],
+    queryFn: () => apiGet<SetupDiagnostics>('/api/setup/diagnostics'),
+    staleTime: 0,
+    enabled,
+    retry: false,
+  });
 }
 
 export interface SetupResult {
@@ -55,9 +108,10 @@ export function useSetupState() {
 export function useCompleteSetup() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { preset: SetupPreset; bare?: BareSetupFields }) =>
+    mutationFn: (args: { preset: SetupPreset; bare?: BareSetupFields; directoryRoles?: boolean }) =>
       apiPost<SetupResult>('/api/setup', {
         preset: args.preset === 'Bare' ? 'bare' : 'demo',
+        directoryRoles: args.directoryRoles ?? false,
         bare: args.bare
           ? {
               locationName: args.bare.locationName,
@@ -67,13 +121,27 @@ export function useCompleteSetup() {
               unitKind: unitKindToWire(args.bare.unitKind),
               displayName: args.bare.displayName,
               email: args.bare.email,
+              roles: args.bare.roles,
             }
           : undefined,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STATE_KEY });
+      // Diagnostics only. The gate is *not* flipped here on purpose: `setup.state` going
+      // to `required: false` swaps the wizard for the app mid-render, and the wizard has
+      // one more thing to say — what the system still lacks. `useFinishSetup` below is the
+      // button that ends it.
+      void queryClient.invalidateQueries({ queryKey: ['setup', 'diagnostics'] });
     },
   });
+}
+
+/** Leaves the wizard for the app. Separate from completing setup so the summary of what
+ * was written — and what is still missing — gets read before it disappears. */
+export function useFinishSetup() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: STATE_KEY });
+  };
 }
 
 function unitKindToWire(kind: UnitKind): string {

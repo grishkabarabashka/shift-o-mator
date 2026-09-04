@@ -630,6 +630,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/directory-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetDirectoryRoles"];
+        put: operations["SetDirectoryRoles"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/role-assignments": {
         parameters: {
             query?: never;
@@ -2956,6 +2972,12 @@ export interface components {
             decision: components["schemas"]["ApprovalDecisionKind"];
             comment?: null | string;
         };
+        DirectoryRolesRequest: {
+            enabled: boolean;
+        };
+        DirectoryRolesResponse: {
+            enabled: boolean;
+        };
         DraftChange: {
             id: string;
             draftSessionId: string;
@@ -3359,6 +3381,14 @@ export interface components {
             /** Format: int32 */
             maxWeekendsPerQuarter?: null | number | string;
         };
+        PersonConstraintsRequest: {
+            /** Format: int32 */
+            minRestHours: number | string;
+            /** Format: int32 */
+            maxConsecutiveDays: number | string;
+            /** Format: int32 */
+            maxWeekendsPerQuarter: null | number | string;
+        };
         PersonPreferences: {
             avoidsWeekdays?: components["schemas"]["IsoWeekday"][];
             preferredPartnerIds?: string[];
@@ -3706,6 +3736,7 @@ export interface components {
             defaultShiftId: null | string;
             weekendEligible: boolean;
             preferences: null | components["schemas"]["PersonPreferencesRequest"];
+            constraints?: null | components["schemas"]["PersonConstraintsRequest"];
         };
         UpsertAbsenceRequest: {
             personId: string;
@@ -5135,6 +5166,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    GetDirectoryRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRolesResponse"];
+                };
+            };
+        };
+    };
+    SetDirectoryRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectoryRolesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRolesResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };

@@ -8,7 +8,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost, qs } from './client.ts';
+import { apiDelete, apiGet, apiPost, apiPut, qs } from './client.ts';
 import type { AppRole } from '../auth/AuthProvider.tsx';
 
 export interface RoleAssignment {
@@ -50,6 +50,41 @@ export function useRevokeRole() {
     mutationFn: (id: string) => apiDelete(`/api/admin/role-assignments/${id}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: KEY });
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Directory roles — the one access setting that is a row, not configuration
+// ---------------------------------------------------------------------------
+
+const DIRECTORY_ROLES_KEY = ['admin', 'directory-roles'] as const;
+
+/**
+ * Whether Entra ID app roles are honoured alongside the stored grants (ADR-0062,
+ * ADR-0063).
+ *
+ * It belongs on this screen and not in a deploy file because it changes what this screen
+ * *means*: with it on, a person can hold a role that has no tick here and that nobody can
+ * revoke from the product. Saying so next to the grants is the least the screen owes.
+ */
+export function useDirectoryRoles() {
+  return useQuery({
+    queryKey: DIRECTORY_ROLES_KEY,
+    queryFn: () => apiGet<{ enabled: boolean }>('/api/admin/directory-roles'),
+  });
+}
+
+export function useSetDirectoryRoles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiPut<{ enabled: boolean }>('/api/admin/directory-roles', { enabled }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: DIRECTORY_ROLES_KEY });
+      // What the caller may do can change with it — their own token roles start or stop
+      // counting on the very next request.
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
   });

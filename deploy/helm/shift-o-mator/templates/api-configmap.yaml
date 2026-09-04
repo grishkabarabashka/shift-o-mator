@@ -1,6 +1,7 @@
 # Non-secret config only. The connection string belongs here when SQL uses managed
-# identity (it then carries no password); a password-bearing one, and the Anthropic key,
-# come from the Key Vault-backed Secret instead — see secretproviderclass.yaml.
+# identity (it then carries no password); a password-bearing one, and an AI key if the
+# model is reached by key rather than by managed identity, come from the Key Vault-backed
+# Secret instead — see secretproviderclass.yaml.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,6 +13,9 @@ data:
   Auth__Mode: {{ .Values.api.config.authMode | quote }}
   Ai__Provider: {{ .Values.api.config.aiProvider | quote }}
   Ai__Model: {{ .Values.api.config.aiModel | quote }}
+  {{- with .Values.api.config.aiEndpoint }}
+  Ai__Endpoint: {{ . | quote }}
+  {{- end }}
   {{- with .Values.api.config.connectionString }}
   ConnectionStrings__Schedule: {{ . | quote }}
   {{- end }}

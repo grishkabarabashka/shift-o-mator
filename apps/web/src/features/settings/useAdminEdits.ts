@@ -40,6 +40,33 @@ export interface EntityOps<TDomain extends { readonly id: string }, TRequest> {
   update: (id: string, request: TRequest) => Promise<unknown>;
   remove: (id: string) => Promise<unknown>;
   toRequest: (draft: Partial<TDomain>) => TRequest;
+  /**
+   * Optional: send every pending op for this entity as one atomic request instead of one
+   * per row. Provide it when rows of this entity are *not* independent — people are, via
+   * the unique indexes on `email` and `employeeId`, so moving an address between two of
+   * them is two writes that are only valid together (ADR-0061).
+   *
+   * Rejections come back keyed by the op's index in what was sent, and nothing was
+   * applied. Entities without this keep the row-at-a-time path, which is fine for them:
+   * a location and another location cannot invalidate each other.
+   */
+  saveBatch?: (ops: readonly BatchOp[]) => Promise<void>;
+}
+
+/** One op as `saveBatch` receives it — the caller maps this onto its own wire shape. */
+export interface BatchOp {
+  readonly kind: 'create' | 'update' | 'delete';
+  readonly id?: string;
+  readonly tempId?: string;
+  readonly request?: unknown;
+}
+
+/** Thrown by a `saveBatch` implementation to report per-op field errors. */
+export class BatchRejected extends Error {
+  constructor(readonly byIndex: ReadonlyMap<number, FieldErrors>) {
+    super('The changes were rejected and nothing was saved.');
+    this.name = 'BatchRejected';
+  }
 }
 
 export function useAdminEdits() {
@@ -59,6 +86,23 @@ export function useAdminEdits() {
   );
 
   const isDirty = useCallback((entity: AdminEntity, id: string) => pending.has(keyOf(entity, id)), [pending]);
+
+  /**
+   * Unsaved rows and rejected rows per entity, for the tab strip.
+   *
+   * WHY: the dirty bar counts the whole screen and the save toast says "see the
+   * highlighted fields" — but the highlighted field is often on a tab that is not the
+   * one being looked at, and nothing said which.
+   */
+  const countsByEntity = useMemo(() => {
+    const dirty = new Map<AdminEntity, number>();
+    const failed = new Map<AdminEntity, number>();
+    for (const [key, entry] of pending) {
+      dirty.set(entry.entity, (dirty.get(entry.entity) ?? 0) + 1);
+      if (errors.has(key)) failed.set(entry.entity, (failed.get(entry.entity) ?? 0) + 1);
+    }
+    return { dirty, failed };
+  }, [pending, errors]);
   const isMarkedForDelete = useCallback(
     (entity: AdminEntity, id: string) => pending.get(keyOf(entity, id))?.op.kind === 'delete',
     [pending],
@@ -77,6 +121,28 @@ export function useAdminEdits() {
       const next = new Map(prev);
       const key = keyOf(entity, id);
       next.set(key, { entity, op: { kind: 'update', id, patch: { ...base, [field]: value } } });
+      return next;
+    });
+  }, []);
+
+  /**
+   * Several fields at once, against one `base`.
+   *
+   * WHY this exists rather than calling `setField` twice: `base` is captured at render,
+   * so the second call overwrites the first with a patch built from the *stale* row. Two
+   * fields that only make sense together — a rule's unit and the shift pool inside it —
+   * have to travel as one patch.
+   */
+  const setFields = useCallback((entity: AdminEntity, id: string, patch: Record<string, unknown>, base: object) => {
+    setPending((prev) => {
+      const next = new Map(prev);
+      const key = keyOf(entity, id);
+      const existing = next.get(key);
+      if (existing?.op.kind === 'create') {
+        next.set(key, { entity, op: { kind: 'create', tempId: existing.op.tempId, patch: { ...existing.op.patch, ...patch } } });
+      } else {
+        next.set(key, { entity, op: { kind: 'update', id, patch: { ...base, ...patch } } });
+      }
       return next;
     });
   }, []);
@@ -144,8 +210,47 @@ export function useAdminEdits() {
     // returned rather than thrown (see below), so the caller can say so.
     let failure: string | undefined;
 
+    // Entities that can be sent atomically go first and go whole: their rows interact,
+    // so applying some of them is worse than applying none (ADR-0061).
+    const batched = new Set<AdminEntity>();
+    for (const entry of pending.values()) {
+      if (opsByEntity[entry.entity]?.saveBatch) batched.add(entry.entity);
+    }
+
     try {
+      for (const entity of batched) {
+        const ops = opsByEntity[entity]!;
+        const entries = [...pending.entries()].filter(([, e]) => e.entity === entity);
+        const batch: BatchOp[] = entries.map(([, e]) =>
+          e.op.kind === 'delete'
+            ? { kind: 'delete', id: e.op.id }
+            : e.op.kind === 'update'
+              ? { kind: 'update', id: e.op.id, request: ops.toRequest(e.op.patch as never) }
+              : { kind: 'create', tempId: e.op.tempId, request: ops.toRequest(e.op.patch as never) },
+        );
+
+        try {
+          await ops.saveBatch!(batch);
+          for (const [mapKey] of entries) succeeded.push(mapKey);
+        } catch (error) {
+          if (error instanceof BatchRejected) {
+            // Nothing was applied, so every row stays dirty — including the ones that were
+            // individually fine. That is the contract, and saying otherwise would invite
+            // somebody to close the screen believing half of it saved.
+            for (const [index, fields] of error.byIndex) {
+              const key = entries[index]?.[0];
+              if (key) nextErrors.set(key, fields);
+            }
+            continue;
+          }
+          failure = error instanceof Error ? error.message : 'The change could not be saved.';
+          break;
+        }
+      }
+
       for (const [mapKey, entry] of pending) {
+        if (failure !== undefined) break;
+        if (batched.has(entry.entity)) continue;
         const ops = opsByEntity[entry.entity];
         if (!ops) continue;
         try {
@@ -197,9 +302,11 @@ export function useAdminEdits() {
     saving,
     draftOf,
     isDirty,
+    countsByEntity,
     isMarkedForDelete,
     fieldErrorsFor,
     setField,
+    setFields,
     startCreate,
     setCreateField,
     pendingCreates,

@@ -21,6 +21,15 @@ api:
     # Managed identity, so no password and nothing secret here.
     connectionString: "Server=tcp:shift-o-mator-prod.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
 
+    # Azure OpenAI (Azure AI Foundry). Left off until a resource exists: `azure-openai`
+    # with a blank endpoint fails startup by design, and AI is optional — an unconfigured
+    # model answers 503 and hides its panel, it must not take the API down with it.
+    # Fill both in and flip the provider; the pod authenticates with its own identity, so
+    # there is no key to add (grant it `Cognitive Services OpenAI User` on the resource).
+    aiProvider: none
+    aiEndpoint: ""      # https://<resource>.openai.azure.com/
+    aiModel: ""         # the deployment name, e.g. gpt-4o-mini
+
     jwtAuthority: ""    # https://login.microsoftonline.com/<tenant-id>/v2.0
     jwtAudience: ""     # api://<app-id>
 
@@ -32,10 +41,11 @@ ingress:
   tls:
     secretName: shift-o-mator-prod-tls
 
-# The Anthropic key is the only genuinely secret value left once SQL uses managed
-# identity. Set `enabled: false` if AI explanations are not wanted.
+# Nothing here is secret any more: SQL uses `Active Directory Default` and the model is an
+# Azure OpenAI deployment reached by the same identity. Switch this on only if you add a
+# SQL password or move the model to a key-authenticated `openai` endpoint.
 azureKeyVault:
-  enabled: true
+  enabled: false
   authMethod: workloadIdentity
   keyvaultName: shift-o-mator-prod-kv
   tenantId: ""        # az account show --query tenantId

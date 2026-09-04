@@ -10,20 +10,27 @@ namespace ShiftOMator.Api.Tests;
 /// The setup wizard and the gate in front of it (ADR-0059) — what replaced
 /// <c>Seed:IncludeDemoData</c>, <c>--seed-demo</c> and <c>Auth:BootstrapAdminEmail</c>.
 ///
-/// Each case gets its own database with <c>SeedDemoOnStart = false</c>: the subject here
-/// is what a database looks like *before* anything has written to it, which the shared
-/// "Api" fixture — seeded on first touch — can no longer show. Unlike every other
-/// dedicated-database test in this suite, these databases are dropped and recreated by
-/// the test itself rather than by hand: a `SystemSetup` row is exactly the kind of state
-/// that must not survive between runs, or a rerun sees a system that thinks it is already
-/// set up.
+/// Every case here runs against one database with <c>SeedDemoOnStart = false</c>: the
+/// subject is what a database looks like *before* anything has written to it, which the
+/// shared "Api" fixture — seeded on first touch — can no longer show. Unlike every other
+/// dedicated-database test in this suite, this one is dropped and recreated by the test
+/// itself rather than by hand: a `SystemSetup` row is exactly the kind of state that must
+/// not survive between runs, or a rerun sees a system that thinks it is already set up.
+///
+/// **One database for all five cases, not one each.** They can share it because this class
+/// carries no <c>[Collection]</c>, so xUnit gives it a collection of its own and runs its
+/// methods *sequentially* — each <see cref="Factory"/> call therefore hands the next case
+/// a database nobody else is holding. If these ever need to run in parallel with each
+/// other, the fix is a name per case again, not a shared database and hope.
 /// </summary>
 public class SetupEndpointsTests
 {
-    private static ApiTestFactory Factory(string databaseName, string stubRole = "Viewer")
+    private const string DatabaseName = "ShiftOMatorSetupTests";
+
+    private static ApiTestFactory Factory(string stubRole = "Viewer")
     {
         var connectionString =
-            $"Server=(localdb)\\MSSQLLocalDB;Database={databaseName};Trusted_Connection=True;TrustServerCertificate=True";
+            $"Server=(localdb)\\MSSQLLocalDB;Database={DatabaseName};Trusted_Connection=True;TrustServerCertificate=True";
         using (var db = new ScheduleDbContext(
             new DbContextOptionsBuilder<ScheduleDbContext>().UseSqlServer(connectionString).Options))
         {
@@ -32,7 +39,7 @@ public class SetupEndpointsTests
 
         return new ApiTestFactory
         {
-            DatabaseName = databaseName,
+            DatabaseName = DatabaseName,
             StubRole = stubRole,
             SeedDemoOnStart = false,
         };
@@ -41,7 +48,7 @@ public class SetupEndpointsTests
     [Fact]
     public async Task An_unset_up_system_refuses_everything_but_health_and_setup()
     {
-        using var factory = Factory("ShiftOMatorSetupGateTests");
+        using var factory = Factory();
         var client = factory.CreateClient();
 
         var state = await client.GetFromJsonAsync<JsonElement>("/api/setup/state");
@@ -59,7 +66,7 @@ public class SetupEndpointsTests
     [Fact]
     public async Task The_bare_preset_creates_one_location_one_unit_and_the_caller_as_global_admin()
     {
-        using var factory = Factory("ShiftOMatorSetupBareTests");
+        using var factory = Factory();
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/setup", new
@@ -102,7 +109,7 @@ public class SetupEndpointsTests
     [Fact]
     public async Task A_second_setup_call_is_refused_once_one_has_completed()
     {
-        using var factory = Factory("ShiftOMatorSetupTwiceTests");
+        using var factory = Factory();
         var client = factory.CreateClient();
 
         var first = await client.PostAsJsonAsync("/api/setup", new { preset = "demo" });
@@ -117,7 +124,7 @@ public class SetupEndpointsTests
     [Fact]
     public async Task The_demo_preset_writes_the_fixture_and_links_nobody_in_stub_mode()
     {
-        using var factory = Factory("ShiftOMatorSetupDemoTests");
+        using var factory = Factory();
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/setup", new { preset = "demo" });
@@ -135,7 +142,7 @@ public class SetupEndpointsTests
     [Fact]
     public async Task Load_demo_data_replaces_a_bare_system_and_reset_returns_to_the_wizard()
     {
-        using var factory = Factory("ShiftOMatorSetupMaintenanceTests", stubRole: "Admin");
+        using var factory = Factory(stubRole: "Admin");
         var client = factory.CreateClient();
 
         var setup = await client.PostAsJsonAsync("/api/setup", new

@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ShiftOMator.Api.Auth;
+using ShiftOMator.Api.Contracts.Auth;
 using ShiftOMator.Api.Contracts.Setup;
 using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Domain;
@@ -70,7 +72,8 @@ public static class SetupEndpoints
 
                     var person = await SetupService.CompleteBareAsync(
                         db, req.Bare.LocationName, req.Bare.TimeZone, req.Bare.HolidayCalendarKey,
-                        req.Bare.UnitName, req.Bare.UnitKind, displayName, email, ct);
+                        req.Bare.UnitName, req.Bare.UnitKind, displayName, email,
+                        req.Bare.Roles, req.DirectoryRoles, ct);
 
                     db.RecordConfiguration(HistoryAction.Created, "system-setup",
                         $"System set up (Bare) by {person.DisplayName}", null, person.Id);
@@ -81,7 +84,8 @@ public static class SetupEndpoints
                 else
                 {
                     var callerEmail = isStub ? null : user.EmailOrNull();
-                    var linked = await SetupService.CompleteDemoAsync(db, callerEmail, ct);
+                    var linked = await SetupService.CompleteDemoAsync(
+                        db, callerEmail, req.DirectoryRoles, ct);
 
                     db.RecordConfiguration(HistoryAction.Created, "system-setup",
                         linked is null
@@ -106,6 +110,73 @@ public static class SetupEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
         .RequireAuthorization(AuthPolicies.Authenticated);
+
+        app.MapGet("/api/setup/diagnostics", DiagnosticsAsync)
+            .WithName("GetSetupDiagnostics")
+            .Produces<SetupDiagnosticsResponse>()
+            .RequireAuthorization(AuthPolicies.Authenticated);
+    }
+
+    /// <summary>
+    /// What this system is, who the caller is in it, and what it still lacks.
+    ///
+    /// Signed in but not necessarily *anybody*: the caller who most needs this is the one
+    /// whose token matches no `Person`, so it must not go through `ActorResolver`, which
+    /// throws for exactly that case. `AuthPolicies.Authenticated` asks only for a valid
+    /// principal, and every principal is a Viewer.
+    ///
+    /// Not anonymous, though — unlike `/api/setup/state`. This names the authority, the
+    /// audience and the shape of the roster, which is a fingerprint of the deployment and
+    /// not something to hand to a caller who has not signed in.
+    /// </summary>
+    private static async Task<IResult> DiagnosticsAsync(
+        ClaimsPrincipal user, IOptions<AuthOptions> auth, IConfiguration configuration,
+        Insights.ChatModel model, ScheduleDbContext db, CancellationToken ct)
+    {
+        var tokenEmail = user.EmailOrNull()?.Trim().ToLowerInvariant();
+
+        // Resolved the same way `ActorResolver` does — by email, and only by email
+        // (ADR-0058) — but returning null instead of throwing, because "matches nobody" is
+        // the answer this endpoint exists to give rather than an error it should raise.
+        var person = string.IsNullOrWhiteSpace(tokenEmail)
+            ? null
+            : await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Email == tokenEmail, ct);
+
+        // Off the claims, not off the database: this is what the caller is *acting with*
+        // right now, which in Stub mode includes a debug override and, with directory
+        // roles on, includes what the token brought. Reading `RoleAssignments` instead
+        // would quietly answer a different question.
+        var grants = user.FindAll(Capabilities.RoleClaim)
+            .Select(claim => claim.Value.Split('|', 2))
+            .Where(parts => parts.Length == 2 && Enum.TryParse<AppRole>(parts[0], true, out _))
+            .Select(parts => new RoleGrant(
+                Enum.Parse<AppRole>(parts[0], ignoreCase: true),
+                parts[1].Length == 0 ? null : parts[1]))
+            .ToList();
+
+        var setup = await db.SystemSetups.AsNoTracking().FirstOrDefaultAsync(ct);
+
+        return Results.Ok(new SetupDiagnosticsResponse(
+            new AuthDiagnostics(
+                auth.Value.Mode,
+                configuration["Auth:Jwt:Authority"],
+                configuration["Auth:Jwt:Audience"],
+                setup?.DirectoryRoles ?? false),
+            new CallerDiagnostics(
+                person?.Id,
+                person?.DisplayName ?? user.DisplayNameOrNull(),
+                tokenEmail,
+                person is not null,
+                grants),
+            new ContentDiagnostics(
+                await db.People.CountAsync(p => p.IsActive, ct),
+                await db.People.CountAsync(p => p.IsActive && p.IsIncluded, ct),
+                await db.PlanningUnits.CountAsync(ct),
+                await db.Shifts.CountAsync(ct),
+                await db.DayConfigurations.CountAsync(ct)),
+            new AiDiagnostics(
+                configuration["Ai:Provider"] ?? "none",
+                model.Configured)));
     }
 
     private static Admin.AdminValidation ValidateBare(BareSetupRequest req)

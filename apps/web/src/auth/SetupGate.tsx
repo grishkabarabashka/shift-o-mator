@@ -11,10 +11,19 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { NativeSelectField, TextField } from '../features/settings/fields.tsx';
+import { CheckboxField, NativeSelectField, TextField } from '../features/settings/fields.tsx';
 import { toast } from '../ui/toasts.ts';
 import { ApiError } from '../api/client.ts';
-import { useCompleteSetup, useSetupState, type SetupPreset } from '../api/setup.ts';
+import {
+  useCompleteSetup,
+  useFinishSetup,
+  useSetupDiagnostics,
+  useSetupState,
+  type SetupDiagnostics,
+  type SetupPreset,
+  type SetupResult,
+} from '../api/setup.ts';
+import { AUTH_MODE } from './entraConfig.ts';
 import type { UnitKind } from '../domain/types.ts';
 
 export function SetupGate({ children }: { readonly children: ReactNode }) {
@@ -77,8 +86,13 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
   const [unitKind, setUnitKind] = useState<UnitKind>('CROSS_REGION');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [plans, setPlans] = useState(true);
+  const [approves, setApproves] = useState(true);
+  const [directoryRoles, setDirectoryRoles] = useState(false);
+  const [done, setDone] = useState<SetupResult | undefined>(undefined);
 
   const complete = useCompleteSetup();
+  const diagnostics = useSetupDiagnostics();
 
   const bareFieldsFilled =
     locationName.trim() !== '' && timeZone.trim() !== '' && holidayCalendarKey.trim() !== '' && unitName.trim() !== ''
@@ -89,6 +103,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
     complete.mutate(
       {
         preset,
+        directoryRoles,
         ...(preset === 'Bare'
           ? {
               bare: {
@@ -98,15 +113,22 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
                 unitName,
                 unitKind,
                 ...(stubMode ? { displayName, email } : {}),
+                roles: [
+                  ...(plans ? (['planner'] as const) : []),
+                  ...(approves ? (['approver'] as const) : []),
+                ],
               },
             }
           : {}),
       },
       {
+        onSuccess: setDone,
         onError: (err) => toast.bad(err instanceof ApiError ? err.message : 'Setup failed.'),
       },
     );
   };
+
+  if (done) return <SetupSummary result={done} />;
 
   return (
     <div className="mx-auto flex h-screen max-w-[720px] flex-col justify-center gap-4 p-4">
@@ -116,6 +138,8 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
           This system has no data yet. Choose how it should start — this runs once.
         </p>
       </header>
+
+      {diagnostics.data ? <WhoAmI diagnostics={diagnostics.data} /> : null}
 
       <div className="flex gap-3">
         <PresetCard
@@ -180,6 +204,49 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
         </section>
       ) : null}
 
+      {preset ? (
+        <section className="card flex flex-col gap-3 p-4">
+          <div>
+            <h2 className="text-[12px] font-semibold">Access</h2>
+            {preset === 'Bare' ? (
+              <p className="mt-1 text-[11.5px] text-faint">
+                You are always an Admin — that is what reaches Settings, and a system whose only
+                account cannot get there has no way back. The rest is asked because no role
+                implies another: an Admin who is not a Planner cannot open a draft.
+              </p>
+            ) : (
+              <p className="mt-1 text-[11.5px] text-faint">
+                The demo fixture brings its own grants — every manager plans, approves and
+                administers their own unit. Edit them afterward on Settings → Roles.
+              </p>
+            )}
+          </div>
+
+          {preset === 'Bare' ? (
+            <div className="flex flex-col gap-1.5">
+              {/* Stated, not shown as a ticked box nobody can untick: a disabled control
+                  invites the click it then refuses. */}
+              <p className="text-[12px]">Administers settings — always</p>
+              <Toggle checked={plans} onChange={setPlans} label="Plans the rota" />
+              <Toggle checked={approves} onChange={setApproves} label="Approves requests" />
+            </div>
+          ) : null}
+
+          <div className="border-t border-hairline pt-3">
+            <Toggle
+              checked={directoryRoles}
+              onChange={setDirectoryRoles}
+              label="Also honour Entra ID app roles"
+            />
+            <p className="mt-1 text-[11.5px] text-faint">
+              Off by default. A role granted in the directory is always global, does not appear on
+              Settings → Roles and cannot be revoked from here — so the screen that lists
+              permissions would stop showing all of them. Changeable later.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <button
         type="button"
         className="btn btn--primary self-start"
@@ -187,6 +254,136 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
         onClick={submit}
       >
         {complete.isPending ? 'Setting up…' : 'Set up'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Who is doing the setting up, as the *server* sees them.
+ *
+ * The wizard used to say nothing about this, and it was the source of the one question
+ * nobody could answer from the screen: the Demo preset writes your token's email onto
+ * whichever fixture person holds the global Admin grant, so people arrived in a system
+ * where their address belonged to a stranger with no explanation anywhere.
+ *
+ * It also catches the mismatch nothing else does. The client's mode is baked into its
+ * build (`VITE_AUTH_MODE`) and the server's is chosen at startup (`Auth:Mode`); when they
+ * disagree the symptom is either a token nobody validates or no token at all, and the
+ * error it produces names neither half (ADR-0063).
+ */
+function WhoAmI({ diagnostics }: { readonly diagnostics: SetupDiagnostics }) {
+  const serverIsEntra = diagnostics.auth.mode.toLowerCase() !== 'stub';
+  const clientIsEntra = AUTH_MODE === 'entra';
+  const mismatched = serverIsEntra !== clientIsEntra;
+
+  return (
+    <section className="card flex flex-col gap-2 p-4">
+      <h2 className="text-[12px] font-semibold">Signing in as</h2>
+
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+        <dt className="text-faint">Identity</dt>
+        <dd className="truncate">
+          {diagnostics.caller.displayName ?? 'unknown'}
+          {diagnostics.caller.tokenEmail ? (
+            <span className="ml-1 text-faint">({diagnostics.caller.tokenEmail})</span>
+          ) : null}
+        </dd>
+
+        <dt className="text-faint">Server auth</dt>
+        <dd>
+          {diagnostics.auth.mode}
+          {diagnostics.auth.audience ? (
+            <span className="ml-1 text-faint">· {diagnostics.auth.audience}</span>
+          ) : null}
+        </dd>
+
+        <dt className="text-faint">Roles</dt>
+        <dd>
+          {diagnostics.caller.grants.length === 0
+            ? 'none yet — setup grants them'
+            : diagnostics.caller.grants
+                .map((g) => `${g.role}${g.unitId ? ` (${g.unitId})` : ''}`)
+                .join(', ')}
+        </dd>
+      </dl>
+
+      {mismatched ? (
+        <p className="text-[11.5px] text-warn">
+          This browser was built for <strong>{clientIsEntra ? 'Entra ID' : 'stub'}</strong> sign-in
+          and the server runs <strong>{diagnostics.auth.mode}</strong>. Both halves have to match,
+          or the token is ignored or never sent — and neither side says so on its own.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * What was written, and — the part that matters — what was not.
+ *
+ * The Bare preset deliberately leaves a system nobody can plan in: a unit with no shifts
+ * and no day configurations, and one person who is `isIncluded = false` because they exist
+ * to administer rather than to be rostered. That is the right thing for a preset called
+ * Bare, and saying nothing about it left people staring at an empty grid deciding the
+ * product was broken.
+ */
+function SetupSummary({ result }: { readonly result: SetupResult }) {
+  const diagnostics = useSetupDiagnostics();
+  const finish = useFinishSetup();
+  const content = diagnostics.data?.content;
+
+  const missing = content
+    ? [
+        content.plannedPeople === 0
+          ? { what: 'Nobody to plan', where: 'Settings → People, or the People screen' }
+          : undefined,
+        content.shifts === 0 ? { what: 'No shifts', where: 'Settings → Shifts' } : undefined,
+        content.dayConfigurations === 0
+          ? { what: 'No day configurations', where: 'Settings → Day configurations' }
+          : undefined,
+      ].filter((x): x is { what: string; where: string } => x !== undefined)
+    : [];
+
+  return (
+    <div className="mx-auto flex h-screen max-w-[720px] flex-col justify-center gap-4 p-4">
+      <header>
+        <h1 className="text-[22px] font-semibold tracking-tight">This system is set up</h1>
+        <p className="mt-1 text-base text-muted">
+          {result.preset === 'demo'
+            ? 'The demo fixture is in place.'
+            : 'A location, a planning unit and your administrator account are in place.'}
+          {result.adminDisplayName ? ` You are ${result.adminDisplayName}.` : ''}
+        </p>
+      </header>
+
+      {result.preset === 'demo' && result.adminDisplayName ? (
+        <p className="text-[12px] text-muted">
+          Your sign-in address was linked to <strong>{result.adminDisplayName}</strong> — the person
+          the fixture gives the global Admin grant to. That is how you sign back in; change it on
+          Settings → People if you would rather be somebody else.
+        </p>
+      ) : null}
+
+      {missing.length > 0 ? (
+        <section className="card flex flex-col gap-2 p-4">
+          <h2 className="text-[12px] font-semibold">Before you can plan</h2>
+          <ul className="flex flex-col gap-1">
+            {missing.map((item) => (
+              <li key={item.what} className="flex items-baseline justify-between gap-3 text-[12px]">
+                <span>{item.what}</span>
+                <span className="text-[11px] text-faint">{item.where}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-faint">
+            Deliberate, not missing: a bare system starts empty so nothing is invented for you.
+          </p>
+        </section>
+      ) : null}
+
+      <button type="button" className="btn btn--primary self-start" onClick={finish}>
+        Open shift-o-mator
       </button>
     </div>
   );
@@ -214,6 +411,26 @@ function PresetCard({
       <div className="text-base font-semibold">{title}</div>
       <p className="mt-1 text-[12px] text-muted">{body}</p>
     </button>
+  );
+}
+
+/** A checkbox with its text beside it. `CheckboxField` carries no label of its own —
+ * in the Settings tables the column header is the label — and widening it for this
+ * screen would change every one of those. */
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  readonly checked: boolean;
+  readonly onChange: (value: boolean) => void;
+  readonly label: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[12px]">
+      <CheckboxField checked={checked} onChange={onChange} ariaLabel={label} />
+      {label}
+    </label>
   );
 }
 

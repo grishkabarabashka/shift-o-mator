@@ -228,6 +228,22 @@ public class RoleModelTests(ApiTestFactory factory)
             .Skip(1).First().GetProperty("id").GetString();
         var unit = reference.GetProperty("units").EnumerateArray().First().GetProperty("id").GetString();
 
+        // Revoked first, and that is not tidiness. Granting is idempotent: an existing
+        // grant comes back 200 and writes **no** history row, so on every run after the
+        // first this test asserted against a row written by an earlier one — and failed
+        // outright once that row aged out of today's window. The subject here is "a *new*
+        // grant is recorded", so the test has to start from not holding it.
+        var existing = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/admin/role-assignments?unitId={unit}");
+        foreach (var row in existing.EnumerateArray())
+        {
+            if (row.GetProperty("personId").GetString() != someone) continue;
+            if (!string.Equals(row.GetProperty("role").GetString(), "planner", StringComparison.OrdinalIgnoreCase)) continue;
+            var id = row.GetProperty("id").GetString();
+            (await client.SendAsync(As(HttpMethod.Delete, $"/api/admin/role-assignments/{id}", "Admin")))
+                .EnsureSuccessStatusCode();
+        }
+
         var grant = As(HttpMethod.Post, "/api/admin/role-assignments", "Admin");
         grant.Content = JsonContent.Create(new { personId = someone, unitId = unit, role = "planner" });
         (await client.SendAsync(grant)).EnsureSuccessStatusCode();
