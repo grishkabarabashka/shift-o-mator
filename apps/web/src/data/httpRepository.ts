@@ -98,6 +98,11 @@ export class HttpScheduleRepository implements ScheduleRepository {
       availableWeekdays: person.availableWeekdays.map(weekdayToWire),
       defaultShiftId: person.defaultShiftId ?? null,
       weekendEligible: person.weekendEligible,
+      constraints: {
+        minRestHours: person.constraints.minRestHours,
+        maxConsecutiveDays: person.constraints.maxConsecutiveDays,
+        maxWeekendsPerQuarter: person.constraints.maxWeekendsPerQuarter ?? null,
+      },
       preferences: person.preferences
         ? {
             avoidsWeekdays: (person.preferences.avoidsWeekdays ?? []).map(weekdayToWire),

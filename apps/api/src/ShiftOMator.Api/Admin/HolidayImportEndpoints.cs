@@ -21,10 +21,10 @@ namespace ShiftOMator.Api.Admin;
 /// Two ways in, because "the official provider" is usually a URL and sometimes a file:
 ///
 /// - Ics: the feed as text, pasted or read from a file by the browser. No network at all.
-/// - Url: fetched by the server, and only from a host named in
-///   Holidays:AllowedCalendarHosts. An admin endpoint that fetches an arbitrary URL is a
-///   request-forgery proxy pointed at whatever the server can reach, so the allowlist is
-///   the feature rather than a formality.
+/// - Url: fetched by the server, and only from a host on the allowlist
+///   (<c>AllowedCalendarHost</c>, managed on Settings → Maintenance). An admin endpoint
+///   that fetches an arbitrary URL is a request-forgery proxy pointed at whatever the
+///   server can reach, so the allowlist is the feature rather than a formality.
 /// </summary>
 public static class HolidayImportEndpoints
 {
@@ -46,12 +46,11 @@ public static class HolidayImportEndpoints
         // country, and naming the one we use — with its host in the allowlist — is more
         // honest than a search box that would mostly find the wrong thing. Adding a
         // country is a row here plus, if it is a new host, a line of configuration.
-        group.MapGet("/calendars", (IConfiguration config) =>
+        group.MapGet("/calendars", async (ScheduleDbContext db, CancellationToken ct) =>
         {
-            var allowed = config.GetSection("Holidays:AllowedCalendarHosts").Get<string[]>() ?? [];
+            var allowed = await AllowedHostsAsync(db, ct);
             var offered = HolidayCalendars.All
-                .Where(c => Uri.TryCreate(c.Url, UriKind.Absolute, out var uri)
-                    && allowed.Contains(uri.Host, StringComparer.OrdinalIgnoreCase))
+                .Where(c => Uri.TryCreate(c.Url, UriKind.Absolute, out var uri) && allowed.Contains(uri.Host))
                 .ToList();
 
             return Results.Ok(offered);
@@ -61,7 +60,7 @@ public static class HolidayImportEndpoints
 
         group.MapPost("/import", async (
             HolidayImportRequest req, ClaimsPrincipal user, ActorResolver actors,
-            IHttpClientFactory clients, IConfiguration config,
+            IHttpClientFactory clients,
             ScheduleDbContext db, CancellationToken ct) =>
         {
             if (req.LocationIds.Count == 0)
@@ -77,7 +76,7 @@ public static class HolidayImportEndpoints
             }
             else if (!string.IsNullOrWhiteSpace(req.Url))
             {
-                var fetched = await FetchAsync(req.Url, clients, config, ct);
+                var fetched = await FetchAsync(req.Url, clients, db, ct);
                 if (fetched.Error is { } error) return error;
                 ics = fetched.Body!;
             }
@@ -172,8 +171,14 @@ public static class HolidayImportEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
     }
 
+    /// <summary>Rows are stored lowercase (<c>AllowedCalendarHostsAdminEndpoints</c>
+    /// normalizes on write); a case-insensitive set is built once per request rather than
+    /// trusting every caller here to lowercase the host it compares against.</summary>
+    private static async Task<HashSet<string>> AllowedHostsAsync(ScheduleDbContext db, CancellationToken ct) =>
+        new(await db.AllowedCalendarHosts.AsNoTracking().Select(h => h.Host).ToListAsync(ct), StringComparer.OrdinalIgnoreCase);
+
     private static async Task<(string? Body, IResult? Error)> FetchAsync(
-        string url, IHttpClientFactory clients, IConfiguration config, CancellationToken ct)
+        string url, IHttpClientFactory clients, ScheduleDbContext db, CancellationToken ct)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
@@ -182,12 +187,12 @@ public static class HolidayImportEndpoints
                 "That is not an http or https URL.")));
         }
 
-        var allowed = config.GetSection("Holidays:AllowedCalendarHosts").Get<string[]>() ?? [];
-        if (!allowed.Contains(uri.Host, StringComparer.OrdinalIgnoreCase))
+        var allowed = await AllowedHostsAsync(db, ct);
+        if (!allowed.Contains(uri.Host))
         {
             return (null, Results.BadRequest(new ErrorResponse("CALENDAR_HOST_NOT_ALLOWED",
-                $"{uri.Host} is not in Holidays:AllowedCalendarHosts. Add it there, or paste "
-                + "the calendar contents instead.")));
+                $"{uri.Host} is not on the holiday-import allowlist. Add it on Settings → "
+                + "Maintenance, or paste the calendar contents instead.")));
         }
 
         try
@@ -246,9 +251,9 @@ public record HolidayCalendar(string Id, string Country, string Name, string Url
 ///
 /// WHY a fixed list: there is no registry of official holiday feeds to look one up in.
 /// What exists is a handful of providers publishing one calendar per country, and naming
-/// the one in use — whose host has to be in <c>Holidays:AllowedCalendarHosts</c> for the
-/// server to fetch it — is more honest than a search box that would mostly find the wrong
-/// file. A calendar whose host is not allowlisted is not offered, so the two cannot
+/// the one in use — whose host has to be on the <c>AllowedCalendarHost</c> allowlist for
+/// the server to fetch it — is more honest than a search box that would mostly find the
+/// wrong file. A calendar whose host is not allowed is not offered, so the two cannot
 /// disagree.
 ///
 /// These are the countries the roster actually has offices in. Adding one is a row.

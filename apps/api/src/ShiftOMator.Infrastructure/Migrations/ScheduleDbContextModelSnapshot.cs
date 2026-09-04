@@ -155,6 +155,16 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.ToTable("Acknowledgements");
                 });
 
+            modelBuilder.Entity("ShiftOMator.Domain.AllowedCalendarHost", b =>
+                {
+                    b.Property<string>("Host")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Host");
+
+                    b.ToTable("AllowedCalendarHosts");
+                });
+
             modelBuilder.Entity("ShiftOMator.Domain.ApprovalDecision", b =>
                 {
                     b.Property<string>("Id")

@@ -1282,6 +1282,23 @@
     letter-spacing: -0.01em;
   }
 
+  /* --- Settings toolbar ------------------------------------------------------ */
+  /* A row of filters/search sitting above a `.rows` table (People, Holidays, Roles).
+     Without this it renders flush against the card's edge with no padding of its own —
+     every table below it gets 7-10px of breathing room from its `th`/`td` padding, and
+     this row got none, so it read as an afterthought glued to the corner rather than a
+     designed control. */
+  .settings-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+  }
+
   /* --- Plain table ---------------------------------------------------------- */
   .rows {
     width: 100%;
@@ -1313,6 +1330,16 @@
   }
   .rows tbody tr[data-selected='true'] {
     background: var(--accent-soft);
+  }
+  /* An edited-but-unsaved settings row, and one the server rejected. A left edge rather
+     than a fill: these tables are dense, and a tinted row would fight the cell inputs
+     for the reader's attention while saying less. */
+  .rows tbody tr[data-dirty] td:first-child,
+  .rows tbody tr[data-rejected] td:first-child {
+    box-shadow: inset 3px 0 0 var(--warn);
+  }
+  .rows tbody tr[data-rejected] td:first-child {
+    box-shadow: inset 3px 0 0 var(--bad);
   }
 
   .tooltip {

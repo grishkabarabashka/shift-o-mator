@@ -73,8 +73,8 @@ silently accepted shift.
 
 The other real external source, and the only one that is a feed rather than a paste.
 `POST /api/admin/holidays/import` reads an iCalendar document — pasted, uploaded, or
-fetched from a host on the `Holidays:AllowedCalendarHosts` allow-list — and **adds days
-that are missing, never removing one**.
+fetched from a host on the allowlist (`AllowedCalendarHost`, managed at Settings →
+Maintenance) — and **adds days that are missing, never removing one**.
 
 Not removing is the whole design, not a shortcut. A sync would have to answer "the feed
 dropped a day people are already rostered off for", and there is no safe automatic answer

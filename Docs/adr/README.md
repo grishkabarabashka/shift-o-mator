@@ -65,6 +65,7 @@ not something else?"
 | [0062](0062-one-source-of-roles-by-default.md) | One source of roles by default (narrows 0058) | accepted, **the switch moved to a row by 0063** |
 | [0063](0063-runtime-settings-are-rows.md) | A setting that takes effect per request is a row, not configuration (amends 0062, extends 0059) | accepted |
 | [0064](0064-a-notification-policy-and-a-log.md) | What gets sent is a matrix; what was sent is a log (extends 0044, 0063) | accepted |
+| [0065](0065-the-calendar-allowlist-is-rows-not-a-key.md) | The holiday-import allowlist is reference-data rows, not a settings key (sibling to 0063) | accepted |
 
 ## Superseded decisions (archive)
 

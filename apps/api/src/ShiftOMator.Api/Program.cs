@@ -22,7 +22,8 @@ builder.Services.AddProblemDetails();
 // daily; a 500 with no log line and no correlation id is not diagnosable at that rate.
 builder.Services.AddHttpContextAccessor();
 
-// Only the holiday import uses this, and only against Holidays:AllowedCalendarHosts. The
+// Only the holiday import uses this, and only against a host on the `AllowedCalendarHost`
+// allowlist (ADR-0063 shape — a row, not configuration; see Settings → Maintenance). The
 // short timeout is deliberate: an admin is watching a preview load, and a calendar host
 // that is slow should say so rather than hold a request open.
 builder.Services.AddHttpClient("calendar", client =>
@@ -195,6 +196,7 @@ app.MapRequestsEndpoints();
 app.MapLocationsAdminEndpoints();
 app.MapHolidaysAdminEndpoints();
 app.MapHolidayImportEndpoints();
+app.MapAllowedCalendarHostsAdminEndpoints();
 app.MapUnitsAdminEndpoints();
 app.MapRoleAssignmentsAdminEndpoints();
 app.MapEventTypesAdminEndpoints();

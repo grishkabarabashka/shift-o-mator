@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using ShiftOMator.Api.Admin;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.People;
 using ShiftOMator.Api.Contracts.Shared;
@@ -23,6 +24,15 @@ public static class PeopleEndpoints
             var person = await db.People.Include(p => p.Eligibility).FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null) return Results.NotFound(new NotFoundResponse("PERSON_NOT_FOUND", id));
 
+            if (req.Constraints is { } limits)
+            {
+                var v = new AdminValidation()
+                    .Check(nameof(req.Constraints), limits.MinRestHours is >= 0 and <= 24, "minimum rest must be between 0 and 24 hours.")
+                    .Check(nameof(req.Constraints), limits.MaxConsecutiveDays >= 1, "consecutive-day limit must be at least 1.")
+                    .Check(nameof(req.Constraints), limits.MaxWeekendsPerQuarter is null or >= 0, "weekend limit cannot be negative.");
+                if (v.ToBadRequestOrNull() is { } bad) return bad;
+            }
+
             person.Eligibility.Clear();
             foreach (var e in req.Eligibility)
             {
@@ -34,6 +44,16 @@ public static class PeopleEndpoints
                     MinPerWeek = e.MinPerWeek,
                     MaxPerWeek = e.MaxPerWeek,
                 });
+            }
+
+            if (req.Constraints is { } constraints)
+            {
+                person.Constraints = new PersonConstraints
+                {
+                    MinRestHours = constraints.MinRestHours,
+                    MaxConsecutiveDays = constraints.MaxConsecutiveDays,
+                    MaxWeekendsPerQuarter = constraints.MaxWeekendsPerQuarter,
+                };
             }
 
             person.AvailableWeekdays = req.AvailableWeekdays;

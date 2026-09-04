@@ -12,7 +12,7 @@ using ShiftOMator.Infrastructure;
 namespace ShiftOMator.Infrastructure.Migrations
 {
     [DbContext(typeof(ScheduleDbContext))]
-    [Migration("20260903202856_InitialCreate")]
+    [Migration("20260904042109_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -156,6 +156,16 @@ namespace ShiftOMator.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Acknowledgements");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.AllowedCalendarHost", b =>
+                {
+                    b.Property<string>("Host")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Host");
+
+                    b.ToTable("AllowedCalendarHosts");
                 });
 
             modelBuilder.Entity("ShiftOMator.Domain.ApprovalDecision", b =>

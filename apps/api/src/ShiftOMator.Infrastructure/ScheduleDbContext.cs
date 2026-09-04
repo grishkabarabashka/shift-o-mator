@@ -32,6 +32,7 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
     public DbSet<DraftSession> DraftSessions => Set<DraftSession>();
     public DbSet<DraftChange> DraftChanges => Set<DraftChange>();
     public DbSet<SystemSetup> SystemSetups => Set<SystemSetup>();
+    public DbSet<AllowedCalendarHost> AllowedCalendarHosts => Set<AllowedCalendarHost>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -240,6 +241,12 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<AllowedCalendarHost>(e =>
+        {
+            e.HasKey(x => x.Host);
+            e.Property(x => x.Host).ValueGeneratedNever();
         });
     }
 

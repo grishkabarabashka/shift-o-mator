@@ -94,6 +94,11 @@ import {
   useSetDirectoryRoles,
 } from '../api/roleAssignments.ts';
 import { useCanLoadDemoData, useLoadDemoData, useResetSystem } from '../api/setup.ts';
+import {
+  useAddAllowedCalendarHost,
+  useAllowedCalendarHosts,
+  useRemoveAllowedCalendarHost,
+} from '../api/allowedCalendarHosts.ts';
 import { ApiError } from '../api/client.ts';
 import { toast } from '../ui/toasts.ts';
 import { NotificationsTab } from '../features/settings/NotificationsTab.tsx';
@@ -321,8 +326,13 @@ export function SettingsPage() {
 
   const saving = edits.saving;
 
+  // Settings is a data-editing surface, not a document — the widest tables (Units, Shifts)
+  // need ~1420px once every column has a real field in it, and 1200px clipped them, so
+  // "Save all" required scrolling sideways to see what you had just edited. Wide but
+  // bounded, not full-bleed like the planning grid (ADR-0057): a 1200px table stretched to
+  // a 2560px monitor would look stranded, not intentional.
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-[1720px] flex-col gap-4 p-4">
       <header className="flex items-center gap-3">
         <h1 className="text-[22px] font-semibold tracking-tight">Settings</h1>
         {/* It used to say shifts were versioned too. They are edited in place — only day
@@ -962,7 +972,7 @@ function HolidaysTab({ reference, edits }: { readonly reference: Reference; read
   return (
     <div className="flex flex-col gap-3">
       <HolidayImport locations={reference.locations} />
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="settings-toolbar">
         <NativeSelectField
           value={year}
           ariaLabel="Filter by year"
@@ -1357,7 +1367,7 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="settings-toolbar">
         <input
           type="search"
           className="field w-56 py-0.5"
@@ -1498,6 +1508,7 @@ function EditableTable<T extends { readonly id: string }>({
   newInitial,
   renderHeader,
   renderRow,
+  showDelete = true,
 }: {
   readonly title: string;
   readonly rows: readonly T[];
@@ -1506,6 +1517,15 @@ function EditableTable<T extends { readonly id: string }>({
   readonly newTempId: string;
   readonly newInitial: Record<string, unknown>;
   readonly renderHeader: () => ReactElement;
+  /**
+   * False for an entity with no real delete — `eventType`, whose endpoint has no DELETE
+   * on purpose (ADR-0049: absences point at these by id). The button used to render
+   * anyway: clicking it dimmed the row, "Save all" called a `remove` stub that resolved
+   * successfully, and the row came back at full opacity on the next refetch, unchanged —
+   * a control that looked like it worked and did nothing. `isActive` is the real
+   * retirement switch for these rows, and it is already a column in the table.
+   */
+  readonly showDelete?: boolean;
   readonly renderRow: (
     draft: T,
     setField: (field: string, value: unknown) => void,
@@ -1553,7 +1573,7 @@ function EditableTable<T extends { readonly id: string }>({
                 (patch) => edits.setFields(entity, row.id, patch, draft as unknown as Record<string, unknown>),
               )}
               <td>
-                {markedForDelete ? (
+                {!showDelete ? null : markedForDelete ? (
                   <button type="button" className="btn btn--sm" onClick={() => edits.discardOne(entity, row.id)}>
                     Undo delete
                   </button>
@@ -1708,7 +1728,7 @@ function RolesTab({ reference }: { readonly reference: Reference }) {
     <div className="flex flex-col gap-3">
       <DirectoryRolesNotice />
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="settings-toolbar">
         <span className="text-[12px] font-medium">Grants in</span>
         <div className="segmented">
           {reference.units.map((unit) => (
@@ -1883,7 +1903,81 @@ function MaintenanceTab() {
           {reset.isPending ? 'Resetting…' : 'Reset to empty'}
         </button>
       </section>
+
+      <AllowedCalendarHostsSection />
     </div>
+  );
+}
+
+/**
+ * Which hosts the holiday import (Settings → Holidays) may fetch a calendar feed from.
+ *
+ * WHY here and not on the Holidays tab: it used to be `Holidays:AllowedCalendarHosts` in
+ * `appsettings`, which cost a redeploy to change and was invisible on the one screen that
+ * names the risk it exists to contain — an admin endpoint that fetches an arbitrary URL is
+ * a request-forgery proxy pointed at whatever the server can reach. It lives beside Reset
+ * because both are global, system-wide controls rather than day-to-day editing.
+ */
+function AllowedCalendarHostsSection() {
+  const hosts = useAllowedCalendarHosts();
+  const add = useAddAllowedCalendarHost();
+  const remove = useRemoveAllowedCalendarHost();
+  const [draft, setDraft] = useState('');
+
+  const submit = () => {
+    const host = draft.trim();
+    if (!host) return;
+    add.mutate(host, {
+      onSuccess: () => setDraft(''),
+      onError: (err) => toast.bad(err instanceof ApiError ? err.message : 'Could not add that host.'),
+    });
+  };
+
+  return (
+    <section className="flex flex-col gap-2 border-t border-hairline pt-4">
+      <h3 className="text-base font-semibold">Holiday-import allowlist</h3>
+      <p className="text-[12px] text-muted">
+        Hosts the holiday import may fetch a calendar feed from. A host not listed here is
+        refused, even if a caller pastes its exact URL — the allowlist is the whole of what
+        keeps that endpoint from being pointed at an arbitrary address.
+      </p>
+      <ul className="flex flex-col gap-1">
+        {(hosts.data ?? []).map((h) => (
+          <li key={h.host} className="flex items-center gap-2 text-[12.5px]">
+            <span className="font-mono">{h.host}</span>
+            <button
+              type="button"
+              className="btn btn--sm btn--ghost text-bad"
+              disabled={remove.isPending}
+              onClick={() =>
+                remove.mutate(h.host, {
+                  onError: (err) => toast.bad(err instanceof ApiError ? err.message : 'Could not remove that host.'),
+                })
+              }
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+        {hosts.data?.length === 0 ? <li className="text-[12px] text-faint">Nothing allowed yet — every import will be refused.</li> : null}
+      </ul>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          className="field w-64 py-0.5 font-mono text-[12px]"
+          value={draft}
+          placeholder="calendar.example.com"
+          aria-label="Add a calendar host"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+          }}
+        />
+        <button type="button" className="btn btn--sm" disabled={!draft.trim() || add.isPending} onClick={submit}>
+          {add.isPending ? 'Adding…' : 'Add'}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -1917,6 +2011,7 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
         entity="eventType"
         edits={edits}
         newTempId={tempId}
+        showDelete={false}
         newInitial={{
           code: '',
           label: '',

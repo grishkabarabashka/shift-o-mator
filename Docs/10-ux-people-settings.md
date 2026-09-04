@@ -123,7 +123,7 @@ Per location and per year. Add, edit, delete, and **a preview of which people an
 coverage requirements a change affects** before it is saved.
 
 **Import reads an iCalendar feed** — pasted, uploaded, or fetched from a host on the
-`Holidays:AllowedCalendarHosts` allow-list — and **adds days that are missing, never
+allowlist managed at Settings → Maintenance — and **adds days that are missing, never
 removing one**. That is deliberate and it is why this is called import and not sync: a real
 sync needs a scheduler and an answer to "the feed dropped a day people are already rostered
 off for", and neither exists.

@@ -643,10 +643,11 @@ Not bugs — things the design names and has not built. Full list in
 - **No rate limiting, no structured logging beyond correlation ids.** `Docs/12` states
   per-endpoint targets that nothing enforces.
 - **Holidays import, they do not sync.** `POST /api/admin/holidays/import` reads an
-  iCalendar feed (pasted, uploaded, or fetched from a host in
-  `Holidays:AllowedCalendarHosts`) and **adds days that are missing, never removing one**.
-  A real sync needs a scheduler and an answer to "the feed dropped a day people are already
-  rostered off for", and neither exists.
+  iCalendar feed (pasted, uploaded, or fetched from a host on the `AllowedCalendarHost`
+  allowlist, managed at Settings → Maintenance — a row, not configuration, ADR-0065) and
+  **adds days that are missing, never removing one**. A real sync needs a scheduler and an
+  answer to "the feed dropped a day people are already rostered off for", and neither
+  exists.
 - **The layout is responsive; the *interaction* is not.** Phase 12 gave the app real
   breakpoints — the clock strip collapses to one clock plus a popover, the issue panel
   becomes a drawer, My calendar stacks — so nothing is unreachable on a narrow screen. What

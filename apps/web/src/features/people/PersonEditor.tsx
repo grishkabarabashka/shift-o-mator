@@ -40,6 +40,17 @@ interface DraftState {
   readonly available: ReadonlySet<Weekday>;
   readonly avoids: ReadonlySet<Weekday>;
   readonly note: string;
+  /** NOTE: What `Validator` raises rest/consecutive-day/weekend-load issues against
+   * (CheckRestHours, CheckConsecutiveDays, CheckWeekendLoad) — stored per person, and
+   * until now writable only by the fixture, so a warning could name a limit nobody in
+   * the product could change. */
+  readonly minRestHours: number;
+  readonly maxConsecutiveDays: number;
+  /** NOTE: Empty string = no cap, same as `undefined` on the domain type. */
+  readonly maxWeekendsPerQuarter: string;
+  /** NOTE: The exception, not the rule (ADR-0038) — Service Transition holds one shift
+   * each; empty means "no default", true for everybody else. */
+  readonly defaultShiftId: string;
 }
 
 function initialState(person: Person): DraftState {
@@ -50,6 +61,10 @@ function initialState(person: Person): DraftState {
     available: new Set(person.availableWeekdays),
     avoids: new Set(person.preferences?.avoidsWeekdays ?? []),
     note: person.preferences?.note ?? '',
+    minRestHours: person.constraints.minRestHours,
+    maxConsecutiveDays: person.constraints.maxConsecutiveDays,
+    maxWeekendsPerQuarter: person.constraints.maxWeekendsPerQuarter?.toString() ?? '',
+    defaultShiftId: person.defaultShiftId ?? '',
   };
 }
 
@@ -183,6 +198,69 @@ export function PersonEditor({ person, unitShifts, onClose }: Props) {
       </section>
 
       <section>
+        <h3 className="menu-label px-0">Default shift</h3>
+        <select
+          className="field w-full py-0.5 text-[12px]"
+          value={draft.defaultShiftId}
+          aria-label="Default shift"
+          onChange={(event) => setDraft({ ...draft, defaultShiftId: event.target.value })}
+        >
+          <option value="">No default — shifts assigned per day</option>
+          {unitShifts.map((shift) => (
+            <option key={shift.id} value={shift.id}>
+              {shift.code} — {shift.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-[10.5px] text-faint">
+          Only Service Transition engineers normally hold one — leave unset otherwise.
+        </p>
+      </section>
+
+      <section>
+        <h3 className="menu-label px-0">Rostering limits</h3>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label className="flex items-center gap-1.5 text-[11.5px]">
+            Min rest
+            <input
+              type="number"
+              min={0}
+              max={24}
+              className="field w-16 py-0.5 font-mono text-[12px]"
+              value={draft.minRestHours}
+              aria-label="Minimum rest hours"
+              onChange={(event) => setDraft({ ...draft, minRestHours: Number(event.target.value) })}
+            />
+            <span className="text-faint">hours</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-[11.5px]">
+            Max consecutive
+            <input
+              type="number"
+              min={1}
+              className="field w-16 py-0.5 font-mono text-[12px]"
+              value={draft.maxConsecutiveDays}
+              aria-label="Maximum consecutive days"
+              onChange={(event) => setDraft({ ...draft, maxConsecutiveDays: Number(event.target.value) })}
+            />
+            <span className="text-faint">days</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-[11.5px]">
+            Max weekends / quarter
+            <input
+              type="number"
+              min={0}
+              className="field w-16 py-0.5 font-mono text-[12px]"
+              value={draft.maxWeekendsPerQuarter}
+              placeholder="no cap"
+              aria-label="Maximum weekends per quarter"
+              onChange={(event) => setDraft({ ...draft, maxWeekendsPerQuarter: event.target.value })}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section>
         <h3 className="menu-label px-0">Note</h3>
         <textarea
           className="field h-16 w-full resize-none py-1.5 leading-snug"
@@ -251,6 +329,7 @@ function WeekdayRow({
 function applyTo(person: Person, draft: DraftState): Person {
   const total = [...draft.shares.values()].reduce((sum, value) => sum + value, 0);
   const previous = new Map(person.eligibility.map((e) => [e.shiftId, e]));
+  const { defaultShiftId: _omit, ...personWithoutDefaultShift } = person;
 
   const eligibility: ShiftEligibility[] = [...draft.shares.entries()].map(([shiftId, percent]) => {
     const before = previous.get(shiftId);
@@ -269,10 +348,16 @@ function applyTo(person: Person, draft: DraftState): Person {
   const hasPreferences = Object.keys(preferences).length > 0;
 
   return {
-    ...person,
+    ...personWithoutDefaultShift,
     eligibility,
     availableWeekdays: [...draft.available].sort(),
     ...(hasPreferences ? { preferences } : {}),
+    ...(draft.defaultShiftId ? { defaultShiftId: draft.defaultShiftId as NonNullable<Person['defaultShiftId']> } : {}),
+    constraints: {
+      minRestHours: draft.minRestHours,
+      maxConsecutiveDays: draft.maxConsecutiveDays,
+      ...(draft.maxWeekendsPerQuarter.trim() ? { maxWeekendsPerQuarter: Number(draft.maxWeekendsPerQuarter) } : {}),
+    },
   };
 }
 
@@ -282,7 +367,11 @@ function sameAs(draft: DraftState, person: Person): boolean {
     sameMap(draft.shares, current.shares) &&
     sameSet(draft.available, current.available) &&
     sameSet(draft.avoids, current.avoids) &&
-    draft.note === current.note
+    draft.note === current.note &&
+    draft.minRestHours === current.minRestHours &&
+    draft.maxConsecutiveDays === current.maxConsecutiveDays &&
+    draft.maxWeekendsPerQuarter === current.maxWeekendsPerQuarter &&
+    draft.defaultShiftId === current.defaultShiftId
   );
 }
 

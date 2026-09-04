@@ -128,7 +128,17 @@ export interface UiState {
    */
   lockedAssignmentIds: ReadonlySet<string>;
 
+  /**
+   * NOTE: How many Settings rows are edited and unsaved.
+   *
+   * Here rather than inside `useAdminEdits` because the only consumer is the masthead,
+   * which has to ask before navigating away: admin edits live in component state, so
+   * leaving the screen silently discarded every one of them.
+   */
+  unsavedAdminChanges: number;
+
   setDisplayZone: (zone: DisplayZone) => void;
+  setUnsavedAdminChanges: (count: number) => void;
   setUnit: (unitId: string) => void;
 
   /** NOTE: Recompute the active `range` from this page's own slice on mount. */
@@ -183,8 +193,10 @@ export const useUi = create<UiState>((set, get) => ({
   layers: { shifts: true, timeOff: true, presence: true, requests: true },
   compDayDraft: undefined,
   lockedAssignmentIds: new Set(),
+  unsavedAdminChanges: 0,
 
   setDisplayZone: (displayZone) => set({ displayZone }),
+  setUnsavedAdminChanges: (unsavedAdminChanges) => set({ unsavedAdminChanges }),
   setUnit: (unitId) => set({ unitId }),
 
   enterOverview: () => {

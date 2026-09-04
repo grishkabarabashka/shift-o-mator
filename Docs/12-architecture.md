@@ -160,7 +160,8 @@ sends.
 | `/admin/notifications/rules` | GET/PUT | The (kind × channel) matrix, saved whole — one screen, one intent. Global admin to write ([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)) |
 | `/admin/notifications/log` | GET | Every notification and what each channel did about it. `?kind=&channel=&status=&personId=&from=&to=` |
 | `/admin/notifications/log/deliveries/{id}/retry` | POST | A **failed** delivery back to pending. Refused on anything else — a skipped one is answered by the matrix, not by trying again — and `attempts` is never reset |
-| `/admin/holidays/import` | POST | Read an iCalendar feed — pasted, uploaded, or fetched from a host in `Holidays:AllowedCalendarHosts` — and **add** missing days. It never removes one; this is an import, not a sync |
+| `/admin/holidays/import` | POST | Read an iCalendar feed — pasted, uploaded, or fetched from a host on the `AllowedCalendarHost` allowlist — and **add** missing days. It never removes one; this is an import, not a sync |
+| `/admin/allowed-calendar-hosts` | GET/POST/DELETE | The holiday-import allowlist. A row, not configuration, for the same reason `SystemSetup.DirectoryRoles` is (ADR-0063) — read per request, invisible as a deploy key. Global admin to write |
 | `/admin/maintenance/{load-demo-data,reset,can-load-demo-data}` | GET/POST | Global admin only. Reset means migrated-and-empty: rows deleted in dependency order inside one transaction, never a dropped database ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)) |
 | `/health/live`, `/health/ready` | GET | Kubernetes probes. Outside the setup gate, and outside authentication |
 

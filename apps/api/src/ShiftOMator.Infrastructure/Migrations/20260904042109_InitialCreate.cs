@@ -50,6 +50,17 @@ namespace ShiftOMator.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AllowedCalendarHosts",
+                columns: table => new
+                {
+                    Host = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AllowedCalendarHosts", x => x.Host);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Assignments",
                 columns: table => new
                 {
@@ -825,6 +836,9 @@ namespace ShiftOMator.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Acknowledgements");
+
+            migrationBuilder.DropTable(
+                name: "AllowedCalendarHosts");
 
             migrationBuilder.DropTable(
                 name: "ApprovalDecisions");

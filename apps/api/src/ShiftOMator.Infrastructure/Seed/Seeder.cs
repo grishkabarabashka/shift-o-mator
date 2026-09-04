@@ -66,6 +66,7 @@ public static class FixtureSeeder
         await SeedPresenceTypesAsync(db, ct);
         await SeedRequestTypesAsync(db, ct);
         await SeedNotificationRulesAsync(db, ct);
+        await SeedAllowedCalendarHostsAsync(db, ct);
         await SeedRolesAsync(db, ct);
         await UpgradeCalendarTokensAsync(db, ct);
     }
@@ -218,6 +219,23 @@ public static class FixtureSeeder
 
     private static Task SeedEventTypesAsync(ScheduleDbContext db, CancellationToken ct) =>
         TopUpAsync(db, EventTypeSeed.All(), t => t.Id, ct);
+
+    /// <summary>
+    /// Starts the holiday-import allowlist with the one host the product has always
+    /// shipped calendars against. Not <see cref="TopUpAsync"/>: that helper keys off a
+    /// shadow "Id" property, and this row's key is <see cref="AllowedCalendarHost.Host"/>
+    /// — so it is its own three lines rather than a generic helper bent to fit one type.
+    /// Runs only when the table is empty, unlike the topped-up rows above: a host an
+    /// admin has since removed on purpose must not come back on every restart the way a
+    /// leave type does, because there is no "IsActive" here to turn off instead — DELETE
+    /// is the retirement, same as a location or a holiday.
+    /// </summary>
+    private static async Task SeedAllowedCalendarHostsAsync(ScheduleDbContext db, CancellationToken ct)
+    {
+        if (await db.AllowedCalendarHosts.AnyAsync(ct)) return;
+        db.AllowedCalendarHosts.Add(new AllowedCalendarHost { Host = "calendar.google.com" });
+        await db.SaveChangesAsync(ct);
+    }
 
     /// <summary>
     /// Replaces any calendar token that came from the fixture with a real secret.
