@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ShiftOMator.Application;
+using ShiftOMator.Application.Notifications;
 using ShiftOMator.Domain;
 
 namespace ShiftOMator.Infrastructure.Seed;
@@ -64,6 +65,7 @@ public static class FixtureSeeder
         await SeedEventTypesAsync(db, ct);
         await SeedPresenceTypesAsync(db, ct);
         await SeedRequestTypesAsync(db, ct);
+        await SeedNotificationRulesAsync(db, ct);
         await SeedRolesAsync(db, ct);
         await UpgradeCalendarTokensAsync(db, ct);
     }
@@ -321,6 +323,16 @@ public static class FixtureSeeder
     /// </summary>
     private static Task SeedRequestTypesAsync(ScheduleDbContext db, CancellationToken ct) =>
         TopUpAsync(db, RequestTypeSeed(), t => t.Id, ct);
+
+    /// <summary>
+    /// The notification matrix: every kind against every real channel, off (ADR-0064).
+    ///
+    /// Topped up per row rather than seeded once, which is what makes a
+    /// <see cref="NotificationKind"/> added in code appear on Settings → Notifications by
+    /// itself. An administrator's ticks survive, because a row that exists is left alone.
+    /// </summary>
+    private static Task SeedNotificationRulesAsync(ScheduleDbContext db, CancellationToken ct) =>
+        TopUpAsync(db, NotificationFanout.DefaultMatrix(), r => r.Id, ct);
 
     private static IReadOnlyList<RequestType> RequestTypeSeed() =>
         [

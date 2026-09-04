@@ -108,8 +108,25 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   be in. Both headers are read only by `StubAuthenticationHandler`, which exists only in
   stub mode.
 
-- **External notification delivery** — the outbox columns exist and are unused; Phase B is
-  one in-process dispatcher sending via Graph ([ADR-0044](adr/0044-in-app-inbox-first.md)).
+- **External notification delivery.** The manager in front of it is built: Settings →
+  Notifications carries the (kind × channel) matrix and the delivery log, and an enabled
+  cell writes `PENDING` rows that accumulate
+  ([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)). What is missing is the
+  dispatcher and the senders — one in-process `BackgroundService` claiming a batch with
+  `WITH (UPDLOCK, READPAST)` (three API replicas in production, so a lease row is not
+  enough on its own) and sending via Graph `Mail.Send` on the workload identity that
+  already reaches SQL and the model. Three decisions come with it and are deliberately not
+  pre-empted: **which address** a person is mailed at — `Person.Email` is the key an Entra
+  sign-in is matched by ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)), so
+  reusing it as a mailing address is a choice; **digest or one mail per event**, which the
+  log now makes measurable rather than guessable; and **de-duplication** for
+  `COMP_DAY_AGING` and `COVERAGE_GAP`, which are conditions true every day rather than
+  events, so they emit nothing at all until there is both a schedule to run them on and a
+  key that stops them telling somebody the same thing every morning.
+- **Per-person notification preferences.** `userOverridable` is stored and shown on the
+  matrix, and nothing honours it yet: a `NotificationPreference{personId, kind, channel}`
+  overlay is the last step of ADR-0064. Opt-out is worth building once there is enough
+  traffic to want less of it — which, again, the log will show.
 - **An admin screen for request types.** Event types have one (Settings → Leave types) and
   so do presence types (Settings → Presence); request types do not, so adding one still
   means a row in the seed or the database. Most are now derivable from those two screens —

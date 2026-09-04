@@ -542,17 +542,8 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<string>("Body")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Channel")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("DeliveredAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("DeliveryAttempts")
-                        .HasColumnType("int");
 
                     b.Property<int>("Kind")
                         .HasColumnType("int");
@@ -581,6 +572,70 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.HasIndex("RecipientPersonId", "ReadAt");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.NotificationDelivery", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NotificationId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("SkipReason")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotificationId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("NotificationDeliveries");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.NotificationRule", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("UserOverridable")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind", "Channel")
+                        .IsUnique();
+
+                    b.ToTable("NotificationRules");
                 });
 
             modelBuilder.Entity("ShiftOMator.Domain.Person", b =>
@@ -1072,6 +1127,9 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.Property<string>("CompletedByPersonId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("DirectoryRoles")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Preset")
                         .HasColumnType("int");
 
@@ -1154,6 +1212,15 @@ namespace ShiftOMator.Infrastructure.Migrations
                     b.HasOne("ShiftOMator.Domain.DraftSession", null)
                         .WithMany("Changes")
                         .HasForeignKey("DraftSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.NotificationDelivery", b =>
+                {
+                    b.HasOne("ShiftOMator.Domain.Notification", null)
+                        .WithMany("Deliveries")
+                        .HasForeignKey("NotificationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1286,6 +1353,11 @@ namespace ShiftOMator.Infrastructure.Migrations
             modelBuilder.Entity("ShiftOMator.Domain.DraftSession", b =>
                 {
                     b.Navigation("Changes");
+                });
+
+            modelBuilder.Entity("ShiftOMator.Domain.Notification", b =>
+                {
+                    b.Navigation("Deliveries");
                 });
 
             modelBuilder.Entity("ShiftOMator.Domain.Person", b =>

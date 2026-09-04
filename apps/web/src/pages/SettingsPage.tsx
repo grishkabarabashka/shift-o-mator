@@ -26,7 +26,8 @@
  * `useAdminEdits.ts` for why that needs no per-row reset logic.
  */
 
-import { useId, useState, type ReactElement } from 'react';
+import { useEffect, useId, useState, type ReactElement } from 'react';
+import { useSearchParams } from 'react-router';
 import {
   adminAbsenceCapacityRules,
   adminHolidays,
@@ -34,6 +35,9 @@ import {
   adminEventTypes,
   adminPresenceTypes,
   adminPeople,
+  usePeopleBatch,
+  PeopleBatchError,
+  type PersonAdminRequest,
   adminShifts,
   adminUnits,
   absenceCapacityRuleToWire,
@@ -50,6 +54,7 @@ import {
 import { weekdaysToWire } from '../api/mapping.ts';
 import type {
   AbsenceCapacityRule,
+  DayConfiguration,
   DayConfigKey,
   EventType,
   Holiday,
@@ -62,15 +67,30 @@ import type {
 } from '../domain/types.ts';
 import { DirtyBar } from '../features/settings/DirtyBar.tsx';
 import { HolidayImport } from '../features/settings/HolidayImport.tsx';
-import { CheckboxField, FieldErrorList, NativeSelectField, NumberField, TextField, TimeField } from '../features/settings/fields.tsx';
-import { type AdminEntity, type EntityOps, useAdminEdits } from '../features/settings/useAdminEdits.ts';
+import {
+  CheckboxField,
+  FieldErrorList,
+  NativeSelectField,
+  NumberField,
+  TextField,
+  TimeField,
+  TimeZoneField,
+} from '../features/settings/fields.tsx';
+import {
+  BatchRejected,
+  type AdminEntity,
+  type EntityOps,
+  useAdminEdits,
+} from '../features/settings/useAdminEdits.ts';
 import { useSchedule } from '../store/useSchedule.ts';
+import { useUi } from '../store/useUi.ts';
 import { APP_ROLES, type AppRole } from '../auth/AuthProvider.tsx';
 import { useCapabilities } from '../auth/useCapabilities.ts';
 import { useGrantRole, useRevokeRole, useRoleAssignments } from '../api/roleAssignments.ts';
 import { useCanLoadDemoData, useLoadDemoData, useResetSystem } from '../api/setup.ts';
 import { ApiError } from '../api/client.ts';
 import { toast } from '../ui/toasts.ts';
+import { NotificationsTab } from '../features/settings/NotificationsTab.tsx';
 
 const TABS = [
   'Units',
@@ -83,9 +103,22 @@ const TABS = [
   'Presence',
   'People',
   'Roles',
+  'Notifications',
   'Maintenance',
 ] as const;
 type Tab = (typeof TABS)[number];
+
+/** Which entity a tab edits, so the tab can carry that entity's unsaved/rejected count. */
+const ENTITY_OF_TAB: Partial<Record<Tab, AdminEntity>> = {
+  Units: 'unit',
+  Locations: 'location',
+  Shifts: 'shift',
+  Holidays: 'holiday',
+  'Absence limits': 'absenceCapacityRule',
+  'Leave types': 'eventType',
+  Presence: 'presenceType',
+  People: 'person',
+};
 
 const WEEKDAY_LABELS: ReadonlyArray<{ value: Weekday; label: string }> = [
   { value: 1, label: 'Mon' },
@@ -96,6 +129,32 @@ const WEEKDAY_LABELS: ReadonlyArray<{ value: Weekday; label: string }> = [
   { value: 6, label: 'Sat' },
   { value: 7, label: 'Sun' },
 ];
+
+/** The URL slug for a tab: `Absence limits` ↔ `absence-limits`. */
+function slugOf(tab: Tab): string {
+  return tab.toLowerCase().replace(/\s+/g, '-');
+}
+
+/**
+ * Which tab is open, in the query string.
+ *
+ * WHY: it was `useState`, so a refresh, a browser Back, or a link to "the Roles tab"
+ * all landed on Units — on an eleven-tab screen where the answer somebody was sent for
+ * is three tabs away. `replace` keeps tab-switching out of the history stack, so Back
+ * still leaves Settings rather than walking the tabs backwards.
+ */
+function useTabInUrl(): readonly [Tab, (tab: Tab) => void] {
+  const [params, setParams] = useSearchParams();
+  const fromUrl = TABS.find((t) => slugOf(t) === params.get('tab'));
+  return [
+    fromUrl ?? 'Units',
+    (tab: Tab) => {
+      const next = new URLSearchParams(params);
+      next.set('tab', slugOf(tab));
+      setParams(next, { replace: true });
+    },
+  ];
+}
 
 function WeekdaysEditor({ value, onChange }: { readonly value: readonly Weekday[]; readonly onChange: (v: Weekday[]) => void }) {
   const set = new Set(value);
@@ -122,9 +181,25 @@ function WeekdaysEditor({ value, onChange }: { readonly value: readonly Weekday[
 }
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('Units');
+  const [tab, setTab] = useTabInUrl();
+  const caps = useCapabilities();
   const reference = useSchedule((s) => s.reference);
   const edits = useAdminEdits();
+  const setUnsavedAdminChanges = useUi((s) => s.setUnsavedAdminChanges);
+
+  // Two ways off this screen, and both used to take the edits with them silently: the
+  // masthead (which reads the count from `useUi`) and closing the tab.
+  useEffect(() => {
+    setUnsavedAdminChanges(edits.dirtyCount);
+    return () => setUnsavedAdminChanges(0);
+  }, [edits.dirtyCount, setUnsavedAdminChanges]);
+
+  useEffect(() => {
+    if (edits.dirtyCount === 0) return undefined;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [edits.dirtyCount]);
 
   // One mutation-hook instance per entity, called unconditionally (rules of
   // hooks) — `opsByEntity` below wires each into the generic save/cancel loop.
@@ -159,6 +234,7 @@ export function SettingsPage() {
   const personCreate = adminPeople.useCreate();
   const personUpdate = adminPeople.useUpdate();
   const personRemove = adminPeople.useRemove();
+  const peopleBatch = usePeopleBatch();
 
   const opsByEntity: Partial<Record<AdminEntity, EntityOps<never, never>>> = {
     location: {
@@ -212,6 +288,26 @@ export function SettingsPage() {
       update: (id, r) => personUpdate.mutateAsync({ id, body: r as never }),
       remove: (id) => personRemove.mutateAsync(id),
       toRequest: (d) => personAdminToWire(d as never) as never,
+      // People are the one admin resource whose rows can invalidate each other: `email`
+      // and `employeeId` are uniquely indexed, so moving an address between two people is
+      // a release and a claim that are only valid together. Row at a time, the claim was
+      // rejected and the release still committed — the address ended up on nobody, and
+      // whoever it belonged to could not sign in (ADR-0061).
+      saveBatch: async (ops) => {
+        try {
+          await peopleBatch.mutateAsync(
+            ops.map((op) => ({
+              kind: op.kind,
+              ...(op.id ? { id: op.id } : {}),
+              ...(op.tempId ? { tempId: op.tempId } : {}),
+              ...(op.request ? { person: op.request as PersonAdminRequest } : {}),
+            })),
+          );
+        } catch (error) {
+          if (error instanceof PeopleBatchError) throw new BatchRejected(error.byIndex);
+          throw error;
+        }
+      },
     },
   };
 
@@ -223,8 +319,11 @@ export function SettingsPage() {
     <div className="mx-auto flex max-w-[1200px] flex-col gap-4 p-4">
       <header className="flex items-center gap-3">
         <h1 className="text-[22px] font-semibold tracking-tight">Settings</h1>
+        {/* It used to say shifts were versioned too. They are edited in place — only day
+            configurations keep every version (ADR-0021), and saying otherwise invited
+            somebody to expect last March to be safe from a change to a shift's window. */}
         <span className="text-[11.5px] text-faint">
-          Day configurations and shifts are versioned by effective date
+          Day configurations are versioned by effective date; everything else is edited in place
         </span>
       </header>
 
@@ -246,18 +345,33 @@ export function SettingsPage() {
         onCancelAll={edits.cancelAll}
       />
 
-      <div className="segmented self-start">
-        {TABS.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className="segmented__item"
-            data-active={tab === item}
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
+      <div className="segmented flex-wrap self-start">
+        {TABS.map((item) => {
+          const entity = ENTITY_OF_TAB[item];
+          const dirty = entity ? edits.countsByEntity.dirty.get(entity) ?? 0 : 0;
+          const failed = entity ? edits.countsByEntity.failed.get(entity) ?? 0 : 0;
+          return (
+            <button
+              key={item}
+              type="button"
+              className="segmented__item"
+              data-active={tab === item}
+              onClick={() => setTab(item)}
+              title={
+                failed > 0
+                  ? `${failed} rejected ${rowWord(failed)} on this tab`
+                  : dirty > 0
+                    ? `${dirty} unsaved ${rowWord(dirty)} on this tab`
+                    : undefined
+              }
+            >
+              {item}
+              {dirty > 0 ? (
+                <span className={`ml-1.5 pill ${failed > 0 ? 'pill--bad' : 'pill--warn'}`}>{failed > 0 ? failed : dirty}</span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
       <section className="card overflow-auto">
@@ -271,6 +385,7 @@ export function SettingsPage() {
         {tab === 'Presence' ? <PresenceTypesTab reference={reference} edits={edits} /> : null}
         {tab === 'People' ? <PeopleTab reference={reference} edits={edits} /> : null}
         {tab === 'Roles' ? <RolesTab reference={reference} /> : null}
+        {tab === 'Notifications' ? <NotificationsTab canEdit={caps.canAdministerGlobally} /> : null}
         {tab === 'Maintenance' ? <MaintenanceTab /> : null}
       </section>
     </div>
@@ -314,7 +429,7 @@ function LocationsTab({ reference, edits }: { readonly reference: Reference; rea
             <TextField value={draft.country} ariaLabel="Country" onChange={(v) => setField('country', v)} />
           </td>
           <td>
-            <TextField mono value={draft.timeZone} ariaLabel="Time zone" onChange={(v) => setField('timeZone', v)} />
+            <TimeZoneField value={draft.timeZone} ariaLabel="Time zone" onChange={(v) => setField('timeZone', v)} />
           </td>
           <td>
             <TextField mono value={draft.holidayCalendarKey} ariaLabel="Holiday calendar key" onChange={(v) => setField('holidayCalendarKey', v)} />
@@ -362,6 +477,10 @@ function ShiftsTab({ reference, edits }: { readonly reference: Reference; readon
           <th>Color</th>
           <th>Hotkey</th>
           <th>Window</th>
+          <th className="w-[80px]" title="The window ends on the next day — 22:00–06:00 is one shift, not an eight-hour gap">
+            Overnight
+          </th>
+          <th className="w-[80px]">Break</th>
           <th>Zone</th>
           <th>Counts as coverage</th>
           <th />
@@ -401,7 +520,27 @@ function ShiftsTab({ reference, edits }: { readonly reference: Reference; readon
             <TimeField value={draft.end} ariaLabel="End" onChange={(v) => setField('end', v)} />
           </td>
           <td>
-            <TextField mono value={draft.timeZone} ariaLabel="Time zone" onChange={(v) => setField('timeZone', v)} />
+            {/* Read by `engine/dates.ts` to place the end of the window on the next day. It
+                was stored and editable nowhere, so a night shift created here came out as a
+                window running backwards. */}
+            <CheckboxField
+              checked={draft.crossesMidnight}
+              ariaLabel="Crosses midnight"
+              onChange={(v) => setField('crossesMidnight', v)}
+            />
+          </td>
+          <td>
+            <NumberField
+              min={0}
+              value={draft.breakMinutes}
+              ariaLabel="Break minutes"
+              onChange={(v) => setField('breakMinutes', v)}
+            />
+            <span className="ml-1 text-faint">min</span>
+            <FieldErrorList errors={errors?.breakMinutes} />
+          </td>
+          <td>
+            <TimeZoneField value={draft.timeZone} ariaLabel="Time zone" onChange={(v) => setField('timeZone', v)} />
           </td>
           <td>
             <CheckboxField checked={draft.countsAsCoverage} ariaLabel="Counts as coverage" onChange={(v) => setField('countsAsCoverage', v)} />
@@ -433,27 +572,53 @@ function describeKey(config: { key: DayConfigKey; date?: string }): string {
 }
 
 function DayConfigurationsTab({ reference }: { readonly reference: Reference }) {
-  const [creating, setCreating] = useState(false);
-  const grouped = new Map<string, typeof reference.dayConfigurations extends readonly (infer T)[] ? T[] : never>();
+  // `undefined` = the form is closed; a `DayConfiguration` = open, started from that
+  // version. Retyping a five-shift set to change one minimum was the whole cost of a
+  // rule change here.
+  const [creating, setCreating] = useState<{ readonly seed?: DayConfiguration } | undefined>();
+  const [unitFilter, setUnitFilter] = useState<string>('');
+  const grouped = new Map<string, DayConfiguration[]>();
   for (const config of reference.dayConfigurations) {
+    if (unitFilter && config.unitId !== unitFilter) continue;
     const groupKey = `${config.unitId}|${config.key}|${config.date ?? ''}`;
     const list = grouped.get(groupKey) ?? [];
     list.push(config);
     grouped.set(groupKey, list);
   }
+  const unitName = (id: string) => reference.units.find((u) => u.id === id)?.name ?? id;
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-[11.5px] text-faint">
           Every version is kept — editing means creating a new one effective from a future date, never overwriting history.
         </p>
-        <button type="button" className="btn btn--sm btn--primary ml-auto" onClick={() => setCreating(true)}>
-          + New version
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <NativeSelectField
+            value={unitFilter}
+            ariaLabel="Filter by unit"
+            options={[{ value: '', label: 'Every unit' }, ...reference.units.map((u) => ({ value: u.id, label: u.name }))]}
+            onChange={setUnitFilter}
+          />
+          <button type="button" className="btn btn--sm btn--primary" onClick={() => setCreating({})}>
+            + New version
+          </button>
+        </div>
       </div>
 
-      {creating ? <NewDayConfigVersionForm reference={reference} onDone={() => setCreating(false)} /> : null}
+      {creating ? (
+        <NewDayConfigVersionForm
+          reference={reference}
+          {...(creating.seed ? { seed: creating.seed } : {})}
+          onDone={() => setCreating(undefined)}
+        />
+      ) : null}
+
+      {grouped.size === 0 ? (
+        <p className="text-[12px] text-faint">
+          No day configurations{unitFilter ? ` in ${unitName(unitFilter)}` : ''} yet — every day would fall through to no shift set at all.
+        </p>
+      ) : null}
 
       {[...grouped.entries()].map(([groupKey, versions]) => {
         const sorted = [...versions].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
@@ -463,11 +628,18 @@ function DayConfigurationsTab({ reference }: { readonly reference: Reference }) 
           <div key={groupKey} className="card p-2">
             <div className="flex items-center gap-2 rounded-md bg-accent-soft px-2 py-1">
               <span className="pill pill--accent">live</span>
-              <span className="text-muted">{current.unitId}</span>
+              <span className="text-muted">{unitName(current.unitId)}</span>
               <span className="font-medium">{describeKey(current)}</span>
               <span className="text-[11px] text-faint">effective since {current.effectiveFrom}</span>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost ml-auto"
+                onClick={() => setCreating({ seed: current })}
+              >
+                New version from this
+              </button>
               {history.length > 0 ? (
-                <span className="ml-auto text-[11px] text-faint">{history.length} earlier version{history.length > 1 ? 's' : ''}</span>
+                <span className="text-[11px] text-faint">{history.length} earlier version{history.length > 1 ? 's' : ''}</span>
               ) : null}
             </div>
             <ShiftRequirementList reference={reference} requirements={current.shiftRequirements} />
@@ -510,7 +682,17 @@ function ShiftRequirementList({
           >
             <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: shift?.color ?? 'var(--accent)' }} />
             {shift?.code ?? requirement.shiftId}
-            <span className="text-faint">{requirement.min}</span>
+            <span className="text-faint">
+              {requirement.min}
+              {requirement.max !== undefined ? `–${requirement.max}` : ''}
+            </span>
+            {/* The requirement everyone else falls into (ADR-0038) — invisible here until
+                now, which made two otherwise identical-looking sets behave differently. */}
+            {requirement.isDefault ? (
+              <span className="text-[10px] text-faint" title="Absorbs everyone with no other shift">
+                default
+              </span>
+            ) : null}
           </span>
         );
       })}
@@ -518,17 +700,63 @@ function ShiftRequirementList({
   );
 }
 
-function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Reference; readonly onDone: () => void }) {
+/** One shift's line in the form below. Absent from the map = not in this day's set. */
+interface RequirementDraft {
+  readonly min: number;
+  readonly max: number | null;
+  readonly isDefault: boolean;
+}
+
+/**
+ * A new version of a day configuration.
+ *
+ * Three things this form used to make impossible, all of them decisions the domain
+ * treats as ordinary:
+ *  - a requirement with `min: 0`, silently dropped by a `min > 0` filter although
+ *    ADR-0034 calls a zero minimum a legal coverage state;
+ *  - `isDefault`, hardcoded to false — so the requirement that absorbs everyone on an
+ *    ordinary day (ADR-0038) could not be expressed from the screen at all;
+ *  - `max`, which is what makes a `COVERAGE_OVER_MAX` warning possible.
+ * Membership of the day's shift set is now the tick, not a nonzero minimum.
+ */
+function NewDayConfigVersionForm({
+  reference,
+  seed,
+  onDone,
+}: {
+  readonly reference: Reference;
+  readonly seed?: DayConfiguration;
+  readonly onDone: () => void;
+}) {
   const create = useCreateDayConfigVersion();
-  const [unitId, setUnitId] = useState(reference.units[0]?.id ?? '');
-  const [key, setKey] = useState<DayConfigKey>('weekday');
-  const [weekdays, setWeekdays] = useState<Weekday[]>([1, 2, 3, 4]);
+  const [unitId, setUnitId] = useState(seed?.unitId ?? reference.units[0]?.id ?? '');
+  const [key, setKey] = useState<DayConfigKey>(seed?.key ?? 'weekday');
+  const [weekdays, setWeekdays] = useState<readonly Weekday[]>(seed?.weekdays ?? [1, 2, 3, 4]);
+  const [date, setDate] = useState(seed?.date ?? '');
   const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [label, setLabel] = useState('');
-  const [minByShift, setMinByShift] = useState<Map<string, number>>(new Map());
+  const [label, setLabel] = useState(seed?.label ?? '');
+  const [requirements, setRequirements] = useState<Map<string, RequirementDraft>>(
+    new Map(
+      (seed?.shiftRequirements ?? []).map((r) => [
+        r.shiftId,
+        { min: r.min, max: r.max ?? null, isDefault: r.isDefault },
+      ]),
+    ),
+  );
   const [error, setError] = useState<string | undefined>();
 
   const unitShifts = reference.shifts.filter((s) => s.unitId === unitId);
+  // A holiday configuration applies to any weekday the calendar calls a holiday, so the
+  // resolver never reads its `weekdays` — but the server still asks for a non-empty set.
+  const weekdaysApply = key !== 'holiday' && key !== 'date';
+  const patch = (shiftId: string, next: Partial<RequirementDraft>) => {
+    setRequirements((prev) => {
+      const map = new Map(prev);
+      const current = map.get(shiftId) ?? { min: 0, max: null, isDefault: false };
+      map.set(shiftId, { ...current, ...next });
+      return map;
+    });
+  };
 
   async function submit() {
     setError(undefined);
@@ -536,25 +764,27 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
       await create.mutateAsync({
         unitId,
         key,
-        weekdays: weekdaysToWire(weekdays),
-        date: null,
+        weekdays: weekdaysToWire(weekdaysApply ? [...weekdays] : ([1, 2, 3, 4, 5, 6, 7] as Weekday[])),
+        date: key === 'date' ? date : null,
         label: label || null,
         effectiveFrom,
-        shiftRequirements: [...minByShift.entries()]
-          .filter(([, min]) => min > 0)
-          .map(([shiftId, min]) => ({
-            shiftId,
-            min,
-            max: null,
-            isDefault: false,
-            timingOverrideStart: null,
-            timingOverrideEnd: null,
-            timingOverrideCrossesMidnight: null,
-          })),
+        shiftRequirements: [...requirements.entries()].map(([shiftId, r]) => ({
+          shiftId,
+          min: r.min,
+          max: r.max,
+          isDefault: r.isDefault,
+          timingOverrideStart: null,
+          timingOverrideEnd: null,
+          timingOverrideCrossesMidnight: null,
+        })),
       });
       onDone();
-    } catch {
-      setError('Could not create this version — check the effective date and shift minimums.');
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : 'Could not create this version — check the effective date and the shift set.',
+      );
     }
   }
 
@@ -566,6 +796,7 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
       >
         Creates a <strong>new version</strong> effective from the date below — the live
         configuration is never edited in place.
+        {seed ? ' Started from the version currently live, so only the change has to be typed.' : ''}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <NativeSelectField
@@ -582,10 +813,17 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
             { value: 'friday', label: 'Friday' },
             { value: 'weekend', label: 'Weekend' },
             { value: 'holiday', label: 'Holiday' },
+            { value: 'date', label: 'One dated day (event)' },
           ]}
           onChange={(v) => setKey(v as DayConfigKey)}
         />
-        <WeekdaysEditor value={weekdays} onChange={setWeekdays} />
+        {weekdaysApply ? <WeekdaysEditor value={weekdays} onChange={setWeekdays} /> : null}
+        {key === 'date' ? (
+          <label className="flex items-center gap-1 text-[11.5px]">
+            The day
+            <input type="date" className="field py-0.5" value={date} aria-label="Event date" onChange={(e) => setDate(e.target.value)} />
+          </label>
+        ) : null}
         <label className="flex items-center gap-1 text-[11.5px]">
           Effective from
           <input type="date" className="field py-0.5" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
@@ -593,20 +831,81 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
         <TextField value={label} ariaLabel="Label" placeholder="Label (optional)" onChange={setLabel} />
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        {unitShifts.map((shift) => (
-          <label key={shift.id} className="flex items-center gap-1.5 text-[11.5px]">
-            <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: shift.color }} />
-            {shift.code}
-            <NumberField
-              min={0}
-              value={minByShift.get(shift.id) ?? 0}
-              ariaLabel={`${shift.code} minimum`}
-              onChange={(v) => setMinByShift(new Map(minByShift).set(shift.id, v))}
-            />
-          </label>
-        ))}
-      </div>
+      <table className="rows">
+        <thead>
+          <tr>
+            <th className="w-[40px]">In</th>
+            <th>Shift</th>
+            <th className="w-[90px]" title="Below this is a gap. Zero is legal — the shift is offered with no coverage obligation.">
+              Min
+            </th>
+            <th className="w-[110px]" title="Above this is a warning. Blank means no ceiling.">
+              Max
+            </th>
+            <th title="The requirement everyone with no other shift falls into on this kind of day">
+              Absorbs the rest
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {unitShifts.map((shift) => {
+            const row = requirements.get(shift.id);
+            return (
+              <tr key={shift.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={row !== undefined}
+                    aria-label={`${shift.code} runs on this kind of day`}
+                    onChange={(e) =>
+                      setRequirements((prev) => {
+                        const map = new Map(prev);
+                        if (e.target.checked) map.set(shift.id, { min: 0, max: null, isDefault: false });
+                        else map.delete(shift.id);
+                        return map;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <span aria-hidden className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: shift.color }} />
+                  <span className="font-mono text-[12px]">{shift.code}</span>
+                  <span className="ml-2 text-[11px] text-faint">{shift.label}</span>
+                </td>
+                <td>
+                  <NumberField
+                    min={0}
+                    value={row?.min ?? 0}
+                    ariaLabel={`${shift.code} minimum`}
+                    onChange={(v) => patch(shift.id, { min: v })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    className="field w-16 py-0.5 font-mono text-[12px]"
+                    value={row?.max ?? ''}
+                    placeholder="—"
+                    disabled={row === undefined}
+                    aria-label={`${shift.code} maximum`}
+                    onChange={(e) => patch(shift.id, { max: e.target.value === '' ? null : Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={row?.isDefault ?? false}
+                    disabled={row === undefined}
+                    aria-label={`${shift.code} absorbs everyone else`}
+                    onChange={(e) => patch(shift.id, { isDefault: e.target.checked })}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
 
       {error ? <p className="text-[11px] text-warn">{error}</p> : null}
 
@@ -614,7 +913,13 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
         <button
           type="button"
           className="btn btn--sm btn--primary"
-          disabled={!effectiveFrom || create.isPending}
+          disabled={
+            !effectiveFrom ||
+            requirements.size === 0 ||
+            (key === 'date' && !date) ||
+            (weekdaysApply && weekdays.length === 0) ||
+            create.isPending
+          }
           onClick={() => void submit()}
         >
           {create.isPending ? 'Creating…' : 'Create new version'}
@@ -638,10 +943,36 @@ function NewDayConfigVersionForm({ reference, onDone }: { readonly reference: Re
 
 function HolidaysTab({ reference, edits }: { readonly reference: Reference; readonly edits: Edits }) {
   const tempId = useId();
-  const sorted = [...reference.holidays].sort((a, b) => a.date.localeCompare(b.date));
+  // The table grows by a year of days per import and never shrinks, so the default view
+  // is the year in hand rather than every year ever loaded.
+  const thisYear = String(new Date().getFullYear());
+  const [year, setYear] = useState(thisYear);
+  const [locationFilter, setLocationFilter] = useState('');
+  const years = [...new Set(reference.holidays.map((h) => h.date.slice(0, 4)))].sort();
+  const sorted = [...reference.holidays]
+    .filter((h) => !year || h.date.startsWith(year))
+    .filter((h) => !locationFilter || h.locationIds.includes(locationFilter))
+    .sort((a, b) => a.date.localeCompare(b.date));
   return (
     <div className="flex flex-col gap-3">
       <HolidayImport locations={reference.locations} />
+      <div className="flex flex-wrap items-center gap-2">
+        <NativeSelectField
+          value={year}
+          ariaLabel="Filter by year"
+          options={[{ value: '', label: 'Every year' }, ...years.map((y) => ({ value: y, label: y }))]}
+          onChange={setYear}
+        />
+        <NativeSelectField
+          value={locationFilter}
+          ariaLabel="Filter by location"
+          options={[{ value: '', label: 'Every location' }, ...reference.locations.map((l) => ({ value: l.id, label: l.name }))]}
+          onChange={setLocationFilter}
+        />
+        <span className="text-[11.5px] text-faint">
+          {sorted.length} of {reference.holidays.length}
+        </span>
+      </div>
       <EditableTable
       title="holiday"
       rows={sorted}
@@ -731,8 +1062,14 @@ function UnitsTab({ reference, edits }: { readonly reference: Reference; readonl
           <th>Group by</th>
           <th>Primary location</th>
           <th>Member locations</th>
-          <th>Comp-off before / after</th>
+          <th title="How far either side of the worked weekend a comp day may be placed">
+            Comp-off before / after
+          </th>
+          <th title="Weekdays a comp day is never placed on">Never on</th>
           <th>Aging threshold</th>
+          <th title="No free slot in the window: raise it for approval rather than dropping it">
+            Approve when no slot
+          </th>
           <th />
         </tr>
       )}
@@ -804,12 +1141,28 @@ function UnitsTab({ reference, edits }: { readonly reference: Reference; readonl
             <span className="text-faint">days</span>
           </td>
           <td>
+            {/* Mon and Fri by default, and stored per unit — but there was no control, so
+                the one part of the comp-off search a team actually argues about needed a
+                deployment. */}
+            <WeekdaysEditor
+              value={draft.compOffPolicy.excludedWeekdays}
+              onChange={(v) => setField('compOffPolicy', { ...draft.compOffPolicy, excludedWeekdays: v })}
+            />
+          </td>
+          <td>
             <NumberField
               value={draft.compOffPolicy.agingThresholdDays}
               ariaLabel="Comp-off aging threshold"
               onChange={(v) => setField('compOffPolicy', { ...draft.compOffPolicy, agingThresholdDays: v })}
             />
             <span className="ml-1 text-faint">days</span>
+          </td>
+          <td>
+            <CheckboxField
+              checked={draft.compOffPolicy.requiresApprovalWhenNoSlot}
+              ariaLabel="Requires approval when no slot"
+              onChange={(v) => setField('compOffPolicy', { ...draft.compOffPolicy, requiresApprovalWhenNoSlot: v })}
+            />
           </td>
         </>
       )}
@@ -823,6 +1176,15 @@ function UnitsTab({ reference, edits }: { readonly reference: Reference; readonl
 
 function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference; readonly edits: Edits }) {
   const tempId = useId();
+  // The kinds of leave a rule counts by default: whatever an administrator has already
+  // said counts against capacity. Hardcoding a list of codes here was how this row came
+  // to carry `countsTypes` — a field no layer below it has ever known about.
+  const countedByDefault = reference.eventTypes
+    .filter((t) => t.isActive && t.countsTowardCapacity)
+    .map((t) => t.id);
+  const activeEventTypes = [...reference.eventTypes]
+    .filter((t) => t.isActive)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   return (
     <EditableTable
       title="rule"
@@ -836,7 +1198,7 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
         durationBucket: 'SHORT',
         longThresholdWorkdays: 5,
         maxConcurrent: 1,
-        countsTypes: ['VACATION', 'SICK'],
+        countsEventTypeIds: countedByDefault,
         countsCompDays: false,
       }}
       renderHeader={() => (
@@ -844,7 +1206,11 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
           <th>Unit</th>
           <th>Scope</th>
           <th>Duration</th>
+          <th title="How many workdays of leave make an absence “long”">Long from</th>
           <th>Max concurrent</th>
+          <th title="Which kinds of leave this limit counts. A kind nothing counts is unlimited.">
+            Counts
+          </th>
           <th>Counts comp days</th>
           <th />
         </tr>
@@ -856,7 +1222,14 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
               value={draft.unitId}
               ariaLabel="Unit"
               options={reference.units.map((u) => ({ value: u.id, label: u.name }))}
-              onChange={(v) => setField('unitId', v)}
+              onChange={(v) => {
+                setField('unitId', v);
+                // Moving the rule takes its pool with it, and the old unit's shift is not in
+                // the new unit — leaving it there is a row the server rejects on save.
+                if (draft.scope.kind === 'SHIFT_POOL') {
+                  setField('scope', { kind: 'SHIFT_POOL', shiftId: reference.shifts.find((s) => s.unitId === v)?.id ?? '' });
+                }
+              }}
             />
           </td>
           <td className="flex items-center gap-1">
@@ -865,7 +1238,15 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
               ariaLabel="Scope"
               options={[{ value: 'UNIT', label: 'Unit-wide' }, { value: 'SHIFT_POOL', label: 'Shift pool' }]}
               onChange={(v) =>
-                setField('scope', v === 'SHIFT_POOL' ? { kind: 'SHIFT_POOL', shiftId: reference.shifts[0]?.id ?? '' } : { kind: 'UNIT' })
+                setField(
+                  'scope',
+                  v === 'SHIFT_POOL'
+                    ? // The pool has to belong to the rule's own unit. This used to reach for
+                      // `shifts[0]`, which is whatever unit happens to sort first — a rule
+                      // limiting an EMEA pool from an APAC row, rejected only by the server.
+                      { kind: 'SHIFT_POOL', shiftId: reference.shifts.find((s) => s.unitId === draft.unitId)?.id ?? '' }
+                    : { kind: 'UNIT' },
+                )
               }
             />
             {draft.scope.kind === 'SHIFT_POOL' ? (
@@ -887,7 +1268,40 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
             />
           </td>
           <td>
+            {/* The boundary between the two buckets. It was stored, used by the engine and
+                editable nowhere, so "3 long / 4 short" was a rule whose "long" nobody could
+                read off the screen. */}
+            <NumberField
+              min={0}
+              value={draft.longThresholdWorkdays}
+              ariaLabel="Long from, workdays"
+              onChange={(v) => setField('longThresholdWorkdays', v)}
+            />
+            <span className="ml-1 text-faint">workdays</span>
+            <FieldErrorList errors={errors?.longThresholdWorkdays} />
+          </td>
+          <td>
             <NumberField min={0} value={draft.maxConcurrent} ariaLabel="Max concurrent" onChange={(v) => setField('maxConcurrent', v)} />
+            <FieldErrorList errors={errors?.maxConcurrent} />
+          </td>
+          <td className="flex max-w-[260px] flex-wrap gap-x-2 gap-y-0.5">
+            {activeEventTypes.map((type) => (
+              <label key={type.id} className="flex items-center gap-1 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={draft.countsEventTypeIds.includes(type.id)}
+                  onChange={(e) =>
+                    setField(
+                      'countsEventTypeIds',
+                      e.target.checked
+                        ? [...draft.countsEventTypeIds, type.id]
+                        : draft.countsEventTypeIds.filter((id) => id !== type.id),
+                    )
+                  }
+                />
+                {type.shortLabel || type.label}
+              </label>
+            ))}
           </td>
           <td>
             <CheckboxField checked={draft.countsCompDays} ariaLabel="Counts comp days" onChange={(v) => setField('countsCompDays', v)} />
@@ -904,6 +1318,11 @@ function AbsenceLimitsTab({ reference, edits }: { readonly reference: Reference;
 
 function PeopleTab({ reference, edits }: { readonly reference: Reference; readonly edits: Edits }) {
   const tempId = useId();
+  // ~80 rows in one flat table: finding one person meant Ctrl+F, and Ctrl+F does not
+  // reach a `<select>`'s current value.
+  const [query, setQuery] = useState('');
+  const [unitFilter, setUnitFilter] = useState('');
+  const [activeOnly, setActiveOnly] = useState(true);
   const rows: AdminPersonSummary[] = reference.people.map((p) => ({
     id: p.id,
     displayName: p.displayName,
@@ -916,10 +1335,48 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
     isActive: p.isActive,
     isIncluded: p.isIncluded,
   }));
+
+  const needle = query.trim().toLowerCase();
+  const visible = rows
+    .filter((r) => !unitFilter || r.unitId === unitFilter)
+    .filter((r) => !activeOnly || r.isActive)
+    .filter(
+      (r) =>
+        !needle ||
+        r.displayName.toLowerCase().includes(needle) ||
+        (r.email ?? '').toLowerCase().includes(needle) ||
+        (r.employeeId ?? '').toLowerCase().includes(needle),
+    )
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
   return (
-    <EditableTable
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          className="field w-56 py-0.5"
+          value={query}
+          placeholder="Name, email or employee ID"
+          aria-label="Search people"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <NativeSelectField
+          value={unitFilter}
+          ariaLabel="Filter by unit"
+          options={[{ value: '', label: 'Every unit' }, ...reference.units.map((u) => ({ value: u.id, label: u.name }))]}
+          onChange={setUnitFilter}
+        />
+        <label className="flex items-center gap-1.5 text-[11.5px]">
+          <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
+          Active only
+        </label>
+        <span className="text-[11.5px] text-faint">
+          {visible.length} of {rows.length}
+        </span>
+      </div>
+      <EditableTable
       title="person"
-      rows={rows}
+      rows={visible}
       entity="person"
       edits={edits}
       newTempId={tempId}
@@ -1004,7 +1461,8 @@ function PeopleTab({ reference, edits }: { readonly reference: Reference; readon
           </td>
         </>
       )}
-    />
+      />
+    </div>
   );
 }
 
@@ -1046,32 +1504,60 @@ function EditableTable<T extends { readonly id: string }>({
     draft: T,
     setField: (field: string, value: unknown) => void,
     errors: ReturnType<Edits['fieldErrorsFor']>,
+    /** Two fields that are only valid together — see `useAdminEdits.setFields`. */
+    setFields: (patch: Record<string, unknown>) => void,
   ) => ReactElement;
 }) {
-  const creating = edits.pendingCreates.some((c) => c.entity === entity && c.tempId === newTempId);
+  // The pending row as typed so far. It used to render from `newInitial` — a fresh object
+  // literal every render — so every keystroke in a new row was written to `pending` and
+  // then immediately painted back over with the initial value: a controlled input nobody
+  // could type into, on every tab's "+ New" row.
+  const creatingDraft = edits.pendingCreates.find((c) => c.entity === entity && c.tempId === newTempId)?.patch;
+  const creating = creatingDraft !== undefined;
 
   return (
     <table className="rows">
       <thead>{renderHeader()}</thead>
       <tbody>
+        {rows.length === 0 && !creatingDraft ? (
+          <tr>
+            <td colSpan={20} className="text-[12px] text-faint">
+              Nothing here yet — “+ New {title}” below.
+            </td>
+          </tr>
+        ) : null}
         {rows.map((row) => {
           const draft = edits.draftOf(entity, row.id, row as unknown as Record<string, unknown>) as unknown as T;
           const markedForDelete = edits.isMarkedForDelete(entity, row.id);
           const errors = edits.fieldErrorsFor(entity, row.id);
+          // `isDirty` existed and was called by nothing: an edited row looked exactly like
+          // an untouched one, so "5 unsaved changes" was a number with no rows attached.
+          const dirty = edits.isDirty(entity, row.id);
           return (
-            <tr key={row.id} className={markedForDelete ? 'opacity-40' : undefined}>
+            <tr
+              key={row.id}
+              className={markedForDelete ? 'opacity-40' : undefined}
+              data-dirty={dirty && !markedForDelete ? true : undefined}
+              data-rejected={errors ? true : undefined}
+            >
               {renderRow(
                 draft,
                 (field, value) => edits.setField(entity, row.id, field, value, draft as unknown as Record<string, unknown>),
                 errors,
+                (patch) => edits.setFields(entity, row.id, patch, draft as unknown as Record<string, unknown>),
               )}
               <td>
                 {markedForDelete ? (
-                  <button type="button" className="btn btn--sm btn--ghost" onClick={() => edits.discardOne(entity, row.id)}>
-                    Undo
+                  <button type="button" className="btn btn--sm" onClick={() => edits.discardOne(entity, row.id)}>
+                    Undo delete
                   </button>
                 ) : (
-                  <button type="button" className="btn btn--sm btn--ghost" onClick={() => edits.markDelete(entity, row.id)}>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost text-bad"
+                    title={`Mark this ${title} for deletion — applied on Save all, undoable until then`}
+                    onClick={() => edits.markDelete(entity, row.id)}
+                  >
                     Delete
                   </button>
                 )}
@@ -1080,12 +1566,13 @@ function EditableTable<T extends { readonly id: string }>({
           );
         })}
 
-        {creating ? (
+        {creatingDraft ? (
           <tr>
             {renderRow(
-              newInitial as unknown as T,
+              creatingDraft as unknown as T,
               (field, value) => edits.setCreateField(entity, newTempId, field, value),
               edits.fieldErrorsFor(entity, `new:${newTempId}`),
+              (patch) => edits.setFields(entity, `new:${newTempId}`, patch, creatingDraft),
             )}
             <td>
               <button type="button" className="btn btn--sm btn--ghost" onClick={() => edits.discardOne(entity, `new:${newTempId}`)}>
@@ -1127,6 +1614,8 @@ function EditableTable<T extends { readonly id: string }>({
  */
 function RolesTab({ reference }: { readonly reference: Reference }) {
   const [scope, setScope] = useState<string>(reference.units[0]?.id ?? '');
+  const [query, setQuery] = useState('');
+  const [grantedOnly, setGrantedOnly] = useState(false);
   const caps = useCapabilities();
   const grants = useRoleAssignments();
   const grant = useGrantRole();
@@ -1135,19 +1624,28 @@ function RolesTab({ reference }: { readonly reference: Reference }) {
   const unitId = scope === GLOBAL_SCOPE ? null : scope;
   const mayEdit = unitId === null ? caps.canAdministerGlobally : caps.canAdminister(unitId);
 
-  const rows = [...reference.people]
-    .filter((person) => person.isActive)
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
-
   const held = new Map<string, string>();
   for (const row of grants.data ?? []) {
     if ((row.unitId ?? null) === unitId) held.set(`${row.personId}|${row.role}`, row.id);
   }
 
+  // "Who approves EMEA's leave" over eighty rows of mostly-empty checkboxes was a scroll,
+  // not an answer.
+  const needle = query.trim().toLowerCase();
+  const rows = [...reference.people]
+    .filter((person) => person.isActive)
+    .filter((person) => !needle || person.displayName.toLowerCase().includes(needle))
+    .filter((person) => !grantedOnly || GRANTABLE.some((role) => held.has(`${person.id}|${role.toLowerCase()}`)))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  // A grant is one immediate write, unlike every other tab's Save All — so a failure has
+  // to say so itself. It used to fail silently and leave the box looking ticked.
   const toggle = (personId: string, role: Lowercase<AppRole>) => {
     const existing = held.get(`${personId}|${role}`);
-    if (existing) revoke.mutate(existing);
-    else grant.mutate({ personId, unitId, role });
+    const onError = (err: unknown) =>
+      toast.bad(err instanceof ApiError ? err.message : 'The grant could not be changed.');
+    if (existing) revoke.mutate(existing, { onError });
+    else grant.mutate({ personId, unitId, role }, { onError });
   };
 
   return (
@@ -1176,6 +1674,18 @@ function RolesTab({ reference }: { readonly reference: Reference }) {
             Every unit
           </button>
         </div>
+        <input
+          type="search"
+          className="field w-48 py-0.5"
+          value={query}
+          placeholder="Find a person"
+          aria-label="Find a person"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <label className="flex items-center gap-1.5 text-[11.5px]">
+          <input type="checkbox" checked={grantedOnly} onChange={(e) => setGrantedOnly(e.target.checked)} />
+          Only people with a grant here
+        </label>
       </div>
 
       {mayEdit ? null : (
@@ -1365,8 +1875,12 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
         renderHeader={() => (
           <tr>
             <th>Label</th>
+            <th className="w-[130px]" title="The stable key imports and the seed match on. Fixed once created.">
+              Code
+            </th>
             <th className="w-[90px]">In the cell</th>
             <th className="w-[70px]">Colour</th>
+            <th className="w-[120px]">Category</th>
             <th className="w-[80px]" title="Closes the day out — a shift on it is flagged as a conflict">
               Blocks
             </th>
@@ -1380,6 +1894,9 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
             <th className="w-[70px]" title="Unticking retires it; existing absences keep their name">
               Active
             </th>
+            <th className="w-[70px]" title="Where it sits in the cell menu — Presence has the same column">
+              Order
+            </th>
             <th />
           </tr>
         )}
@@ -1388,6 +1905,20 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
             <td>
               <TextField value={draft.label} ariaLabel="Label" onChange={(v) => setField('label', v)} />
               <FieldErrorList errors={errors?.label} />
+            </td>
+            <td>
+              {/* Required by the server and rendered by nothing, so "+ New leave type" was a
+                  row that could only ever come back 400 with the offending field off-screen.
+                  Fixed after creation: it is the key absences and the seed match on, and the
+                  update path does not check a changed one for collisions. */}
+              {draft.id ? (
+                <span className="font-mono text-[11.5px] text-faint">{draft.code}</span>
+              ) : (
+                <>
+                  <TextField mono value={draft.code} ariaLabel="Code" placeholder="SABBATICAL" onChange={(v) => setField('code', v)} />
+                  <FieldErrorList errors={errors?.code} />
+                </>
+              )}
             </td>
             <td>
               <TextField
@@ -1404,6 +1935,18 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
                 value={draft.color}
                 aria-label="Colour"
                 onChange={(e) => setField('color', e.target.value)}
+              />
+            </td>
+            <td>
+              <NativeSelectField
+                value={draft.category}
+                ariaLabel="Category"
+                options={[
+                  { value: 'LEAVE', label: 'Leave' },
+                  { value: 'SICKNESS', label: 'Sickness' },
+                  { value: 'OTHER', label: 'Other' },
+                ]}
+                onChange={(v) => setField('category', v)}
               />
             </td>
             <td>
@@ -1445,6 +1988,9 @@ function EventTypesTab({ reference, edits }: { readonly reference: Reference; re
                 aria-label="Active"
                 onChange={(e) => setField('isActive', e.target.checked)}
               />
+            </td>
+            <td>
+              <NumberField value={draft.sortOrder} ariaLabel="Sort order" onChange={(v) => setField('sortOrder', v)} />
             </td>
           </>
         )}

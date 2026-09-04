@@ -63,6 +63,8 @@ RoleAssignment        one person + one role + one unit (or global): who may do w
 
 Notification          one person's inbox item, written in the same transaction
                       as the change that caused it (ADR-0044)
+ ├─ fanned out by NotificationRules → the (kind × channel) matrix (ADR-0064)
+ └─ collects NotificationDeliveries → one per channel, sent/failed/skipped-with-a-reason
 
 ChangeHistoryEntry    append-only, for every entity — not just assignments (ADR-0040)
 
@@ -119,6 +121,9 @@ erDiagram
     REQUEST |o--o| PRESENCE_RECORD : creates
     REQUEST |o--o| COMP_DAY_ENTRY : places
     REQUEST ||--o{ NOTIFICATION : triggers
+
+    NOTIFICATION ||--o{ NOTIFICATION_DELIVERY : "is owed on"
+    NOTIFICATION_RULE ||..o{ NOTIFICATION_DELIVERY : "decided (at write time)"
 
     ASSIGNMENT ||--o{ CHANGE_HISTORY_ENTRY : logs
     ABSENCE ||--o{ CHANGE_HISTORY_ENTRY : logs
@@ -177,6 +182,21 @@ erDiagram
         string subjectType
         string subjectId
         string readAt
+    }
+    NOTIFICATION_RULE {
+        string id PK
+        string kind
+        string channel
+        bool enabled
+        bool userOverridable
+    }
+    NOTIFICATION_DELIVERY {
+        string id PK
+        string notificationId FK
+        string channel
+        string status
+        string skipReason
+        int attempts
     }
     CHANGE_HISTORY_ENTRY {
         string id PK
@@ -747,13 +767,48 @@ the state change and the send, because there is no send.
 Notification {
   id, recipientPersonId
   kind          REQUEST_SUBMITTED | REQUEST_APPROVED | REQUEST_REJECTED
-              | REQUEST_APPLY_FAILED | COMP_DAY_AGING | COVERAGE_GAP
+              | REQUEST_APPLY_FAILED | REQUEST_SUPERSEDED
+              | COMP_DAY_AGING | COVERAGE_GAP
   title, body?
   subjectType?, subjectId?              for deep links
-  createdAt, readAt?
-  channel?, deliveredAt?, deliveryAttempts    reserved: the outbox columns
+  createdAt, readAt?                    readAt is the recipient's own state
+  deliveries[]                          one per channel it is owed on
 }
 ```
+
+### The matrix and the log
+
+What leaves the product is a **matrix**, and what happened to it is a **log**
+([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)). Both axes are code — a channel
+is a sender somebody has to write, and a kind is emitted from somewhere — so what is data
+is the cell where they cross.
+
+```
+NotificationRule {                       one per (kind, channel), fixed id
+  kind, channel     EMAIL | TEAMS        IN_APP is not a cell: the inbox row is the inbox
+  enabled                                topped up at startup, off
+  userOverridable                        may a person opt out (not yet honoured)
+}
+
+NotificationDelivery {                   child of Notification, one per channel
+  id, notificationId, channel
+  status        PENDING | SENT | FAILED | SKIPPED
+  skipReason?   CHANNEL_DISABLED | NO_ADDRESS | USER_OPTED_OUT
+  attempts, lastError?, sentAt?, createdAt
+}
+```
+
+Two properties are load-bearing:
+
+- **The fan-out happens when the notification is written**, in the same transaction, so a
+  delivery row records the policy in force at that moment. Editing the matrix does not
+  rewrite what is already queued.
+- **A skipped delivery is a row, never an absence.** Without it, "no row" would mean both
+  "not owed one" and "lost one", and the administrator's log could not tell them apart —
+  which is the one question it exists to answer.
+
+Nothing is delivered externally yet: an enabled cell writes `PENDING` rows that accumulate
+until the dispatcher lands. See [13-roadmap.md](13-roadmap.md).
 
 ## Comp day
 

@@ -26,6 +26,8 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
     public DbSet<Request> Requests => Set<Request>();
     public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
+    public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
     public DbSet<ChangeHistoryEntry> ChangeHistory => Set<ChangeHistoryEntry>();
     public DbSet<DraftSession> DraftSessions => Set<DraftSession>();
     public DbSet<DraftChange> DraftChanges => Set<DraftChange>();
@@ -176,9 +178,31 @@ public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : Db
         modelBuilder.Entity<Notification>(e =>
         {
             e.HasKey(x => x.Id);
+            // Deleting a notification takes its deliveries with it. Nothing deletes one
+            // today; the cascade is here so that a retention pass, if it ever arrives,
+            // cannot leave deliveries pointing at nothing.
+            e.HasMany(x => x.Deliveries).WithOne()
+                .HasForeignKey(x => x.NotificationId).OnDelete(DeleteBehavior.Cascade);
             // The bell polls "unread for me" on every render of the shell.
             e.HasIndex(x => new { x.RecipientPersonId, x.ReadAt });
             e.HasIndex(x => x.CreatedAt);
+        });
+
+        modelBuilder.Entity<NotificationDelivery>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // What the dispatcher will ask for on every tick (step 3 of ADR-0064), and
+            // what the admin log filters by today.
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
+            e.HasIndex(x => x.NotificationId);
+        });
+
+        modelBuilder.Entity<NotificationRule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // The pair is the real key; the id exists so the seeder and the admin
+            // endpoints can address a row the way they address every other row.
+            e.HasIndex(x => new { x.Kind, x.Channel }).IsUnique();
         });
 
         modelBuilder.Entity<Acknowledgement>(e =>

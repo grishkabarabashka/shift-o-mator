@@ -62,7 +62,9 @@ not something else?"
 | [0059](0059-setup-is-a-screen-not-a-flag.md) | Setup is a screen, not a flag (replaces the bootstrap in 0058, retires the seed flags) | accepted |
 | [0060](0060-the-model-is-a-deployment-not-a-vendor.md) | The model is a deployment, not a vendor (narrows 0048) | accepted |
 | [0061](0061-settings-saves-people-as-one-unit.md) | Settings saves people as one unit (extends 0040) | accepted |
-| [0062](0062-one-source-of-roles-by-default.md) | One source of roles by default (narrows 0058) | accepted |
+| [0062](0062-one-source-of-roles-by-default.md) | One source of roles by default (narrows 0058) | accepted, **the switch moved to a row by 0063** |
+| [0063](0063-runtime-settings-are-rows.md) | A setting that takes effect per request is a row, not configuration (amends 0062, extends 0059) | accepted |
+| [0064](0064-a-notification-policy-and-a-log.md) | What gets sent is a matrix; what was sent is a log (extends 0044, 0063) | accepted |
 
 ## Superseded decisions (archive)
 

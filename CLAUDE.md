@@ -18,8 +18,10 @@ breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and t
 deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
 Since Phase 14, three decisions landed outside a phase: the model is a **deployment**,
 not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); and directory
-roles are **off by default**, so the database is the single source (ADR-0062).
-Code and design agree; the ADR index is complete through 0062.
+roles are **off by default**, so the database is the single source (ADR-0062); a setting
+read per request is a **row**, not configuration (ADR-0063); and notifications have a
+**policy matrix and a delivery log** (ADR-0064 — steps 1 and 2 of it; nothing is delivered
+externally yet). Code and design agree; the ADR index is complete through 0064.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -289,8 +291,25 @@ dotnet test
     approval is a human decision, application is a write that can fail. (ADR-0045)
 
 26. **Notifications are rows written in the same transaction as the change.** No queue, no
-    worker, no send — which is exactly why one cannot be lost. The outbox columns exist
-    and are unused until external delivery lands. (ADR-0044)
+    worker, no send — which is exactly why one cannot be lost. (ADR-0044)
+
+26a. **What gets sent is a matrix; what was sent is a log.** `NotificationChannel` is a
+    **closed** set (`InApp | Email | Teams`) because every member is a sender somebody has
+    to write; `NotificationKind` is likewise code. What is data is the cell where they
+    cross — `NotificationRule{kind, channel, enabled, userOverridable}`, topped up per row
+    at startup so a kind added in code appears on Settings → Notifications by itself.
+    **In-app is not a cell**: the `Notification` row *is* the inbox, and a checkbox for it
+    would switch off the only place an event is visible. The outbox columns on
+    `Notification` are **deleted** in favour of a child `NotificationDelivery`, because one
+    row per notification cannot say "email *and* Teams". **The fan-out happens when the
+    notification is written, not when it is sent** (`NotificationFanout.Plan`, pure, in
+    `Application`; `Notifier.NotifyAsync`, the write, in `Infrastructure` — `Application`
+    cannot hold a `DbContext`), so the rows record the policy in force at the moment of the
+    event and a later edit to the matrix does not rewrite what is queued. **`Skipped` is
+    written, never omitted**: without it a missing row means both "not owed one" and "lost
+    one", and the admin log — which exists to answer "why did this person not get the
+    email" — cannot tell them apart. Nothing sends yet; enabled cells accumulate `Pending`.
+    Retry never resets `Attempts`. (ADR-0064)
 
 27. **AI phrases a deterministic digest and never decides.** `IssueDigest` and
     `CandidateDigest` compute the answer in Application, pure and tested; the model only
@@ -369,8 +388,12 @@ dotnet test
   already there. Startup refuses with a message naming the fix
   (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
   `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
-  **There are five test databases and there is a reason for each one** — a new one needs
-  the same. `ShiftOMatorTests` is shared by almost everything; `ShiftOMatorPersonEmailTests`,
+  **Every test database needs a reason, and there are more of them than this paragraph
+  used to admit** — `ShiftOMatorPeopleBatchTests` and six `ShiftOMatorSetupDiag*` are also
+  real databases that outlive a run. The reliable way to find them all before regenerating
+  the schema is `SELECT name FROM sys.databases WHERE name LIKE 'ShiftOMator%'`, and to
+  drop every one of them except the dev database `ShiftOMator` itself.
+  `ShiftOMatorTests` is shared by almost everything; `ShiftOMatorPersonEmailTests`,
   `ShiftOMatorEntraTests` and `ShiftOMatorSeedIdempotenceTests` opt out via
   `ApiTestFactory.DatabaseName` because each one's subject is a property of a *whole table*
   — the exact roster size `ReferenceEndpointsTests` asserts, which any other test writing a
@@ -547,7 +570,9 @@ Not bugs — things the design names and has not built. Full list in
   `Auth:Mode=EntraId` validates against `Auth:Jwt` (`Authority`/`Audience`, from Key
   Vault), resolves the acting person by matching the token's email claim against
   `Person.Email` (ADR-0058). **Roles come from the database only** unless
-  `Auth:DirectoryRoles` is switched on (ADR-0062), in which case `roles` app-role
+  `SystemSetup.DirectoryRoles` is switched on (ADR-0062; a **row**, not a setting, since
+  ADR-0063 — it is read per request, so it needs no restart, and `Auth:DirectoryRoles` in
+  configuration now **throws at startup** rather than being ignored), in which case `roles` app-role
   claims are mapped to **global** grants that *add* to the per-unit ones stored there.
   It is off because Settings → Roles reads the database only: a directory grant shows
   no ticked box on the one screen that answers "who can do what", cannot be revoked
@@ -579,7 +604,15 @@ Not bugs — things the design names and has not built. Full list in
   configuration nobody could ever be in. Grants are edited on Settings → Roles. Those headers are read only by
   `StubAuthenticationHandler`, which exists only in stub mode; the client's switcher is
   gated on `MeResponse.stubMode`.
-- **No external notification delivery.** The inbox works; the outbox columns are unused.
+- **No external notification delivery, and the manager in front of it is built.**
+  Settings → Notifications carries the matrix and the log, and an enabled cell writes
+  `Pending` deliveries that nothing picks up — there is no dispatcher and no sender
+  (steps 3–5 of ADR-0064). Three things are deliberately still open, and are decisions
+  rather than typing: which address a person is mailed at (`Person.Email` is the key an
+  Entra sign-in is matched by, so reusing it is a choice), digest versus one mail per
+  event, and how `CompDayAging`/`CoverageGap` avoid telling somebody the same thing every
+  morning — both are conditions true every day, so they need the dispatcher's schedule
+  *and* a de-duplication key before they can emit at all.
 - **No admin screen for request types.** They are data with a seeded starting set, so
   adding one is a row — but until the card exists that row goes in the seed or the
   database. Event types have a screen (Settings → Leave types) and presence types have one

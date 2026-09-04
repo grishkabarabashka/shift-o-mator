@@ -188,6 +188,21 @@ namespace ShiftOMator.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "NotificationRules",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Kind = table.Column<int>(type: "int", nullable: false),
+                    Channel = table.Column<int>(type: "int", nullable: false),
+                    Enabled = table.Column<bool>(type: "bit", nullable: false),
+                    UserOverridable = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NotificationRules", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Notifications",
                 columns: table => new
                 {
@@ -199,10 +214,7 @@ namespace ShiftOMator.Infrastructure.Migrations
                     SubjectType = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     SubjectId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    ReadAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Channel = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    DeliveredAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    DeliveryAttempts = table.Column<int>(type: "int", nullable: false)
+                    ReadAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -380,7 +392,8 @@ namespace ShiftOMator.Infrastructure.Migrations
                     Id = table.Column<int>(type: "int", nullable: false),
                     Preset = table.Column<int>(type: "int", nullable: false),
                     CompletedByPersonId = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CompletedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                    CompletedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    DirectoryRoles = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -407,6 +420,31 @@ namespace ShiftOMator.Infrastructure.Migrations
                         name: "FK_DraftChanges_DraftSessions_DraftSessionId",
                         column: x => x.DraftSessionId,
                         principalTable: "DraftSessions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NotificationDeliveries",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    NotificationId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Channel = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    SkipReason = table.Column<int>(type: "int", nullable: true),
+                    Attempts = table.Column<int>(type: "int", nullable: false),
+                    LastError = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SentAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NotificationDeliveries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_NotificationDeliveries_Notifications_NotificationId",
+                        column: x => x.NotificationId,
+                        principalTable: "Notifications",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -672,6 +710,22 @@ namespace ShiftOMator.Infrastructure.Migrations
                 column: "PlanningUnitId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_NotificationDeliveries_NotificationId",
+                table: "NotificationDeliveries",
+                column: "NotificationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDeliveries_Status_CreatedAt",
+                table: "NotificationDeliveries",
+                columns: new[] { "Status", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationRules_Kind_Channel",
+                table: "NotificationRules",
+                columns: new[] { "Kind", "Channel" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Notifications_CreatedAt",
                 table: "Notifications",
                 column: "CreatedAt");
@@ -797,7 +851,10 @@ namespace ShiftOMator.Infrastructure.Migrations
                 name: "LocationPlanningUnit");
 
             migrationBuilder.DropTable(
-                name: "Notifications");
+                name: "NotificationDeliveries");
+
+            migrationBuilder.DropTable(
+                name: "NotificationRules");
 
             migrationBuilder.DropTable(
                 name: "Presence");
@@ -831,6 +888,9 @@ namespace ShiftOMator.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Locations");
+
+            migrationBuilder.DropTable(
+                name: "Notifications");
 
             migrationBuilder.DropTable(
                 name: "People");

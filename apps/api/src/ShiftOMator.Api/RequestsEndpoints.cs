@@ -4,6 +4,7 @@ using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Contracts.Requests;
 using ShiftOMator.Api.Contracts.Shared;
 using ShiftOMator.Api.Requests;
+using ShiftOMator.Infrastructure.Notifications;
 using ShiftOMator.Application;
 using ShiftOMator.Application.Requests;
 using ShiftOMator.Domain;
@@ -143,20 +144,20 @@ public static class RequestsEndpoints
 
             if (supersededRequests.Count > 0)
             {
-                db.Notify([subjectId], NotificationKind.RequestSuperseded,
+                await db.NotifyAsync([subjectId], NotificationKind.RequestSuperseded,
                     $"Replaced: {type.Label}",
                     $"Your earlier request for {(supersededRequests.Count == 1 ? supersededRequests[0].From.ToString("yyyy-MM-dd") : "a different day")} "
                     + $"was replaced by this one, for {req.From:yyyy-MM-dd}.",
-                    "request", request.Id, now);
+                    "request", request.Id, now, ct);
             }
 
             var context = await LoadContextAsync(db, ct);
             var approvers = context.ApproversFor(request);
 
-            db.Notify(approvers, NotificationKind.RequestSubmitted,
+            await db.NotifyAsync(approvers, NotificationKind.RequestSubmitted,
                 $"{subject.DisplayName}: {type.Label}",
                 $"{req.From:yyyy-MM-dd} – {req.To:yyyy-MM-dd}",
-                "request", request.Id, now);
+                "request", request.Id, now, ct);
 
             // A request nobody can act on would sit in Submitted forever with no inbox
             // showing it. Unit approvers, then admins as a last resort, normally prevent
@@ -228,20 +229,20 @@ public static class RequestsEndpoints
                 {
                     // The approver's decision stands; only the write failed. Both of them
                     // need to know, because neither can infer it from the other's screen.
-                    db.Notify([request.SubjectPersonId, actorId], NotificationKind.RequestApplyFailed,
-                        "Approved, but could not be applied", applied.FailureReason, "request", request.Id, now);
+                    await db.NotifyAsync([request.SubjectPersonId, actorId], NotificationKind.RequestApplyFailed,
+                        "Approved, but could not be applied", applied.FailureReason, "request", request.Id, now, ct);
                 }
                 else
                 {
-                    db.Notify([request.SubjectPersonId], NotificationKind.RequestApproved,
+                    await db.NotifyAsync([request.SubjectPersonId], NotificationKind.RequestApproved,
                         $"Approved: {type.Label}",
-                        $"{request.From:yyyy-MM-dd} – {request.To:yyyy-MM-dd}", "request", request.Id, now);
+                        $"{request.From:yyyy-MM-dd} – {request.To:yyyy-MM-dd}", "request", request.Id, now, ct);
                 }
             }
             else if (request.State == RequestState.Rejected)
             {
-                db.Notify([request.SubjectPersonId], NotificationKind.RequestRejected,
-                    $"Declined: {type.Label}", req.Comment, "request", request.Id, now);
+                await db.NotifyAsync([request.SubjectPersonId], NotificationKind.RequestRejected,
+                    $"Declined: {type.Label}", req.Comment, "request", request.Id, now, ct);
             }
 
             await db.SaveChangesAsync(ct);

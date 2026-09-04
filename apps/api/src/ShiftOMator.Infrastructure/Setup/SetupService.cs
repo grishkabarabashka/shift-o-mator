@@ -38,6 +38,8 @@ public static class SetupService
         UnitKind unitKind,
         string displayName,
         string? email,
+        IReadOnlyList<AppRole>? roles = null,
+        bool directoryRoles = false,
         CancellationToken ct = default)
     {
         if (await db.SystemSetups.AnyAsync(ct)) throw new SetupAlreadyCompleteException();
@@ -94,25 +96,34 @@ public static class SetupService
             CalendarToken = Person.NewCalendarToken(),
         };
 
-        var grant = new RoleAssignment
+        // Admin is not negotiable: it is what reaches Settings, and a system whose only
+        // account cannot get there has no way back. Everything else was asked for, because
+        // Admin alone does not plan — roles are a set and none implies another (ADR-0051),
+        // so the founding administrator used to end up unable to open a draft in the
+        // system they had just created, which is correct and indistinguishable from broken.
+        var granted = new HashSet<AppRole> { AppRole.Admin };
+        foreach (var role in roles ?? []) if (role != AppRole.Viewer) granted.Add(role);
+
+        var grants = granted.Select(role => new RoleAssignment
         {
             Id = Guid.NewGuid().ToString("n"),
             PersonId = person.Id,
             UnitId = null,
-            Role = AppRole.Admin,
+            Role = role,
             GrantedBy = person.Id,
             GrantedAt = DateTimeOffset.UtcNow,
-        };
+        }).ToList();
 
         db.Locations.Add(location);
         db.PlanningUnits.Add(unit);
         db.People.Add(person);
-        db.RoleAssignments.Add(grant);
+        db.RoleAssignments.AddRange(grants);
         db.SystemSetups.Add(new SystemSetup
         {
             Preset = SetupPreset.Bare,
             CompletedByPersonId = person.Id,
             CompletedAt = DateTimeOffset.UtcNow,
+            DirectoryRoles = directoryRoles,
         });
 
         await db.SaveChangesAsync(ct);
@@ -125,7 +136,8 @@ public static class SetupService
     /// can actually sign back in afterward.
     /// </summary>
     public static async Task<Person?> CompleteDemoAsync(
-        ScheduleDbContext db, string? callerEmail, CancellationToken ct = default)
+        ScheduleDbContext db, string? callerEmail, bool directoryRoles = false,
+        CancellationToken ct = default)
     {
         if (await db.SystemSetups.AnyAsync(ct)) throw new SetupAlreadyCompleteException();
 
@@ -137,6 +149,7 @@ public static class SetupService
         db.SystemSetups.Add(new SystemSetup
         {
             Preset = SetupPreset.Demo,
+            DirectoryRoles = directoryRoles,
             CompletedByPersonId = linked?.Id,
             CompletedAt = DateTimeOffset.UtcNow,
         });
@@ -199,6 +212,12 @@ public static class SetupService
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         await DeleteRosterAndPlanAsync(db, ct);
+        // Before the notifications they hang off: the FK cascades in the database, but
+        // this list is hand-maintained and a reader should not have to know that.
+        // NotificationRules are deliberately *not* cleared — they are reference data,
+        // topped up at startup like event types, and a reset that emptied them would leave
+        // the matrix blank until the next restart.
+        await db.NotificationDeliveries.ExecuteDeleteAsync(ct);
         await db.Notifications.ExecuteDeleteAsync(ct);
         await db.ChangeHistory.ExecuteDeleteAsync(ct);
         await db.Acknowledgements.ExecuteDeleteAsync(ct);

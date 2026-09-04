@@ -25,9 +25,9 @@ public enum NotificationKind
 /// floor. A row written transactionally cannot be lost by a crash between the state
 /// change and the notification, and the client already polls.
 ///
-/// The same table becomes a transactional outbox when external delivery arrives:
-/// <see cref="Channel"/> and <see cref="DeliveredAt"/> are the two columns that need
-/// filling in, and nothing above them changes.
+/// External delivery hangs off <see cref="NotificationDelivery"/>, written in the same
+/// transaction as this row (ADR-0064). The three outbox columns that used to sit here
+/// held one channel, and one channel cannot express "email and Teams".
 /// </summary>
 public class Notification
 {
@@ -43,11 +43,12 @@ public class Notification
     public string? SubjectId { get; set; }
 
     public required DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>The recipient's own state. An administrator reading the log does not
+    /// touch it (ADR-0064).</summary>
     public DateTimeOffset? ReadAt { get; set; }
 
-    /// <summary>Outbox fields, unused until external delivery is wired up. Present now so
-    /// adding delivery is a dispatcher, not a migration and a backfill.</summary>
-    public string? Channel { get; set; }
-    public DateTimeOffset? DeliveredAt { get; set; }
-    public int DeliveryAttempts { get; set; }
+    /// <summary>What this notification is owed on, per channel (ADR-0064). Empty means the
+    /// inbox and nothing else — which is every notification until a matrix cell is ticked.</summary>
+    public List<NotificationDelivery> Deliveries { get; set; } = [];
 }

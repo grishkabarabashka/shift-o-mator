@@ -102,6 +102,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSetupDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reference": {
         parameters: {
             query?: never;
@@ -2241,6 +2257,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/people/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PeopleBatchRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PeopleBatchResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PeopleBatchErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/maintenance/can-load-demo-data": {
         parameters: {
             query?: never;
@@ -2350,6 +2414,188 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/notifications/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationRule"][];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NotificationRulesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationRule"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/notifications/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    kind?: string;
+                    channel?: string;
+                    status?: string;
+                    personId?: string;
+                    from?: string;
+                    to?: string;
+                    skip?: number | string;
+                    take?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationLogResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/notifications/log/deliveries/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationDelivery"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2431,6 +2677,10 @@ export interface components {
             isActive: boolean;
             isIncluded: boolean;
         };
+        AiDiagnostics: {
+            provider: string;
+            configured: boolean;
+        };
         AppendChangeRequest: {
             targetType: components["schemas"]["DraftTargetType"];
             op: components["schemas"]["DraftOp"];
@@ -2472,6 +2722,12 @@ export interface components {
         };
         /** @enum {unknown} */
         AssignmentSource: "manual" | "generated" | "imported";
+        AuthDiagnostics: {
+            mode: string;
+            authority: null | string;
+            audience: null | string;
+            directoryRoles: boolean;
+        };
         AutoPopulateRequest: {
             unitId: string;
             /** Format: date */
@@ -2489,9 +2745,17 @@ export interface components {
             unitKind: components["schemas"]["UnitKind"];
             displayName: null | string;
             email: null | string;
+            roles?: null | components["schemas"]["AppRole"][];
         };
         CalendarFeedResponse: {
             url: string;
+        };
+        CallerDiagnostics: {
+            personId: null | string;
+            displayName: null | string;
+            tokenEmail: null | string;
+            linked: boolean;
+            grants: components["schemas"]["RoleGrant"][];
         };
         Candidate: {
             personId: string;
@@ -2607,6 +2871,18 @@ export interface components {
             /** Format: int32 */
             agingThresholdDays: number | string;
             requiresApprovalWhenNoSlot: boolean;
+        };
+        ContentDiagnostics: {
+            /** Format: int32 */
+            people: number | string;
+            /** Format: int32 */
+            plannedPeople: number | string;
+            /** Format: int32 */
+            units: number | string;
+            /** Format: int32 */
+            shifts: number | string;
+            /** Format: int32 */
+            dayConfigurations: number | string;
         };
         CoverageCell: {
             /** Format: date */
@@ -2926,11 +3202,36 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             readAt?: null | string;
-            channel?: null | string;
-            /** Format: date-time */
-            deliveredAt?: null | string;
+            deliveries?: components["schemas"]["NotificationDelivery"][];
+        };
+        /** @enum {unknown} */
+        NotificationChannel: "inApp" | "email" | "teams";
+        NotificationDelivery: {
+            id: string;
+            notificationId: string;
+            channel?: components["schemas"]["NotificationChannel"];
+            status?: components["schemas"]["NotificationDeliveryStatus"];
+            skipReason?: null | components["schemas"]["NotificationSkipReason"];
             /** Format: int32 */
-            deliveryAttempts?: number | string;
+            attempts?: number | string;
+            lastError?: null | string;
+            /** Format: date-time */
+            sentAt?: null | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @enum {unknown} */
+        NotificationDeliveryStatus: "pending" | "sent" | "failed" | "skipped";
+        NotificationDeliveryView: {
+            id: string;
+            channel: components["schemas"]["NotificationChannel"];
+            status: components["schemas"]["NotificationDeliveryStatus"];
+            skipReason: null | components["schemas"]["NotificationSkipReason"];
+            /** Format: int32 */
+            attempts: number | string;
+            lastError: null | string;
+            /** Format: date-time */
+            sentAt: null | string;
         };
         /** @enum {unknown} */
         NotificationKind: "requestSubmitted" | "requestApproved" | "requestRejected" | "requestApplyFailed" | "requestSuperseded" | "compDayAging" | "coverageGap";
@@ -2939,6 +3240,44 @@ export interface components {
             /** Format: int32 */
             unreadCount: number | string;
         };
+        NotificationLogEntry: {
+            id: string;
+            recipientPersonId: string;
+            recipientName: null | string;
+            kind: components["schemas"]["NotificationKind"];
+            title: string;
+            body: null | string;
+            subjectType: null | string;
+            subjectId: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            readAt: null | string;
+            deliveries: components["schemas"]["NotificationDeliveryView"][];
+        };
+        NotificationLogResponse: {
+            items: components["schemas"]["NotificationLogEntry"][];
+            /** Format: int32 */
+            total: number | string;
+        };
+        NotificationRule: {
+            id: string;
+            kind?: components["schemas"]["NotificationKind"];
+            channel?: components["schemas"]["NotificationChannel"];
+            enabled?: boolean;
+            userOverridable?: boolean;
+        };
+        NotificationRulesRequest: {
+            rules: components["schemas"]["NotificationRuleUpdate"][];
+        };
+        NotificationRuleUpdate: {
+            kind: components["schemas"]["NotificationKind"];
+            channel: components["schemas"]["NotificationChannel"];
+            enabled: boolean;
+            userOverridable: boolean;
+        };
+        /** @enum {unknown} */
+        NotificationSkipReason: "channelDisabled" | "noAddress" | "userOptedOut" | null;
         OpenDraftRequest: {
             unitId: string;
             /** Format: date */
@@ -2964,6 +3303,32 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             callerCanDecide: boolean;
+        };
+        PeopleBatchErrorResponse: {
+            code: string;
+            errors: {
+                [key: string]: {
+                    [key: string]: string[];
+                };
+            };
+        };
+        PeopleBatchOp: {
+            kind: string;
+            id: null | string;
+            tempId: null | string;
+            person: null | components["schemas"]["AdminPersonRequest"];
+        };
+        PeopleBatchRequest: {
+            ops: components["schemas"]["PeopleBatchOp"][];
+        };
+        PeopleBatchResponse: {
+            results: components["schemas"]["PeopleBatchResult"][];
+        };
+        PeopleBatchResult: {
+            /** Format: int32 */
+            index: number | string;
+            tempId: null | string;
+            id: string;
         };
         Person: {
             id: string;
@@ -3183,11 +3548,19 @@ export interface components {
             overlaidDraftId: null | string;
             pendingRequests: components["schemas"]["PendingRequestSummary"][];
         };
+        SetupDiagnosticsResponse: {
+            auth: components["schemas"]["AuthDiagnostics"];
+            caller: components["schemas"]["CallerDiagnostics"];
+            content: components["schemas"]["ContentDiagnostics"];
+            ai: components["schemas"]["AiDiagnostics"];
+        };
         /** @enum {unknown} */
         SetupPreset: "bare" | "demo";
         SetupRequest: {
             preset: components["schemas"]["SetupPreset"];
             bare: null | components["schemas"]["BareSetupRequest"];
+            /** @default false */
+            directoryRoles: boolean;
         };
         SetupResponse: {
             preset: components["schemas"]["SetupPreset"];
@@ -3431,6 +3804,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    GetSetupDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDiagnosticsResponse"];
                 };
             };
         };

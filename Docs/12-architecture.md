@@ -157,6 +157,9 @@ sends.
 | `/admin/{event-types,presence-types}` | GET/POST/PUT/DELETE | Kinds of leave ([ADR-0049](adr/0049-event-types-are-data.md)) and ways of working ([ADR-0054](adr/0054-presence-types-are-an-open-set.md)). DELETE is refused once anything points at the row — the answer is to untick Offered |
 | `/admin/role-assignments` | GET/POST/DELETE | Role grants. Only a **global** admin may make a global grant, and revoking the last one is refused ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)) |
 | `/admin/people/batch` | POST | Every pending person edit, or none: releases of a unique value first, one transaction, errors keyed by the caller's op index ([ADR-0061](adr/0061-settings-saves-people-as-one-unit.md)) |
+| `/admin/notifications/rules` | GET/PUT | The (kind × channel) matrix, saved whole — one screen, one intent. Global admin to write ([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)) |
+| `/admin/notifications/log` | GET | Every notification and what each channel did about it. `?kind=&channel=&status=&personId=&from=&to=` |
+| `/admin/notifications/log/deliveries/{id}/retry` | POST | A **failed** delivery back to pending. Refused on anything else — a skipped one is answered by the matrix, not by trying again — and `attempts` is never reset |
 | `/admin/holidays/import` | POST | Read an iCalendar feed — pasted, uploaded, or fetched from a host in `Holidays:AllowedCalendarHosts` — and **add** missing days. It never removes one; this is an import, not a sync |
 | `/admin/maintenance/{load-demo-data,reset,can-load-demo-data}` | GET/POST | Global admin only. Reset means migrated-and-empty: rows deleted in dependency order inside one transaction, never a dropped database ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)) |
 | `/health/live`, `/health/ready` | GET | Kubernetes probes. Outside the setup gate, and outside authentication |

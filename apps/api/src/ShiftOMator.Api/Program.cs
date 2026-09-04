@@ -46,6 +46,16 @@ builder.Services.AddScoped<ShiftOMator.Api.Insights.CandidateExplanationService>
 // local dev/demo. Switching to a real IdP later (e.g. "EntraId") only adds a branch
 // here — every endpoint already enforces policies against ShiftOMator.Domain.AppRole.
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
+
+// Moved to SystemSetup.DirectoryRoles (ADR-0063), and refused rather than ignored here.
+// A settings key that silently does nothing is how Auth:StubRole made everybody a Planner
+// and nobody an Admin — the same mistake costs one `if` to prevent.
+if (builder.Configuration["Auth:DirectoryRoles"] is not null)
+{
+    throw new InvalidOperationException(
+        "Auth:DirectoryRoles has moved out of configuration (ADR-0063). It is now a row — "
+        + "toggle it in the setup wizard or on Settings -> Roles — so remove the setting.");
+}
 var authMode = builder.Configuration[$"{AuthOptions.SectionName}:Mode"] ?? "Stub";
 
 var authenticationBuilder = builder.Services.AddAuthentication(
@@ -73,7 +83,31 @@ else
     // Real deployment target (ADR: stubbed auth with a real policy surface): bind
     // Authority/Audience/etc. from Auth:Jwt once an Entra ID app registration exists.
     authenticationBuilder.AddJwtBearer(options =>
-        builder.Configuration.GetSection($"{AuthOptions.SectionName}:Jwt").Bind(options));
+    {
+        builder.Configuration.GetSection($"{AuthOptions.SectionName}:Jwt").Bind(options);
+
+        // Entra puts the audience in one of two shapes, and which one arrives is decided
+        // by the app registration's `requestedAccessTokenVersion` — not by anything the
+        // client asks for and not by anything configured here. A v1.0 token carries the
+        // Application ID URI (`api://<app-id>`); a v2.0 token carries the bare
+        // application id. Accepting both means whichever the operator pasted into
+        // Auth:Jwt:Audience is right, because they identify the same registration and
+        // there is no third party either could be confused with.
+        //
+        // Worth the four lines because the failure is so badly signposted: the challenge
+        // reads `The audience '(null)' is invalid`, where the `(null)` is the *token's*
+        // audience as the exception failed to record it — so the message points at the
+        // token when the mismatch is with our own configured string.
+        const string uriPrefix = "api://";
+        if (!string.IsNullOrWhiteSpace(options.Audience))
+        {
+            var configured = options.Audience;
+            var alternate = configured.StartsWith(uriPrefix, StringComparison.OrdinalIgnoreCase)
+                ? configured[uriPrefix.Length..]
+                : uriPrefix + configured;
+            options.TokenValidationParameters.ValidAudiences = [configured, alternate];
+        }
+    });
 }
 
 // Scoped, because it caches the resolved person for the lifetime of one request and
@@ -170,6 +204,7 @@ app.MapShiftsAdminEndpoints();
 app.MapDayConfigurationsAdminEndpoints();
 app.MapPeopleAdminEndpoints();
 app.MapMaintenanceAdminEndpoints();
+app.MapNotificationsAdminEndpoints();
 
 // `--reset-db` drops the database and builds it again from the single migration.
 //

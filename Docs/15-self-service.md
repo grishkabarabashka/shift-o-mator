@@ -447,8 +447,15 @@ deliver them, now have a home: the comp-day aging alert
 ([ADR-0007](adr/0007-comp-day-as-balance.md) — *"a manager alert plus a standing notice for
 the person"*) and the absence-import impact list.
 
-External delivery — email or Teams via Graph — is Phase B. The columns are already on the
-table, so it is a dispatcher, not a migration.
+External delivery — email or Teams via Graph — is not switched on, but everything that
+decides it now exists ([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)). An
+administrator ticks a cell of the (event × channel) matrix on **Settings → Notifications**,
+and from then on each notification is written with a `NotificationDelivery` per channel it
+is owed on — in the same transaction, so the row records the policy in force when the event
+happened. Those rows sit at `PENDING` until a dispatcher exists to send them, and the same
+screen's log shows them waiting. A channel that is switched off leaves a row saying
+**exactly that**, rather than nothing: "no row" would otherwise mean both "not owed one" and
+"lost one".
 
 ## What this deliberately does not do
 

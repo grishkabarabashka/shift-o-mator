@@ -65,8 +65,9 @@ and **must never silently alter an open draft**.
 **User question:** "What rules drive the schedule, and how should the product display
 it?"
 
-**Eleven tabs**, in this order: Units, Locations, Shifts, Day configs, Holidays, Absence
-limits, Leave types, Presence, People, Roles, Maintenance. One tab is one subject, and the
+**Twelve tabs**, in this order: Units, Locations, Shifts, Day configs, Holidays, Absence
+limits, Leave types, Presence, People, Roles, Notifications, Maintenance. One tab is one
+subject, and the
 dirty-state machinery below spans the screen rather than a card, because a configuration
 change often touches two tabs at once (a shift and the day configuration that requires it).
 
@@ -214,6 +215,31 @@ could reach, so what it tested was a configuration nobody could ever be in.
 > admins makes requests un-raisable (the API refuses them with `NO_APPROVER`
 > rather than accepting them into limbo), and `materializer` decides whether an approval
 > writes anything at all.
+
+### Notifications
+
+**Global admin only to change**, because what the product sends means the same thing in
+every unit. Two views behind a segmented control
+([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)).
+
+**Rules** is a grid: kinds of event down, channels across, a checkbox in each cell, plus one
+column for whether people may opt out of that event. It is saved **whole**, with one Save —
+an administrator ticks several boxes for a single intent, and a write per checkbox would be
+one history row each for a decision made once. **The in-app bell is not a column**: the
+notification row *is* the inbox, so a checkbox for it would switch off the only place an
+event is visible at all. The screen says plainly that nothing is delivered yet — an enabled
+cell records that a message is *owed*, and the log shows it waiting.
+
+**Log** is the evidence half, and it exists to answer one question: *why did this person not
+get the email?* Every notification is a row — who it was for, what it said — with its
+channels beside it, each reading `waiting`, `sent`, `failed` or **`not sent — channel off`**.
+That last one is why a skipped delivery is written rather than omitted: without it, "no row"
+would mean both "not owed one" and "lost one". Filters for event, channel and outcome; a
+`Retry` button appears only on a failed delivery, and never resets the attempt count,
+because a channel that fails every time should look like one.
+
+A notification raised while the matrix had nothing to say shows as `in-app only` — which is
+every notification until somebody ticks a box.
 
 ### Maintenance
 
