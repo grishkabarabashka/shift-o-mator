@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, qs } from './client.ts';
 import { camelToUpperSnake, upperSnakeToCamel } from './mapping.ts';
 import type { DayPortion, IsoDate, IsoInstant, PersonId } from '../domain/types.ts';
-import { toast } from '../ui/toasts.ts';
+import { notify } from './notifier.ts';
 
 export type RequestState =
   | 'DRAFT'
@@ -218,10 +218,10 @@ function useRequestMutation<TArgs>(
     // nothing at all — the request stayed in the inbox and the approver had no reason to
     // think their click had failed rather than been ignored.
     onError: (error: unknown) => {
-      toast.bad(error instanceof Error ? error.message : 'That did not go through.');
+      notify().bad(error instanceof Error ? error.message : 'That did not go through.');
     },
     onSuccess: async () => {
-      if (successMessage) toast.ok(successMessage);
+      if (successMessage) notify().ok(successMessage);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['requests'] }),
         queryClient.invalidateQueries({ queryKey: ['notifications'] }),

@@ -18,6 +18,8 @@ import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
 import { useNow } from './ui/useNow.ts';
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx';
+import { toast } from './ui/toasts.ts';
+import { setMutationNotifier } from './api/notifier.ts';
 import { AppShell } from './features/shell/AppShell.tsx';
 import { usePlanningView } from './features/planning/usePlanningView.ts';
 import { DayDrilldownPage } from './pages/DayDrilldownPage.tsx';
@@ -27,6 +29,12 @@ import { MyCalendarPage } from './pages/MyCalendarPage.tsx';
 import { RequestsPage } from './pages/RequestsPage.tsx';
 import { SchedulePage } from './pages/SchedulePage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
+
+// Installed at module scope, not in an effect: a mutation can settle before any component
+// has mounted, and a notifier installed late is a message nobody sees. Same seam and same
+// reason as `setAccessTokenProvider` — `ui` sits above `api`, so it is injected downward
+// rather than imported upward (see `api/notifier.ts`).
+setMutationNotifier(toast);
 
 export function App() {
   const unitId = useUi((s) => s.unitId);
