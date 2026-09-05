@@ -16,12 +16,13 @@ the rota; time off and presence are written directly and reviewed by approval);
 **Phase 12** gave the UI a design language (elevation, measure, a type scale, real
 breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and the app
 deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
-Since Phase 14, three decisions landed outside a phase: the model is a **deployment**,
-not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); and directory
+Since Phase 14, six decisions landed outside a phase: the model is a **deployment**,
+not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); directory
 roles are **off by default**, so the database is the single source (ADR-0062); a setting
-read per request is a **row**, not configuration (ADR-0063); and notifications have a
+read per request is a **row**, not configuration (ADR-0063); notifications have a
 **policy matrix and a delivery log** (ADR-0064 — steps 1 and 2 of it; nothing is delivered
-externally yet). Code and design agree; the ADR index is complete through 0064.
+externally yet); and the holiday-import allowlist is **rows**, not a settings key
+(ADR-0065). Code and design agree; the ADR index is complete through 0065.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -406,6 +407,24 @@ dotnet test
   only if they ever run in parallel with each other.
   **Dropping a test database and immediately re-running races**: several collections then
   create it at once and fail on duplicate keys. Run twice, or drop between runs, not during
+- **Migrating at startup is safe across replicas because of a lock, not because of luck.**
+  `Program.cs` migrates and seeds before `app.Run()`, in *every* replica, and the chart
+  defaults to two. `MigrationLock` takes a SQL Server session `sp_getapplock` around that
+  block so the second pod waits and then finds nothing to do. It is **best-effort by
+  design** — not SQL Server, no database yet (LocalDB creates it *during* the migration),
+  or the wait elapsed, and it logs and proceeds, because failing startup over a lock turns
+  a rare race into a certain outage. The alternative, a Helm hook Job, would need a
+  migrate-only mode, a second pod spec and a second identity binding to arbitrate something
+  the database already can
+- **Three deploy inputs fail loudly rather than silently**, each because the quiet version
+  cost real time: the web image build **refuses a blank `VITE_API_URL`** (an omitted
+  build-arg on the deploy's second pass used to produce a bundle that fails only in a
+  browser); the Helm `image` helper **requires a tag** rather than falling back to
+  `Chart.AppVersion`, which resolved to an image nothing publishes; and the API deployment
+  carries a **`checksum/config`** annotation, without which a `helm upgrade` that changes
+  only the ConfigMap leaves the pods on the old values. `.dockerignore` excludes `.env*`
+  for the same reason — Vite reads `.env.production` inside the image build, so a
+  developer's git-ignored local file would otherwise decide what a release points at
 - **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
   keeps all 76 people because the Phase 8 baseline comparison is only meaningful over the
   full team, while the database gets `DemoPeoplePerUnit` working people per unit plus every
@@ -475,9 +494,19 @@ dotnet test
   secret anywhere. Locally it is off until switched on — `deploy/README.md` section 2b
   covers both Foundry Local (free, on-device, keyless) and a cloud deployment.
   Nothing in planning depends on a model being reachable
-- Frontend layering is strictly downward: `features → store → api → data → engine → domain`.
-  Backend layering: `Api → Application → Infrastructure → Domain`. Domain logic
-  executes server-side only
+- Frontend layering is strictly downward: `features → store → api → data → engine → domain`,
+  with `ui` beside `features` at the top and `auth` and `pages` above them. Two things the
+  bare arrow diagram gets wrong and that the code is right about:
+  **`api/` is two layers wearing one folder name** — the TanStack hooks sit where the arrow
+  says, but `api/client.ts` and `api/mapping.ts` are transport and sit *below* `data/`,
+  which is why `data/httpRepository.ts` imports them. **Anything `api/` or below needs from
+  the top is injected, never imported** — `setAccessTokenProvider` for MSAL tokens
+  (`auth/EntraGate`) and `setMutationNotifier` for toasts (`api/notifier.ts`, installed in
+  `App.tsx`), both because the thing they need lives above them. A direct
+  `import { toast } from '../ui/toasts.ts'` anywhere in `api/`, `data/`, `engine/` or
+  `store/` is the edge going the wrong way (ADR-0057).
+  Backend layering: `Api → Application → Infrastructure → Domain`, enforced by project
+  references rather than convention. Domain logic executes server-side only
 - One date library. Mixing in the native `Date` across eight locations produces DST bugs
 - Cell interaction: right-click opens a picker with **only the shifts in that day's
   configuration that this person is eligible for**, plus Non-working and Clear. The

@@ -43,7 +43,7 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
 `--reset-db` stays as the development recovery for a regenerated `InitialCreate`.
 
 
-**Since Phase 14, two decisions landed that belong to no phase of their own:**
+**Since Phase 14, six decisions landed that belong to no phase of their own:**
 
 - **The model is a deployment, not a vendor**
   ([ADR-0060](adr/0060-the-model-is-a-deployment-not-a-vendor.md)).
@@ -60,6 +60,30 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   moving a sign-in address between two people, sent row at a time, ended with the address on
   nobody and somebody locked out of the product. Person edits now write history, which
   ADR-0040 had required all along.
+- **One source of roles, by default**
+  ([ADR-0062](adr/0062-one-source-of-roles-by-default.md)). Entra app roles are **off**
+  unless a system switches directory roles on: Settings → Roles reads the database, so a
+  directory grant would show no ticked box on the one screen that answers "who can do
+  what", could not be revoked from the product, and ticking the box would mint a second,
+  independent grant. It is a bool and not a choice of three, because a directory grant can
+  only be global and "directory only" leaves nobody able to plan a unit.
+- **A setting that takes effect per request is a row**
+  ([ADR-0063](adr/0063-runtime-settings-are-rows.md)). The directory-roles switch moved
+  from configuration onto `SystemSetup`, read per request, so it needs no restart and lives
+  on the screen whose meaning it changes. `Auth:DirectoryRoles` in configuration now
+  **throws at startup** rather than being quietly ignored — a settings key that silently
+  does nothing is how `Auth:StubRole` made everybody a Planner and nobody an Admin.
+- **What gets sent is a matrix; what was sent is a log**
+  ([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)). `NotificationRule{kind,
+  channel, enabled, userOverridable}` is data topped up per row at startup; the outbox
+  columns became a child `NotificationDelivery`, because one row per notification cannot
+  say "email *and* Teams". The fan-out happens when the notification is **written**, so the
+  rows record the policy in force at the moment of the event. Steps 1 and 2 only: nothing
+  is delivered externally yet — see "External notification delivery" below.
+- **The holiday-import allowlist is rows, not a settings key**
+  ([ADR-0065](adr/0065-the-calendar-allowlist-is-rows-not-a-key.md)). `AllowedCalendarHost`
+  is reference data managed at Settings → Maintenance, the sibling of ADR-0063 for a list
+  an admin has a reason to change. Adding a calendar source is a screen, not a redeploy.
 
 **Remaining, not yet scheduled:**
 
@@ -152,6 +176,19 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   batch when its rows can invalidate each other. Nothing else currently can, so nothing else
   has one; a generic `POST /api/admin/changes` is where this goes if a second entity ever
   does.
+- **Deployment hardening past the first sandbox run.** The chart runs both pods as non-root
+  with capabilities dropped, budgets disruption above one replica, restarts on a ConfigMap
+  change and serialises the startup migration across replicas — but `readOnlyRootFilesystem`
+  is off (nginx and DataProtection both need writable paths, so it needs an `emptyDir`
+  each), there is no `NetworkPolicy`, and the web image ships no Content-Security-Policy
+  because `connect-src` would have to name an API origin that is a build arg. All three
+  want one real origin to be written against. There is still **no CI/CD** — deliberately,
+  until there is a registry and a target to automate against (`deploy/README.md`).
+- **Frontend test coverage is uneven, and thin where the deployment lands.** 19 test files
+  against 54 on the backend: `auth/` has none at all (`EntraGate`, `SetupGate`,
+  `AuthProvider` — exactly what a real sign-in exercises), `features/shell/` none,
+  `data/` none, and `api/` one. The engines and the projections are well covered; the
+  shell around them is covered by `App.test.tsx` and little else.
 - **Export** — XLSX, CSV, ICS, print with timezone stamping.
 - **Effective-dated configuration editing** — Settings UI for changing minimums and shifts
   with past-data protection.

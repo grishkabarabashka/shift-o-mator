@@ -278,14 +278,21 @@ environment variables (`Section__Key`) → command line.
 
 ### Backend (`apps/api/src/ShiftOMator.Api/appsettings*.json`)
 
+Every "Sandbox/Production" value below is supplied as an environment variable by the Helm
+**ConfigMap** (`api.config.*` in the values files) — *not* from Key Vault. There is no
+vault by default, and nothing in the list is a secret while SQL and the model both
+authenticate as the pod's managed identity: a connection string with no password, a public
+issuer URL and a public Application ID URI. Key Vault enters only for a SQL password or a
+key-authenticated model endpoint; see "What Key Vault is for" in section 5.
+
 | Key | Local | Sandbox/Production | Notes |
 |---|---|---|---|
-| `ConnectionStrings:Schedule` | LocalDB, hardcoded | from Key Vault | SQL Server connection string |
+| `ConnectionStrings:Schedule` | LocalDB, hardcoded | `api.config.connectionString` | `Authentication=Active Directory Default`, so no password and no vault |
 | `Auth:Mode` | `Stub` | `EntraId` | switches `StubAuthenticationHandler` vs `AddJwtBearer` in `Program.cs` |
 | `Auth:StubPersonId` / `Auth:StubRole` | empty (real grants) | unused in EntraId mode | **must stay empty** in Stub mode — see CLAUDE.md, this was a live bug once |
-| `Auth:Jwt:Authority` | — | from Key Vault | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
-| `Auth:Jwt:Audience` | — | from Key Vault | the Entra ID app registration's Application ID URI |
-| `Cors:AllowedOrigins` | `["http://localhost:5173"]` | the deployed web origin(s) | array — set via `Cors__AllowedOrigins__0`, `__1`, ... |
+| `Auth:Jwt:Authority` | user secrets (section 2a) | `api.config.jwtAuthority` | `https://login.microsoftonline.com/<tenant-id>/v2.0` — a public URL |
+| `Auth:Jwt:Audience` | user secrets (section 2a) | `api.config.jwtAudience` | the app registration's Application ID URI — public; either shape is accepted |
+| `Cors:AllowedOrigins` | `["http://localhost:5173"]` | `api.config.corsAllowedOrigins` | array — the ConfigMap emits `Cors__AllowedOrigins__0`, `__1`, … |
 | `Ai:Provider` | `none` — see section 2b | `azure-openai` | `azure-openai`, `openai`, `none` — non-secret |
 | `Ai:Model` | — | the **deployment** name | under `azure-openai` this names the deployment, not the model family |
 | `Ai:Endpoint` | — | the resource URL | required by `azure-openai`. For `openai` it is optional, but on its own it is enough: a keyless endpoint is a complete configuration |
@@ -334,6 +341,17 @@ podman push <acr>.azurecr.io/shift-o-mator/web:<tag>
 start — there is no way to repoint a built web image at a different API URL without
 rebuilding it. This is why the sandbox and production sections below deploy the API
 first, read its address, then build the web image.
+
+**The web build fails outright if `VITE_API_URL` is empty**, rather than producing a
+bundle that asks the nginx pod for `/api/*` and breaks only in a browser after the push.
+Behind an ingress the right value is the app's own public origin (`https://<host>`), not
+an empty string. For the same reason `.dockerignore` excludes `.env*`: Vite reads
+`.env.production` *inside* the image build, so a git-ignored local file on the machine
+doing the build would otherwise decide what a released image points at.
+
+`--set image.api.tag` / `image.web.tag` are **required** — there is no fallback to the
+chart's `appVersion`, which used to resolve to `:0.1.0`, an image nothing publishes, and
+surfaced minutes later as `ImagePullBackOff` rather than immediately as a bad command.
 
 To run both images locally against a SQL Server you already have reachable, without any
 AKS involved: `compose.yaml` in the repo root (`podman compose up --build`, needs
@@ -834,7 +852,20 @@ Verify:
 ```bash
 kubectl -n shift-o-mator get pods
 curl http://$API_IP/health/live
+curl http://$API_IP/health/ready     # 200 once the database is reachable
+curl http://$API_IP/api/setup/state  # {"required":true,...} until the wizard has run
 ```
+
+The API pod can legitimately sit in `Running` but not `Ready` for a minute or two on the
+first deploy: migrations and seeding run before the server listens, and Azure SQL
+Serverless may be resuming from auto-pause. That is what the `startupProbe` is for — it
+gives that up to five minutes before liveness starts, so what used to look like
+`CrashLoopBackOff` is now just a slow first start. `kubectl -n shift-o-mator logs -l
+app.kubernetes.io/component=api` shows where it is.
+
+Then open the web address in a browser: the app shows the **setup wizard** (ADR-0059), not
+the planning grid, until somebody picks Bare or Demo. Section 6.2 covers linking your Entra
+identity to a person if it does not recognise you.
 
 **Cost control:**
 
@@ -872,6 +903,12 @@ ACR=shiftomatorprod
 KV=shift-o-mator-prod-kv
 IDENTITY=shift-o-mator-prod-identity
 NAMESPACE=shift-o-mator
+
+# The resource group, cluster and database are NOT repeated here — they are section 5's
+# commands with production sizing (more than one node, no Spot, a database that is not on
+# the free-tier quota). Run those first; this block is only what differs.
+az group create --name $RG --location $LOCATION
+# ... az aks create / az sql server create / az sql db create, per section 5 ...
 
 az acr create -g $RG -n $ACR --sku Basic
 
@@ -958,6 +995,18 @@ does not roll back the database.
 
 - No CI/CD pipeline — every build/push/deploy step above is manual, on purpose, until a
   registry and a real target exist to automate against.
+- **`readOnlyRootFilesystem` is not on.** The pods run as uid 1000, non-root, with all
+  capabilities dropped and `allowPrivilegeEscalation: false`, but the root filesystem is
+  still writable: nginx writes its pid and temp paths and ASP.NET Core writes DataProtection
+  keys under `$HOME`, so switching it on needs an `emptyDir` for each. Worth doing as the
+  first task after the sandbox comes up green, when there is somewhere to prove it.
+- **No `NetworkPolicy`, and no Content-Security-Policy.** Every pod can reach every other
+  pod, and the web image ships the four cheap security headers but no CSP — `connect-src`
+  would have to name the API origin, which is a build arg unknown to `nginx.conf`. Both
+  want one real origin to be written against.
+- **The frontend is one chunk.** ~730 KB of JS, no route-level code splitting; gzip in
+  nginx takes it to roughly a quarter over the wire, which is why splitting has not been
+  urgent.
 - **Linking every other person is manual**, one email at a time on Settings → People.
   The setup wizard solves only the first one. For ~80 people that is tedious but
   tractable; a directory sync is the eventual answer and is deliberately not built

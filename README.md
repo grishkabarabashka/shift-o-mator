@@ -23,7 +23,10 @@ Excel file, and the separate portal people used to record leave and remote days 
 - Stubbed auth (development) / Entra ID (production)
 - Optional LLM for explanations only — it never decides and never writes
 
-See [Docs/](Docs/) for design decisions and architecture.
+See [Docs/](Docs/) for design decisions and architecture, and
+[deploy/README.md](deploy/README.md) for everything about running this anywhere other than
+your own machine — local Entra ID and AI setup, container images, the AKS sandbox, and the
+shape production would take.
 
 ## Running locally
 
@@ -130,7 +133,7 @@ dotnet test                 # the API tests use a real LocalDB, not an in-memory
 | `Auth:StubPersonId` | *(empty)* | Pins which person the stub acts as; empty lets `ActorResolver` pick one |
 | `Auth:StubRole` | *(empty)* | **Leave it empty.** It *overrides* the person's real grants, so setting it means `RoleAssignment` is never read — which is how Settings and the Approve button went missing for everybody |
 | `Cors:AllowedOrigins` | `http://localhost:5173` | Explicit origins, never a wildcard |
-| `Holidays:AllowedCalendarHosts` | `["calendar.google.com"]` | Hosts the holiday import may fetch a calendar from. An admin endpoint that fetches an arbitrary URL is a request-forgery proxy pointed at whatever the server can reach, so this list is the control, not a formality. Pasting a `.ics` file needs nothing here |
+| *(not a setting)* | — | The hosts the holiday import may fetch a calendar from are **rows**, not configuration (ADR-0065) — an admin manages them at Settings → Maintenance. `Holidays:AllowedCalendarHosts` was that setting and is gone; unlike `Auth:DirectoryRoles`, which throws at startup, this one is simply not read |
 | `Ai:Provider` | `none` | `azure-openai`, `openai`, or `none`. Unconfigured is a supported state, not an error — see `deploy/README.md` section 2b to switch it on locally |
 | `Ai:Model` | *(empty)* | For `azure-openai` this is the **deployment** name, not the model family |
 | `Ai:Endpoint` | *(empty)* | Required by `azure-openai` (the resource URL). Optional for `openai`, where it points the same branch at any OpenAI-compatible gateway — including a model runtime on localhost, which needs no key at all |
