@@ -19,7 +19,7 @@ public static class ChangeAudit
     /// human reads in the timeline — "Coverage minimum for Crew raised 2 → 3" is worth
     /// more there than a serialized <c>ShiftRequirement</c>.</summary>
     public static void RecordConfiguration(
-        this ScheduleDbContext db, HistoryAction action, string entityId, string summary,
+        this ShiftOMatorDbContext db, HistoryAction action, string entityId, string summary,
         object? snapshot, string actorId,
         HistoryEntityType entityType = HistoryEntityType.Configuration) =>
         db.ChangeHistory.Add(new ChangeHistoryEntry
@@ -40,7 +40,7 @@ public static class ChangeAudit
     /// the kind of question this table exists to answer.
     /// </summary>
     public static void RecordPresence(
-        this ScheduleDbContext db, HistoryAction action, PresenceRecord record, string actorId,
+        this ShiftOMatorDbContext db, HistoryAction action, PresenceRecord record, string actorId,
         bool snapshot = true) =>
         db.ChangeHistory.Add(new ChangeHistoryEntry
         {
@@ -63,7 +63,7 @@ public static class ChangeAudit
     /// the only trace of who recorded it.
     /// </summary>
     public static void RecordAbsence(
-        this ScheduleDbContext db, HistoryAction action, Absence record, string actorId,
+        this ShiftOMatorDbContext db, HistoryAction action, Absence record, string actorId,
         string? typeLabel = null, bool snapshot = true) =>
         db.ChangeHistory.Add(new ChangeHistoryEntry
         {
@@ -84,7 +84,7 @@ public static class ChangeAudit
     /// availability. Carries <see cref="ChangeHistoryEntry.PersonId"/> so it shows up on
     /// that person's activity timeline next to their schedule changes.</summary>
     public static void RecordPerson(
-        this ScheduleDbContext db, HistoryAction action, string personId, string summary,
+        this ShiftOMatorDbContext db, HistoryAction action, string personId, string summary,
         object? snapshot, string actorId) =>
         db.ChangeHistory.Add(new ChangeHistoryEntry
         {

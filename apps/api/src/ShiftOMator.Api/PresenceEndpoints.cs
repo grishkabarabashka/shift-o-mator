@@ -24,7 +24,7 @@ public static class PresenceEndpoints
     public static void MapPresenceEndpoints(this WebApplication app)
     {
         app.MapGet("/api/presence", async (
-            DateOnly from, DateOnly to, string? personId, ScheduleDbContext db, CancellationToken ct) =>
+            DateOnly from, DateOnly to, string? personId, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (to < from) return Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`."));
 
@@ -43,7 +43,7 @@ public static class PresenceEndpoints
 
         app.MapPost("/api/presence", async (
             UpsertPresenceRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var (refusal, type) = await ValidateAsync(req, user, actorId, db, ct);
@@ -85,7 +85,7 @@ public static class PresenceEndpoints
 
         app.MapPut("/api/presence/{id}", async (
             string id, UpsertPresenceRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var record = await db.Presence.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (record is null) return Results.NotFound(new NotFoundResponse("PRESENCE_NOT_FOUND", id));
@@ -128,7 +128,7 @@ public static class PresenceEndpoints
         .RequireAuthorization(AuthPolicies.Authenticated);
 
         app.MapDelete("/api/presence/{id}", async (
-            string id, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            string id, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var record = await db.Presence.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (record is null) return Results.NotFound(new NotFoundResponse("PRESENCE_NOT_FOUND", id));
@@ -155,7 +155,7 @@ public static class PresenceEndpoints
     /// planning unit-amer says nothing about writing an unit-emea engineer's row.
     /// </summary>
     private static async Task<bool> CanWriteFor(
-        ScheduleDbContext db, ClaimsPrincipal user, string actorId, string subjectPersonId,
+        ShiftOMatorDbContext db, ClaimsPrincipal user, string actorId, string subjectPersonId,
         CancellationToken ct)
     {
         if (actorId == subjectPersonId) return true;
@@ -180,7 +180,7 @@ public static class PresenceEndpoints
     /// of our offices or carries free text.
     /// </summary>
     private static async Task<(IResult? Refusal, PresenceType? Type)> ValidateAsync(
-        UpsertPresenceRequest req, ClaimsPrincipal user, string actorId, ScheduleDbContext db, CancellationToken ct)
+        UpsertPresenceRequest req, ClaimsPrincipal user, string actorId, ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (req.To < req.From)
             return (Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`.")), null);

@@ -3,7 +3,7 @@ using ShiftOMator.Domain;
 
 namespace ShiftOMator.Infrastructure;
 
-public class ScheduleDbContext(DbContextOptions<ScheduleDbContext> options) : DbContext(options)
+public class ShiftOMatorDbContext(DbContextOptions<ShiftOMatorDbContext> options) : DbContext(options)
 {
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Holiday> Holidays => Set<Holiday>();

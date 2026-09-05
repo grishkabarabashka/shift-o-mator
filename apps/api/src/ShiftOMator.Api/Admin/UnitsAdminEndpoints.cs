@@ -23,11 +23,11 @@ public static class UnitsAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/units").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.PlanningUnits.AsNoTracking().OrderBy(u => u.Id).ToListAsync(ct)))
             .Produces<IReadOnlyList<PlanningUnit>>();
 
-        group.MapPost("/", async (UnitRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (UnitRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -49,7 +49,7 @@ public static class UnitsAdminEndpoints
         .Produces<PlanningUnit>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, UnitRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, UnitRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -70,7 +70,7 @@ public static class UnitsAdminEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (id == "ALL_UNITS") return AdminValidation.Conflict("UNIT_PROTECTED", "ALL_UNITS is the required default and cannot be deleted.");
 
@@ -98,7 +98,7 @@ public static class UnitsAdminEndpoints
         RequiresApprovalWhenNoSlot = req.RequiresApprovalWhenNoSlot,
     };
 
-    private static async Task<AdminValidation> ValidateAsync(UnitRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(UnitRequest req, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.Name), req.Name);

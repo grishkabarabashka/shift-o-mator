@@ -29,7 +29,7 @@ public static class AbsenceEndpoints
     public static void MapAbsenceEndpoints(this WebApplication app)
     {
         app.MapGet("/api/absences", async (
-            DateOnly from, DateOnly to, string? personId, ScheduleDbContext db, CancellationToken ct) =>
+            DateOnly from, DateOnly to, string? personId, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (to < from) return Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`."));
 
@@ -48,7 +48,7 @@ public static class AbsenceEndpoints
 
         app.MapPost("/api/absences", async (
             UpsertAbsenceRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var checks = await ValidateAsync(req, user, actorId, db, ct);
@@ -87,7 +87,7 @@ public static class AbsenceEndpoints
 
         app.MapPut("/api/absences/{id}", async (
             string id, UpsertAbsenceRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var record = await db.Absences.FirstOrDefaultAsync(a => a.Id == id, ct);
             if (record is null) return Results.NotFound(new NotFoundResponse("ABSENCE_NOT_FOUND", id));
@@ -131,7 +131,7 @@ public static class AbsenceEndpoints
 
         app.MapDelete("/api/absences/{id}", async (
             string id, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var record = await db.Absences.FirstOrDefaultAsync(a => a.Id == id, ct);
             if (record is null) return Results.NotFound(new NotFoundResponse("ABSENCE_NOT_FOUND", id));
@@ -156,7 +156,7 @@ public static class AbsenceEndpoints
 
     private static async Task<Checks> ValidateAsync(
         UpsertAbsenceRequest req, ClaimsPrincipal user, string actorId,
-        ScheduleDbContext db, CancellationToken ct)
+        ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (req.To < req.From)
             return new Checks(Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`.")), null);
@@ -213,7 +213,7 @@ public static class AbsenceEndpoints
     /// planning unit-amer says nothing about writing an unit-emea engineer's row.
     /// </summary>
     private static async Task<bool> CanWriteFor(
-        ScheduleDbContext db, ClaimsPrincipal user, string actorId, string subjectPersonId,
+        ShiftOMatorDbContext db, ClaimsPrincipal user, string actorId, string subjectPersonId,
         CancellationToken ct)
     {
         if (actorId == subjectPersonId) return true;

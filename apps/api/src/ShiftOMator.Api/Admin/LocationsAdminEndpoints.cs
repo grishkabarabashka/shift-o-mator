@@ -15,11 +15,11 @@ public static class LocationsAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/locations").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Locations.AsNoTracking().OrderBy(l => l.Id).ToListAsync(ct)))
             .Produces<IReadOnlyList<Location>>();
 
-        group.MapGet("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var location = await db.Locations.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct);
             return location is null ? AdminValidation.NotFound("location", id) : Results.Ok(location);
@@ -27,7 +27,7 @@ public static class LocationsAdminEndpoints
         .Produces<Location>()
         .Produces(StatusCodes.Status404NotFound);
 
-        group.MapPost("/", async (LocationRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (LocationRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = Validate(req);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -48,7 +48,7 @@ public static class LocationsAdminEndpoints
         .Produces<Location>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, LocationRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, LocationRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = Validate(req);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -68,7 +68,7 @@ public static class LocationsAdminEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var location = await db.Locations.FirstOrDefaultAsync(l => l.Id == id, ct);
             if (location is null) return AdminValidation.NotFound("location", id);

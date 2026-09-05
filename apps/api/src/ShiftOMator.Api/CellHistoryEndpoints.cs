@@ -23,7 +23,7 @@ public static class CellHistoryEndpoints
     public static void MapCellHistoryEndpoints(this WebApplication app)
     {
         app.MapGet("/api/history/cell", async (
-            DateOnly date, string? personId, ScheduleDbContext db, CancellationToken ct) =>
+            DateOnly date, string? personId, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             // No personId means the whole day, everyone.
             var allPeople = string.IsNullOrEmpty(personId);

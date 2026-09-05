@@ -55,7 +55,7 @@ public class ApiTestFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting(
-            "ConnectionStrings:Schedule",
+            "ConnectionStrings:ShiftOMator",
             $"Server=(localdb)\\MSSQLLocalDB;Database={DatabaseName};Trusted_Connection=True;TrustServerCertificate=True");
         // Pinned, not inherited. `appsettings.json` is a shared, committed file, and a
         // developer switching it to EntraId to test real sign-in locally used to put the
@@ -86,7 +86,7 @@ public class ApiTestFactory : WebApplicationFactory<Program>
     protected virtual async Task SeedAsync(IHost host)
     {
         using var scope = host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         if (await SetupService.IsRequiredAsync(db))
             await SetupService.CompleteDemoAsync(db, callerEmail: null);
     }

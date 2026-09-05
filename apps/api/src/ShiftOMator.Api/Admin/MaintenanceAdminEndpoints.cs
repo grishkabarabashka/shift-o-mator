@@ -24,13 +24,13 @@ public static class MaintenanceAdminEndpoints
         // the global-admin check the two writes below make: the button it feeds is only
         // rendered for a global admin anyway, and a unit admin learning that the system is
         // untouched tells them nothing they could not see by looking at it.
-        group.MapGet("/can-load-demo-data", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/can-load-demo-data", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(new CanLoadDemoDataResponse(await SetupService.CanLoadDemoDataAsync(db, ct))))
             .WithName("CanLoadDemoData")
             .Produces<CanLoadDemoDataResponse>();
 
         group.MapPost("/load-demo-data", async (
-            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally())
             {
@@ -58,7 +58,7 @@ public static class MaintenanceAdminEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
         group.MapPost("/reset", async (
-            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db,
+            ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db,
             ILogger<Program> logger, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally())

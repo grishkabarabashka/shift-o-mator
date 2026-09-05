@@ -46,7 +46,7 @@ public static class HolidayImportEndpoints
         // country, and naming the one we use — with its host in the allowlist — is more
         // honest than a search box that would mostly find the wrong thing. Adding a
         // country is a row here plus, if it is a new host, a line of configuration.
-        group.MapGet("/calendars", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/calendars", async (ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var allowed = await AllowedHostsAsync(db, ct);
             var offered = HolidayCalendars.All
@@ -61,7 +61,7 @@ public static class HolidayImportEndpoints
         group.MapPost("/import", async (
             HolidayImportRequest req, ClaimsPrincipal user, ActorResolver actors,
             IHttpClientFactory clients,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (req.LocationIds.Count == 0)
             {
@@ -174,11 +174,11 @@ public static class HolidayImportEndpoints
     /// <summary>Rows are stored lowercase (<c>AllowedCalendarHostsAdminEndpoints</c>
     /// normalizes on write); a case-insensitive set is built once per request rather than
     /// trusting every caller here to lowercase the host it compares against.</summary>
-    private static async Task<HashSet<string>> AllowedHostsAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static async Task<HashSet<string>> AllowedHostsAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         new(await db.AllowedCalendarHosts.AsNoTracking().Select(h => h.Host).ToListAsync(ct), StringComparer.OrdinalIgnoreCase);
 
     private static async Task<(string? Body, IResult? Error)> FetchAsync(
-        string url, IHttpClientFactory clients, ScheduleDbContext db, CancellationToken ct)
+        string url, IHttpClientFactory clients, ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))

@@ -25,7 +25,7 @@ data:
   Ai__Endpoint: {{ . | quote }}
   {{- end }}
   {{- with .Values.api.config.connectionString }}
-  ConnectionStrings__Schedule: {{ . | quote }}
+  ConnectionStrings__ShiftOMator: {{ . | quote }}
   {{- end }}
   {{- with .Values.api.config.jwtAuthority }}
   Auth__Jwt__Authority: {{ . | quote }}

@@ -16,7 +16,7 @@ public static class AcknowledgementsEndpoints
 {
     public static void MapAcknowledgementsEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/acknowledgements", async (AcknowledgeRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/acknowledgements", async (AcknowledgeRequest req, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var existing = await db.Acknowledgements.FirstOrDefaultAsync(a => a.IssueKey == req.IssueKey, ct);
             var now = DateTimeOffset.UtcNow;

@@ -19,7 +19,7 @@ public static class PeopleEndpoints
     {
         app.MapPut("/api/people/{id}", async (
             string id, UpdatePersonRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var person = await db.People.Include(p => p.Eligibility).FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null) return Results.NotFound(new NotFoundResponse("PERSON_NOT_FOUND", id));

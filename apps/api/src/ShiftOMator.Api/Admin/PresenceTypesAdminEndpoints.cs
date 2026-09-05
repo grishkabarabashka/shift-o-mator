@@ -36,13 +36,13 @@ public static class PresenceTypesAdminEndpoints
         var group = app.MapGroup("/api/admin/presence-types")
             .RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.PresenceTypes.AsNoTracking().OrderBy(t => t.SortOrder).ToListAsync(ct)))
             .Produces<IReadOnlyList<PresenceType>>();
 
         group.MapPost("/", async (
             PresenceTypeRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
             if (Validate(req).ToBadRequestOrNull() is { } bad) return bad;
@@ -69,7 +69,7 @@ public static class PresenceTypesAdminEndpoints
 
         group.MapPut("/{id}", async (
             string id, PresenceTypeRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
             if (Validate(req).ToBadRequestOrNull() is { } bad) return bad;
@@ -92,7 +92,7 @@ public static class PresenceTypesAdminEndpoints
 
         group.MapDelete("/{id}", async (
             string id, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
 
@@ -145,7 +145,7 @@ public static class PresenceTypesAdminEndpoints
     /// box otherwise produces a menu item that silently does nothing, which is the failure
     /// this whole area keeps producing when a flag and its plumbing are edited separately.
     /// </summary>
-    private static async Task SyncRequestTypeAsync(ScheduleDbContext db, PresenceType type, CancellationToken ct)
+    private static async Task SyncRequestTypeAsync(ShiftOMatorDbContext db, PresenceType type, CancellationToken ct)
     {
         var existing = await db.RequestTypes.FirstOrDefaultAsync(r => r.PresenceTypeId == type.Id, ct);
 

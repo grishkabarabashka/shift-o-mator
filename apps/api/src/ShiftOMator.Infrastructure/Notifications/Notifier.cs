@@ -14,7 +14,7 @@ namespace ShiftOMator.Infrastructure.Notifications;
 ///
 /// WHY it lives in Infrastructure rather than Application, where ADR-0064 first put it:
 /// Application references Domain and nothing else, and this needs the
-/// <see cref="ScheduleDbContext"/>. The half that is policy — which channels an event is
+/// <see cref="ShiftOMatorDbContext"/>. The half that is policy — which channels an event is
 /// owed on — is in <see cref="NotificationFanout"/>, where it is pure and tested; what is
 /// left here is the write. Everything above Infrastructure can see this, which is what the
 /// move was for: the comp-day and coverage kinds are computed in Application and could not
@@ -31,7 +31,7 @@ public static class Notifier
     /// row and nothing else, reached without a special case.
     /// </summary>
     public static async Task NotifyAsync(
-        this ScheduleDbContext db,
+        this ShiftOMatorDbContext db,
         IEnumerable<string> recipientPersonIds,
         NotificationKind kind,
         string title,

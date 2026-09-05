@@ -29,13 +29,13 @@ public static class EventTypesAdminEndpoints
         var group = app.MapGroup("/api/admin/event-types")
             .RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.EventTypes.AsNoTracking().OrderBy(t => t.SortOrder).ToListAsync(ct)))
             .Produces<IReadOnlyList<EventType>>();
 
         group.MapPost("/", async (
             EventTypeRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
             if (Validate(req).ToBadRequestOrNull() is { } bad) return bad;
@@ -67,7 +67,7 @@ public static class EventTypesAdminEndpoints
 
         group.MapPut("/{id}", async (
             string id, EventTypeRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
             if (Validate(req).ToBadRequestOrNull() is { } bad) return bad;

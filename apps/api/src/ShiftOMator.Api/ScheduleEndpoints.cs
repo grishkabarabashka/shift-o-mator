@@ -23,7 +23,7 @@ public static class ScheduleEndpoints
     {
         app.MapGet("/api/schedule", async (
             string unitId, DateOnly from, DateOnly to, string? draftId,
-            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (to < from) return Results.BadRequest(new InvalidRangeResponse("INVALID_RANGE", "to must not be before from."));
 
@@ -113,7 +113,7 @@ public static class ScheduleEndpoints
     /// which is fine at this scale and is the same work the inbox does.
     /// </summary>
     private static async Task<List<PendingRequestSummary>> PendingRequestsAsync(
-        ScheduleDbContext db, ClaimsPrincipal user, ActorResolver actors,
+        ShiftOMatorDbContext db, ClaimsPrincipal user, ActorResolver actors,
         DateOnly from, DateOnly to, List<Person> people,
         List<PlanningUnit> units, CancellationToken ct)
     {

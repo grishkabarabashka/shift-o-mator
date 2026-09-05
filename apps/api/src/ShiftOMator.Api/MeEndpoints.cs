@@ -30,7 +30,7 @@ public static class MeEndpoints
     {
         app.MapGet("/api/me/calendar", async (
             DateOnly from, DateOnly to, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (to < from) return Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`."));
             if (to.DayNumber - from.DayNumber > MaxDays)
@@ -104,7 +104,7 @@ public static class MeEndpoints
 
         app.MapPost("/api/me/calendar-feed/reset", async (
             ClaimsPrincipal user, ActorResolver actors, HttpContext http,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var me = await actors.RequireAsync(user, ct);
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == me, ct);
@@ -128,7 +128,7 @@ public static class MeEndpoints
         // path — which is why Person.CalendarToken is 256 bits, is never serialized on any
         // list payload, and can be rotated from the screen above.
         app.MapGet("/api/calendar/{token}.ics", async (
-            string token, ScheduleDbContext db, CancellationToken ct) =>
+            string token, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var person = await db.People.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.CalendarToken == token, ct);
@@ -160,7 +160,7 @@ public static class MeEndpoints
     /// are exactly what a colleague looking for a free slot needs to see.
     /// </summary>
     private static async Task<string> BuildFeedAsync(
-        ScheduleDbContext db, Person person, DateOnly from, DateOnly to, CancellationToken ct)
+        ShiftOMatorDbContext db, Person person, DateOnly from, DateOnly to, CancellationToken ct)
     {
         var assignments = await db.Assignments.AsNoTracking()
             .Where(a => a.PersonId == person.Id && a.Date >= from && a.Date <= to)

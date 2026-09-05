@@ -18,7 +18,7 @@ public sealed class SetupAlreadyCompleteException : InvalidOperationException;
 /// </summary>
 public static class SetupService
 {
-    public static async Task<bool> IsRequiredAsync(ScheduleDbContext db, CancellationToken ct = default) =>
+    public static async Task<bool> IsRequiredAsync(ShiftOMatorDbContext db, CancellationToken ct = default) =>
         !await db.SystemSetups.AnyAsync(ct);
 
     /// <summary>
@@ -30,7 +30,7 @@ public static class SetupService
     /// exist at all — not incidental scope, the minimum a person can exist inside.
     /// </summary>
     public static async Task<Person> CompleteBareAsync(
-        ScheduleDbContext db,
+        ShiftOMatorDbContext db,
         string locationName,
         string timeZone,
         string holidayCalendarKey,
@@ -136,7 +136,7 @@ public static class SetupService
     /// can actually sign back in afterward.
     /// </summary>
     public static async Task<Person?> CompleteDemoAsync(
-        ScheduleDbContext db, string? callerEmail, bool directoryRoles = false,
+        ShiftOMatorDbContext db, string? callerEmail, bool directoryRoles = false,
         CancellationToken ct = default)
     {
         if (await db.SystemSetups.AnyAsync(ct)) throw new SetupAlreadyCompleteException();
@@ -164,7 +164,7 @@ public static class SetupService
     /// and nothing scheduled yet. A database anybody has since typed real people or a real
     /// rota into is not a database the fixture's fixed ids should be merged into.
     /// </summary>
-    public static async Task<bool> CanLoadDemoDataAsync(ScheduleDbContext db, CancellationToken ct = default) =>
+    public static async Task<bool> CanLoadDemoDataAsync(ShiftOMatorDbContext db, CancellationToken ct = default) =>
         await db.People.CountAsync(ct) <= 1
         && !await db.Assignments.AnyAsync(ct)
         && !await db.Absences.AnyAsync(ct)
@@ -177,7 +177,7 @@ public static class SetupService
     /// first — this throws if the guard no longer holds, which only happens if something
     /// wrote real content between the check and the call.
     /// </summary>
-    public static async Task LoadDemoDataAsync(ScheduleDbContext db, CancellationToken ct = default)
+    public static async Task LoadDemoDataAsync(ShiftOMatorDbContext db, CancellationToken ct = default)
     {
         if (!await CanLoadDemoDataAsync(db, ct))
             throw new InvalidOperationException("Demo data can only be loaded into an untouched Bare system.");
@@ -207,7 +207,7 @@ public static class SetupService
     /// from inside a request, and a managed identity with rights nothing else here needs;
     /// deleting rows needs none of that.
     /// </summary>
-    public static async Task ResetAsync(ScheduleDbContext db, CancellationToken ct = default)
+    public static async Task ResetAsync(ShiftOMatorDbContext db, CancellationToken ct = default)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
@@ -240,7 +240,7 @@ public static class SetupService
     /// loading a demo dataset over a Bare system keeps the audit trail of how it got there.
     /// <see cref="ResetAsync"/> clears those itself, on top of this.
     /// </summary>
-    private static async Task DeleteRosterAndPlanAsync(ScheduleDbContext db, CancellationToken ct)
+    private static async Task DeleteRosterAndPlanAsync(ShiftOMatorDbContext db, CancellationToken ct)
     {
         await db.Requests.ExecuteDeleteAsync(ct);
         await db.RoleAssignments.ExecuteDeleteAsync(ct);

@@ -25,14 +25,14 @@ public static class DayConfigurationsAdminEndpoints
 
         // Full history, not just the currently-effective row — the UI needs every
         // version to render the timeline the plan calls for.
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.DayConfigurations.AsNoTracking()
                 .Include(c => c.ShiftRequirements)
                 .OrderBy(c => c.UnitId).ThenBy(c => c.Key).ThenBy(c => c.EffectiveFrom)
                 .ToListAsync(ct)))
             .Produces<IReadOnlyList<DayConfiguration>>();
 
-        group.MapPost("/", async (DayConfigurationNewVersionRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (DayConfigurationNewVersionRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -67,7 +67,7 @@ public static class DayConfigurationsAdminEndpoints
         .Produces<DayConfiguration>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}/label", async (string id, DayConfigurationLabelRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}/label", async (string id, DayConfigurationLabelRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var config = await db.DayConfigurations.Include(c => c.ShiftRequirements).FirstOrDefaultAsync(c => c.Id == id, ct);
             if (config is null) return AdminValidation.NotFound("day-configuration", id);
@@ -81,7 +81,7 @@ public static class DayConfigurationsAdminEndpoints
 
         // Undo for a version that has not taken effect yet — deleting anything already
         // in force would be the in-place-repaint ADR-0021 exists to prevent.
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var config = await db.DayConfigurations.FirstOrDefaultAsync(c => c.Id == id, ct);
             if (config is null) return AdminValidation.NotFound("day-configuration", id);
@@ -100,7 +100,7 @@ public static class DayConfigurationsAdminEndpoints
         .Produces(StatusCodes.Status409Conflict);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(DayConfigurationNewVersionRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(DayConfigurationNewVersionRequest req, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.UnitId), req.UnitId);

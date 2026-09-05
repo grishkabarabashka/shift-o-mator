@@ -16,7 +16,7 @@ public static class DraftsEndpoints
 {
     public static void MapDraftsEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/drafts", async (OpenDraftRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts", async (OpenDraftRequest req, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
 
@@ -56,7 +56,7 @@ public static class DraftsEndpoints
         // unit/range are allowed; the UI just needs to know they exist.
         app.MapGet("/api/drafts", async (
             string? unitId, DateOnly? from, DateOnly? to, bool? mine,
-            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var query = db.DraftSessions.AsNoTracking().Where(s => s.Status == DraftStatus.Open);
             if (!string.IsNullOrEmpty(unitId)) query = query.Where(s => s.UnitId == unitId);
@@ -91,7 +91,7 @@ public static class DraftsEndpoints
         // window, so parsing them is cheaper than the schema that would avoid it.
         app.MapGet("/api/drafts/staged", async (
             string? unitId, DateOnly? from, DateOnly? to, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
 
@@ -140,7 +140,7 @@ public static class DraftsEndpoints
         .Produces<StagedCellsResponse>()
         .RequireAuthorization(AuthPolicies.Authenticated);
 
-        app.MapGet("/api/drafts/{id}/changes", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/drafts/{id}/changes", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.AsNoTracking().Include(s => s.Changes)
                 .FirstOrDefaultAsync(s => s.Id == id, ct);
@@ -152,7 +152,7 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.Authenticated);
 
-        app.MapPost("/api/drafts/{id}/changes", async (string id, AppendChangeRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts/{id}/changes", async (string id, AppendChangeRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
@@ -197,7 +197,7 @@ public static class DraftsEndpoints
         // derived here from published data. Repainting a cell the same draft created is
         // then an ordinary replacement rather than an UPDATE against a row that does not
         // exist yet — which used to 400 and take the rest of the client's batch with it.
-        app.MapPost("/api/drafts/{id}/changes/sync", async (string id, SyncChangesRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts/{id}/changes/sync", async (string id, SyncChangesRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
@@ -242,7 +242,7 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapDelete("/api/drafts/{id}/changes/{changeId}", async (string id, string changeId, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapDelete("/api/drafts/{id}/changes/{changeId}", async (string id, string changeId, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
@@ -265,7 +265,7 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapPost("/api/drafts/{id}/discard", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts/{id}/discard", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
             if (session is null) return Results.NotFound();
@@ -288,7 +288,7 @@ public static class DraftsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapPost("/api/drafts/{id}/publish", async (string id, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/drafts/{id}/publish", async (string id, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
             await PublishAsync(id, await actors.RequireAsync(user, ct), db, ct))
         .WithName("PublishDraft")
         .Produces<PublishDraftResponse>()
@@ -351,7 +351,7 @@ public static class DraftsEndpoints
     /// written or nothing is — a failed publish never touches the draft, so it stays
     /// open for the planner to compare/refresh/reapply.
     /// </summary>
-    private static async Task<IResult> PublishAsync(string id, string actorId, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<IResult> PublishAsync(string id, string actorId, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var session = await db.DraftSessions.Include(s => s.Changes).FirstOrDefaultAsync(s => s.Id == id, ct);
         if (session is null) return Results.NotFound();
@@ -399,7 +399,7 @@ public static class DraftsEndpoints
     }
 
     private static async Task ApplyAssignmentChange(
-        ScheduleDbContext db, DraftChange change, IReadOnlyList<Assignment> final, CancellationToken ct)
+        ShiftOMatorDbContext db, DraftChange change, IReadOnlyList<Assignment> final, CancellationToken ct)
     {
         switch (change.Op)
         {
@@ -447,7 +447,7 @@ public static class DraftsEndpoints
     // (ADR-0052): a publish no longer writes one.
 
     private static async Task ApplyCompDayChange(
-        ScheduleDbContext db, DraftChange change, IReadOnlyList<CompDayEntry> final, CancellationToken ct)
+        ShiftOMatorDbContext db, DraftChange change, IReadOnlyList<CompDayEntry> final, CancellationToken ct)
     {
         switch (change.Op)
         {

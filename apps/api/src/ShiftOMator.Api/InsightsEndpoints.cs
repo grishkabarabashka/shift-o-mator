@@ -23,7 +23,7 @@ public static class InsightsEndpoints
     public static void MapInsightsEndpoints(this WebApplication app)
     {
         app.MapPost("/api/insights/gap-summary", async (
-            GapSummaryRequest req, ScheduleDbContext db, GapSummaryService summaries, CancellationToken ct) =>
+            GapSummaryRequest req, ShiftOMatorDbContext db, GapSummaryService summaries, CancellationToken ct) =>
         {
             if (req.To < req.From) return Results.BadRequest(new ErrorResponse("INVALID_RANGE", "`to` is before `from`."));
             if (!summaries.Configured)
@@ -117,7 +117,7 @@ public static class InsightsEndpoints
     private static void MapCandidateExplanation(WebApplication app)
     {
         app.MapPost("/api/insights/candidate-explanation", async (
-            CandidateExplanationRequest req, ScheduleDbContext db,
+            CandidateExplanationRequest req, ShiftOMatorDbContext db,
             CandidateExplanationService explanations, CancellationToken ct) =>
         {
             var dataset = await ScheduleDatasetLoader.LoadAsync(db, req.Date, req.Date, ct);

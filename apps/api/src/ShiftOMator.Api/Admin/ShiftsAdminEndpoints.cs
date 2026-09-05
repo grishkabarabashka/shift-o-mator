@@ -21,11 +21,11 @@ public static class ShiftsAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/shifts").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Shifts.AsNoTracking().OrderBy(s => s.Id).ToListAsync(ct)))
             .Produces<IReadOnlyList<Shift>>();
 
-        group.MapGet("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var shift = await db.Shifts.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
             return shift is null ? AdminValidation.NotFound("shift", id) : Results.Ok(shift);
@@ -33,7 +33,7 @@ public static class ShiftsAdminEndpoints
         .Produces<Shift>()
         .Produces(StatusCodes.Status404NotFound);
 
-        group.MapPost("/", async (ShiftRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (ShiftRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -68,7 +68,7 @@ public static class ShiftsAdminEndpoints
         .Produces<Shift>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, ShiftRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, ShiftRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -96,7 +96,7 @@ public static class ShiftsAdminEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var shift = await db.Shifts.FirstOrDefaultAsync(s => s.Id == id, ct);
             if (shift is null) return AdminValidation.NotFound("shift", id);
@@ -115,7 +115,7 @@ public static class ShiftsAdminEndpoints
         .Produces(StatusCodes.Status409Conflict);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(ShiftRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(ShiftRequest req, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.UnitId), req.UnitId);

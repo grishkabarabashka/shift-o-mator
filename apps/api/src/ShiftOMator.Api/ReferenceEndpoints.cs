@@ -7,13 +7,13 @@ namespace ShiftOMator.Api;
 
 /// <summary>
 /// Read-only reference data — the same payload shape `loadReference()` returns on the
-/// client today, so `HttpScheduleRepository` (Phase 5) is a drop-in.
+/// client today, so the Phase 5 HTTP client is a drop-in.
 /// </summary>
 public static class ReferenceEndpoints
 {
     public static void MapReferenceEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/reference", async (ScheduleDbContext db) =>
+        app.MapGet("/api/reference", async (ShiftOMatorDbContext db) =>
         {
             var locations = await db.Locations.AsNoTracking().ToListAsync();
             var holidays = await db.Holidays.AsNoTracking().ToListAsync();

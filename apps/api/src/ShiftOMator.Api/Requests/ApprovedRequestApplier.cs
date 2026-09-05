@@ -37,7 +37,7 @@ public static class ApprovedRequestApplier
     /// the approval was for.
     /// </summary>
     public static void SupersedePresence(
-        ScheduleDbContext db, PresenceRecord incoming, string actorId, DateTimeOffset now)
+        ShiftOMatorDbContext db, PresenceRecord incoming, string actorId, DateTimeOffset now)
     {
         var existing = db.Presence
             .Where(p => p.PersonId == incoming.PersonId
@@ -87,7 +87,7 @@ public static class ApprovedRequestApplier
 
     /// <summary>The same for time off. Changing the kind of leave on a day is a new
     /// request that supersedes the old absence, not an edit of it.</summary>
-    public static void SupersedeAbsences(ScheduleDbContext db, Absence incoming, string actorId)
+    public static void SupersedeAbsences(ShiftOMatorDbContext db, Absence incoming, string actorId)
     {
         var existing = db.Absences
             .Where(a => a.PersonId == incoming.PersonId
@@ -132,7 +132,7 @@ public static class ApprovedRequestApplier
     }
 
     public static Result Apply(
-        ScheduleDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
+        ShiftOMatorDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
     {
         return type.Materializer switch
         {
@@ -145,7 +145,7 @@ public static class ApprovedRequestApplier
     }
 
     private static Result ApplyPresence(
-        ScheduleDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
+        ShiftOMatorDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
     {
         if (type.PresenceTypeId is null)
             return new Result(null, $"Request type {type.Code} produces presence but names no kind.");
@@ -185,7 +185,7 @@ public static class ApprovedRequestApplier
     /// the manager both need to see — would live on only one of them.
     /// </summary>
     private static Result PlaceCompDay(
-        ScheduleDbContext db, Request request, string actorId, DateTimeOffset now)
+        ShiftOMatorDbContext db, Request request, string actorId, DateTimeOffset now)
     {
         var compDayId = RequestPayload.Read(request.PayloadJson).CompDayId;
         if (compDayId is null)
@@ -223,7 +223,7 @@ public static class ApprovedRequestApplier
     }
 
     private static Result ApplyAbsence(
-        ScheduleDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
+        ShiftOMatorDbContext db, Request request, RequestType type, string actorId, DateTimeOffset now)
     {
         if (type.EventTypeId is null)
             return new Result(null, $"Request type {type.Code} produces leave but names no event type.");

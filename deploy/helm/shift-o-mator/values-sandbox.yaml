@@ -23,7 +23,7 @@ api:
   # a public LoadBalancer with no ingress and no TLS — publishing a browsable, "Try it"
   # API reference there is a bigger exposure than the environment is worth. It also means
   # appsettings.Production.json is the file that applies, which is the one the settings here
-  # are written against. Read the OpenAPI document locally (`npm run api:schema`) instead.
+  # are written against. Read the OpenAPI document from a local run instead.
   env: Production
   resources:
     requests: { cpu: 50m, memory: 192Mi }
@@ -50,7 +50,7 @@ api:
     #
     # For a database that cannot do Entra auth — a standalone SQL Server on a VM, say —
     # leave this empty and put the password-bearing string in Key Vault instead, as
-    # `shift-o-mator-connection-string → ConnectionStrings__Schedule` under
+    # `shift-o-mator-connection-string → ConnectionStrings__ShiftOMator` under
     # `azureKeyVault.secrets`. The Secret is applied after the ConfigMap, so it wins.
     connectionString: "Server=tcp:<sql-server>.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
 

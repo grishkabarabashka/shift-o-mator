@@ -35,7 +35,7 @@ public static class ScheduleDatasetLoader
 
     /// <summary>Everything, unscoped. Used by seeding and by the baseline test; not by
     /// request paths.</summary>
-    public static Task<ScheduleDataset> LoadAsync(ScheduleDbContext db, CancellationToken ct = default) =>
+    public static Task<ScheduleDataset> LoadAsync(ShiftOMatorDbContext db, CancellationToken ct = default) =>
         LoadAsync(db, null, null, ct);
 
     /// <summary>
@@ -49,7 +49,7 @@ public static class ScheduleDatasetLoader
     /// the alternative is loading the whole table to distinguish them.
     /// </summary>
     public static async Task<ScheduleDataset> LoadAsync(
-        ScheduleDbContext db, DateOnly? from, DateOnly? to, CancellationToken ct = default)
+        ShiftOMatorDbContext db, DateOnly? from, DateOnly? to, CancellationToken ct = default)
     {
         var locations = await db.Locations.AsNoTracking().ToListAsync(ct);
         var holidays = await db.Holidays.AsNoTracking().ToListAsync(ct);

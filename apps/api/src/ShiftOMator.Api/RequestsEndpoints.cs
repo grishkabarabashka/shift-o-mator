@@ -24,7 +24,7 @@ public static class RequestsEndpoints
 {
     public static void MapRequestsEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/request-types", async (ScheduleDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/request-types", async (ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var types = await db.RequestTypes.AsNoTracking()
                 .Where(t => t.IsActive)
@@ -38,7 +38,7 @@ public static class RequestsEndpoints
 
         app.MapGet("/api/requests", async (
             string? scope, string? state, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var context = await LoadContextAsync(db, ct);
@@ -72,7 +72,7 @@ public static class RequestsEndpoints
 
         app.MapPost("/api/requests", async (
             CreateRequestRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var subjectId = req.SubjectPersonId ?? actorId;
@@ -180,7 +180,7 @@ public static class RequestsEndpoints
 
         app.MapPost("/api/requests/{id}/decide", async (
             string id, DecideRequestRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var request = await db.Requests.Include(r => r.Decisions).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (request is null) return Results.NotFound(new NotFoundResponse("REQUEST_NOT_FOUND", id));
@@ -256,7 +256,7 @@ public static class RequestsEndpoints
         .RequireAuthorization(AuthPolicies.Authenticated);
 
         app.MapPost("/api/requests/{id}/cancel", async (
-            string id, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            string id, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var request = await db.Requests.Include(r => r.Decisions).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (request is null) return Results.NotFound(new NotFoundResponse("REQUEST_NOT_FOUND", id));
@@ -328,7 +328,7 @@ public static class RequestsEndpoints
     {
         app.MapGet("/api/notifications", async (
             bool? unreadOnly, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var query = db.Notifications.AsNoTracking().Where(n => n.RecipientPersonId == actorId);
@@ -345,7 +345,7 @@ public static class RequestsEndpoints
         .RequireAuthorization(AuthPolicies.Authenticated);
 
         app.MapPost("/api/notifications/read", async (
-            ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var actorId = await actors.RequireAsync(user, ct);
             var now = DateTimeOffset.UtcNow;
@@ -368,7 +368,7 @@ public static class RequestsEndpoints
     /// the same question about the dates it offers; this only assembles the inputs.
     /// </summary>
     private static async Task<IResult?> CheckCompDayPlacementAsync(
-        CreateRequestRequest req, Person subject, ScheduleDbContext db, CancellationToken ct)
+        CreateRequestRequest req, Person subject, ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (req.CompDayId is null)
         {
@@ -419,7 +419,7 @@ public static class RequestsEndpoints
             RequestService.ApproversFor(request, Roles, People);
     }
 
-    private static async Task<Context> LoadContextAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static async Task<Context> LoadContextAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         new(
             await db.People.AsNoTracking().ToListAsync(ct),
             await db.RequestTypes.AsNoTracking().ToListAsync(ct),

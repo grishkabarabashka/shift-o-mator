@@ -30,7 +30,7 @@ namespace ShiftOMator.Api.Auth;
 /// falling through from one to the other.
 /// </summary>
 public sealed class ActorResolver(
-    ScheduleDbContext db,
+    ShiftOMatorDbContext db,
     IOptions<AuthOptions> authOptions,
     ILogger<ActorResolver> logger)
 {

@@ -26,7 +26,7 @@ public static class SetupEndpoints
         // system is not worth handing to a caller who has not signed in yet, and the
         // client needs an answer before `AuthProvider` has one (it sits above it, exactly
         // like the calendar feed route).
-        app.MapGet("/api/setup/state", async (IOptions<AuthOptions> auth, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/setup/state", async (IOptions<AuthOptions> auth, ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(new SetupStateResponse(
                 await SetupService.IsRequiredAsync(db, ct),
                 string.Equals(auth.Value.Mode, "Stub", StringComparison.OrdinalIgnoreCase))))
@@ -40,7 +40,7 @@ public static class SetupEndpoints
         // which is the *expected* state of every caller who reaches this endpoint.
         app.MapPost("/api/setup", async (
             SetupRequest req, ClaimsPrincipal user, IOptions<AuthOptions> auth,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!await SetupService.IsRequiredAsync(db, ct))
                 return Results.Conflict(new ErrorResponse("SETUP_COMPLETE", "This system has already been set up."));
@@ -131,7 +131,7 @@ public static class SetupEndpoints
     /// </summary>
     private static async Task<IResult> DiagnosticsAsync(
         ClaimsPrincipal user, IOptions<AuthOptions> auth, IConfiguration configuration,
-        Insights.ChatModel model, ScheduleDbContext db, CancellationToken ct)
+        Insights.ChatModel model, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var tokenEmail = user.EmailOrNull()?.Trim().ToLowerInvariant();
 

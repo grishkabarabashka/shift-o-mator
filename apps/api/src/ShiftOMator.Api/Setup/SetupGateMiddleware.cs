@@ -20,12 +20,12 @@ namespace ShiftOMator.Api.Setup;
 /// </summary>
 public class SetupGateMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, ScheduleDbContext db)
+    public async Task InvokeAsync(HttpContext context, ShiftOMatorDbContext db)
     {
         var path = context.Request.Path.Value ?? string.Empty;
         if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/setup", StringComparison.OrdinalIgnoreCase)
-            // Documentation, not data: `npm run api:schema` fetches `/openapi/v1.json`
+            // Documentation, not data: `/openapi/v1.json` has to be readable
             // against a freshly migrated, not-yet-set-up database, and Scalar's "Try it"
             // is a dev convenience, not a write path that needs gating.
             || path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase)

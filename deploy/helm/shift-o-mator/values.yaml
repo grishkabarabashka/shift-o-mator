@@ -93,7 +93,7 @@ azureKeyVault:
   # A CSI mount fails outright on an object the vault does not hold, so list only what is
   # actually there. Examples:
   #   - objectName: shift-o-mator-connection-string
-  #     envVarName: ConnectionStrings__Schedule
+  #     envVarName: ConnectionStrings__ShiftOMator
   #   - objectName: shift-o-mator-ai-api-key
   #     envVarName: Ai__ApiKey
   secrets: []

@@ -17,7 +17,7 @@ public static class HistoryEndpoints
     {
         app.MapGet("/api/history", async (
             DateOnly from, DateOnly to, string? personId, HistoryEntityType? entityType,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var fromAt = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var toAt = new DateTimeOffset(to.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero);

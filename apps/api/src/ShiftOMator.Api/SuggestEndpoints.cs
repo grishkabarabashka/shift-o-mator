@@ -18,7 +18,7 @@ public static class SuggestEndpoints
 {
     public static void MapSuggestEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/suggest", async (SuggestRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/suggest", async (SuggestRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             // One date, but the ranker looks 90 days back — the loader's lookback margin
             // is what keeps the fairness counters honest here (ADR-0042).
@@ -35,7 +35,7 @@ public static class SuggestEndpoints
         .Produces<CandidateRanker.CandidateResult>()
         .RequireAuthorization(AuthPolicies.PlannerSomewhere);
 
-        app.MapPost("/api/auto-populate", async (AutoPopulateRequest req, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/auto-populate", async (AutoPopulateRequest req, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if ((req.RangeTo.DayNumber - req.RangeFrom.DayNumber) > AutoPopulateService.MaxDays)
                 return Results.BadRequest(new ErrorResponse("RANGE_TOO_LONG", $"Auto-populate is limited to {AutoPopulateService.MaxDays} days."));

@@ -15,11 +15,11 @@ public static class HolidaysAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/holidays").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.Holidays.AsNoTracking().OrderBy(h => h.Date).ToListAsync(ct)))
             .Produces<IReadOnlyList<Holiday>>();
 
-        group.MapPost("/", async (HolidayRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (HolidayRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = Validate(req);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -39,7 +39,7 @@ public static class HolidaysAdminEndpoints
         .Produces<Holiday>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, HolidayRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, HolidayRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = Validate(req);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -58,7 +58,7 @@ public static class HolidaysAdminEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var holiday = await db.Holidays.FirstOrDefaultAsync(h => h.Id == id, ct);
             if (holiday is null) return AdminValidation.NotFound("holiday", id);

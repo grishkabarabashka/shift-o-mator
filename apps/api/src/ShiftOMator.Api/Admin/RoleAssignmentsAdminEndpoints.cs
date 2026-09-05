@@ -33,7 +33,7 @@ public static class RoleAssignmentsAdminEndpoints
         // Reading is open to everybody, for the same reason the grant list is: "why does
         // this person hold Admin when Settings shows no tick" is a fair question, and the
         // answer — because the directory says so — is not privileged information.
-        app.MapGet("/api/admin/directory-roles", async (ScheduleDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/admin/directory-roles", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(new DirectoryRolesResponse(
                 await db.SystemSetups.AsNoTracking().Select(s => s.DirectoryRoles).FirstOrDefaultAsync(ct))))
             .WithName("GetDirectoryRoles")
@@ -47,7 +47,7 @@ public static class RoleAssignmentsAdminEndpoints
         // global grant widens scope, never privilege — and this setting is all scope).
         app.MapPut("/api/admin/directory-roles", async (
             DirectoryRolesRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.Has(AppRole.Admin, null))
             {
@@ -86,7 +86,7 @@ public static class RoleAssignmentsAdminEndpoints
         // without already administering something. Mapped outside the group so it does not
         // inherit the admin policy.
         app.MapGet("/api/admin/role-assignments", async (
-            string? unitId, ScheduleDbContext db, CancellationToken ct) =>
+            string? unitId, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var query = db.RoleAssignments.AsNoTracking();
             if (!string.IsNullOrEmpty(unitId)) query = query.Where(r => r.UnitId == unitId);
@@ -101,7 +101,7 @@ public static class RoleAssignmentsAdminEndpoints
 
         group.MapPost("/", async (
             GrantRoleRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!CanManage(user, req.UnitId))
                 return Refuse(req.UnitId);
@@ -148,7 +148,7 @@ public static class RoleAssignmentsAdminEndpoints
 
         group.MapDelete("/{id}", async (
             string id, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var grant = await db.RoleAssignments.FirstOrDefaultAsync(r => r.Id == id, ct);
             if (grant is null) return Results.NotFound(new NotFoundResponse("ROLE_ASSIGNMENT_NOT_FOUND", id));

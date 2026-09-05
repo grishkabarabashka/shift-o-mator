@@ -15,11 +15,11 @@ public static class AbsenceCapacityRulesAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/absence-capacity-rules").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.AbsenceCapacityRules.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct)))
             .Produces<IReadOnlyList<AbsenceCapacityRule>>();
 
-        group.MapPost("/", async (AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (AbsenceCapacityRuleRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -43,7 +43,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
         .Produces<AbsenceCapacityRule>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, AbsenceCapacityRuleRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -66,7 +66,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var rule = await db.AbsenceCapacityRules.FirstOrDefaultAsync(r => r.Id == id, ct);
             if (rule is null) return AdminValidation.NotFound("absence-capacity-rule", id);
@@ -79,7 +79,7 @@ public static class AbsenceCapacityRulesAdminEndpoints
         .Produces(StatusCodes.Status404NotFound);
     }
 
-    private static async Task<AdminValidation> ValidateAsync(AbsenceCapacityRuleRequest req, ScheduleDbContext db, CancellationToken ct)
+    private static async Task<AdminValidation> ValidateAsync(AbsenceCapacityRuleRequest req, ShiftOMatorDbContext db, CancellationToken ct)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.UnitId), req.UnitId);

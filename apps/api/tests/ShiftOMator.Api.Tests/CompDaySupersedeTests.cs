@@ -51,7 +51,7 @@ public class CompDaySupersedeTests(ApiTestFactory factory)
     private async Task<string> SeedCompDayAsync(string personId, DateOnly earnedFor)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         var id = $"cd-test-{Guid.NewGuid():n}";
         db.CompDayEntries.Add(new CompDayEntry
         {
@@ -71,14 +71,14 @@ public class CompDaySupersedeTests(ApiTestFactory factory)
     private async Task<CompDayEntry> CompDayAsync(string id)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         return await db.CompDayEntries.AsNoTracking().SingleAsync(c => c.Id == id);
     }
 
     private async Task<string> RequestStateAsync(string id)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         var request = await db.Requests.AsNoTracking().SingleAsync(r => r.Id == id);
         return request.State.ToString();
     }
@@ -86,7 +86,7 @@ public class CompDaySupersedeTests(ApiTestFactory factory)
     private async Task CleanupAsync(string compDayId, params string[] requestIds)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         db.ApprovalDecisions.RemoveRange(
             await db.ApprovalDecisions.Where(d => requestIds.Contains(d.RequestId)).ToListAsync());
         db.Requests.RemoveRange(await db.Requests.Where(r => requestIds.Contains(r.Id)).ToListAsync());

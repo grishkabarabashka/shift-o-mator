@@ -63,7 +63,7 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
         }
 
         using var scope = scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
 
         // Entra ID app roles arrive as `roles` claims. Anything that isn't one of ours is
         // ignored rather than rejected: a directory may assign roles for other apps to the

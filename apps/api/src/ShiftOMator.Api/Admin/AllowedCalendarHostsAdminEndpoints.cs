@@ -25,13 +25,13 @@ public static class AllowedCalendarHostsAdminEndpoints
         var group = app.MapGroup("/api/admin/allowed-calendar-hosts")
             .RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.AllowedCalendarHosts.AsNoTracking().OrderBy(h => h.Host).ToListAsync(ct)))
             .Produces<IReadOnlyList<AllowedCalendarHost>>();
 
         group.MapPost("/", async (
             AllowedCalendarHostRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.Has(AppRole.Admin, null)) return GlobalOnly();
 
@@ -54,7 +54,7 @@ public static class AllowedCalendarHostsAdminEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
 
         group.MapDelete("/{host}", async (
-            string host, ClaimsPrincipal user, ActorResolver actors, ScheduleDbContext db, CancellationToken ct) =>
+            string host, ClaimsPrincipal user, ActorResolver actors, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.Has(AppRole.Admin, null)) return GlobalOnly();
 

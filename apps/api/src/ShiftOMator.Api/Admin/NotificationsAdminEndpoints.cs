@@ -32,7 +32,7 @@ public static class NotificationsAdminEndpoints
         var group = app.MapGroup("/api/admin/notifications")
             .RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/rules", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/rules", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.NotificationRules.AsNoTracking()
                 .OrderBy(r => r.Kind).ThenBy(r => r.Channel)
                 .ToListAsync(ct)))
@@ -41,7 +41,7 @@ public static class NotificationsAdminEndpoints
         // The whole matrix at once: it is one screen of checkboxes and one intent.
         group.MapPut("/rules", async (
             NotificationRulesRequest req, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
 
@@ -92,7 +92,7 @@ public static class NotificationsAdminEndpoints
         group.MapGet("/log", async (
             string? kind, string? channel, string? status, string? personId,
             DateOnly? from, DateOnly? to, int? skip, int? take,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var query = db.Notifications.AsNoTracking().Include(n => n.Deliveries).AsQueryable();
 
@@ -140,7 +140,7 @@ public static class NotificationsAdminEndpoints
         // channel that fails every single time.
         group.MapPost("/log/deliveries/{id}/retry", async (
             string id, ClaimsPrincipal user, ActorResolver actors,
-            ScheduleDbContext db, CancellationToken ct) =>
+            ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             if (!user.CanAdministerGlobally()) return GlobalOnly();
 

@@ -21,11 +21,11 @@ public static class PeopleAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/people").RequireAuthorization(AuthPolicies.AdminSomewhere);
 
-        group.MapGet("/", async (ScheduleDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (ShiftOMatorDbContext db, CancellationToken ct) =>
             Results.Ok(await db.People.AsNoTracking().Include(p => p.Eligibility).OrderBy(p => p.DisplayName).ToListAsync(ct)))
             .Produces<IReadOnlyList<Person>>();
 
-        group.MapPost("/", async (AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPost("/", async (AdminPersonRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct, currentId: null);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -51,7 +51,7 @@ public static class PeopleAdminEndpoints
         .Produces<Person>(StatusCodes.Status201Created)
         .Produces<ValidationErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapPut("/{id}", async (string id, AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapPut("/{id}", async (string id, AdminPersonRequest req, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var validation = await ValidateAsync(req, db, ct, currentId: id);
             if (validation.ToBadRequestOrNull() is { } bad) return bad;
@@ -79,7 +79,7 @@ public static class PeopleAdminEndpoints
             .Produces<PeopleBatchResponse>()
             .Produces<PeopleBatchErrorResponse>(StatusCodes.Status400BadRequest);
 
-        group.MapDelete("/{id}", async (string id, ScheduleDbContext db, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (string id, ShiftOMatorDbContext db, CancellationToken ct) =>
         {
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == id, ct);
             if (person is null) return AdminValidation.NotFound("person", id);
@@ -121,7 +121,7 @@ public static class PeopleAdminEndpoints
     /// </summary>
     private static async Task<IResult> ApplyBatchAsync(
         PeopleBatchRequest req, ClaimsPrincipal user, ActorResolver actors,
-        ScheduleDbContext db, CancellationToken ct)
+        ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (req.Ops.Count == 0) return Results.Ok(new PeopleBatchResponse([]));
 
@@ -231,7 +231,7 @@ public static class PeopleAdminEndpoints
     private static IReadOnlyDictionary<string, IEnumerable<string>> OneError(string field, string message) =>
         new Dictionary<string, IEnumerable<string>> { [field] = [message] };
 
-    private static async Task<bool> HasHistoryAsync(string personId, ScheduleDbContext db, CancellationToken ct) =>
+    private static async Task<bool> HasHistoryAsync(string personId, ShiftOMatorDbContext db, CancellationToken ct) =>
         await db.Assignments.AnyAsync(a => a.PersonId == personId, ct)
         || await db.Absences.AnyAsync(a => a.PersonId == personId, ct)
         || await db.CompDayEntries.AnyAsync(c => c.PersonId == personId, ct);
@@ -264,7 +264,7 @@ public static class PeopleAdminEndpoints
         person.IsIncluded = req.IsIncluded;
     }
 
-    private static async Task<AdminValidation> ValidateAsync(AdminPersonRequest req, ScheduleDbContext db, CancellationToken ct, string? currentId)
+    private static async Task<AdminValidation> ValidateAsync(AdminPersonRequest req, ShiftOMatorDbContext db, CancellationToken ct, string? currentId)
     {
         var v = new AdminValidation();
         v.Require(nameof(req.DisplayName), req.DisplayName);
@@ -280,7 +280,7 @@ public static class PeopleAdminEndpoints
         // EmployeeId is the external key an HR import will eventually match people by
         // (AbsenceImportDialog's client-side matchPeople already tries it first) — optional
         // today, but never allowed to collide once set. Mirrors the DB's own filtered
-        // unique index (ScheduleDbContext); checked here too so the client gets one
+        // unique index (ShiftOMatorDbContext); checked here too so the client gets one
         // consistent 400 field error instead of an unhandled unique-constraint exception.
         if (!string.IsNullOrWhiteSpace(req.EmployeeId) &&
             await db.People.AnyAsync(p => p.EmployeeId == req.EmployeeId && p.Id != currentId, ct))

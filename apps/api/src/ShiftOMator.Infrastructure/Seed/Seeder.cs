@@ -60,7 +60,7 @@ public static class FixtureSeeder
     /// over whatever roster already exists, so it is a no-op on a database the wizard has
     /// not touched yet and a self-healing pass over one it has.
     /// </summary>
-    public static async Task SeedAsync(ScheduleDbContext db, CancellationToken ct = default)
+    public static async Task SeedAsync(ShiftOMatorDbContext db, CancellationToken ct = default)
     {
         await SeedEventTypesAsync(db, ct);
         await SeedPresenceTypesAsync(db, ct);
@@ -80,7 +80,7 @@ public static class FixtureSeeder
     /// control: the real control is the caller checking <c>SystemSetup</c> first, the same
     /// way this used to be guarded before the wizard existed at all.
     /// </summary>
-    public static async Task SeedDemoAsync(ScheduleDbContext db, CancellationToken ct = default)
+    public static async Task SeedDemoAsync(ShiftOMatorDbContext db, CancellationToken ct = default)
     {
         if (await db.PlanningUnits.AnyAsync(ct)) return;
 
@@ -120,7 +120,7 @@ public static class FixtureSeeder
     /// email is attached to somebody who already holds a global Admin grant — the person
     /// the seed already decided owns cross-unit configuration.
     /// </summary>
-    public static async Task<Person?> LinkGlobalAdminEmailAsync(ScheduleDbContext db, string email, CancellationToken ct)
+    public static async Task<Person?> LinkGlobalAdminEmailAsync(ShiftOMatorDbContext db, string email, CancellationToken ct)
     {
         // Normalized the same way the admin screen and ActorResolver do it, or the link
         // would exist and still not match the token that arrives.
@@ -201,7 +201,7 @@ public static class FixtureSeeder
     /// seeded type is `IsActive = false`, not a DELETE.
     /// </summary>
     private static async Task TopUpAsync<T>(
-        ScheduleDbContext db, IReadOnlyList<T> all, Func<T, string> idOf, CancellationToken ct)
+        ShiftOMatorDbContext db, IReadOnlyList<T> all, Func<T, string> idOf, CancellationToken ct)
         where T : class
     {
         var ids = all.Select(idOf).ToList();
@@ -217,7 +217,7 @@ public static class FixtureSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static Task SeedEventTypesAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static Task SeedEventTypesAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         TopUpAsync(db, EventTypeSeed.All(), t => t.Id, ct);
 
     /// <summary>
@@ -230,7 +230,7 @@ public static class FixtureSeeder
     /// leave type does, because there is no "IsActive" here to turn off instead — DELETE
     /// is the retirement, same as a location or a holiday.
     /// </summary>
-    private static async Task SeedAllowedCalendarHostsAsync(ScheduleDbContext db, CancellationToken ct)
+    private static async Task SeedAllowedCalendarHostsAsync(ShiftOMatorDbContext db, CancellationToken ct)
     {
         if (await db.AllowedCalendarHosts.AnyAsync(ct)) return;
         db.AllowedCalendarHosts.Add(new AllowedCalendarHost { Host = "calendar.google.com" });
@@ -245,7 +245,7 @@ public static class FixtureSeeder
     /// anyone can fetch. A database seeded before this existed is holding guessable
     /// credentials, and telling its owner to drop it is not a fix.
     /// </summary>
-    private static async Task UpgradeCalendarTokensAsync(ScheduleDbContext db, CancellationToken ct)
+    private static async Task UpgradeCalendarTokensAsync(ShiftOMatorDbContext db, CancellationToken ct)
     {
         var weak = await db.People.Where(p => p.CalendarToken.StartsWith("tok-")).ToListAsync(ct);
         if (weak.Count == 0) return;
@@ -254,7 +254,7 @@ public static class FixtureSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static Task SeedPresenceTypesAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static Task SeedPresenceTypesAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         TopUpAsync(db, PresenceTypeSeed.All(), t => t.Id, ct);
 
     /// <summary>
@@ -267,7 +267,7 @@ public static class FixtureSeeder
     /// global Admin grant, because the configuration that belongs to no unit (locations,
     /// holidays, the units themselves) would otherwise have no owner at all.
     /// </summary>
-    private static async Task SeedRolesAsync(ScheduleDbContext db, CancellationToken ct)
+    private static async Task SeedRolesAsync(ShiftOMatorDbContext db, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
         // Read from the database, not from the fixture: on an upgraded database the roster
@@ -339,7 +339,7 @@ public static class FixtureSeeder
     /// the two presence kinds, each leave type that needs approval, and comp-day
     /// placement. Admin-editable data, not code — adding a type is a row.
     /// </summary>
-    private static Task SeedRequestTypesAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static Task SeedRequestTypesAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         TopUpAsync(db, RequestTypeSeed(), t => t.Id, ct);
 
     /// <summary>
@@ -349,7 +349,7 @@ public static class FixtureSeeder
     /// <see cref="NotificationKind"/> added in code appear on Settings → Notifications by
     /// itself. An administrator's ticks survive, because a row that exists is left alone.
     /// </summary>
-    private static Task SeedNotificationRulesAsync(ScheduleDbContext db, CancellationToken ct) =>
+    private static Task SeedNotificationRulesAsync(ShiftOMatorDbContext db, CancellationToken ct) =>
         TopUpAsync(db, NotificationFanout.DefaultMatrix(), r => r.Id, ct);
 
     private static IReadOnlyList<RequestType> RequestTypeSeed() =>
