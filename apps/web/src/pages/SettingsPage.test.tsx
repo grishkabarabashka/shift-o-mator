@@ -44,7 +44,7 @@ afterEach(() => {
 async function openSettings() {
   // Settings is configuration, and configuration is an administrator's screen
   // (ADR-0051). Without this the tab is not even rendered.
-  mockBackend.roles = [{ role: 'admin' }];
+  mockBackend.roles = [{ role: 'Admin' }];
   render(
     <QueryClientProvider client={queryClient}>
       <App />
@@ -107,5 +107,39 @@ describe('Settings — editing', () => {
     expect(await screen.findByRole('button', { name: '+ New version' })).toBeInTheDocument();
     // No PUT-style inline inputs on the version cards themselves.
     expect(screen.queryByDisplayValue('weekday')).toBeNull();
+  });
+});
+
+describe('Settings — Roles', () => {
+  /**
+   * WHY this test exists: the grant checkboxes are keyed by `${personId}|${role}`, built
+   * from what `/api/admin/role-assignments` returns and looked up by the role the column
+   * stands for. Those two spellings agreed only because the wire used to write enums in
+   * camelCase and the lookup lower-cased to match. When the wire moved to PascalCase
+   * (ADR-0066) the lookup silently stopped matching: every box read as unticked, and
+   * ticking one asked for a grant the person already held. Nothing threw — the screen
+   * whose whole job is to answer "who can do what" just answered wrongly.
+   */
+  it('a stored grant shows as ticked, in the casing the server actually sends', async () => {
+    mockBackend.roleAssignments = [
+      {
+        id: 'ra-seed',
+        personId: 'p-alice',
+        // The tab opens on the first unit, not on the global scope.
+        unitId: 'unit-amer',
+        role: 'Planner',
+        grantedBy: 'p-alice',
+        grantedAt: new Date().toISOString(),
+      },
+    ];
+    await openSettings();
+    fireEvent.click(await screen.findByRole('button', { name: 'Roles' }));
+
+    const row = await screen.findByRole('row', { name: /Alice Anders/ });
+    await waitFor(() =>
+      expect(within(row).getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)).toBe(
+        true,
+      ),
+    );
   });
 });
