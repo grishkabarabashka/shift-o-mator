@@ -42,6 +42,12 @@
      you edit the grid. Everything wearing it gets darker, which is the point (ADR-0057). */
   --ink-faint: #727d8d;
 
+  /* A plain `<select>` renders the OS's own arrow — a flat gray triangle in Windows
+     Chrome — sitting inside a box we style everything else about. `appearance: none`
+     (below) removes it; this is what replaces it, colour-matched to `--ink-muted` per
+     theme since an embedded SVG's `currentColor` doesn't resolve against the page. */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%236b7688' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   /* Accent */
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
@@ -162,6 +168,7 @@
     --ink-muted: #8e9aa9;
     /* Same correction against #141920: the old #6b7785 was ≈3.4:1 there. */
     --ink-faint: #7c8898;
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%238e9aa9' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
     --accent: #4f8cf7;
     --accent-hover: #6ba0ff;
@@ -630,6 +637,21 @@
     border-color: var(--accent);
     outline: none;
     box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  /* A `<select>` carrying `.field` — every filter dropdown and column select across
+     Settings. Left as `select { ... }` defaults it renders the OS's own arrow glued
+     inside a box styled to match everything else on the screen; this is the one custom
+     chevron the rest of the app already carries (`Select` in `ui/primitives.tsx`), drawn
+     the same way here since a native `<select>` inside a dense editable table is the
+     right call over reimplementing one in Radix per row. */
+  select.field {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 28px;
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 11px;
   }
 
   /* --- Dropdown -------------------------------------------------------------- */

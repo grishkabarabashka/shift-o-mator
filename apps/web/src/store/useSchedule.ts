@@ -11,6 +11,7 @@
 import { create } from 'zustand';
 import type { AutoPopulateResult } from '../api/planning.ts';
 import {
+  referenceQueryKey,
   referenceQueryOptions,
   scheduleQueryKey,
   scheduleQueryOptions,
@@ -1071,12 +1072,32 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type !== 'updated' || event.action.type !== 'success') return;
 
+  const key: readonly unknown[] = event.query.queryKey;
   const state = useSchedule.getState();
+
+  // Reference data (Settings, Phase 6) has exactly the same defect `published` used to:
+  // `load()` was the only thing that ever wrote `reference`, so every admin mutation's
+  // `invalidateQueries({ queryKey: referenceQueryKey })` (api/admin.ts) marked the cache
+  // stale and changed nothing on screen. Delete a row, "Save all" says it saved, and the
+  // row sits there — dimmed while the row was pending, full-opacity again once the save
+  // cleared it from `pending` — until a full reload finally re-runs `load()`. Reference
+  // and the schedule reach the grid through the same `datasetOf`, so a stale reference is
+  // the same class of bug, just on the other input.
+  if (key.length === referenceQueryKey.length && key.every((part, i) => part === referenceQueryKey[i])) {
+    const next = event.query.state.data as ReferenceData | undefined;
+    if (!next) return;
+    if (!state.published) {
+      useSchedule.setState({ reference: next });
+      return;
+    }
+    useSchedule.setState({ reference: next, ...recomputeFor(next, state.published, state.changes) });
+    return;
+  }
+
   const { unitId, range, reference, published, changes, session } = state;
   if (!unitId || !range || !reference || !published) return;
 
   const expected: readonly unknown[] = scheduleQueryKey(unitId, range, session?.id);
-  const key: readonly unknown[] = event.query.queryKey;
   if (key.length !== expected.length) return;
   if (key.some((part: unknown, i: number) => part !== expected[i])) return;
 

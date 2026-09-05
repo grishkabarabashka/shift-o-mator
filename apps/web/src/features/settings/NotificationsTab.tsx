@@ -62,23 +62,29 @@ export function NotificationsTab({ canEdit }: { readonly canEdit: boolean }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="segmented self-start">
-        <button
-          type="button"
-          className="segmented__item"
-          data-active={view === 'rules'}
-          onClick={() => setView('rules')}
-        >
-          Rules
-        </button>
-        <button
-          type="button"
-          className="segmented__item"
-          data-active={view === 'log'}
-          onClick={() => setView('log')}
-        >
-          Log
-        </button>
+      {/* Bare on the card before this, the same "glued to the corner" defect the Holidays
+          import button and the People/Roles filter rows had — every other control row in
+          Settings sits in a `.settings-toolbar`, and a lone segmented switch is still a
+          control row. */}
+      <div className="settings-toolbar">
+        <div className="segmented">
+          <button
+            type="button"
+            className="segmented__item"
+            data-active={view === 'rules'}
+            onClick={() => setView('rules')}
+          >
+            Rules
+          </button>
+          <button
+            type="button"
+            className="segmented__item"
+            data-active={view === 'log'}
+            onClick={() => setView('log')}
+          >
+            Log
+          </button>
+        </div>
       </div>
 
       {view === 'rules' ? <RulesView canEdit={canEdit} /> : <LogView canEdit={canEdit} />}
@@ -219,7 +225,7 @@ function LogView({ canEdit }: { readonly canEdit: boolean }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 text-[12px]">
+      <div className="settings-toolbar text-[12px]">
         <select
           className="field py-0.5"
           aria-label="Event"

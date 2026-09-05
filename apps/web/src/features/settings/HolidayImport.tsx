@@ -107,7 +107,11 @@ export function HolidayImport({ locations }: { readonly locations: readonly Loca
 
   if (!open) {
     return (
-      <div>
+      // The Holidays tab has no outer padding — the table below sits flush against the
+      // card on purpose, matching every other tab's table. This button sat flush too, so
+      // it read as glued to the card's corner rather than placed; the toolbar row right
+      // below it carries its own padding (`.settings-toolbar`), and this now matches it.
+      <div className="p-3 pb-0">
         <button type="button" className="btn btn--sm" onClick={() => setOpen(true)}>
           Import from a calendar…
         </button>

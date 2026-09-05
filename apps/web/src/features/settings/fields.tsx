@@ -61,7 +61,7 @@ export function TimeField({
   return (
     <input
       type="time"
-      className="field w-[100px] py-0.5 font-mono text-[12px]"
+      className="field w-[118px] py-0.5 font-mono text-[12px]"
       value={value}
       aria-label={ariaLabel}
       onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}

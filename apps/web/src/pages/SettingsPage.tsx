@@ -94,6 +94,7 @@ import {
   useSetDirectoryRoles,
 } from '../api/roleAssignments.ts';
 import { useCanLoadDemoData, useLoadDemoData, useResetSystem } from '../api/setup.ts';
+import { useReferenceQuery } from '../api/queries.ts';
 import {
   useAddAllowedCalendarHost,
   useAllowedCalendarHosts,
@@ -195,6 +196,14 @@ export function SettingsPage() {
   const [tab, setTab] = useTabInUrl();
   const caps = useCapabilities();
   const reference = useSchedule((s) => s.reference);
+  // Keeps the `reference` query an active TanStack Query observer for as long as Settings
+  // is open. Without an observer, `invalidateQueries({ queryKey: referenceQueryKey })` —
+  // every admin mutation, `api/admin.ts` — only marks the cache stale; it does not
+  // actually refetch, so a deleted row stayed in `useSchedule.reference` (and on screen)
+  // until a full page reload. The value itself is unused here: `useSchedule`'s own cache
+  // subscription (`store/useSchedule.ts`) is what writes a successful refetch back into
+  // the store, the same way it already does for the schedule query.
+  useReferenceQuery();
   const edits = useAdminEdits();
   const setUnsavedAdminChanges = useUi((s) => s.setUnsavedAdminChanges);
 
@@ -487,18 +496,18 @@ function ShiftsTab({ reference, edits }: { readonly reference: Reference; readon
       }}
       renderHeader={() => (
         <tr>
-          <th>Unit</th>
-          <th>Code</th>
-          <th>Label</th>
+          <th className="w-[130px]">Unit</th>
+          <th className="w-[110px]">Code</th>
+          <th className="min-w-[190px]">Label</th>
           <th>Color</th>
           <th>Hotkey</th>
           <th>Window</th>
           <th className="w-[80px]" title="The window ends on the next day — 22:00–06:00 is one shift, not an eight-hour gap">
             Overnight
           </th>
-          <th className="w-[80px]">Break</th>
-          <th>Zone</th>
-          <th>Counts as coverage</th>
+          <th className="w-[110px]">Break</th>
+          <th className="w-[170px]">Zone</th>
+          <th className="w-[130px]">Counts as coverage</th>
           <th />
         </tr>
       )}
@@ -545,7 +554,7 @@ function ShiftsTab({ reference, edits }: { readonly reference: Reference; readon
               onChange={(v) => setField('crossesMidnight', v)}
             />
           </td>
-          <td>
+          <td className="whitespace-nowrap">
             <NumberField
               min={0}
               value={draft.breakMinutes}
