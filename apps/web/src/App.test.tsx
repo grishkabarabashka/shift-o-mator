@@ -19,6 +19,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { App } from './App.tsx';
 import { queryClient } from './api/queryClient.ts';
 import { ALL_UNITS } from './domain/types.ts';
+import { eachDate } from './engine/dates.ts';
 import { rangeFor } from './engine/period.ts';
 import { useSchedule } from './store/useSchedule.ts';
 import { TODAY, useUi } from './store/useUi.ts';
@@ -207,7 +208,12 @@ describe('grid', () => {
       .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isActive);
 
     expect(people?.some((person) => !person.isIncluded)).toBe(true);
-    expect(cells.length).toBe((people?.length ?? 0) * 31);
+    // WHY the column count is derived and not the literal 31 it used to be: the `month`
+    // window runs one month forward from the anchor and ends the day before (ADR-0036,
+    // `rangeFor`), so it is 28-31 columns depending on what today is. Hardcoding 31 made
+    // this test pass in July and fail in September for no reason connected to the grid.
+    const days = eachDate(rangeFor('month', TODAY)).length;
+    expect(cells.length).toBe((people?.length ?? 0) * days);
   });
 
   it('groups by location, as configured on the unit', async () => {
