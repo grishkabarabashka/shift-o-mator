@@ -12,17 +12,21 @@ spec:
   replicas: {{ .Values.replicaCount.web }}
   selector:
     matchLabels:
-      app.kubernetes.io/component: web
+      {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 6 }}
   template:
     metadata:
       labels:
         {{- include "shift-o-mator.labels" . | nindent 8 }}
-        app.kubernetes.io/component: web
+        {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 8 }}
     spec:
+      securityContext:
+        {{- include "shift-o-mator.podSecurityContext" . | nindent 8 }}
       containers:
         - name: web
           image: {{ include "shift-o-mator.image" (dict "root" $ "repository" .Values.image.web.repository "tag" .Values.image.web.tag) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "shift-o-mator.containerSecurityContext" . | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.web.port }}
@@ -47,7 +51,22 @@ metadata:
 spec:
   type: {{ .Values.web.service.type | default "ClusterIP" }}
   selector:
-    app.kubernetes.io/component: web
+    {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 4 }}
   ports:
     - port: 80
       targetPort: http
+{{- if gt (int .Values.replicaCount.web) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shift-o-mator-web
+  labels:
+    {{- include "shift-o-mator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 6 }}
+{{- end }}

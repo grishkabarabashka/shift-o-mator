@@ -18,7 +18,13 @@ replicaCount:
   web: 1
 
 api:
-  env: Development
+  # Production, not Development, even though this is a throwaway environment. `Development`
+  # is what gates `MapOpenApi` and Scalar in Program.cs, and the sandbox API is reachable on
+  # a public LoadBalancer with no ingress and no TLS — publishing a browsable, "Try it"
+  # API reference there is a bigger exposure than the environment is worth. It also means
+  # appsettings.Production.json is the file that applies, which is the one the settings here
+  # are written against. Read the OpenAPI document locally (`npm run api:schema`) instead.
+  env: Production
   resources:
     requests: { cpu: 50m, memory: 192Mi }
     limits: { cpu: 300m, memory: 384Mi }

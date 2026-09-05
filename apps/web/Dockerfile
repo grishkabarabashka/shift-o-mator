@@ -26,6 +26,16 @@ ENV VITE_API_URL=${VITE_API_URL} \
     VITE_ENTRA_TENANT_ID=${VITE_ENTRA_TENANT_ID} \
     VITE_ENTRA_API_SCOPE=${VITE_ENTRA_API_SCOPE} \
     VITE_ENTRA_REDIRECT_URI=${VITE_ENTRA_REDIRECT_URI}
+# Refuse a blank VITE_API_URL rather than bake one in. The deploy is deliberately two
+# passes — deploy the API, read its address, then build web against it (deploy/README.md
+# section 7) — so forgetting this build-arg on the second pass is the easy mistake, and
+# without this check it yields a bundle that asks the nginx pod for /api/* and fails only
+# in a browser, after the push. Behind an ingress the right value is the app's own public
+# origin, not an empty string.
+RUN test -n "$VITE_API_URL" || { \
+      echo "ERROR: --build-arg VITE_API_URL is required (e.g. http://<api-ip> or https://<public-host>)." >&2; \
+      exit 1; \
+    }
 RUN npm run build --workspace=@shift-o-mator/web
 
 FROM nginx:1.27-alpine AS runtime

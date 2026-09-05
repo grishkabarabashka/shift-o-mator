@@ -15,7 +15,14 @@ services:
       ConnectionStrings__Schedule: ${CONNECTION_STRING:?set CONNECTION_STRING to a reachable SQL Server}
       Auth__Mode: Stub
       Cors__AllowedOrigins__0: http://localhost:8081
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # AI is off unless you point it somewhere. `none` is a supported state, not a broken
+      # one: /api/insights/gap-summary answers 503 AI_NOT_CONFIGURED and everything else
+      # works (ADR-0060). To switch it on here, the container cannot reach a Foundry Local
+      # or Ollama endpoint on the host's `localhost` — use the host gateway address.
+      Ai__Provider: ${AI_PROVIDER:-none}
+      Ai__Endpoint: ${AI_ENDPOINT:-}
+      Ai__Model: ${AI_MODEL:-}
+      Ai__ApiKey: ${AI_API_KEY:-}
     ports:
       - "5106:8080"
 

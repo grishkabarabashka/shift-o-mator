@@ -9,12 +9,18 @@ spec:
   replicas: {{ .Values.replicaCount.api }}
   selector:
     matchLabels:
-      app.kubernetes.io/component: api
+      {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # Without this a `helm upgrade` that changes only the ConfigMap — a CORS origin, a
+        # connection string, the AI provider — updates the ConfigMap and leaves the pods
+        # running the old values, because nothing in the pod spec changed. The checksum
+        # makes the config part of the pod spec, so a config change is a rollout.
+        checksum/config: {{ include (print $.Template.BasePath "/api-configmap.yaml") . | sha256sum }}
       labels:
         {{- include "shift-o-mator.labels" . | nindent 8 }}
-        app.kubernetes.io/component: api
+        {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 8 }}
         {{- if .Values.workloadIdentity.enabled }}
         # Tells the workload-identity webhook to project a token into this pod. Without
         # it the service account's annotation is inert and `Active Directory Default`
@@ -23,10 +29,14 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        {{- include "shift-o-mator.podSecurityContext" . | nindent 8 }}
       containers:
         - name: api
           image: {{ include "shift-o-mator.image" (dict "root" $ "repository" .Values.image.api.repository "tag" .Values.image.api.tag) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "shift-o-mator.containerSecurityContext" . | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.api.port }}
@@ -47,13 +57,22 @@ spec:
               mountPath: /mnt/secrets
               readOnly: true
             {{- end }}
+          # WHY a startup probe and not just a longer liveness delay: the API runs EF
+          # migrations and reference seeding *before* `app.Run()`, so until that finishes
+          # the port is not listening at all and every probe is a refused connection. On
+          # Azure SQL Serverless the database may additionally be resuming from auto-pause,
+          # which alone can take a minute. The old liveness settings gave up after ~75s and
+          # killed the pod mid-migration, which reads as CrashLoopBackOff rather than as
+          # "the database was cold". Liveness does not start until this one passes.
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 5
+            failureThreshold: 60      # up to 5 minutes to migrate, seed and listen
           readinessProbe:
             httpGet: { path: /health/ready, port: http }
-            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet: { path: /health/live, port: http }
-            initialDelaySeconds: 15
             periodSeconds: 20
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
@@ -76,7 +95,24 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   selector:
-    app.kubernetes.io/component: api
+    {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 4 }}
   ports:
     - port: 80
       targetPort: http
+{{- if gt (int .Values.replicaCount.api) 1 }}
+---
+# Only meaningful above one replica: with a single pod, any budget either blocks a node
+# drain outright or permits the only pod to go, so the sandbox deliberately gets none.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shift-o-mator-api
+  labels:
+    {{- include "shift-o-mator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 6 }}
+{{- end }}

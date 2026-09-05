@@ -235,6 +235,10 @@ using (var scope = app.Services.CreateScope())
         await EnsureSchemaIsReconcilableAsync(db);
     }
 
+    // Every replica runs this block, and the chart defaults to two. See MigrationLock for
+    // why the arbitration is a database lock rather than a Helm hook Job.
+    await using var migrationLock = await MigrationLock.AcquireAsync(db.Database, app.Logger);
+
     await db.Database.MigrateAsync();
 
     // Reference data only — event types, presence types, request types, and the role

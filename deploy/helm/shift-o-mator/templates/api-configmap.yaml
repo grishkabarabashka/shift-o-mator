@@ -10,6 +10,14 @@ metadata:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
 data:
   ASPNETCORE_ENVIRONMENT: {{ .Values.api.env | quote }}
+  {{- if .Values.ingress.enabled }}
+  # Behind an ingress that terminates TLS, the request reaches the pod as plain HTTP and
+  # `Request.Scheme` is `http` unless X-Forwarded-Proto is honoured. This is ASP.NET Core's
+  # own switch for the ForwardedHeaders middleware, so it needs no code — and it is set
+  # only with an ingress in front, because trusting those headers with the Service exposed
+  # directly (the sandbox's LoadBalancer) would mean trusting whatever the caller sends.
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+  {{- end }}
   Auth__Mode: {{ .Values.api.config.authMode | quote }}
   Ai__Provider: {{ .Values.api.config.aiProvider | quote }}
   Ai__Model: {{ .Values.api.config.aiModel | quote }}

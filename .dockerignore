@@ -8,3 +8,11 @@ apps/web/coverage
 .vscode
 Docs
 *.md
+
+# Vite reads .env.production during `npm run build`, and the build runs *inside* the
+# image. A developer's local `.env.production` (git-ignored, so it differs per machine)
+# would otherwise be copied into the build context and decide what a released image
+# points at. Build-args are the only supported input; the example file is documentation.
+.env
+.env.*
+!.env.example
