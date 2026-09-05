@@ -68,7 +68,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
             unitId = UnitId,
             shiftId,
             isWeekend = false,
-            source = "manual",
+            source = "MANUAL",
             version = 0,
             createdBy = PersonId,
             createdAt = "2026-01-01T00:00:00Z",
@@ -108,7 +108,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var appendResponse = await client.PostAsJsonAsync($"/api/drafts/{draftId}/changes", new
         {
             targetType = "assignment",
-            op = "create",
+            op = "CREATE",
             entityId = assignmentId,
             after = AssignmentPayload(assignmentId, PersonId, date, ShiftId),
         });
@@ -121,7 +121,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         Assert.True(publishBody.GetProperty("remainingGaps").GetInt32() >= 0);
         var history = publishBody.GetProperty("history").EnumerateArray().ToList();
         Assert.Single(history);
-        Assert.Equal("created", history[0].GetProperty("action").GetString());
+        Assert.Equal("CREATED", history[0].GetProperty("action").GetString());
 
         var scheduleResponse = await client.GetFromJsonAsync<JsonElement>(
             $"/api/schedule?unitId={UnitId}&from={date:yyyy-MM-dd}&to={date:yyyy-MM-dd}");
@@ -136,7 +136,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         Assert.Contains(
             historyResponse.EnumerateArray(),
             h => h.GetProperty("entityId").GetString() == assignmentId
-                 && h.GetProperty("entityType").GetString() == "assignment");
+                 && h.GetProperty("entityType").GetString() == "ASSIGNMENT");
     }
 
     [Fact]
@@ -155,12 +155,12 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
 
         (await client.PostAsJsonAsync($"/api/drafts/{draftA}/changes", new
         {
-            targetType = "assignment", op = "create", entityId = idA, after = AssignmentPayload(idA, PersonId, date, ShiftId),
+            targetType = "assignment", op = "CREATE", entityId = idA, after = AssignmentPayload(idA, PersonId, date, ShiftId),
         })).EnsureSuccessStatusCode();
 
         (await client.PostAsJsonAsync($"/api/drafts/{draftB}/changes", new
         {
-            targetType = "assignment", op = "create", entityId = idB, after = AssignmentPayload(idB, PersonId, date, ShiftId),
+            targetType = "assignment", op = "CREATE", entityId = idB, after = AssignmentPayload(idB, PersonId, date, ShiftId),
         })).EnsureSuccessStatusCode();
 
         var publishA = await client.PostAsync($"/api/drafts/{draftA}/publish", null);
@@ -191,7 +191,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var response = await client.PostAsJsonAsync($"/api/drafts/{draftId}/changes", new
         {
             targetType = "assignment",
-            op = "create",
+            op = "CREATE",
             entityId = assignmentId,
             after = AssignmentPayload(assignmentId, PersonId, date, "EMEA:Shift-Lead"),
         });
@@ -220,7 +220,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var myDraft = await OpenDraftAsync(client, date, date);
         (await client.PostAsJsonAsync($"/api/drafts/{myDraft}/changes", new
         {
-            targetType = "assignment", op = "create", entityId = mine,
+            targetType = "assignment", op = "CREATE", entityId = mine,
             after = AssignmentPayload(mine, PersonId, date, ShiftId),
         })).EnsureSuccessStatusCode();
 
@@ -229,7 +229,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         {
             Content = JsonContent.Create(new
             {
-                targetType = "assignment", op = "create", entityId = theirs,
+                targetType = "assignment", op = "CREATE", entityId = theirs,
                 after = AssignmentPayload(theirs, OtherPersonId, date, ShiftId),
             }),
         };
@@ -260,7 +260,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
 
         (await client.PostAsJsonAsync($"/api/drafts/{draftId}/changes", new
         {
-            targetType = "assignment", op = "create", entityId = assignmentId, after = AssignmentPayload(assignmentId, PersonId, date, ShiftId),
+            targetType = "assignment", op = "CREATE", entityId = assignmentId, after = AssignmentPayload(assignmentId, PersonId, date, ShiftId),
         })).EnsureSuccessStatusCode();
 
         var discardResponse = await client.PostAsync($"/api/drafts/{draftId}/discard", null);
@@ -282,7 +282,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
 
         (await client.PostAsJsonAsync($"/api/drafts/{draftId}/changes", new
         {
-            targetType = "assignment", op = "create", entityId = assignmentId, after = AssignmentPayload(assignmentId, PersonId, date, ShiftId),
+            targetType = "assignment", op = "CREATE", entityId = assignmentId, after = AssignmentPayload(assignmentId, PersonId, date, ShiftId),
         })).EnsureSuccessStatusCode();
 
         var overlaid = await client.GetFromJsonAsync<JsonElement>(
@@ -326,7 +326,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var changes = await client.GetFromJsonAsync<JsonElement>($"/api/drafts/{draftId}/changes");
         var list = changes.EnumerateArray().ToList();
         Assert.Single(list);
-        Assert.Equal("create", list[0].GetProperty("op").GetString());
+        Assert.Equal("CREATE", list[0].GetProperty("op").GetString());
 
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/drafts/{draftId}/publish", null)).StatusCode);
 
@@ -363,7 +363,7 @@ public class DraftsEndpointsTests(ApiTestFactory factory)
         var changes = await client.GetFromJsonAsync<JsonElement>($"/api/drafts/{secondDraft}/changes");
         var list = changes.EnumerateArray().ToList();
         Assert.Single(list);
-        Assert.Equal("update", list[0].GetProperty("op").GetString());
+        Assert.Equal("UPDATE", list[0].GetProperty("op").GetString());
 
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/drafts/{secondDraft}/publish", null)).StatusCode);
 

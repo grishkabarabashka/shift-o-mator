@@ -2,8 +2,10 @@
  * MSW-backed stand-in for the .NET API (Phase 5 step 6) — replaces the old
  * `MemoryScheduleRepository` as the thing tests run against. Unlike that
  * repository, this intercepts real `fetch()` calls at the network boundary,
- * so it exercises the exact same code path (`HttpScheduleRepository`,
- * `api/mapping.ts`, TanStack Query) production traffic does.
+ * so it exercises the exact same code path (`api/schedule.ts`,
+ * `api/mapping.ts`, TanStack Query) production traffic does. That is also why
+ * the `ScheduleRepository` interface could go: a fake at the network boundary
+ * needs no seam in the application code to swap.
  *
  * Deliberately not a full reimplementation of the backend: coverage/issues
  * are always empty (nothing here asserts on them — that's the differential
@@ -19,7 +21,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { API_BASE_URL } from '../api/client.ts';
-import { instantToWire, timeToWire, upperSnakeToCamel, weekdaysToWire } from '../api/mapping.ts';
+import { instantToWire, timeToWire, weekdaysToWire } from '../api/mapping.ts';
 import {
   MOCK_REQUEST_TYPES,
   presenceToWire,
@@ -52,8 +54,8 @@ function locationToWire(l: Location) {
 function unitToWire(u: PlanningUnit) {
   return {
     ...u,
-    kind: upperSnakeToCamel(u.kind),
-    groupBy: upperSnakeToCamel(u.groupBy),
+    kind: u.kind,
+    groupBy: u.groupBy,
     compOffPolicy: { ...u.compOffPolicy, excludedWeekdays: weekdaysToWire(u.compOffPolicy.excludedWeekdays) },
   };
 }
@@ -78,7 +80,7 @@ function dayConfigToWire(c: ScheduleDataset['dayConfigurations'][number]) {
 function personToWire(p: Person) {
   return {
     ...p,
-    orgCategory: upperSnakeToCamel(p.orgCategory),
+    orgCategory: p.orgCategory,
     availableWeekdays: weekdaysToWire(p.availableWeekdays),
     eligibility: p.eligibility.map((e) => ({ ...e, minPerWeek: e.minPerWeek ?? null, maxPerWeek: e.maxPerWeek ?? null })),
     preferences: p.preferences
@@ -108,7 +110,7 @@ function assignmentToWireLocal(a: Assignment) {
         : null,
     isWeekend: a.isWeekend,
     note: a.note ?? null,
-    source: upperSnakeToCamel(a.source),
+    source: a.source,
     version: a.version,
     createdBy: a.createdBy,
     createdAt: instantToWire(a.createdAt),
@@ -120,8 +122,8 @@ function absenceToWireLocal(a: Absence) {
   return {
     ...a,
     eventTypeId: a.eventTypeId,
-    portion: upperSnakeToCamel(a.portion),
-    source: upperSnakeToCamel(a.source),
+    portion: a.portion,
+    source: a.source,
     importBatchId: a.importBatchId ?? null,
     lastSeenInImportAt: a.lastSeenInImportAt ?? null,
     syncedToHrAt: a.syncedToHrAt ?? null,
@@ -131,8 +133,8 @@ function absenceToWireLocal(a: Absence) {
 function compDayToWireLocal(c: CompDayEntry) {
   return {
     ...c,
-    trigger: upperSnakeToCamel(c.trigger),
-    status: upperSnakeToCamel(c.status),
+    trigger: c.trigger,
+    status: c.status,
     proposedDate: c.proposedDate ?? null,
     actualDate: c.actualDate ?? null,
     syncedToHrAt: c.syncedToHrAt ?? null,
@@ -174,8 +176,8 @@ class MockBackend {
    * a test that cares about scoping sets the list itself.
    */
   roles: readonly { role: string; unitId?: string }[] = [
-    { role: 'planner' },
-    { role: 'approver' },
+    { role: 'Planner' },
+    { role: 'Approver' },
   ];
   private seq = 0;
 
@@ -207,7 +209,7 @@ export function resetMockApi(): void {
   mockBackend.sessions.clear();
   mockBackend.requests = [];
   mockBackend.notifications = [];
-  mockBackend.roles = [{ role: 'planner' }, { role: 'approver' }];
+  mockBackend.roles = [{ role: 'Planner' }, { role: 'Approver' }];
   mockBackend.roleAssignments = [];
 }
 
@@ -286,7 +288,7 @@ export const handlers = [
     HttpResponse.json({
       personId: mockBackend.currentPersonId,
       displayName: 'Planner (test)',
-      roles: [{ role: 'viewer', unitId: null }, ...mockBackend.roles.map((r) => ({
+      roles: [{ role: 'Viewer', unitId: null }, ...mockBackend.roles.map((r) => ({
         role: r.role,
         unitId: r.unitId ?? null,
       }))],
@@ -342,7 +344,7 @@ export const handlers = [
           const actual = assignments.filter(
             (a) => a.date === date && a.content.kind === 'SHIFT' && a.content.shiftId === req.shiftId,
           ).length;
-          const level = actual < req.min ? 'gap' : actual === req.min ? 'thin' : 'ok';
+          const level = actual < req.min ? 'GAP' : actual === req.min ? 'THIN' : 'OK';
           return {
             date,
             unitId: uid,
@@ -359,14 +361,14 @@ export const handlers = [
     );
 
     const issues = coverage
-      .filter((cell) => cell.level === 'gap')
+      .filter((cell) => cell.level === 'GAP')
       .map((cell) => ({
         key: `COVERAGE_GAP|${cell.date}||${cell.shiftId}`,
         // INFO, not BLOCKING — coverage gaps stopped blocking publication
         // (ADR-0035); mirrors Validator.cs's CheckCoverage.
-        level: 'info',
-        category: 'gap',
-        code: 'coverageGap',
+        level: 'INFO',
+        category: 'GAP',
+        code: 'COVERAGE_GAP',
         message: `${cell.shiftId}: ${cell.actual} assigned, minimum is ${cell.min}`,
         unitId: cell.unitId,
         date: cell.date,
@@ -421,7 +423,7 @@ export const handlers = [
       unitId: session.unitId,
       rangeFrom: session.range.from,
       rangeTo: session.range.to,
-      status: 'open',
+      status: 'OPEN',
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     });
@@ -453,7 +455,7 @@ export const handlers = [
         unitId: s.unitId,
         rangeFrom: s.range.from,
         rangeTo: s.range.to,
-        status: 'open',
+        status: 'OPEN',
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
       })),
@@ -484,14 +486,14 @@ export const handlers = [
       compDays: d.compDays.filter((c) => c.personId === me).map(compDayToWireLocal),
       presence: d.presence.filter((p) => p.personId === me && overlaps(p)).map(presenceToWire),
       pendingRequests: mockBackend.requests
-        .filter((r) => r.subjectPersonId === me && (r.state === 'submitted' || r.state === 'approved'))
+        .filter((r) => r.subjectPersonId === me && (r.state === 'SUBMITTED' || r.state === 'APPROVED'))
         .map((r) => ({
           id: r.id,
           typeId: r.typeId,
           typeLabel: MOCK_REQUEST_TYPES.find((t) => t.id === r.typeId)?.label ?? r.typeId,
           from: r.from,
           to: r.to,
-          portion: 'full',
+          portion: 'FULL',
           state: r.state,
         })),
     });
@@ -512,8 +514,8 @@ export const handlers = [
         draftSessionId: entry.session.id,
         seq: c.seq,
         at: c.at,
-        targetType: upperSnakeToCamel(c.targetType),
-        op: upperSnakeToCamel(c.op),
+        targetType: c.targetType,
+        op: c.op,
         beforeJson: c.before ? JSON.stringify(wireOf(c.targetType, c.before)) : null,
         afterJson: c.after ? JSON.stringify(wireOf(c.targetType, c.after)) : null,
       })),
@@ -535,7 +537,7 @@ export const handlers = [
     const now = new Date().toISOString();
 
     for (const item of body.changes) {
-      const targetType = upperSnakeToCamelReverse(item.targetType);
+      const targetType = targetTypeOfWire(item.targetType);
       const before = findPublished(targetType, item.key);
       const raw = item.after ? domainOf(targetType, item.after) : null;
 
@@ -566,8 +568,8 @@ export const handlers = [
         draftSessionId: entry.session.id,
         seq: c.seq,
         at: c.at,
-        targetType: upperSnakeToCamel(c.targetType),
-        op: upperSnakeToCamel(c.op),
+        targetType: c.targetType,
+        op: c.op,
         beforeJson: c.before ? JSON.stringify(wireOf(c.targetType, c.before)) : null,
         afterJson: c.after ? JSON.stringify(wireOf(c.targetType, c.after)) : null,
       })),
@@ -661,8 +663,8 @@ export const handlers = [
       eventTypeId: body.eventTypeId as string,
       from: body.from as string,
       to: body.to as string,
-      portion: ((body.portion as string) ?? 'full'),
-      source: 'manual',
+      portion: ((body.portion as string) ?? 'FULL'),
+      source: 'MANUAL',
       note: (body.note as string | null) ?? null,
       version: 1,
     };
@@ -694,7 +696,7 @@ export const handlers = [
     const updated = {
       ...existing,
       eventTypeId: body.eventTypeId as string,
-      portion: upperOf((body.portion as string) ?? 'full'),
+      portion: upperOf((body.portion as string) ?? 'FULL'),
       ...(body.note ? { note: body.note as string } : {}),
       version: existing.version + 1,
     };
@@ -702,7 +704,7 @@ export const handlers = [
       ...mockBackend.data,
       absences: mockBackend.data.absences.map((a) => (a.id === id ? updated : a)),
     };
-    return HttpResponse.json({ ...updated, portion: (updated.portion as string).toLowerCase() });
+    return HttpResponse.json(updated);
   }),
 
   http.delete(`${base}/api/absences/:id`, ({ params }) => {
@@ -802,13 +804,10 @@ export const server = setupServer(...handlers);
 
 // -- helpers ------------------------------------------------------------
 
-function upperSnakeToCamelReverse(wireValue: string): DraftTargetType {
-  const map: Record<string, DraftTargetType> = {
-    assignment: 'ASSIGNMENT',
-    absence: 'ABSENCE',
-    compDay: 'COMP_DAY',
-  };
-  return map[wireValue] ?? 'ASSIGNMENT';
+function targetTypeOfWire(wireValue: string): DraftTargetType {
+  // Wire and domain now spell these the same way; the fallback is the whole point.
+  const known: readonly DraftTargetType[] = ['ASSIGNMENT', 'ABSENCE', 'COMP_DAY'];
+  return known.find((t) => t === wireValue) ?? 'ASSIGNMENT';
 }
 
 function domainOf(targetType: DraftTargetType, wire: unknown): Assignment | Absence | CompDayEntry {
@@ -880,7 +879,7 @@ function fromWireAbsence(w: Record<string, unknown>): Absence {
     id: w.id as string,
     personId: w.personId as string,
     eventTypeId: w.eventTypeId as string,
-    portion: ((w.portion as string) ?? 'full').toUpperCase() as Absence['portion'],
+    portion: ((w.portion as string) ?? 'FULL') as Absence['portion'],
     from: w.from as string,
     to: w.to as string,
     source: (w.source as string).toUpperCase() as Absence['source'],

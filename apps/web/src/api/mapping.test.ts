@@ -24,7 +24,7 @@ const wirePerson = {
   orgCategory: 'management',
   isActive: true,
   isIncluded: false,
-  availableWeekdays: ['monday'],
+  availableWeekdays: ['MONDAY'],
   defaultShiftId: null,
   weekendEligible: false,
   constraints: { minRestHours: 11, maxConsecutiveDays: 5, maxWeekendsPerQuarter: null },

@@ -100,7 +100,7 @@ export function makeDayConfig(
 ): DayConfiguration {
   return {
     unitId: testUnit.id,
-    weekdays: overrides.key === 'weekend' ? [6, 7] : [1, 2, 3, 4, 5],
+    weekdays: overrides.key === 'WEEKEND' ? [6, 7] : [1, 2, 3, 4, 5],
     effectiveFrom: '2020-01-01',
     shiftRequirements: [],
     ...overrides,

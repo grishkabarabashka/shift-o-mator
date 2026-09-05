@@ -31,8 +31,8 @@ public class SetupEndpointsTests
     {
         var connectionString =
             $"Server=(localdb)\\MSSQLLocalDB;Database={DatabaseName};Trusted_Connection=True;TrustServerCertificate=True";
-        using (var db = new ScheduleDbContext(
-            new DbContextOptionsBuilder<ScheduleDbContext>().UseSqlServer(connectionString).Options))
+        using (var db = new ShiftOMatorDbContext(
+            new DbContextOptionsBuilder<ShiftOMatorDbContext>().UseSqlServer(connectionString).Options))
         {
             db.Database.EnsureDeleted();
         }
@@ -71,7 +71,7 @@ public class SetupEndpointsTests
 
         var response = await client.PostAsJsonAsync("/api/setup", new
         {
-            preset = "bare",
+            preset = "BARE",
             bare = new
             {
                 locationName = "Remote HQ",
@@ -86,7 +86,7 @@ public class SetupEndpointsTests
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("bare", created.GetProperty("preset").GetString());
+        Assert.Equal("BARE", created.GetProperty("preset").GetString());
         var adminId = created.GetProperty("adminPersonId").GetString();
         Assert.False(string.IsNullOrEmpty(adminId));
 
@@ -102,7 +102,7 @@ public class SetupEndpointsTests
         Assert.Contains(
             grants.EnumerateArray(),
             g => g.GetProperty("personId").GetString() == adminId
-                && g.GetProperty("role").GetString() == "admin"
+                && g.GetProperty("role").GetString() == "Admin"
                 && g.GetProperty("unitId").ValueKind == JsonValueKind.Null);
     }
 
@@ -112,10 +112,10 @@ public class SetupEndpointsTests
         using var factory = Factory();
         var client = factory.CreateClient();
 
-        var first = await client.PostAsJsonAsync("/api/setup", new { preset = "demo" });
+        var first = await client.PostAsJsonAsync("/api/setup", new { preset = "DEMO" });
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
-        var second = await client.PostAsJsonAsync("/api/setup", new { preset = "demo" });
+        var second = await client.PostAsJsonAsync("/api/setup", new { preset = "DEMO" });
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         var body = await second.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("SETUP_COMPLETE", body.GetProperty("code").GetString());
@@ -127,7 +127,7 @@ public class SetupEndpointsTests
         using var factory = Factory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/setup", new { preset = "demo" });
+        var response = await client.PostAsJsonAsync("/api/setup", new { preset = "DEMO" });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<JsonElement>();
         // Stub mode carries no email to link, so nobody was linked — the dev identity
@@ -147,7 +147,7 @@ public class SetupEndpointsTests
 
         var setup = await client.PostAsJsonAsync("/api/setup", new
         {
-            preset = "bare",
+            preset = "BARE",
             bare = new
             {
                 locationName = "HQ",

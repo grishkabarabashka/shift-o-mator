@@ -32,12 +32,12 @@ public class SeedIdempotenceTests(SeedIdempotenceTests.Factory factory) : IClass
         public Factory() => DatabaseName = "ShiftOMatorSeedIdempotenceTests";
     }
 
-    private async Task<(IServiceScope Scope, ScheduleDbContext Db)> OpenAsync()
+    private async Task<(IServiceScope Scope, ShiftOMatorDbContext Db)> OpenAsync()
     {
         // Creating a client is what boots the app and runs the startup migrate+seed.
         factory.CreateClient();
         var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
         await db.Database.EnsureCreatedAsync();
         return (scope, db);
     }

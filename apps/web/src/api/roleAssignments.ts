@@ -9,14 +9,14 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPost, apiPut, qs } from './client.ts';
-import type { AppRole } from '../auth/AuthProvider.tsx';
+import type { AppRole } from '../domain/types.ts';
 
 export interface RoleAssignment {
   readonly id: string;
   readonly personId: string;
   /** Null is a global grant: every unit. */
   readonly unitId: string | null;
-  readonly role: Lowercase<AppRole>;
+  readonly role: AppRole;
   readonly grantedBy: string;
   readonly grantedAt: string;
 }
@@ -33,7 +33,7 @@ export function useRoleAssignments(unitId?: string) {
 export function useGrantRole() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { personId: string; unitId: string | null; role: Lowercase<AppRole> }) =>
+    mutationFn: (args: { personId: string; unitId: string | null; role: AppRole }) =>
       apiPost<RoleAssignment>('/api/admin/role-assignments', args),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: KEY });

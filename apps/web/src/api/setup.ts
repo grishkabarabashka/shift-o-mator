@@ -10,9 +10,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from './client.ts';
-import type { UnitKind } from '../domain/types.ts';
+import type { AppRole, UnitKind } from '../domain/types.ts';
 
-export type SetupPreset = 'Bare' | 'Demo';
+export type SetupPreset = 'BARE' | 'DEMO';
 
 export interface SetupState {
   readonly required: boolean;
@@ -40,7 +40,7 @@ export interface BareSetupFields {
    * person who just set the system up could not open a draft in it, which is a correct
    * configuration that reads exactly like a broken one.
    */
-  readonly roles?: readonly ('planner' | 'approver')[];
+  readonly roles?: readonly AppRole[];
 }
 
 export interface SetupDiagnostics {
@@ -87,7 +87,7 @@ export function useSetupDiagnostics(enabled = true) {
 }
 
 export interface SetupResult {
-  readonly preset: 'bare' | 'demo';
+  readonly preset: SetupPreset;
   readonly adminPersonId: string | null;
   readonly adminDisplayName: string | null;
 }
@@ -110,7 +110,7 @@ export function useCompleteSetup() {
   return useMutation({
     mutationFn: (args: { preset: SetupPreset; bare?: BareSetupFields; directoryRoles?: boolean }) =>
       apiPost<SetupResult>('/api/setup', {
-        preset: args.preset === 'Bare' ? 'bare' : 'demo',
+        preset: args.preset,
         directoryRoles: args.directoryRoles ?? false,
         bare: args.bare
           ? {

@@ -104,7 +104,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
       {
         preset,
         directoryRoles,
-        ...(preset === 'Bare'
+        ...(preset === 'BARE'
           ? {
               bare: {
                 locationName,
@@ -114,8 +114,8 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
                 unitKind,
                 ...(stubMode ? { displayName, email } : {}),
                 roles: [
-                  ...(plans ? (['planner'] as const) : []),
-                  ...(approves ? (['approver'] as const) : []),
+                  ...(plans ? (['Planner'] as const) : []),
+                  ...(approves ? (['Approver'] as const) : []),
                 ],
               },
             }
@@ -145,18 +145,18 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
         <PresetCard
           title="Bare"
           body="One location, one planning unit, and you as the administrator. Everything else is entered on Settings afterward."
-          selected={preset === 'Bare'}
-          onSelect={() => setPreset('Bare')}
+          selected={preset === 'BARE'}
+          onSelect={() => setPreset('BARE')}
         />
         <PresetCard
           title="Demo"
           body="A realistic fixture: four planning units, a trimmed roster, shifts, and a sample rota — for evaluation or local development."
-          selected={preset === 'Demo'}
-          onSelect={() => setPreset('Demo')}
+          selected={preset === 'DEMO'}
+          onSelect={() => setPreset('DEMO')}
         />
       </div>
 
-      {preset === 'Bare' ? (
+      {preset === 'BARE' ? (
         <section className="card flex flex-col gap-3 p-4">
           <div className="grid grid-cols-2 gap-3">
             <Labeled label="Location name">
@@ -208,7 +208,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
         <section className="card flex flex-col gap-3 p-4">
           <div>
             <h2 className="text-[12px] font-semibold">Access</h2>
-            {preset === 'Bare' ? (
+            {preset === 'BARE' ? (
               <p className="mt-1 text-[11.5px] text-faint">
                 You are always an Admin — that is what reaches Settings, and a system whose only
                 account cannot get there has no way back. The rest is asked because no role
@@ -222,7 +222,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
             )}
           </div>
 
-          {preset === 'Bare' ? (
+          {preset === 'BARE' ? (
             <div className="flex flex-col gap-1.5">
               {/* Stated, not shown as a ticked box nobody can untick: a disabled control
                   invites the click it then refuses. */}
@@ -250,7 +250,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
       <button
         type="button"
         className="btn btn--primary self-start"
-        disabled={!preset || (preset === 'Bare' && !bareFieldsFilled) || complete.isPending}
+        disabled={!preset || (preset === 'BARE' && !bareFieldsFilled) || complete.isPending}
         onClick={submit}
       >
         {complete.isPending ? 'Setting up…' : 'Set up'}
@@ -350,14 +350,14 @@ function SetupSummary({ result }: { readonly result: SetupResult }) {
       <header>
         <h1 className="text-[22px] font-semibold tracking-tight">This system is set up</h1>
         <p className="mt-1 text-base text-muted">
-          {result.preset === 'demo'
+          {result.preset === 'DEMO'
             ? 'The demo fixture is in place.'
             : 'A location, a planning unit and your administrator account are in place.'}
           {result.adminDisplayName ? ` You are ${result.adminDisplayName}.` : ''}
         </p>
       </header>
 
-      {result.preset === 'demo' && result.adminDisplayName ? (
+      {result.preset === 'DEMO' && result.adminDisplayName ? (
         <p className="text-[12px] text-muted">
           Your sign-in address was linked to <strong>{result.adminDisplayName}</strong> — the person
           the fixture gives the global Admin grant to. That is how you sign back in; change it on

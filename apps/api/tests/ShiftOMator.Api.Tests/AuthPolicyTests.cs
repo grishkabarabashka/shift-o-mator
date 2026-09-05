@@ -49,7 +49,7 @@ public class AuthPolicyTests(ApiTestFactory factory) : IDisposable
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal(someone, body.GetProperty("personId").GetString());
-        Assert.Equal(["viewer"], RoleNames(body));
+        Assert.Equal(["Viewer"], RoleNames(body));
         Assert.True(body.GetProperty("stubMode").GetBoolean());
     }
 
@@ -95,7 +95,7 @@ public class AuthPolicyTests(ApiTestFactory factory) : IDisposable
             people.GetProperty("people").EnumerateArray(),
             p => p.GetProperty("id").GetString() == personId);
 
-        Assert.Contains("planner", RoleNames(body));
+        Assert.Contains("Planner", RoleNames(body));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class AuthPolicyTests(ApiTestFactory factory) : IDisposable
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(["viewer"], RoleNames(body));
+        Assert.Equal(["Viewer"], RoleNames(body));
     }
 
     /// <summary>Roles are a set now, so the assertion is about membership, not one

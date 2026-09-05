@@ -7,14 +7,27 @@ using ShiftOMator.Api;
 using ShiftOMator.Api.Admin;
 using ShiftOMator.Api.Auth;
 using ShiftOMator.Api.Setup;
+using ShiftOMator.Application;
 using ShiftOMator.Domain;
 using ShiftOMator.Infrastructure;
 using ShiftOMator.Infrastructure.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Enums go out as UPPER_SNAKE, which is what the client's domain already writes — see
+// UpperSnakeCaseNamingPolicy for why the two conventions meet on this side. Property
+// names stay camelCase.
+//
+// AppRole is the one exemption and is registered FIRST on purpose: converters are matched
+// in order and the first match wins, and a converter in this collection outranks the
+// `[JsonConverter]` attribute on the enum itself — so the attribute alone would be
+// silently ignored. See AppRole's own doc comment for why it keeps `Planner`.
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<AppRole>());
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter(UpperSnakeCaseNamingPolicy.Instance));
+});
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
@@ -32,8 +45,8 @@ builder.Services.AddHttpClient("calendar", client =>
     client.DefaultRequestHeaders.Add("User-Agent", "shift-o-mator/1.0");
 });
 
-var connectionString = builder.Configuration.GetConnectionString("Schedule")
-    ?? throw new InvalidOperationException("Missing ConnectionStrings:Schedule");
+var connectionString = builder.Configuration.GetConnectionString("ShiftOMator")
+    ?? throw new InvalidOperationException("Missing ConnectionStrings:ShiftOMator");
 builder.Services.AddInfrastructure(connectionString);
 
 // NOTE: prose insights over the plan (/api/insights/*). The API key may be missing —
@@ -153,7 +166,7 @@ app.UseMiddleware<RequestCorrelationMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    // Browsable API reference over the same document api:schema generates
+    // Browsable API reference over the OpenAPI document
     // from (http://localhost:5106/scalar) — Stub auth (Program.cs, default
     // Auth:Mode) authenticates every request already, so "Try it" works
     // with no token to paste in.
@@ -173,7 +186,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
-app.MapGet("/health/ready", async (ScheduleDbContext db) =>
+app.MapGet("/health/ready", async (ShiftOMatorDbContext db) =>
     await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 
 app.MapSetupEndpoints();
@@ -221,7 +234,7 @@ var resetDb = args.Contains("--reset-db");
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
 
     if (resetDb)
     {
@@ -262,7 +275,7 @@ using (var scope = app.Services.CreateScope())
 /// Once real data exists this stops being acceptable and migrations become incremental
 /// again — at which point this check should start passing on its own and can go.
 /// </summary>
-static async Task EnsureSchemaIsReconcilableAsync(ScheduleDbContext db)
+static async Task EnsureSchemaIsReconcilableAsync(ShiftOMatorDbContext db)
 {
     if (!await db.Database.CanConnectAsync()) return;
 

@@ -153,7 +153,7 @@ export const emeaModShift: Shift = {
 export const emeaWeekdayConfig: DayConfiguration = {
   id: 'dc-emea-weekday',
   unitId: emeaUnit.id,
-  key: 'weekday',
+  key: 'WEEKDAY',
   weekdays: [1, 2, 3, 4, 5],
   effectiveFrom: '2020-01-01',
   shiftRequirements: [{ shiftId: emeaModShift.id, min: 1, isDefault: true }],
@@ -162,7 +162,7 @@ export const emeaWeekdayConfig: DayConfiguration = {
 export const weekdayConfig: DayConfiguration = {
   id: 'dc-amer-weekday',
   unitId: amerUnit.id,
-  key: 'weekday',
+  key: 'WEEKDAY',
   weekdays: [1, 2, 3, 4],
   effectiveFrom: '2020-01-01',
   shiftRequirements: [
@@ -174,7 +174,7 @@ export const weekdayConfig: DayConfiguration = {
 export const fridayConfig: DayConfiguration = {
   id: 'dc-amer-friday',
   unitId: amerUnit.id,
-  key: 'friday',
+  key: 'FRIDAY',
   weekdays: [5],
   effectiveFrom: '2020-01-01',
   shiftRequirements: [
@@ -185,7 +185,7 @@ export const fridayConfig: DayConfiguration = {
 export const weekendConfig: DayConfiguration = {
   id: 'dc-amer-weekend',
   unitId: amerUnit.id,
-  key: 'weekend',
+  key: 'WEEKEND',
   weekdays: [6, 7],
   effectiveFrom: '2020-01-01',
   shiftRequirements: [{ shiftId: coverShift.id, min: 1, isDefault: true }],

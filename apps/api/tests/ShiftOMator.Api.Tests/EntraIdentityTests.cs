@@ -105,7 +105,7 @@ public class EntraIdentityTests
         protected override async Task SeedAsync(IHost host)
         {
             using var scope = host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ScheduleDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<ShiftOMatorDbContext>();
             if (await SetupService.IsRequiredAsync(db))
                 await SetupService.CompleteDemoAsync(db, callerEmail: AdminEmail);
 
@@ -226,9 +226,9 @@ public class EntraIdentityTests
 
         // The seed gives the linked manager a *unit-scoped* planner grant and a global
         // admin one. A **global planner** could only have come from the token.
-        Assert.DoesNotContain(grants, g => g is { Role: "planner", Unit: null });
+        Assert.DoesNotContain(grants, g => g is { Role: "Planner", Unit: null });
         // The stored grants are untouched — this switch removes a source, not a person.
-        Assert.Contains(grants, g => g is { Role: "approver", Unit: not null });
+        Assert.Contains(grants, g => g is { Role: "Approver", Unit: not null });
     }
 
     [Fact]
@@ -254,9 +254,9 @@ public class EntraIdentityTests
                     : r.GetProperty("unitId").GetString()))
             .ToList();
 
-        Assert.Contains(grants, g => g is { Role: "planner", Unit: null });
+        Assert.Contains(grants, g => g is { Role: "Planner", Unit: null });
         // Still there: the token added, it did not replace.
-        Assert.Contains(grants, g => g is { Role: "approver", Unit: not null });
+        Assert.Contains(grants, g => g is { Role: "Approver", Unit: not null });
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class EntraIdentityTests
             .Select(r => r.GetProperty("role").GetString())
             .ToList();
 
-        Assert.Contains("approver", roles);
+        Assert.Contains("Approver", roles);
         Assert.DoesNotContain(roles, r => r is not null && r.Contains("SomeOtherApp"));
     }
 }

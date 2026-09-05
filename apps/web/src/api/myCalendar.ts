@@ -18,7 +18,6 @@ import {
   assignmentFromWire,
   compDayFromWire,
   presenceFromWire,
-  camelToUpperSnake,
 } from './mapping.ts';
 import type {
   Absence,
@@ -78,7 +77,7 @@ export function useMyCalendar(range: DateRange) {
             typeLabel: r.typeLabel as string,
             from: r.from as IsoDate,
             to: r.to as IsoDate,
-            portion: camelToUpperSnake<DayPortion>((r.portion as string) ?? 'full'),
+            portion: ((r.portion as string) ?? 'FULL') as DayPortion,
             state: r.state as string,
           }),
         ),

@@ -89,41 +89,41 @@ public class NotificationsAdminTests(ApiTestFactory factory) : IDisposable
             .Select(r => (Kind: r.GetProperty("kind").GetString(), Channel: r.GetProperty("channel").GetString()))
             .ToList();
 
-        Assert.Contains(("requestSubmitted", "email"), cells);
-        Assert.Contains(("compDayAging", "teams"), cells);
+        Assert.Contains(("REQUEST_SUBMITTED", "EMAIL"), cells);
+        Assert.Contains(("COMP_DAY_AGING", "TEAMS"), cells);
         // The inbox is not a cell: a checkbox for it would switch off the only place an
         // event is visible at all.
-        Assert.DoesNotContain(cells, c => c.Channel == "inApp");
+        Assert.DoesNotContain(cells, c => c.Channel == "IN_APP");
         Assert.Equal(cells.Count, cells.Distinct().Count());
     }
 
     [Fact]
     public async Task An_enabled_cell_makes_the_next_event_owed_and_a_disabled_one_leaves_a_reason()
     {
-        await SetCellAsync("requestSubmitted", "email", enabled: true);
+        await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: true);
         try
         {
             var requestId = await RaiseRequestAsync(factory.CreateClient());
             var entry = await LogEntryForAsync(requestId);
 
             var deliveries = entry.GetProperty("deliveries").EnumerateArray().ToList();
-            var email = deliveries.First(d => d.GetProperty("channel").GetString() == "email");
-            var teams = deliveries.First(d => d.GetProperty("channel").GetString() == "teams");
+            var email = deliveries.First(d => d.GetProperty("channel").GetString() == "EMAIL");
+            var teams = deliveries.First(d => d.GetProperty("channel").GetString() == "TEAMS");
 
             // Owed and waiting: there is no dispatcher yet, which is the point — the
             // fan-out is watchable before it can leave the building.
-            Assert.Equal("pending", email.GetProperty("status").GetString());
+            Assert.Equal("PENDING", email.GetProperty("status").GetString());
             Assert.Null(email.GetProperty("skipReason").GetString());
 
             // And silence is never the answer to "why did this not go out".
-            Assert.Equal("skipped", teams.GetProperty("status").GetString());
-            Assert.Equal("channelDisabled", teams.GetProperty("skipReason").GetString());
+            Assert.Equal("SKIPPED", teams.GetProperty("status").GetString());
+            Assert.Equal("CHANNEL_DISABLED", teams.GetProperty("skipReason").GetString());
 
             Assert.NotNull(entry.GetProperty("recipientName").GetString());
         }
         finally
         {
-            await SetCellAsync("requestSubmitted", "email", enabled: false);
+            await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: false);
         }
     }
 
@@ -132,7 +132,7 @@ public class NotificationsAdminTests(ApiTestFactory factory) : IDisposable
     [Fact]
     public async Task Turning_a_cell_off_afterwards_leaves_what_was_already_owed_alone()
     {
-        await SetCellAsync("requestSubmitted", "email", enabled: true);
+        await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: true);
         string requestId;
         try
         {
@@ -140,20 +140,20 @@ public class NotificationsAdminTests(ApiTestFactory factory) : IDisposable
         }
         finally
         {
-            await SetCellAsync("requestSubmitted", "email", enabled: false);
+            await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: false);
         }
 
         var entry = await LogEntryForAsync(requestId);
         var email = entry.GetProperty("deliveries").EnumerateArray()
-            .First(d => d.GetProperty("channel").GetString() == "email");
+            .First(d => d.GetProperty("channel").GetString() == "EMAIL");
 
-        Assert.Equal("pending", email.GetProperty("status").GetString());
+        Assert.Equal("PENDING", email.GetProperty("status").GetString());
     }
 
     [Fact]
     public async Task Only_a_failed_delivery_can_be_retried()
     {
-        await SetCellAsync("requestSubmitted", "email", enabled: true);
+        await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: true);
         string requestId;
         try
         {
@@ -161,12 +161,12 @@ public class NotificationsAdminTests(ApiTestFactory factory) : IDisposable
         }
         finally
         {
-            await SetCellAsync("requestSubmitted", "email", enabled: false);
+            await SetCellAsync("REQUEST_SUBMITTED", "EMAIL", enabled: false);
         }
 
         var entry = await LogEntryForAsync(requestId);
         var pending = entry.GetProperty("deliveries").EnumerateArray()
-            .First(d => d.GetProperty("status").GetString() == "pending")
+            .First(d => d.GetProperty("status").GetString() == "PENDING")
             .GetProperty("id").GetString();
 
         var response = await Admin.CreateClient()
@@ -182,7 +182,7 @@ public class NotificationsAdminTests(ApiTestFactory factory) : IDisposable
     {
         var response = await Admin.CreateClient().PutAsJsonAsync("/api/admin/notifications/rules", new
         {
-            rules = new[] { new { kind = "requestSubmitted", channel = "inApp", enabled = true, userOverridable = true } },
+            rules = new[] { new { kind = "REQUEST_SUBMITTED", channel = "IN_APP", enabled = true, userOverridable = true } },
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

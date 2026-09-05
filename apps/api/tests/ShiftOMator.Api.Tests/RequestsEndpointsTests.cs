@@ -67,11 +67,11 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
 
         var request = await created.Content.ReadFromJsonAsync<JsonElement>();
         var requestId = request.GetProperty("id").GetString();
-        Assert.Equal("submitted", request.GetProperty("state").GetString());
+        Assert.Equal("SUBMITTED", request.GetProperty("state").GetString());
 
         var decided = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new
         {
-            decision = "approve",
+            decision = "APPROVE",
             comment = "fine",
         });
         Assert.Equal(HttpStatusCode.OK, decided.StatusCode);
@@ -79,14 +79,14 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
         var after = await decided.Content.ReadFromJsonAsync<JsonElement>();
         // Approved *and* applied: the two are separate states, and the write happening is
         // what distinguishes them (ADR-0047).
-        Assert.Equal("applied", after.GetProperty("state").GetString());
+        Assert.Equal("APPLIED", after.GetProperty("state").GetString());
 
         var presence = await client.GetFromJsonAsync<JsonElement>($"/api/presence?from={from}&to={to}");
         var records = presence.GetProperty("presence").EnumerateArray().ToList();
         Assert.Contains(records, p =>
             p.GetProperty("typeId").GetString() == "pt-remote"
             && p.GetProperty("requestId").GetString() == requestId
-            && p.GetProperty("source").GetString() == "request");
+            && p.GetProperty("source").GetString() == "REQUEST");
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var requestId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
 
-        var decided = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "approve" });
+        var decided = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "APPROVE" });
         Assert.Equal(HttpStatusCode.OK, decided.StatusCode);
 
         var me = await MyPersonIdAsync(client);
@@ -136,11 +136,11 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
 
         var decided = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new
         {
-            decision = "reject",
+            decision = "REJECT",
             comment = "coverage",
         });
         var after = await decided.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("rejected", after.GetProperty("state").GetString());
+        Assert.Equal("REJECTED", after.GetProperty("state").GetString());
 
         var presence = await client.GetFromJsonAsync<JsonElement>($"/api/presence?from={from}&to={to}");
         Assert.DoesNotContain(
@@ -162,7 +162,7 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
             to,
         });
         var requestId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
-        await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "approve" });
+        await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "APPROVE" });
 
         var cancelled = await client.PostAsync($"/api/requests/{requestId}/cancel", null);
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
@@ -190,8 +190,8 @@ public class RequestsEndpointsTests(ApiTestFactory factory)
         });
         var requestId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
 
-        await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "approve" });
-        var second = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "reject" });
+        await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "APPROVE" });
+        var second = await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new { decision = "REJECT" });
 
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
         var body = await second.Content.ReadFromJsonAsync<JsonElement>();

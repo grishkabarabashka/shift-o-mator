@@ -1,13 +1,21 @@
 /**
  * Wire (backend JSON) ↔ domain (`domain/types.ts`) mapping.
  *
- * The backend serializes enums with `JsonStringEnumConverter(CamelCase)`
- * (`Program.cs`) and C# properties as camelCase (ASP.NET Core web defaults);
- * the client's own enums are `UPPER_SNAKE` (`domain/types.ts`). Every one of
- * them converts with the same generic `camelToUpperSnake`/`upperSnakeToCamel`
- * pair — verified against every enum in `api/src/ShiftOMator.Domain/Enums.cs`.
- * The one exception is `Weekday`, which is numeric on the client (Luxon
- * convention) and a weekday name on the wire (`IsoWeekday`).
+ * NOTE: **Enums no longer convert.** The backend used to serialize them with
+ * `JsonStringEnumConverter(CamelCase)` while the client's domain wrote
+ * `UPPER_SNAKE`, and reconciling those two spellings is most of why this file
+ * was a thousand lines: about thirty `xxxFromWire`/`xxxToWire` functions that
+ * re-listed every field of every entity in order to convert two or three enum
+ * strings on the way past. The server now writes UPPER_SNAKE
+ * (`UpperSnakeCaseNamingPolicy`, and see its comment for why that side moved),
+ * so a wire enum is a domain enum and what is left is a cast.
+ *
+ * Two genuine conversions survive, because they are not about spelling:
+ * `Weekday` is numeric on the client (Luxon) and named on the wire
+ * (`IsoWeekday`), and `TimeOfDay` is `HH:mm` here against C#'s `HH:mm:ss`.
+ *
+ * `AppRole` is the one enum the server keeps in PascalCase — see its doc
+ * comment in `Enums.cs`; the client already wrote it that way.
  *
  * `Assignment` is also *structurally* different: the wire shape flattens
  * `content` into `shiftId`/`timeOverride` (an EF-mapped
@@ -35,6 +43,13 @@ import type {
   PresenceRecord,
   PresenceSource,
   AssignmentSource,
+  AbsenceDurationBucket,
+  AbsenceSource,
+  CoverageLevel,
+  DraftStatus,
+  EventCategory,
+  HistoryAction,
+  OrgCategory,
   Assignment,
   CompDayEntry,
   CompDayStatus,
@@ -68,36 +83,34 @@ import type {
 } from '../domain/types.ts';
 
 // ---------------------------------------------------------------------------
-// Generic enum + primitive conversions
+// Primitive conversions
+//
+// NOTE: There are no enum conversions here any more. `camelToUpperSnake` and
+// `upperSnakeToCamel` are deleted: the server writes enums in UPPER_SNAKE now
+// (`UpperSnakeCaseNamingPolicy`), which is what `domain/types.ts` already used,
+// so a wire enum **is** a domain enum and the only thing left is a cast.
+//
+// Weekday stays, because it is a real conversion rather than a spelling one:
+// the client counts weekdays 1..7 (Luxon), the wire names them (`IsoWeekday`).
 // ---------------------------------------------------------------------------
 
-/** `pendingApproval` → `PENDING_APPROVAL`. Covers every wire enum but Weekday. */
-export function camelToUpperSnake<T extends string>(value: string): T {
-  return value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase() as T;
-}
-
-/** `PENDING_APPROVAL` → `pendingApproval`. Inverse of `camelToUpperSnake`. */
-export function upperSnakeToCamel(value: string): string {
-  return value.toLowerCase().replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
-}
-
 const WEEKDAY_TO_NAME: Record<Weekday, string> = {
-  1: 'monday',
-  2: 'tuesday',
-  3: 'wednesday',
-  4: 'thursday',
-  5: 'friday',
-  6: 'saturday',
-  7: 'sunday',
+  1: 'MONDAY',
+  2: 'TUESDAY',
+  3: 'WEDNESDAY',
+  4: 'THURSDAY',
+  5: 'FRIDAY',
+  6: 'SATURDAY',
+  7: 'SUNDAY',
 };
 const NAME_TO_WEEKDAY: Record<string, Weekday> = {
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-  sunday: 7,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 7,
 };
 
 export function weekdayFromWire(name: string): Weekday {
@@ -201,8 +214,8 @@ export function unitFromWire(w: WirePlanningUnit): PlanningUnit {
   return {
     id: w.id,
     name: w.name,
-    kind: camelToUpperSnake<UnitKind>(w.kind),
-    groupBy: camelToUpperSnake<GroupBy>(w.groupBy),
+    kind: (w.kind) as UnitKind,
+    groupBy: (w.groupBy) as GroupBy,
     primaryLocationId: w.primaryLocationId,
     locationIds: w.locationIds,
     compOffPolicy: compOffPolicyFromWire(w.compOffPolicy),
@@ -288,7 +301,7 @@ export function dayConfigurationFromWire(w: WireDayConfiguration): DayConfigurat
   return {
     id: w.id,
     unitId: w.unitId,
-    // DayConfigKey is already a single lowercase word on both sides ('weekday', 'friday', …).
+    // Wire and domain agree since the server writes UPPER_SNAKE — the cast is the whole of it.
     key: w.key as DayConfiguration['key'],
     weekdays: weekdaysFromWire(w.weekdays),
     ...(w.date ? { date: w.date } : {}),
@@ -373,7 +386,7 @@ export function personFromWire(w: WirePerson): Person {
     ...(w.email ? { email: w.email } : {}),
     unitId: w.unitId,
     locationId: w.locationId,
-    orgCategory: camelToUpperSnake(w.orgCategory),
+    orgCategory: w.orgCategory as OrgCategory,
     isActive: w.isActive,
     isIncluded: w.isIncluded,
     eligibility: w.eligibility.map(eligibilityFromWire),
@@ -412,7 +425,7 @@ export function absenceCapacityRuleFromWire(w: WireAbsenceCapacityRule): Absence
     id: w.id,
     unitId: w.unitId,
     scope: w.scopeShiftId ? { kind: 'SHIFT_POOL', shiftId: w.scopeShiftId } : { kind: 'UNIT' },
-    durationBucket: camelToUpperSnake(w.durationBucket),
+    durationBucket: w.durationBucket as AbsenceDurationBucket,
     longThresholdWorkdays: w.longThresholdWorkdays,
     maxConcurrent: w.maxConcurrent,
     countsEventTypeIds: [...w.countsEventTypeIds],
@@ -464,7 +477,7 @@ export function presenceTypeFromWire(w: WirePresenceType): PresenceType {
     id: w.id,
     label: w.label,
     namesALocation: w.namesALocation,
-    countsAs: camelToUpperSnake<PresenceGroup>(w.countsAs),
+    countsAs: (w.countsAs) as PresenceGroup,
     glyph: w.glyph,
     color: w.color,
     requiresApproval: w.requiresApproval,
@@ -495,7 +508,7 @@ export function eventTypeFromWire(w: WireEventType): EventType {
     label: w.label,
     shortLabel: w.shortLabel,
     color: w.color,
-    category: camelToUpperSnake(w.category),
+    category: w.category as EventCategory,
     blocksAssignment: w.blocksAssignment,
     countsTowardCapacity: w.countsTowardCapacity,
     requiresApproval: w.requiresApproval,
@@ -556,7 +569,7 @@ export function assignmentFromWire(w: WireAssignment): Assignment {
     content,
     isWeekend: w.isWeekend,
     ...(w.note ? { note: w.note } : {}),
-    source: camelToUpperSnake<AssignmentSource>(w.source),
+    source: (w.source) as AssignmentSource,
     version: w.version,
     createdBy: w.createdBy,
     createdAt: instantFromWire(w.createdAt),
@@ -582,7 +595,7 @@ export function assignmentToWire(a: Assignment): WireAssignment {
         : null,
     isWeekend: a.isWeekend,
     note: a.note ?? null,
-    source: upperSnakeToCamel(a.source),
+    source: a.source,
     version: a.version,
     createdBy: a.createdBy,
     createdAt: instantToWire(a.createdAt),
@@ -611,10 +624,10 @@ export function absenceFromWire(w: WireAbsence): Absence {
     id: w.id,
     personId: w.personId,
     eventTypeId: w.eventTypeId,
-    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
+    portion: w.portion ? (w.portion) as DayPortion : 'FULL',
     from: w.from,
     to: w.to,
-    source: camelToUpperSnake(w.source),
+    source: w.source as AbsenceSource,
     ...(w.importBatchId ? { importBatchId: w.importBatchId } : {}),
     ...(w.lastSeenInImportAt ? { lastSeenInImportAt: instantFromWire(w.lastSeenInImportAt) } : {}),
     ...(w.syncedToHrAt ? { syncedToHrAt: instantFromWire(w.syncedToHrAt) } : {}),
@@ -628,10 +641,10 @@ export function absenceToWire(a: Absence): WireAbsence {
     id: a.id,
     personId: a.personId,
     eventTypeId: a.eventTypeId,
-    portion: upperSnakeToCamel(a.portion),
+    portion: a.portion,
     from: a.from,
     to: a.to,
-    source: upperSnakeToCamel(a.source),
+    source: a.source,
     importBatchId: a.importBatchId ?? null,
     lastSeenInImportAt: a.lastSeenInImportAt ? instantToWire(a.lastSeenInImportAt) : null,
     syncedToHrAt: a.syncedToHrAt ? instantToWire(a.syncedToHrAt) : null,
@@ -659,10 +672,10 @@ export function compDayFromWire(w: WireCompDayEntry): CompDayEntry {
     personId: w.personId,
     earnedForAssignmentId: w.earnedForAssignmentId,
     earnedForDate: w.earnedForDate,
-    trigger: camelToUpperSnake<CompDayTrigger>(w.trigger),
+    trigger: (w.trigger) as CompDayTrigger,
     ...(w.proposedDate ? { proposedDate: w.proposedDate } : {}),
     ...(w.actualDate ? { actualDate: w.actualDate } : {}),
-    status: camelToUpperSnake<CompDayStatus>(w.status),
+    status: (w.status) as CompDayStatus,
     ...(w.syncedToHrAt ? { syncedToHrAt: instantFromWire(w.syncedToHrAt) } : {}),
     version: w.version ?? 1,
   };
@@ -674,10 +687,10 @@ export function compDayToWire(c: CompDayEntry): WireCompDayEntry {
     personId: c.personId,
     earnedForAssignmentId: c.earnedForAssignmentId,
     earnedForDate: c.earnedForDate,
-    trigger: upperSnakeToCamel(c.trigger),
+    trigger: c.trigger,
     proposedDate: c.proposedDate ?? null,
     actualDate: c.actualDate ?? null,
-    status: upperSnakeToCamel(c.status),
+    status: c.status,
     syncedToHrAt: c.syncedToHrAt ? instantToWire(c.syncedToHrAt) : null,
     version: c.version,
   };
@@ -707,7 +720,7 @@ export function coverageCellFromWire(w: WireCoverageCell): CoverageCell {
     actual: w.actual,
     min: w.min,
     ...(w.max !== null && w.max !== undefined ? { max: w.max } : {}),
-    level: camelToUpperSnake(w.level),
+    level: w.level as CoverageLevel,
     appliedKey: w.appliedKey as CoverageCell['appliedKey'],
     ...(w.ruleLabel ? { ruleLabel: w.ruleLabel } : {}),
   };
@@ -728,9 +741,9 @@ interface WireIssue {
 export function issueFromWire(w: WireIssue): Issue {
   return {
     key: w.key,
-    level: camelToUpperSnake<IssueLevel>(w.level),
-    category: camelToUpperSnake<IssueCategory>(w.category),
-    code: camelToUpperSnake<IssueCode>(w.code),
+    level: (w.level) as IssueLevel,
+    category: (w.category) as IssueCategory,
+    code: (w.code) as IssueCode,
     message: w.message,
     unitId: w.unitId,
     ...(w.date ? { date: w.date } : {}),
@@ -806,7 +819,7 @@ export function draftSessionFromWire(w: WireDraftSession): DraftSession {
     editorPersonId: w.editorPersonId,
     unitId: w.unitId,
     range: { from: w.rangeFrom, to: w.rangeTo },
-    status: camelToUpperSnake(w.status),
+    status: w.status as DraftStatus,
     createdAt: instantFromWire(w.createdAt),
     updatedAt: instantFromWire(w.updatedAt),
   };
@@ -824,7 +837,7 @@ interface WireDraftChange {
 }
 
 export function draftChangeFromWire(w: WireDraftChange): DraftChange {
-  const targetType = camelToUpperSnake<DraftTargetType>(w.targetType);
+  const targetType = (w.targetType) as DraftTargetType;
   const at = instantFromWire(w.at);
   const before = w.beforeJson ? (JSON.parse(w.beforeJson) as unknown) : null;
   const after = w.afterJson ? (JSON.parse(w.afterJson) as unknown) : null;
@@ -836,7 +849,7 @@ export function draftChangeFromWire(w: WireDraftChange): DraftChange {
         seq: w.seq,
         at,
         targetType,
-        op: camelToUpperSnake<DraftOp>(w.op),
+        op: (w.op) as DraftOp,
         before: before ? assignmentFromWire(before as never) : null,
         after: after ? assignmentFromWire(after as never) : null,
       };
@@ -846,7 +859,7 @@ export function draftChangeFromWire(w: WireDraftChange): DraftChange {
         seq: w.seq,
         at,
         targetType,
-        op: camelToUpperSnake<DraftOp>(w.op),
+        op: (w.op) as DraftOp,
         before: before ? absenceFromWire(before as never) : null,
         after: after ? absenceFromWire(after as never) : null,
       };
@@ -856,7 +869,7 @@ export function draftChangeFromWire(w: WireDraftChange): DraftChange {
         seq: w.seq,
         at,
         targetType: 'COMP_DAY',
-        op: camelToUpperSnake<DraftOp>(w.op),
+        op: (w.op) as DraftOp,
         before: before ? compDayFromWire(before as never) : null,
         after: after ? compDayFromWire(after as never) : null,
       };
@@ -890,7 +903,7 @@ export function syncItemToWireBody(item: {
           ? absenceToWire(item.after as Absence)
           : compDayToWire(item.after as CompDayEntry);
 
-  return { targetType: upperSnakeToCamel(item.targetType), key: item.key, after };
+  return { targetType: item.targetType, key: item.key, after };
 }
 
 // ---------------------------------------------------------------------------
@@ -920,7 +933,7 @@ interface WireConflictDetail {
 export function publishConflictFromWire(w: WireConflictDetail): PublishConflict {
   return {
     changeId: w.changeId,
-    targetType: camelToUpperSnake<DraftTargetType>(w.targetType),
+    targetType: (w.targetType) as DraftTargetType,
     published: null,
     draft: null,
     reason: w.reason,
@@ -931,7 +944,7 @@ export function publishConflictFromWire(w: WireConflictDetail): PublishConflict 
  * `created`/`updated`/`deleted` aren't in the publish response (the backend
  * only returns `remainingGaps`/`history`/`generatedCompDays`) — derived here
  * from the change list the caller already has (mirrors what
- * `MemoryScheduleRepository.publishDraft` used to compute).
+ * the deleted in-memory repository's `publishDraft` used to compute).
  */
 export function publishResultFromWire(
   w: WirePublishSuccess,
@@ -979,12 +992,12 @@ export function pendingRequestFromWire(w: WirePendingRequest): PendingRequest {
     id: w.id,
     typeCode: w.typeCode,
     typeLabel: w.typeLabel,
-    category: camelToUpperSnake<PendingCategory>(w.category),
+    category: (w.category) as PendingCategory,
     subjectPersonId: w.subjectPersonId,
     subjectDisplayName: w.subjectDisplayName,
     from: w.from,
     to: w.to,
-    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
+    portion: w.portion ? (w.portion) as DayPortion : 'FULL',
     createdAt: instantFromWire(w.createdAt),
     callerCanDecide: w.callerCanDecide,
   };
@@ -1018,8 +1031,8 @@ export function presenceFromWire(w: WirePresenceRecord): PresenceRecord {
     ...(w.siteLabel ? { siteLabel: w.siteLabel } : {}),
     from: w.from,
     to: w.to,
-    source: camelToUpperSnake<PresenceSource>(w.source),
-    portion: w.portion ? camelToUpperSnake<DayPortion>(w.portion) : 'FULL',
+    source: (w.source) as PresenceSource,
+    portion: w.portion ? (w.portion) as DayPortion : 'FULL',
     ...(w.requestId ? { requestId: w.requestId } : {}),
     ...(w.note ? { note: w.note } : {}),
     version: w.version ?? 1,
@@ -1043,12 +1056,12 @@ interface WireChangeHistoryEntry {
 }
 
 export function historyEntryFromWire(w: WireChangeHistoryEntry): ChangeHistoryEntry {
-  const entityType = camelToUpperSnake<HistoryEntityType>(w.entityType);
+  const entityType = (w.entityType) as HistoryEntityType;
   return {
     id: w.id,
     entityType,
     entityId: w.entityId,
-    action: camelToUpperSnake(w.action),
+    action: w.action as HistoryAction,
     // Only an assignment snapshot has a shape this client can parse; the others are
     // stored for the record and read through `summary`.
     snapshot:

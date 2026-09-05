@@ -33,8 +33,8 @@ public class SetupDiagnosticsTests
     {
         var connectionString =
             $"Server=(localdb)\\MSSQLLocalDB;Database={databaseName};Trusted_Connection=True;TrustServerCertificate=True";
-        using (var db = new ScheduleDbContext(
-            new DbContextOptionsBuilder<ScheduleDbContext>().UseSqlServer(connectionString).Options))
+        using (var db = new ShiftOMatorDbContext(
+            new DbContextOptionsBuilder<ShiftOMatorDbContext>().UseSqlServer(connectionString).Options))
         {
             db.Database.EnsureDeleted();
         }
@@ -52,7 +52,7 @@ public class SetupDiagnosticsTests
     {
         var response = await client.PostAsJsonAsync("/api/setup", new
         {
-            preset = "bare",
+            preset = "BARE",
             directoryRoles,
             bare = new
             {
@@ -80,8 +80,8 @@ public class SetupDiagnosticsTests
 
         var roles = await RolesOfAsync(client);
 
-        Assert.Contains("admin", roles);
-        Assert.DoesNotContain("planner", roles);
+        Assert.Contains("Admin", roles);
+        Assert.DoesNotContain("Planner", roles);
     }
 
     [Fact]
@@ -92,13 +92,13 @@ public class SetupDiagnosticsTests
         // correct configuration that is indistinguishable from a broken one.
         using var factory = Factory("ShiftOMatorSetupDiagWithPlanner");
         var client = factory.CreateClient();
-        await SetUpBareAsync(client, roles: new[] { "planner", "approver" });
+        await SetUpBareAsync(client, roles: new[] { "Planner", "Approver" });
 
         var roles = await RolesOfAsync(client);
 
-        Assert.Contains("admin", roles);
-        Assert.Contains("planner", roles);
-        Assert.Contains("approver", roles);
+        Assert.Contains("Admin", roles);
+        Assert.Contains("Planner", roles);
+        Assert.Contains("Approver", roles);
     }
 
     [Fact]
@@ -108,9 +108,9 @@ public class SetupDiagnosticsTests
         // grant is not the caller's to decline.
         using var factory = Factory("ShiftOMatorSetupDiagAdminKept");
         var client = factory.CreateClient();
-        await SetUpBareAsync(client, roles: new[] { "viewer" });
+        await SetUpBareAsync(client, roles: new[] { "Viewer" });
 
-        Assert.Contains("admin", await RolesOfAsync(client));
+        Assert.Contains("Admin", await RolesOfAsync(client));
     }
 
     [Fact]

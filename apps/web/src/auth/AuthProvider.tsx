@@ -28,8 +28,10 @@ import {
 } from 'react';
 import { apiGet, setDebugIdentity } from '../api/client.ts';
 
-/** NOTE: matches `ShiftOMator.Domain.AppRole`. Deliberately unordered — see ADR-0051. */
-export type AppRole = 'Viewer' | 'Planner' | 'Approver' | 'Admin';
+// `AppRole`/`APP_ROLES` live in `domain/` (ADR-0066 casing, ADR-0051 semantics) and are
+// re-exported here because most callers reach for them alongside the identity.
+export { APP_ROLES, type AppRole } from '../domain/types.ts';
+import { APP_ROLES, type AppRole } from '../domain/types.ts';
 
 /** One role in one unit. `unitId` undefined is a global grant: every unit. */
 export interface RoleGrant {
@@ -167,8 +169,6 @@ export function useAuth(): AuthIdentity {
   if (!identity) throw new Error('useAuth() called outside <AuthProvider>.');
   return identity;
 }
-
-export const APP_ROLES: readonly AppRole[] = ['Viewer', 'Planner', 'Approver', 'Admin'];
 
 /**
  * Holds this role in this unit, or globally.

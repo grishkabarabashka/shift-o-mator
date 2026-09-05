@@ -15,11 +15,23 @@ namespace ShiftOMator.Application.Drafts;
 /// </summary>
 public static class DraftJson
 {
+    // The enum convention has to match the HTTP one (Program.cs): these payloads arrive
+    // from the client, so a draft change carrying `"PENDING_APPROVAL"` must deserialize
+    // here as well. Note that this format is also what lands in `BeforeJson`/`AfterJson`
+    // and history `SnapshotJson` columns — changing it means rows written under the old
+    // convention no longer read back their enum fields. That is the same class of break
+    // as regenerating `InitialCreate`, and acceptable for the same reason: no production
+    // data yet.
     public static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        // AppRole first, for the same reason as in Program.cs: first match wins.
+        Converters =
+        {
+            new JsonStringEnumConverter<ShiftOMator.Domain.AppRole>(),
+            new JsonStringEnumConverter(UpperSnakeCaseNamingPolicy.Instance),
+        },
     };
 
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);

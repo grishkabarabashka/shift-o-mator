@@ -104,9 +104,9 @@ public class RoleModelTests(ApiTestFactory factory)
         // The seed makes every manager a planner, approver and admin of their unit, and
         // ActorResolver prefers a manager — so the default identity has real grants, not
         // just the Viewer everybody gets.
-        Assert.Contains("admin", roles);
-        Assert.Contains("approver", roles);
-        Assert.Contains("planner", roles);
+        Assert.Contains("Admin", roles);
+        Assert.Contains("Approver", roles);
+        Assert.Contains("Planner", roles);
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class RoleModelTests(ApiTestFactory factory)
 
         foreach (var unit in units)
         {
-            Assert.Contains(byUnit, g => g.Unit == unit && g.Role == "planner");
-            Assert.Contains(byUnit, g => g.Unit == unit && g.Role == "approver");
+            Assert.Contains(byUnit, g => g.Unit == unit && g.Role == "Planner");
+            Assert.Contains(byUnit, g => g.Unit == unit && g.Role == "Approver");
         }
     }
 
@@ -161,10 +161,10 @@ public class RoleModelTests(ApiTestFactory factory)
             .Select(r => r.GetProperty("role").GetString())
             .ToList();
 
-        Assert.Contains("planner", roles);
-        Assert.Contains("approver", roles);
+        Assert.Contains("Planner", roles);
+        Assert.Contains("Approver", roles);
         // Everyone signed in reads the rota; it is not a stored grant.
-        Assert.Contains("viewer", roles);
+        Assert.Contains("Viewer", roles);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class RoleModelTests(ApiTestFactory factory)
     {
         var client = factory.CreateClient();
         var request = As(HttpMethod.Post, "/api/admin/role-assignments", "Viewer");
-        request.Content = JsonContent.Create(new { personId = "p-1", unitId = "unit-amer", role = "planner" });
+        request.Content = JsonContent.Create(new { personId = "p-1", unitId = "unit-amer", role = "Planner" });
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(request)).StatusCode);
     }
@@ -185,7 +185,7 @@ public class RoleModelTests(ApiTestFactory factory)
         var someone = people.GetProperty("people").EnumerateArray().First().GetProperty("id").GetString();
 
         var request = As(HttpMethod.Post, "/api/admin/role-assignments", "Admin");
-        request.Content = JsonContent.Create(new { personId = someone, unitId = (string?)null, role = "viewer" });
+        request.Content = JsonContent.Create(new { personId = someone, unitId = (string?)null, role = "Viewer" });
 
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -206,7 +206,7 @@ public class RoleModelTests(ApiTestFactory factory)
         async Task<JsonElement> Grant()
         {
             var request = As(HttpMethod.Post, "/api/admin/role-assignments", "Admin");
-            request.Content = JsonContent.Create(new { personId = someone, unitId = unit, role = "approver" });
+            request.Content = JsonContent.Create(new { personId = someone, unitId = unit, role = "Approver" });
             var response = await client.SendAsync(request);
             return await response.Content.ReadFromJsonAsync<JsonElement>();
         }
@@ -238,14 +238,14 @@ public class RoleModelTests(ApiTestFactory factory)
         foreach (var row in existing.EnumerateArray())
         {
             if (row.GetProperty("personId").GetString() != someone) continue;
-            if (!string.Equals(row.GetProperty("role").GetString(), "planner", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.Equals(row.GetProperty("role").GetString(), "Planner", StringComparison.OrdinalIgnoreCase)) continue;
             var id = row.GetProperty("id").GetString();
             (await client.SendAsync(As(HttpMethod.Delete, $"/api/admin/role-assignments/{id}", "Admin")))
                 .EnsureSuccessStatusCode();
         }
 
         var grant = As(HttpMethod.Post, "/api/admin/role-assignments", "Admin");
-        grant.Content = JsonContent.Create(new { personId = someone, unitId = unit, role = "planner" });
+        grant.Content = JsonContent.Create(new { personId = someone, unitId = unit, role = "Planner" });
         (await client.SendAsync(grant)).EnsureSuccessStatusCode();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);

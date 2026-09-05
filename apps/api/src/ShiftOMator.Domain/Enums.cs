@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ShiftOMator.Domain;
 
 /// <summary>ISO weekday, 1 = Monday .. 7 = Sunday — matches Luxon on the client.</summary>
@@ -198,7 +200,18 @@ public enum HistoryAction
 /// or you do not.
 ///
 /// Roles are granted per planning unit, or globally; see <see cref="RoleAssignment"/>.
+///
+/// NOTE: the only enum exempt from the wire's UPPER_SNAKE convention
+/// (<see cref="ShiftOMator.Application.UpperSnakeCaseNamingPolicy"/>), so these serialize
+/// as <c>Planner</c>, not <c>PLANNER</c>.
+///
+/// WHY: that convention exists to make the wire match the client's domain, and the client
+/// already writes roles in this exact shape — <c>api/mapping.ts</c> never converted them.
+/// Renaming them would *create* the mismatch the policy exists to remove. These strings
+/// are also the vocabulary of an external system: Entra app roles are declared with these
+/// names, and <c>RoleClaimsTransformation</c> parses `roles` claims against them.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AppRole>))]
 public enum AppRole
 {
     /// <summary>Read the rota, and self-service on your own row. Everyone has it.</summary>

@@ -59,20 +59,20 @@ function checkboxFor(table: HTMLElement, role: string): HTMLInputElement {
 
 describe('an administrator of a unit', () => {
   it('grants a role, and it is scoped to the unit on screen', async () => {
-    const table = await openRolesTab([{ role: 'admin' }]);
+    const table = await openRolesTab([{ role: 'Admin' }]);
 
     fireEvent.click(checkboxFor(table, 'Approver'));
 
     await waitFor(() => expect(mockBackend.roleAssignments).toHaveLength(1));
     const grant = mockBackend.roleAssignments[0]!;
-    expect(grant.role).toBe('approver');
+    expect(grant.role).toBe('Approver');
     // The first unit tab is selected on mount, so the grant belongs to it — not to
     // "everywhere", which is the mistake a global default would invite.
     expect(grant.unitId).not.toBeNull();
   });
 
   it('revokes by unticking, because a grant has no middle state', async () => {
-    const table = await openRolesTab([{ role: 'admin' }]);
+    const table = await openRolesTab([{ role: 'Admin' }]);
 
     fireEvent.click(checkboxFor(table, 'Planner'));
     await waitFor(() => expect(mockBackend.roleAssignments).toHaveLength(1));
@@ -82,7 +82,7 @@ describe('an administrator of a unit', () => {
   });
 
   it('offers no Viewer column, because everyone signed in already has it', async () => {
-    const table = await openRolesTab([{ role: 'admin' }]);
+    const table = await openRolesTab([{ role: 'Admin' }]);
 
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
     expect(headers).toContain('Planner');
@@ -97,7 +97,7 @@ describe('an administrator of a different unit', () => {
     // Read-only rather than hidden: "who approves my leave" is a fair question for the
     // person waiting on an answer. Grants are scoped, so administering EMEA says nothing
     // about AMER — which is the tab that opens first.
-    const table = await openRolesTab([{ role: 'admin', unitId: 'unit-emea' }]);
+    const table = await openRolesTab([{ role: 'Admin', unitId: 'unit-emea' }]);
 
     expect(checkboxFor(table, 'Approver').disabled).toBe(true);
     expect(screen.getByText(/do not administer this unit/i)).toBeTruthy();

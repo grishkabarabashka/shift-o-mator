@@ -177,7 +177,7 @@ export interface Shift {
  * implemented — ADR-0008. Resolution order: DATE → HOLIDAY → WEEKEND →
  * weekday group.
  */
-export type DayConfigKey = 'weekday' | 'friday' | 'weekend' | 'holiday' | 'date';
+export type DayConfigKey = 'WEEKDAY' | 'FRIDAY' | 'WEEKEND' | 'HOLIDAY' | 'DATE';
 
 export interface ShiftRequirement {
   readonly shiftId: ShiftId;
@@ -203,7 +203,7 @@ export interface DayConfiguration {
   readonly key: DayConfigKey;
   /** NOTE: For weekday groups. Each weekday belongs to exactly one group. */
   readonly weekdays: readonly Weekday[];
-  /** NOTE: Only for `key === 'date'`. */
+  /** NOTE: Only for `key === 'DATE'`. */
   readonly date?: IsoDate;
   readonly label?: string;
   readonly effectiveFrom: IsoDate;
@@ -812,3 +812,23 @@ export interface PlanData {
 export interface ScheduleDataset extends ReferenceData, PlanData {
   readonly history: readonly ChangeHistoryEntry[];
 }
+
+// ---------------------------------------------------------------------------
+// Authorization
+// ---------------------------------------------------------------------------
+
+/**
+ * NOTE: Mirrors `ShiftOMator.Domain.AppRole`, **including its casing** — this is the one
+ * enum the wire keeps in PascalCase (ADR-0066), because the client already wrote it this
+ * way and Entra app roles are declared with these names.
+ *
+ * Deliberately unordered: nothing is implied by position, an Admin cannot plan and a
+ * Planner cannot approve (ADR-0051).
+ *
+ * WHY here rather than in `auth/`: `api/roleAssignments.ts` needs it, and `api/` sits
+ * below `auth/` — importing it upward was the one place the frontend's layering was
+ * broken.
+ */
+export type AppRole = 'Viewer' | 'Planner' | 'Approver' | 'Admin';
+
+export const APP_ROLES: readonly AppRole[] = ['Viewer', 'Planner', 'Approver', 'Admin'];

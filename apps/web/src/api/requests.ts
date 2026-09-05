@@ -1,16 +1,14 @@
 /**
  * Self-service requests, approvals and the notification inbox (ADR-0047, ADR-0046).
  *
- * These are TanStack Query hooks rather than `ScheduleRepository` methods on purpose:
- * `ScheduleRepository` is the boundary for *the plan* (ADR-0012), and none of this is
- * the plan. A request is a conversation about a future change; only its approved outcome
- * — a presence record or an absence — ever reaches the schedule, and that arrives through
- * the ordinary schedule query like any other server-side write.
+ * Its own module rather than part of `schedule.ts`, because none of this is *the plan*.
+ * A request is a conversation about a future change; only its approved outcome — a
+ * presence record or an absence — ever reaches the schedule, and that arrives through the
+ * ordinary schedule query like any other server-side write (ADR-0067).
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, qs } from './client.ts';
-import { camelToUpperSnake, upperSnakeToCamel } from './mapping.ts';
 import type { DayPortion, IsoDate, IsoInstant, PersonId } from '../domain/types.ts';
 import { notify } from './notifier.ts';
 
@@ -111,13 +109,13 @@ function requestFromWire(w: Record<string, unknown>): RequestRecord {
     from: w.from as IsoDate,
     to: w.to as IsoDate,
     ...(w.note ? { note: w.note as string } : {}),
-    state: camelToUpperSnake<RequestState>(w.state as string),
+    state: (w.state as string) as RequestState,
     ...(w.failureReason ? { failureReason: w.failureReason as string } : {}),
     createdAt: w.createdAt as IsoInstant,
     decisions: decisions.map((d) => ({
       id: d.id as string,
       step: d.step as number,
-      decision: camelToUpperSnake<ApprovalDecisionKind>(d.decision as string),
+      decision: (d.decision as string) as ApprovalDecisionKind,
       byPersonId: d.byPersonId as string,
       ...(d.comment ? { comment: d.comment as string } : {}),
       at: d.at as IsoInstant,
@@ -146,7 +144,7 @@ export function useRequestTypes() {
           id: t.id as string,
           code: t.code as string,
           label: t.label as string,
-          category: camelToUpperSnake<RequestCategory>(t.category as string),
+          category: (t.category as string) as RequestCategory,
           ...(t.presenceTypeId ? { presenceTypeId: t.presenceTypeId as string } : {}),
         }),
       );
@@ -181,7 +179,7 @@ export function useNotifications() {
         items: wire.notifications.map(
           (n): NotificationItem => ({
             id: n.id as string,
-            kind: camelToUpperSnake<NotificationKind>(n.kind as string),
+            kind: (n.kind as string) as NotificationKind,
             title: n.title as string,
             ...(n.body ? { body: n.body as string } : {}),
             ...(n.subjectType ? { subjectType: n.subjectType as string } : {}),
@@ -262,7 +260,7 @@ export function useCreateRequest() {
       note: args.note ?? null,
       siteLocationId: args.siteLocationId ?? null,
       siteLabel: args.siteLabel ?? null,
-      portion: (args.portion ?? 'FULL').toLowerCase(),
+      portion: args.portion ?? 'FULL',
     }),
     'Request sent. It is now waiting on an approver.',
   );
@@ -275,7 +273,7 @@ export function useDecideRequest() {
     readonly comment?: string;
   }>((args) =>
     apiPost(`/api/requests/${args.id}/decide`, {
-      decision: upperSnakeToCamel(args.decision),
+      decision: args.decision,
       comment: args.comment ?? null,
     }),
     'Decision recorded. The schedule has been updated.',

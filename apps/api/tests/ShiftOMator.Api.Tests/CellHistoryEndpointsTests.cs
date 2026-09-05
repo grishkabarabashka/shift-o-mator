@@ -70,7 +70,7 @@ public class CellHistoryEndpointsTests(ApiTestFactory factory)
         var requestId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
         await client.PostAsJsonAsync($"/api/requests/{requestId}/decide", new
         {
-            decision = "approve",
+            decision = "APPROVE",
             comment = "fine",
         });
 
@@ -79,18 +79,18 @@ public class CellHistoryEndpointsTests(ApiTestFactory factory)
         var events = body.GetProperty("events").EnumerateArray().ToList();
 
         var kinds = events.Select(e => e.GetProperty("kind").GetString()).ToList();
-        Assert.Contains("requestSubmitted", kinds);
-        Assert.Contains("requestDecided", kinds);
+        Assert.Contains("REQUEST_SUBMITTED", kinds);
+        Assert.Contains("REQUEST_DECIDED", kinds);
         // The presence the approval created is audited too, so all three are on one axis.
-        Assert.Contains("presenceChanged", kinds);
+        Assert.Contains("PRESENCE_CHANGED", kinds);
 
         // Ordered by time, which is the entire point: "was the ask in before the change".
-        Assert.True(kinds.IndexOf("requestSubmitted") < kinds.IndexOf("requestDecided"));
+        Assert.True(kinds.IndexOf("REQUEST_SUBMITTED") < kinds.IndexOf("REQUEST_DECIDED"));
 
-        var submitted = events.First(e => e.GetProperty("kind").GetString() == "requestSubmitted");
+        var submitted = events.First(e => e.GetProperty("kind").GetString() == "REQUEST_SUBMITTED");
         Assert.Equal("school run", submitted.GetProperty("comment").GetString());
 
-        var decided = events.First(e => e.GetProperty("kind").GetString() == "requestDecided");
+        var decided = events.First(e => e.GetProperty("kind").GetString() == "REQUEST_DECIDED");
         Assert.Equal("fine", decided.GetProperty("comment").GetString());
         Assert.Equal(me, decided.GetProperty("actorId").GetString());
     }
@@ -119,7 +119,7 @@ public class CellHistoryEndpointsTests(ApiTestFactory factory)
 
         Assert.Contains(
             body.GetProperty("events").EnumerateArray(),
-            e => e.GetProperty("kind").GetString() == "presenceChanged");
+            e => e.GetProperty("kind").GetString() == "PRESENCE_CHANGED");
     }
 
     [Fact]

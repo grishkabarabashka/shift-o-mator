@@ -21,7 +21,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPost, apiPut } from './client.ts';
 import {
   absenceCapacityRuleFromWire,
-  camelToUpperSnake,
   dayConfigurationFromWire,
   eventTypeFromWire,
   holidayFromWire,
@@ -30,7 +29,6 @@ import {
   shiftFromWire,
   timeToWire,
   unitFromWire,
-  upperSnakeToCamel,
   weekdaysToWire,
 } from './mapping.ts';
 import { referenceQueryKey } from './queries.ts';
@@ -43,6 +41,7 @@ import type {
   DayConfigKey,
   EventType,
   GroupBy,
+  OrgCategory,
   Holiday,
   Location,
   PlanningUnit,
@@ -205,7 +204,7 @@ export function eventTypeToWire(t: EventType): EventTypeRequest {
     label: t.label,
     shortLabel: t.shortLabel,
     color: t.color,
-    category: upperSnakeToCamel(t.category),
+    category: t.category,
     blocksAssignment: t.blocksAssignment,
     countsTowardCapacity: t.countsTowardCapacity,
     requiresApproval: t.requiresApproval,
@@ -243,7 +242,7 @@ export function presenceTypeToWire(t: PresenceType): PresenceTypeRequest {
     glyph: t.glyph,
     color: t.color,
     namesALocation: t.namesALocation,
-    countsAs: upperSnakeToCamel(t.countsAs),
+    countsAs: t.countsAs,
     requiresApproval: t.requiresApproval,
     isActive: t.isActive,
     sortOrder: t.sortOrder,
@@ -293,8 +292,8 @@ export function unitToWire(
 ): UnitRequest {
   return {
     name: u.name,
-    kind: upperSnakeToCamel(u.kind as UnitKind),
-    groupBy: upperSnakeToCamel(u.groupBy as GroupBy),
+    kind: u.kind as UnitKind,
+    groupBy: u.groupBy as GroupBy,
     primaryLocationId: u.primaryLocationId,
     locationIds: [...u.locationIds],
     compOffPolicy: compOffPolicyToWire(u.compOffPolicy),
@@ -321,7 +320,7 @@ export function absenceCapacityRuleToWire(r: AbsenceCapacityRule): AbsenceCapaci
     unitId: r.unitId,
     scopeKind: r.scope.kind === 'SHIFT_POOL' ? 'shiftPool' : 'unit',
     scopeShiftId: r.scope.kind === 'SHIFT_POOL' ? r.scope.shiftId : null,
-    durationBucket: upperSnakeToCamel(r.durationBucket as AbsenceDurationBucket),
+    durationBucket: r.durationBucket as AbsenceDurationBucket,
     longThresholdWorkdays: r.longThresholdWorkdays,
     maxConcurrent: r.maxConcurrent,
     countsEventTypeIds: [...r.countsEventTypeIds],
@@ -491,7 +490,7 @@ export function personAdminToWire(p: {
     email: p.email?.trim() ? p.email.trim().toLowerCase() : null,
     unitId: p.unitId,
     locationId: p.locationId,
-    orgCategory: upperSnakeToCamel(p.orgCategory),
+    orgCategory: p.orgCategory,
     isActive: p.isActive,
     isIncluded: p.isIncluded,
   };
@@ -517,7 +516,7 @@ function adminPersonFromWire(w: {
     ...(w.email ? { email: w.email } : {}),
     unitId: w.unitId,
     locationId: w.locationId,
-    orgCategory: camelToUpperSnake(w.orgCategory),
+    orgCategory: w.orgCategory as OrgCategory,
     isActive: w.isActive,
     isIncluded: w.isIncluded,
   };

@@ -21,21 +21,21 @@ export const MOCK_REQUEST_TYPES = [
     id: 'rt-remote',
     code: 'REMOTE',
     label: 'Work remotely',
-    category: 'presence',
+    category: 'PRESENCE',
     presenceTypeId: 'pt-remote',
   },
   {
     id: 'rt-office',
     code: 'OFFICE',
     label: 'Work from an office',
-    category: 'presence',
+    category: 'PRESENCE',
     presenceTypeId: 'pt-office',
   },
-  { id: 'rt-vacation', code: 'VACATION', label: 'Annual leave', category: 'leave' },
+  { id: 'rt-vacation', code: 'VACATION', label: 'Annual leave', category: 'LEAVE' },
   // Sickness is requested like any other leave (ADR-0052); without a type for it the
   // menu offered sick leave and had nowhere to send it.
-  { id: 'rt-sick', code: 'SICK', label: 'Sick leave', category: 'leave' },
-  { id: 'rt-comp-day', code: 'COMP_DAY', label: 'Comp day', category: 'compDay' },
+  { id: 'rt-sick', code: 'SICK', label: 'Sick leave', category: 'LEAVE' },
+  { id: 'rt-comp-day', code: 'COMP_DAY', label: 'Comp day', category: 'COMP_DAY' },
 ] as const;
 
 export interface MockRequest {
@@ -69,11 +69,6 @@ export interface MockNotification {
   readAt: string | null;
 }
 
-function camelOf(value: string): string {
-  const [first = '', ...rest] = value.toLowerCase().split('_');
-  return first + rest.map((part) => part[0]?.toUpperCase() + part.slice(1)).join('');
-}
-
 
 function buildPresence(body: Record<string, unknown>, id: string): PresenceRecord {
   return {
@@ -94,7 +89,7 @@ function buildPresence(body: Record<string, unknown>, id: string): PresenceRecor
 export function presenceToWire(p: PresenceRecord) {
   return {
     ...p,
-    source: camelOf(p.source),
+    source: p.source,
     siteLocationId: p.siteLocationId ?? null,
     siteLabel: p.siteLabel ?? null,
     requestId: p.requestId ?? null,
@@ -158,7 +153,7 @@ export function selfServiceHandlers(base: string) {
           scope === 'mine'
             ? r.subjectPersonId === me
             : scope === 'inbox'
-              ? r.state === 'submitted'
+              ? r.state === 'SUBMITTED'
               : true,
         )
         .map((r) => ({
@@ -172,7 +167,7 @@ export function selfServiceHandlers(base: string) {
           // The stub caller is a unit manager, which is what the seeded planner route
           // resolves to — so they are both requester and approver here, same as on a
           // real single-manager unit.
-          callerCanDecide: r.state === 'submitted',
+          callerCanDecide: r.state === 'SUBMITTED',
         }));
       return HttpResponse.json({ requests: views });
     }),
@@ -193,14 +188,14 @@ export function selfServiceHandlers(base: string) {
         from: body.from as string,
         to: body.to as string,
         note: (body.note as string | null) ?? null,
-        state: 'submitted',
+        state: 'SUBMITTED',
         createdAt: now,
         decisions: [],
       };
       mockBackend.requests.push(created);
       mockBackend.notifications.push({
         id: mockBackend.nextId('note'),
-        kind: 'requestSubmitted',
+        kind: 'REQUEST_SUBMITTED',
         title: 'A request needs your decision',
         body: `${created.from} – ${created.to}`,
         subjectType: 'request',
@@ -215,7 +210,7 @@ export function selfServiceHandlers(base: string) {
       const body = (await request.json()) as { decision: string; comment?: string | null };
       const found = mockBackend.requests.find((r) => r.id === params.id);
       if (!found) return HttpResponse.json({ code: 'REQUEST_NOT_FOUND' }, { status: 404 });
-      if (found.state !== 'submitted') {
+      if (found.state !== 'SUBMITTED') {
         return HttpResponse.json({ code: 'REQUEST_NOT_PENDING' }, { status: 400 });
       }
 
@@ -229,8 +224,8 @@ export function selfServiceHandlers(base: string) {
         at: now,
       });
 
-      if (body.decision !== 'approve') {
-        found.state = 'rejected';
+      if (body.decision !== 'APPROVE') {
+        found.state = 'REJECTED';
         return HttpResponse.json(found);
       }
 
@@ -254,14 +249,14 @@ export function selfServiceHandlers(base: string) {
           presence: [...mockBackend.data.presence, created],
         };
       }
-      found.state = 'applied';
+      found.state = 'APPLIED';
       return HttpResponse.json(found);
     }),
 
     http.post(`${base}/api/requests/:id/cancel`, ({ params }) => {
       const found = mockBackend.requests.find((r) => r.id === params.id);
       if (!found) return HttpResponse.json({ code: 'REQUEST_NOT_FOUND' }, { status: 404 });
-      found.state = 'cancelled';
+      found.state = 'CANCELLED';
       mockBackend.data = {
         ...mockBackend.data,
         presence: mockBackend.data.presence.filter((p) => p.requestId !== found.id),
@@ -282,7 +277,7 @@ export function selfServiceHandlers(base: string) {
         .flatMap((r) => [
           {
             at: r.createdAt,
-            kind: 'requestSubmitted',
+            kind: 'REQUEST_SUBMITTED',
             actorId: r.subjectPersonId,
             actorName: null,
             summary: `Requested: ${r.typeId} (${r.from}..${r.to})`,
@@ -290,7 +285,7 @@ export function selfServiceHandlers(base: string) {
           },
           ...r.decisions.map((d) => ({
             at: d.at,
-            kind: 'requestDecided',
+            kind: 'REQUEST_DECIDED',
             actorId: d.byPersonId,
             actorName: null,
             summary: `${d.decision}: ${r.typeId}`,
