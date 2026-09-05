@@ -1,13 +1,17 @@
 /**
- * NOTE: A thin fetch client on top of the generated `schema.d.ts`.
+ * NOTE: A thin fetch client. Paths and bodies are typed by the callers in
+ * `src/api/*`, against `domain/types.ts`.
  *
- * WHY: Response bodies aren't typed via `schema.d.ts` — the backend's minimal
- * APIs return anonymous objects without `.Produces<T>()`, so the OpenAPI
- * document carries no response schemas (see `scripts/generate-api-schema.mjs`).
- * Paths, query parameters, and request bodies are typed via `paths` from the
- * schema; response bodies are typed by hand in `src/api/mapping.ts`, which
- * already has rich domain types (`domain/types.ts`) that the backend DTOs
- * mirror anyway.
+ * WHY no generated types: there used to be a committed `schema.d.ts`
+ * (5 400 lines) produced from the backend's OpenAPI document, plus a script
+ * that installed an isolated `openapi-typescript` because it could not run
+ * against this project's TypeScript. Nothing ever imported it — the minimal
+ * APIs return anonymous objects without `.Produces<T>()`, so the document
+ * carries no response schemas, and every response was hand-typed anyway. A
+ * generated file nobody reads is not type safety, it is a file to keep in
+ * sync. If we want types from the server, the fix is `.Produces<T>()` on the
+ * endpoints first — a generator on top of a document with no response shapes
+ * cannot produce anything worth importing.
  */
 
 export const API_BASE_URL: string =

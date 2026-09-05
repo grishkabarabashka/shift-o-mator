@@ -26,10 +26,6 @@ bin/
 obj/
 *.user
 
-# Scratch install used only to run openapi-typescript against typescript@5,
-# isolated from the project's typescript@7 — see apps/web/scripts/generate-api-schema.mjs.
-/apps/web/.openapi-gen/
-
 # Obsidian keeps per-user editor state (open panes, plugin toggles) in here; it is
 # personal, not project configuration — same reason /.idea/ and /.vscode/ are ignored.
 /.obsidian/

@@ -9,9 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "api:schema": "node scripts/generate-api-schema.mjs",
-    "api:schema:check": "node scripts/generate-api-schema.mjs --check"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.20.0",

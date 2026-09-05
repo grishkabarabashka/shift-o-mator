@@ -10,8 +10,6 @@
     "build": "npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspace apps/web",
     "test": "npm run test --workspace apps/web",
-    "test:run": "npm run test:run --workspace apps/web",
-    "api:schema": "npm run api:schema --workspace apps/web",
-    "api:schema:check": "npm run api:schema:check --workspace apps/web"
+    "test:run": "npm run test:run --workspace apps/web"
   }
 }
