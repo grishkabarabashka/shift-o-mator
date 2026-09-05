@@ -67,7 +67,7 @@ the repo root first (npm workspace, one install for both `apps/web` and the root
 Full local verification, matching what CI would run once one exists:
 
 ```bash
-npm run typecheck && npm run test:run && npm run build && npm run api:schema:check
+npm run typecheck && npm run test:run && npm run build
 cd apps/api && dotnet build && dotnet test
 ```
 
@@ -285,9 +285,17 @@ authenticate as the pod's managed identity: a connection string with no password
 issuer URL and a public Application ID URI. Key Vault enters only for a SQL password or a
 key-authenticated model endpoint; see "What Key Vault is for" in section 5.
 
+> **Renamed:** this key used to be `ConnectionStrings:Schedule`, from back when the
+> `DbContext` was called `ScheduleDbContext`. Both are now `ShiftOMator`. **An already
+> deployed release keeps the old environment variable until it is upgraded** — the
+> ConfigMap emits `ConnectionStrings__ShiftOMator`, and an API pod started against the old
+> ConfigMap will crash-loop with `Missing ConnectionStrings:ShiftOMator`. `helm upgrade`
+> with the chart from this commit fixes it; nothing else needs changing, because the value
+> itself is unchanged.
+
 | Key | Local | Sandbox/Production | Notes |
 |---|---|---|---|
-| `ConnectionStrings:Schedule` | LocalDB, hardcoded | `api.config.connectionString` | `Authentication=Active Directory Default`, so no password and no vault |
+| `ConnectionStrings:ShiftOMator` | LocalDB, hardcoded | `api.config.connectionString` | `Authentication=Active Directory Default`, so no password and no vault |
 | `Auth:Mode` | `Stub` | `EntraId` | switches `StubAuthenticationHandler` vs `AddJwtBearer` in `Program.cs` |
 | `Auth:StubPersonId` / `Auth:StubRole` | empty (real grants) | unused in EntraId mode | **must stay empty** in Stub mode — see CLAUDE.md, this was a live bug once |
 | `Auth:Jwt:Authority` | user secrets (section 2a) | `api.config.jwtAuthority` | `https://login.microsoftonline.com/<tenant-id>/v2.0` — a public URL |
@@ -518,7 +526,7 @@ cases keep it:
    azureKeyVault:
      secrets:
        - objectName: shift-o-mator-connection-string
-         envVarName: ConnectionStrings__Schedule
+         envVarName: ConnectionStrings__ShiftOMator
        - objectName: shift-o-mator-ai-api-key
          envVarName: Ai__ApiKey
    ```
@@ -974,14 +982,14 @@ helm -n shift-o-mator rollback shift-o-mator <revision>
 ```
 
 A failed deployment doesn't touch data — migrations/seeding run once at container startup
-against whatever `ConnectionStrings:Schedule` points at; rolling back the Helm release
+against whatever `ConnectionStrings:ShiftOMator` points at; rolling back the Helm release
 does not roll back the database.
 
 ## 9. Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
-| API pod `CrashLoopBackOff`, log says `Missing ConnectionStrings:Schedule` | `api.config.connectionString` is empty in the values file for that environment |
+| API pod `CrashLoopBackOff`, log says `Missing ConnectionStrings:ShiftOMator` | `api.config.connectionString` is empty in the values file for that environment |
 | API pod starts, then SQL login fails for the managed identity | the `CREATE USER … FROM EXTERNAL PROVIDER` step (section 5) was skipped, or names the client id instead of the identity's **name** |
 | SQL errors mentioning `CREATE TABLE` permission | the identity lacks `db_ddladmin`, which EF migrations need at startup |
 | `Active Directory Default` picks the wrong identity, or none | the pod is missing `azure.workload.identity/use: "true"` — check `workloadIdentity.enabled` is true and the cluster has `--enable-workload-identity` |

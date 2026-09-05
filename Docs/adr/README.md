@@ -15,7 +15,7 @@ not something else?"
 | [0008](0008-events-are-dated-coverage-rules.md) | Events (DR test, training) are dated day configurations, not absences | accepted |
 | [0009](0009-three-severity-levels.md) | Three validation levels: BLOCKING, WARNING, INFO; soft rules never block | narrowed by 0024, 0035, 0037 |
 | [0010](0010-absence-limits-by-role-pool.md) | Absence limits apply per unit and per shift pool | scope updated by 0032 (per unit); the approval-time check it assumes exists only since 0047 |
-| [0012](0012-schedule-repository-boundary.md) | ScheduleRepository is the single data boundary; every method async from day one | accepted |
+
 | [0013](0013-headless-ui-layer.md) | Headless UI (Radix) so the shell can be swapped for a corporate component library | accepted |
 | [0014](0014-own-grid-and-timeline.md) | Grid and timeline are hand-built, not AG Grid or Gantt charts | accepted |
 | [0015](0015-optimistic-drafts-and-publication.md) | Optimistic drafts and atomic publication (supersedes 0011) | accepted |
@@ -66,6 +66,8 @@ not something else?"
 | [0063](0063-runtime-settings-are-rows.md) | A setting that takes effect per request is a row, not configuration (amends 0062, extends 0059) | accepted |
 | [0064](0064-a-notification-policy-and-a-log.md) | What gets sent is a matrix; what was sent is a log (extends 0044, 0063) | accepted |
 | [0065](0065-the-calendar-allowlist-is-rows-not-a-key.md) | The holiday-import allowlist is reference-data rows, not a settings key (sibling to 0063) | accepted |
+| [0066](0066-the-wire-writes-enums-the-way-the-client-does.md) | The wire writes enums the way the client already does | accepted |
+| [0067](0067-one-owner-for-each-kind-of-state.md) | One owner for each kind of state (**supersedes 0012**, narrows 0015) | accepted |
 
 ## Superseded decisions (archive)
 
@@ -79,6 +81,7 @@ decision.
 | [0003](0003-planning-unit-not-geography.md) | Planning unit is organizational, not geographic | 0020 → 0032 (PlanningUnit single rule axis) |
 | [0004](0004-roles-belong-to-unit.md) | Roles belong to a unit; no global role catalog | 0032 (PlanningUnit single rule axis) |
 | [0011](0011-checkout-instead-of-realtime.md) | Period locking via check-out | 0015 (optimistic drafts) |
+| [0012](0012-schedule-repository-boundary.md) | ScheduleRepository is the single data boundary | 0067 (one owner per kind of state; the async rule survives) |
 | [0018](0018-shift-distinct-from-role.md) | Shift is distinct from role | 0033 (one Shift entity with absolute window) |
 | [0019](0019-service-transition-as-category.md) | Service Transition as category with cross-region view | 0020 → 0032 (PlanningUnit single axis) |
 | [0020](0020-planning-unit-and-region.md) | Region and planning unit are orthogonal axes | 0032 (PlanningUnit single rule axis) |

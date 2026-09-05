@@ -69,7 +69,7 @@ superseded, if you only want what's still true today.
 | [0009](adr/0009-three-severity-levels.md) | Three validation levels; soft rules don't block | narrowed by 0024, 0035, 0037 |
 | [0010](adr/0010-absence-limits-by-role-pool.md) | Absence limits per unit and per shift pool | scope updated by 0032; the approval-time check exists only since 0047 |
 | [0011](adr/0011-checkout-instead-of-realtime.md) | Period locking via check-out | **superseded by 0015** |
-| [0012](adr/0012-schedule-repository-boundary.md) | `ScheduleRepository` is the single data boundary | narrowed by 0041 |
+| [0012](adr/0012-schedule-repository-boundary.md) | `ScheduleRepository` is the single data boundary | **superseded by 0067**; the async rule survives |
 | [0013](adr/0013-headless-ui-layer.md) | Headless UI layer for a cheap shell swap | amended by 0022 |
 | [0014](adr/0014-own-grid-and-timeline.md) | Timeline and grid built in-house | accepted |
 | [0015](adr/0015-optimistic-drafts-and-publication.md) | Optimistic drafts and atomic publication | amended by 0042 |
@@ -119,4 +119,9 @@ superseded, if you only want what's still true today.
 | [0059](adr/0059-setup-is-a-screen-not-a-flag.md) | Setup is a screen, not a flag | accepted |
 | [0060](adr/0060-the-model-is-a-deployment-not-a-vendor.md) | The model is a deployment, not a vendor | accepted |
 | [0061](adr/0061-settings-saves-people-as-one-unit.md) | Settings saves people as one unit | accepted |
-| [0062](adr/0062-one-source-of-roles-by-default.md) | One source of roles by default: the database | accepted |
+| [0062](adr/0062-one-source-of-roles-by-default.md) | One source of roles by default: the database | accepted; the switch moved to a row by 0063 |
+| [0063](adr/0063-runtime-settings-are-rows.md) | A setting that takes effect per request is a row, not configuration | accepted |
+| [0064](adr/0064-a-notification-policy-and-a-log.md) | What gets sent is a matrix; what was sent is a log | accepted |
+| [0065](adr/0065-the-calendar-allowlist-is-rows-not-a-key.md) | The holiday-import allowlist is rows, not a settings key | accepted |
+| [0066](adr/0066-the-wire-writes-enums-the-way-the-client-does.md) | The wire writes enums the way the client already does | accepted |
+| [0067](adr/0067-one-owner-for-each-kind-of-state.md) | One owner for each kind of state | accepted |

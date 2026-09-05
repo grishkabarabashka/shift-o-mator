@@ -26,11 +26,11 @@ published and draft data both live server-side.
 ```
 features/          screens and components
     ↓
-store/             Zustand: draft session metadata, UI state (range, unit, selection)
+store/             Zustand: the draft, and the screen's own state — plus useDataset(),
+                   where the draft meets the query cache
     ↓
-api/               TanStack Query hooks and OpenAPI-generated types
-    ↓
-data/              HttpScheduleRepository, speaks to /api/* endpoints
+api/               TanStack Query hooks (queries.ts), writes (schedule.ts),
+                   transport (client.ts), wire↔domain (mapping.ts)
     ↓
 engine/            client-side utilities: date math, timeline layout, cell display logic
     ↓
@@ -41,77 +41,155 @@ Frontend does not compute coverage, validation, or candidate ranking — those a
 server responsibilities. The `engine/` directory now contains only layout and display
 logic, not domain logic.
 
+`data/` used to sit between `store/` and `api/`, holding `ScheduleRepository` and its one
+implementation. It is deleted
+([ADR-0067](adr/0067-one-owner-for-each-kind-of-state.md)).
+
 ## Backend layering
 
+Four projects. The arrows are **project references**, so the compiler enforces them —
+this is not a convention that can drift.
+
 ```
-ShiftOMator.Api                    minimal APIs, DTOs, auth, OpenAPI document
-    ↓
-ShiftOMator.Application            domain services and engines
-    ├─ CoverageCalculator           coverage snapshots per unit/date
-    ├─ Validator                    issues and validation rules
-    ├─ CandidateRanker              eligible person ranking for Suggest and auto-populate
-    ├─ CompDayService               accrual window search and balance computation
-    ├─ AutoPopulateService          range generator using CandidateRanker
-    ├─ DraftService                 session lifecycle, change batching, publish
-    ├─ RequestService               request state machine and approval routing
-    ├─ IssueDigest, CandidateDigest deterministic input for explanations
-    └─ DateHelpers, DayConfigurationResolver, others
-    ↓
-ShiftOMator.Infrastructure         EF Core DbContext, migrations, seeding
-    └─ ScheduleDbContext            all entities, configured for LocalDB or SQL Server
-    ↓
-ShiftOMator.Domain                 entities and enums — mirrors frontend's domain/types.ts
+ShiftOMator.Api                minimal APIs, DTOs, auth, OpenAPI document
+  │                            → Application, Infrastructure, Domain
+  ├─ *Endpoints.cs              one file per resource; Admin/ for /api/admin/*
+  ├─ Contracts/                 every request and response is a named record
+  ├─ Auth/                      ActorResolver, Capabilities, ChangeAudit, the stub handler
+  ├─ Insights/                  ChatModel and the two explanation services
+  └─ Setup/                     the first-run endpoints and SetupGateMiddleware
+  │
+  ├──────────────┐
+  ↓              ↓
+Infrastructure   Application
 ```
+
+```
+ShiftOMator.Infrastructure     persistence — EF Core, migrations, seeding
+  │                            → Application, Domain
+  ├─ ShiftOMatorDbContext       all entities, LocalDB or SQL Server
+  ├─ Migrations/                one migration while there is no production data
+  ├─ Seed/Seeder                reference rows, topped up per row on every start
+  ├─ Setup/SetupService         the wizard's presets and Reset
+  ├─ ScheduleDatasetLoader      loads the date-scoped dataset the engines run on
+  └─ Notifications/Notifier     writes notifications and their planned deliveries
+  ↓
+ShiftOMator.Application        engines and services — pure, no DbContext
+  │                            → Domain
+  ├─ CoverageCalculator         coverage snapshots per unit/date
+  ├─ Validator                  issues and validation rules
+  ├─ CandidateRanker            eligible person ranking for Suggest and auto-populate
+  ├─ CompDayService             accrual window search and balance computation
+  ├─ CompDayPlacement           which dates may be asked for — shared by client and server
+  ├─ AutoPopulateService        range generator using CandidateRanker
+  ├─ RangeSupersede             the arithmetic of one day, one record (ADR-0052)
+  ├─ Drafts/DraftService        session lifecycle, change batching, publish
+  ├─ Requests/RequestService    request state machine, approver resolution
+  ├─ Notifications/…Fanout      which deliveries an event owes, as a pure function
+  ├─ IssueDigest, CandidateDigest  deterministic input for explanations
+  ├─ IcsCalendar, IcsWriter     the subscribable feed
+  └─ DateHelpers, DayConfigurationResolver, ScheduleDataset, DatasetIndex
+  ↓
+ShiftOMator.Domain             entities and enums — mirrors frontend's domain/types.ts
+```
+
+**`Infrastructure` sits *above* `Application`, not below it.** This is the one place the
+usual four-layer picture is misleading, and the code is right: `Application` references
+only `Domain`, so it cannot hold a `DbContext` even by accident. Anything that has to
+both compute and persist is therefore split — `NotificationFanout.Plan` is the pure
+decision in `Application`, `Notifier.NotifyAsync` is the write in `Infrastructure`
+([ADR-0064](adr/0064-a-notification-policy-and-a-log.md)). `Api` references all three and
+is where they are wired together.
 
 Domain logic is implemented once, on the server, in C#. No client-side shadow
 implementation. Coverage and validation run server-side in `CoverageCalculator` and
-`Validator`; results are cached briefly and reflected immediately on draft changes
-via optional `draftId` parameter to `GET /api/schedule`.
+`Validator`; results are reflected immediately on draft changes via the optional
+`draftId` parameter to `GET /api/schedule`.
 
-## Data boundary
+## Where state lives
 
-`ScheduleRepository` is the single point of access from the frontend
-([ADR-0012](adr/0012-schedule-repository-boundary.md)). The implementation is now
-`HttpScheduleRepository`, every method async and making REST calls.
+There are two state systems on the client and they own different things
+([ADR-0067](adr/0067-one-owner-for-each-kind-of-state.md)). Which one to reach for is
+decided by a single question: **did this come from the server, or did the user just do
+it here?**
 
-The backend exposes the same logical interface over HTTP; see "Target API shape" below.
+| | Owner | What it holds | Read it with |
+|---|---|---|---|
+| Server data | **TanStack Query** | `reference`, the published schedule, requests, notifications, admin lists, My calendar | `useDataset()`, `useReference()`, or the specific hook in `api/` |
+| The draft | **Zustand** (`useSchedule`) | `session`, `changes`, undo/redo stacks, `pendingSync`, `syncError`, `actionError`, `status`, `unitId`, `range` | `useSchedule((s) => …)` |
+| Screen state | **Zustand** (`useUi`) | selection, visible range and zoom, which dialog is open | `useUi((s) => …)` |
+
+`plan` — what the grid actually draws — belongs to neither, because it is **derived**:
+`plan = applyChanges(published, changes)`. `useDataset()` is the one place that computes
+it, along with the `DatasetIndex` over it.
 
 ```javascript
-// Frontend ScheduleRepository interface (HttpScheduleRepository)
-loadReference()                                 GET /api/reference
-loadPublished(unitId, range, draftId?)          GET /api/schedule?unitId=...&from=...&to=...&draftId?
-openDraft(unitId, range)                        POST /api/drafts
+// store/useDataset.ts — the only place the two systems meet
+useDataset()   → { reference, published, plan, index }
+useReference() → reference        // narrow, for callers that must not re-render on an edit
+datasetNow()   → the same, read once, outside React (tests, non-hook callers)
+```
+
+Three rules follow, and all three used to be violated:
+
+**A direct write invalidates; it does not patch.** Absence, presence and acknowledgement
+writes call the API and then invalidate `['schedule']` and `['my-calendar']` — awaited,
+with `refetchType: 'all'` because the screen that most needs the update is often not
+mounted. There is no second path that edits a local copy.
+
+**Object identity is load-bearing.** Sixteen components read `useDataset()`, so the
+derivation is memoized at module scope on input identity rather than per component;
+`publishedOf()` memoizes the `ScheduleResponse → PlanData` reshape for the same reason.
+
+**Nothing subscribes to the query cache by hand.** The previous design kept a store copy
+in step with a `getQueryCache().subscribe` listener that compared keys element by element.
+That is deleted along with the copy.
+
+## Data access
+
+Reads are TanStack Query hooks in `api/queries.ts`; writes are plain async functions in
+`api/schedule.ts`. Both speak to `/api/*` through `api/client.ts`.
+
+```javascript
+// api/queries.ts — reads
+referenceQueryOptions()                         GET /api/reference
+scheduleQueryOptions(unitId, range, draftId?)   GET /api/schedule?unitId=…&from=…&to=…&draftId?
+
+// api/schedule.ts — writes
+openDraft(unitId, range, editorId)              POST /api/drafts
 syncChanges(sessionId, items)                   POST /api/drafts/{id}/changes/sync
-removeDraftChange(sessionId, changeId)          DELETE /api/drafts/{id}/changes/{changeId}
 publishDraft(sessionId)                         POST /api/drafts/{id}/publish
 discardDraft(sessionId)                         POST /api/drafts/{id}/discard
-listOverlappingDrafts(unitId, range, exclude)   GET /api/drafts?unitId=...&from=...&to=...
+listOverlappingDrafts(unitId, range, exclude)   GET /api/drafts?unitId=…&from=…&to=…
+listMyOpenDrafts(unitId, range)                 GET /api/drafts?mine=true
 savePresence(record) / deletePresence(id)       POST|PUT /api/presence, DELETE /api/presence/{id}
 saveAbsence(record) / deleteAbsence(id)         POST|PUT /api/absences, DELETE /api/absences/{id}
-history(range)                                  GET /api/history
+savePerson(person)                              PUT  /api/people/{id}
+saveAcknowledgement(ack)                        POST /api/acknowledgements
 ```
 
 `openDraft` takes an `editorId` parameter that it deliberately does **not** send: the
 server takes the editor from the token ([ADR-0039](adr/0039-actor-identity-from-the-token.md)),
 and the caller keeps the value only to filter *other people's* overlapping drafts.
 
-Requests, approvals and notifications sit **outside** this boundary, as TanStack Query
-Presence and absences sit on the repository but **outside the draft**: they are direct
-writes (ADR-0043, ADR-0052), and an absence whose event type needs approval is refused by
-the server so it has to go through `/api/requests` instead.
-
-hooks in `api/requests.ts`. `ScheduleRepository` is the boundary for *the plan*
-([ADR-0012](adr/0012-schedule-repository-boundary.md)); a request is a conversation about
-a future change, and only its approved outcome ever reaches the schedule — through the
-ordinary schedule query, like any other server-side write.
+Presence and absences are direct writes that sit **outside the draft** (ADR-0043,
+ADR-0052); an absence whose event type needs approval is refused by the server, so it has
+to go through `/api/requests` instead. Requests, approvals and notifications are their own
+TanStack hooks in `api/requests.ts`: a request is a conversation about a future change,
+and only its approved outcome reaches the schedule — through the ordinary schedule query,
+like any other server-side write.
 
 ## API surface (implemented, Phases 2–14)
 
 Base path `/api`, OpenAPI document generated by `Microsoft.AspNetCore.OpenApi`
 (`/openapi/v1.json` in development). Every response is a named record in
-`ShiftOMator.Api.Contracts` — no anonymous objects — so the OpenAPI document and the
-generated `schema.d.ts` (`npm run api:schema:check`) actually describe what the wire
-sends.
+`ShiftOMator.Api.Contracts` — no anonymous objects — so the OpenAPI document describes
+the request side of the wire. It does **not** describe responses: the minimal APIs return
+without `.Produces<T>()`, so the document carries no response schemas. There used to be a
+generated `schema.d.ts` on top of it; nothing ever imported it, and it is deleted
+([ADR-0066](adr/0066-the-wire-writes-enums-the-way-the-client-does.md)). Response types are
+hand-written in `api/queries.ts` and `api/mapping.ts`. If we want generated types, adding
+`.Produces<T>()` comes first.
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -241,7 +319,7 @@ self-service traffic makes it matter.
 **A fresh database is a screen, not a flag** ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)).
 `SetupGateMiddleware` sits **before** authentication and answers `503 SETUP_REQUIRED` to
 everything except `/health/*`, `/api/setup/*`, `/openapi` and `/scalar` — the last two
-because `npm run api:schema` fetches the document against a database nobody has set up.
+because the OpenAPI document has to be readable against a database nobody has set up yet.
 `SystemSetup` is one row with a fixed key and its presence is the whole condition; an
 inferred one ("no planning units exist") would be satisfied by a half-written database and
 reopen the wizard on top of itself.
@@ -285,9 +363,10 @@ walkthrough, rollback and troubleshooting — is [../deploy/README.md](../deploy
 apps/web/src/
   domain/                types only (no fixtures — seeded on backend)
   engine/                dates, period math, timeline layout, cellValue and presence projections
-  data/                  ScheduleRepository interface and HttpScheduleRepository
-  store/                 Zustand: useSchedule (draft metadata), useUi (selection, range)
-  api/                   TanStack Query hooks, OpenAPI-generated schema
+  store/                 useSchedule (the draft), useUi (selection, range, dialogs),
+                         useDataset (draft + query cache), datasetCache (same, sync)
+  api/                   queries.ts (reads), schedule.ts (writes), client.ts (transport),
+                         mapping.ts (wire<->domain), plus a module per feature area
   features/              planning grid, coverage strip, issues, absences, comp days,
                          presence, requests, shell, settings
   ui/                    Radix UI wrappers, theme tokens, elevation ladder, toasts,
@@ -371,13 +450,12 @@ through.
 npm run typecheck
 npm run test:run
 npm run build
-npm run api:schema:check      # the generated types have not drifted from the OpenAPI document
 
 # Backend — from apps/api/
 dotnet build
 dotnet test
 ```
 
-`api:schema:check` is the one that catches a contract change nobody meant to make: it
-regenerates `apps/web/src/api/schema.d.ts` from the running API's OpenAPI document and
-fails if it differs from what is committed.
+There is no schema-drift check any more. What catches a contract change is the API test
+suite, which asserts on wire strings, plus the frontend suite running against MSW doubles
+that mirror the real shapes.

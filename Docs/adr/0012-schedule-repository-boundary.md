@@ -1,6 +1,12 @@
 # ADR-0012. `ScheduleRepository` is the single data boundary; every method is async
 
-**Status:** accepted — narrowed by
+**Status:** **superseded by [ADR-0067](0067-one-owner-for-each-kind-of-state.md)** — the
+interface is deleted. Two of its rules survive there: every call is async, and published
+assignments are never written directly. What did not survive is the claim below that this
+is a *single* boundary: by the time it was removed it had one implementation, one consumer,
+and nine sibling modules in `api/` calling `client.ts` directly.
+
+Previously: accepted — narrowed by
 [ADR-0041](0041-scoped-dataset-loading.md) on the server side (the dataset behind the
 boundary is loaded by date range, not wholesale). Self-service reads
 ([ADR-0045](0045-generic-request-envelope-typed-materialization.md)) sit outside this

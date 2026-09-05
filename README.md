@@ -117,7 +117,6 @@ In development the OpenAPI document is at `/openapi/v1.json` and a browsable ref
 npm run typecheck
 npm run test:run
 npm run build
-npm run api:schema:check    # needs the API running
 
 # Backend (from apps/api/)
 dotnet build
@@ -128,7 +127,7 @@ dotnet test                 # the API tests use a real LocalDB, not an in-memory
 
 | Setting | Default | Notes |
 |---|---|---|
-| `ConnectionStrings:Schedule` | LocalDB `ShiftOMator` | |
+| `ConnectionStrings:ShiftOMator` | LocalDB `ShiftOMator` | |
 | `Auth:Mode` | `Stub` | Anything else wires real JWT bearer validation from `Auth:Jwt` |
 | `Auth:StubPersonId` | *(empty)* | Pins which person the stub acts as; empty lets `ActorResolver` pick one |
 | `Auth:StubRole` | *(empty)* | **Leave it empty.** It *overrides* the person's real grants, so setting it means `RoleAssignment` is never read — which is how Settings and the Approve button went missing for everybody |
@@ -149,5 +148,3 @@ dotnet test                 # the API tests use a real LocalDB, not an in-memory
 | `npm test` | Vitest in watch mode |
 | `npm run test:run` | Vitest, single run (CI) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run api:schema` | Regenerate OpenAPI types from the running backend |
-| `npm run api:schema:check` | Fail the build if types drift from the schema (CI) |

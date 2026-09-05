@@ -16,13 +16,16 @@ the rota; time off and presence are written directly and reviewed by approval);
 **Phase 12** gave the UI a design language (elevation, measure, a type scale, real
 breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and the app
 deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
-Since Phase 14, six decisions landed outside a phase: the model is a **deployment**,
+Since Phase 14, eight decisions landed outside a phase: the model is a **deployment**,
 not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); directory
 roles are **off by default**, so the database is the single source (ADR-0062); a setting
 read per request is a **row**, not configuration (ADR-0063); notifications have a
 **policy matrix and a delivery log** (ADR-0064 — steps 1 and 2 of it; nothing is delivered
 externally yet); and the holiday-import allowlist is **rows**, not a settings key
-(ADR-0065). Code and design agree; the ADR index is complete through 0065.
+(ADR-0065); the wire writes enums the way the client already does (ADR-0066); and there
+is **one owner for each kind of state** — Query for server data, Zustand for the draft
+(ADR-0067, deleting `ScheduleRepository`). Code and design agree; the ADR index is
+complete through 0067.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -33,9 +36,12 @@ workspace root at the repository root with no other members.
 - `engine/` — client-side utilities: `dates` (parsing, formatting), `period` (zoom and
   range arithmetic), `timeline` (layout and rendering), `cellValue` (projection logic),
   `presence` (a **second**, independent projection — see trap 3 below)
-- `data/` — `ScheduleRepository` interface and `HttpScheduleRepository` (REST client)
-- `store/` — `useSchedule` (draft metadata), `useUi` (selection, range, dialogs)
-- `api/` — TanStack Query hooks, OpenAPI-generated types (`schema.d.ts`)
+- `store/` — `useSchedule` (the draft and the screen's own state), `useDataset`
+  (`useDataset()`/`useReference()` — the dataset every screen reads), `datasetCache`
+  (the same answers synchronously, for non-React callers), `useUi` (selection, range,
+  dialogs)
+- `api/` — TanStack Query hooks (`queries.ts` for reads), `schedule.ts` for the writes,
+  `client.ts` for transport, `mapping.ts` for wire↔domain
 - `features/` — `planning` (grid, `ShiftPalette`), `coverage` (strip), `issues` (panel),
   `absences`, `compdays`, `presence`, `requests`, `shell` (navigation, context, the
   location clock strip, the notification bell), `settings` (admin UI)
@@ -53,7 +59,7 @@ workspace root at the repository root with no other members.
 - `ShiftOMator.Application` — engines (coverage, validation, ranking, comp days,
   auto-populate), services (drafts, requests), digests (`IssueDigest`,
   `CandidateDigest`), helpers
-- `ShiftOMator.Infrastructure` — EF Core `ScheduleDbContext`, migrations, seeding
+- `ShiftOMator.Infrastructure` — EF Core `ShiftOMatorDbContext`, migrations, seeding
 - `ShiftOMator.Api` — minimal APIs, DTOs, auth scaffold, OpenAPI emission
 
 **Tests:**
@@ -92,7 +98,6 @@ English mixed, and unifying it is out of scope.
 npm run typecheck
 npm run test:run
 npm run build
-npm run api:schema:check      # type generation has not drifted
 
 # Backend (from apps/api/)
 dotnet build
@@ -202,8 +207,30 @@ dotnet test
     March fail. Coverage resolves the configuration version effective on the date being
     evaluated. Colors and labels are not versioned. (ADR-0021)
 
-15. **`ScheduleRepository` is the single data boundary**, every method async from day
-    one. (ADR-0012)
+15. **One owner for each kind of state.** **TanStack Query owns server state; Zustand
+    owns the draft.** `reference` and `published` are whatever the query cache holds
+    (`api/queries.ts`); `useSchedule` holds `session`, `changes`, the undo/redo stacks and
+    the screen's own flags. `useDataset()` is where the two meet and the **only** place
+    they do: it derives `plan = applyChanges(published, changes)` and the index over it.
+    `useReference()` is the narrow version for callers that want a list of types and must
+    not re-render on every painted cell; `datasetCache.ts` gives the same answers
+    synchronously to the draft-sync timer and to tests (`datasetNow()`).
+    **`ScheduleRepository` is deleted** — one implementation, one consumer, and nine
+    sibling `api/` modules that bypassed it. Two of its rules survive: every call is
+    async, and published assignments are never written directly. Reads live in
+    `api/queries.ts`, writes in `api/schedule.ts`. **A direct write invalidates, it does
+    not patch** — awaited, with `refetchType: 'all'`, because the screen that most needs
+    the update is often not mounted. (ADR-0067, superseding ADR-0012)
+
+15a. **Enums are `UPPER_SNAKE` on the wire**, which is what `domain/types.ts` already
+    wrote — `UpperSnakeCaseNamingPolicy`, registered in `Program.cs` and `DraftJson`.
+    `mapping.ts` no longer converts them; what remains there is structural (`Weekday` is
+    numeric here and named on the wire, `TimeOfDay` is `HH:mm` against `HH:mm:ss`,
+    `Assignment.content` is flattened). **`AppRole` is the one exemption** and keeps
+    `Planner`: the client already wrote it that way and Entra app roles are declared with
+    those names. Its converter is registered **first**, because converters match in order
+    and one in `options.Converters` outranks a `[JsonConverter]` attribute on the enum —
+    the attribute alone is silently ignored. (ADR-0066)
 
 16. **Headless UI** (Radix + own styles) so the shell can be swapped for the corporate
     component library. (ADR-0013)
@@ -447,7 +474,7 @@ dotnet test
   half-written database would satisfy and reopen the wizard on top of itself.
   `SetupGateMiddleware` sits **before** authentication and answers `503 SETUP_REQUIRED` to
   everything but `/health/*`, `/api/setup/*`, `/openapi` and `/scalar` (the last two
-  because `npm run api:schema` fetches the document against a database nobody has set up).
+  because the OpenAPI document is served against a database nobody has set up yet).
   Two presets: **Bare** (one location, one unit, the caller from their own token claims,
   a global Admin grant) and **Demo** (the fixture entire). The wizard also asks **which
   roles** the founding administrator gets — `Admin` is forced, because a system whose only
@@ -494,19 +521,29 @@ dotnet test
   secret anywhere. Locally it is off until switched on — `deploy/README.md` section 2b
   covers both Foundry Local (free, on-device, keyless) and a cloud deployment.
   Nothing in planning depends on a model being reachable
-- Frontend layering is strictly downward: `features → store → api → data → engine → domain`,
-  with `ui` beside `features` at the top and `auth` and `pages` above them. Two things the
-  bare arrow diagram gets wrong and that the code is right about:
-  **`api/` is two layers wearing one folder name** — the TanStack hooks sit where the arrow
-  says, but `api/client.ts` and `api/mapping.ts` are transport and sit *below* `data/`,
-  which is why `data/httpRepository.ts` imports them. **Anything `api/` or below needs from
+- Frontend layering is strictly downward: `features → store → api → engine → domain`,
+  with `ui` beside `features` at the top and `auth` and `pages` above them. `data/` is
+  gone (ADR-0067) — it held only `ScheduleRepository` and its single implementation.
+  Two things the bare arrow diagram still gets wrong and that the code is right about:
+  **`api/` is two layers wearing one folder name** — the TanStack hooks sit where the
+  arrow says, but `api/client.ts` and `api/mapping.ts` are transport and sit below them,
+  which is why `api/schedule.ts` imports them. **Anything `api/` or below needs from
   the top is injected, never imported** — `setAccessTokenProvider` for MSAL tokens
   (`auth/EntraGate`) and `setMutationNotifier` for toasts (`api/notifier.ts`, installed in
   `App.tsx`), both because the thing they need lives above them. A direct
-  `import { toast } from '../ui/toasts.ts'` anywhere in `api/`, `data/`, `engine/` or
+  `import { toast } from '../ui/toasts.ts'` anywhere in `api/`, `engine/` or
   `store/` is the edge going the wrong way (ADR-0057).
-  Backend layering: `Api → Application → Infrastructure → Domain`, enforced by project
-  references rather than convention. Domain logic executes server-side only
+  Inside `store/`, `useDataset` imports `useSchedule` (it needs the draft) and both
+  import `datasetCache`, which imports neither — that is what keeps the pair from being
+  a cycle.
+  Backend layering, enforced by project references rather than convention — and **not**
+  the chain it is often written as. `Api` references all three; **`Infrastructure`
+  references `Application`, not the other way round**; `Application` references only
+  `Domain`:
+  `Api → {Infrastructure → Application → Domain}`. That is why `Application` cannot hold a
+  `DbContext` even by accident, and why anything that must both decide and persist is
+  split across the two — `NotificationFanout.Plan` is the pure decision, `Notifier` is the
+  write (ADR-0064). Domain logic executes server-side only
 - One date library. Mixing in the native `Date` across eight locations produces DST bugs
 - Cell interaction: right-click opens a picker with **only the shifts in that day's
   configuration that this person is eligible for**, plus Non-working and Clear. The
@@ -576,12 +613,17 @@ dotnet test
   `listMyOpenDrafts` (`GET /api/drafts?mine=true`, filtered server-side because the
   client's copy of "who am I" arrives later) **resumes** one; it never opens one, or
   looking at a unit would mint an empty session in it.
-- **`useSchedule` follows the schedule query, it does not snapshot it.** A cache
-  subscription re-seeds `published`/`plan` on every successful fetch for the view on
-  screen. Without it, anything the *server* wrote on our behalf — which is every approval —
-  never reached the grid: approving leave removed the dashed request and drew nothing, and
-  the cell stayed empty until a reload. **Invalidating `['schedule']` is the whole
-  contract**; do not add a second path.
+- **The grid reads the query cache, so there is nothing to keep in step.** `useSchedule`
+  used to hold `published`/`plan`/`reference`/`index` as a second copy, re-seeded by a
+  cache subscription that compared query keys by hand. That is deleted (ADR-0067):
+  `useDataset()` derives from the cache and the draft. **Invalidating `['schedule']` is
+  still the whole contract** — it is now the only mechanism rather than one of two, and
+  it works because the screens read the thing being invalidated.
+  **Object identity is load-bearing here**: `derive()` and `publishedOf()` memoize on
+  input identity so sixteen consumers do not each rebuild the index. A version of
+  `publishedNow` that allocated a fresh `PlanData` per call silently defeated that and
+  rebuilt on every read — the test that catches it asserts `plan` is referentially stable
+  across a no-op undo.
 - **A failed publish shows a dismissible banner, not the error screen.**
   `useSchedule.actionError` exists because writing to `error` put the app into
   `status: 'error'` and blanked the grid — which is exactly what the planner needs to
