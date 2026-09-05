@@ -12,6 +12,7 @@
 
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { apiGet, qs } from './client.ts';
+import { useSetupState } from './setup.ts';
 import {
   absenceFromWire,
   assignmentFromWire,
@@ -146,6 +147,17 @@ export function referenceQueryOptions() {
   });
 }
 
+/**
+ * NOTE: `enabled: false` while the system is unset up.
+ *
+ * WHY: every route but `/api/setup/*` answers `503 SETUP_REQUIRED` until the wizard has
+ * run (ADR-0059), so asking for reference data then is a request that cannot succeed. It
+ * used not to be asked at all, because `reference` was only fetched by `useSchedule.load()`
+ * and that is gated on setup — moving the read into `useDataset()` (ADR-0067) made it a
+ * hook that fires wherever it is called, and `App` calls `usePlanningView` above
+ * `SetupGate` in the tree. The result was a retrying 503 behind the setup wizard.
+ */
 export function useReferenceQuery() {
-  return useQuery(referenceQueryOptions());
+  const setupRequired = useSetupState().data?.required ?? true;
+  return useQuery({ ...referenceQueryOptions(), enabled: !setupRequired });
 }

@@ -66,10 +66,33 @@ export function setAccessTokenProvider(next: AccessTokenProvider | undefined): v
   accessTokenProvider = next;
 }
 
+/**
+ * NOTE: The token provider itself failed — no request was made.
+ *
+ * WHY it is its own type: this used to propagate as whatever MSAL threw, from *before*
+ * `fetch`, so there was no request in the network panel and no status anywhere. Every
+ * caller that distinguishes failures does it with `instanceof ApiError`, so the symptom
+ * was "no response" and a blank screen, with the real reason — a scope the app
+ * registration does not expose, a consent that was never given — visible nowhere.
+ */
+export class AuthTokenError extends Error {
+  constructor(override readonly cause: unknown) {
+    super(
+      `Could not get an access token: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    this.name = 'AuthTokenError';
+  }
+}
+
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   // Awaited per request, not cached here: MSAL keeps its own cache and renews the token
   // when it is close to expiring, so asking every time is cheap and asking once is wrong.
-  const token = await accessTokenProvider?.();
+  let token: string | undefined;
+  try {
+    token = await accessTokenProvider?.();
+  } catch (error) {
+    throw new AuthTokenError(error);
+  }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,

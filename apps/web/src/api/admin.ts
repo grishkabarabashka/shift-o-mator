@@ -318,7 +318,7 @@ export interface AbsenceCapacityRuleRequest {
 export function absenceCapacityRuleToWire(r: AbsenceCapacityRule): AbsenceCapacityRuleRequest {
   return {
     unitId: r.unitId,
-    scopeKind: r.scope.kind === 'SHIFT_POOL' ? 'shiftPool' : 'unit',
+    scopeKind: r.scope.kind,
     scopeShiftId: r.scope.kind === 'SHIFT_POOL' ? r.scope.shiftId : null,
     durationBucket: r.durationBucket as AbsenceDurationBucket,
     longThresholdWorkdays: r.longThresholdWorkdays,

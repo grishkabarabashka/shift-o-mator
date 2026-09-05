@@ -21,7 +21,7 @@ const wirePerson = {
   email: 'hannah.fletcher@example.test',
   unitId: 'unit-st',
   locationId: 'loc-lon',
-  orgCategory: 'management',
+  orgCategory: 'MANAGEMENT',
   isActive: true,
   isIncluded: false,
   availableWeekdays: ['MONDAY'],

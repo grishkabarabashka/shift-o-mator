@@ -91,8 +91,42 @@ export async function acquireApiToken(): Promise<string | undefined> {
     const result = await pca.acquireTokenSilent({ ...apiTokenRequest(), account });
     return result.accessToken;
   } catch (error) {
-    const { InteractionRequiredAuthError } = await import('@azure/msal-browser');
-    if (error instanceof InteractionRequiredAuthError) return undefined;
+    const { BrowserAuthError, InteractionRequiredAuthError } = await import('@azure/msal-browser');
+
+    // Both mean the same thing to a caller: no token, without interaction, right now.
+    //
+    // WHY `BrowserAuthError` belongs here and used to be rethrown: the silent flow renews
+    // through a hidden iframe, and `timed_out` is what that iframe reports when it cannot
+    // reach the Entra session — the ordinary outcome on a browser blocking third-party
+    // cookies, which `cacheLocation: 'sessionStorage'` makes the *normal* path rather than
+    // an edge case, since there is no cached token to fall back on. Rethrowing it broke
+    // this function's own contract two lines up in the doc comment, and because the throw
+    // happens inside `apiFetch` **before** `fetch`, it produced no request to inspect and
+    // no status anywhere: the setup wizard rendered a blank space where the signed-in user
+    // should be, and its button appeared to do nothing.
+    //
+    // Anything else still throws — a malformed request or a missing setting is a bug here,
+    // not a session that needs renewing.
+    if (error instanceof InteractionRequiredAuthError || error instanceof BrowserAuthError) {
+      return undefined;
+    }
     throw error;
   }
+}
+
+/**
+ * Signs in again, interactively, from a user action.
+ *
+ * WHY it is exported rather than done inside `acquireApiToken`: interaction fired from an
+ * arbitrary background query is a hijacked click, which is the rule the module is built
+ * around. This is the other half of it — when the silent path cannot recover on its own,
+ * something the person actually pressed has to.
+ */
+export async function signInInteractively(): Promise<void> {
+  const pca = instance ?? (await getMsalInstance());
+  const account = pca.getActiveAccount();
+  await pca.acquireTokenRedirect({
+    ...apiTokenRequest(),
+    ...(account ? { account } : {}),
+  });
 }

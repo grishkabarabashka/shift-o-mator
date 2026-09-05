@@ -60,7 +60,7 @@ public class SetupDiagnosticsTests
                 timeZone = "Europe/London",
                 holidayCalendarKey = "uk",
                 unitName = "Support",
-                unitKind = "region",
+                unitKind = "REGION",
                 displayName = "Founding Admin",
                 email = "founder@example.test",
                 roles,

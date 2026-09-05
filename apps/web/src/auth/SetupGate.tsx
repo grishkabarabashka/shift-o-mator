@@ -13,7 +13,7 @@
 import { useState, type ReactNode } from 'react';
 import { CheckboxField, NativeSelectField, TextField } from '../features/settings/fields.tsx';
 import { toast } from '../ui/toasts.ts';
-import { ApiError } from '../api/client.ts';
+import { ApiError, AuthTokenError } from '../api/client.ts';
 import {
   useCompleteSetup,
   useFinishSetup,
@@ -24,6 +24,7 @@ import {
   type SetupResult,
 } from '../api/setup.ts';
 import { AUTH_MODE } from './entraConfig.ts';
+import { signInInteractively } from './msalInstance.ts';
 import type { UnitKind } from '../domain/types.ts';
 
 export function SetupGate({ children }: { readonly children: ReactNode }) {
@@ -140,6 +141,7 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
       </header>
 
       {diagnostics.data ? <WhoAmI diagnostics={diagnostics.data} /> : null}
+      {diagnostics.isError ? <WhoAmIUnavailable error={diagnostics.error} /> : null}
 
       <div className="flex gap-3">
         <PresetCard
@@ -272,6 +274,77 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
  * disagree the symptom is either a token nobody validates or no token at all, and the
  * error it produces names neither half (ADR-0063).
  */
+/**
+ * NOTE: Says why "who you are" is missing, instead of leaving the space blank.
+ *
+ * WHY: `GET /api/setup/diagnostics` is authenticated, and so is `POST /api/setup`. When
+ * the bearer token is missing, expired, or has the wrong audience, both fail together —
+ * the identity block silently rendered nothing and the Setup button appeared to do
+ * nothing, which reads as "the wizard is broken" rather than "you are not signed in".
+ *
+ * Worse, the mismatch warning that explains the commonest cause lives inside `WhoAmI`,
+ * which is exactly the component that cannot render when the call fails. This is the
+ * only place that can say it.
+ */
+function WhoAmIUnavailable({ error }: { readonly error: unknown }) {
+  const status = error instanceof ApiError ? error.status : undefined;
+  const tokenFailed = error instanceof AuthTokenError;
+  const unauthorized = tokenFailed || status === 401 || status === 403;
+
+  return (
+    <section className="card border-warn p-3 text-[12px]">
+      <p className="font-medium">
+        Could not read who you are ({tokenFailed ? 'no token' : (status ?? 'no response')})
+      </p>
+      <p className="mt-1 text-muted">
+        {tokenFailed
+          ? // The request never left the browser, so there is nothing in the network panel
+            // to look at — this message is the only place the reason appears.
+            (error as AuthTokenError).message
+          : unauthorized
+            ? 'The server did not accept the token this app sent. The Setup button needs the same token, so it will not work until this does.'
+            : 'The diagnostics call failed. Setup posts to the same API, so it is likely to fail the same way.'}
+      </p>
+      {unauthorized ? (
+        <>
+          <ul className="mt-2 list-disc pl-4 text-muted">
+            {tokenFailed ? (
+              <li>
+                Renewing silently happens in a hidden iframe, and tokens are cached in
+                <code> sessionStorage</code> — so there is nothing to fall back on when that
+                iframe cannot reach the Entra session. A browser blocking third-party cookies
+                is the ordinary cause, and signing in again is the ordinary cure.
+              </li>
+            ) : null}
+            <li>
+              The client is built with <strong>VITE_AUTH_MODE={AUTH_MODE}</strong>. The server has
+              to be running the matching <code>Auth:Mode</code> — nothing checks the two against
+              each other, and mismatched, the token is either ignored or never sent.
+            </li>
+            <li>
+              <code>VITE_ENTRA_API_SCOPE</code> must be the scope exposed by the <em>API's</em> app
+              registration. A Microsoft Graph scope produces a token with the wrong audience and
+              every call comes back 401.
+            </li>
+            <li>See deploy/README.md, "Entra ID for local development".</li>
+          </ul>
+          {AUTH_MODE === 'entra' ? (
+            <button
+              type="button"
+              className="btn btn--sm mt-3"
+              // Interaction has to come from a press, which is why `acquireApiToken` never
+              // does this by itself (see `msalInstance.ts`).
+              onClick={() => void signInInteractively()}
+            >
+              Sign in again
+            </button>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function WhoAmI({ diagnostics }: { readonly diagnostics: SetupDiagnostics }) {
   const serverIsEntra = diagnostics.auth.mode.toLowerCase() !== 'stub';
   const clientIsEntra = AUTH_MODE === 'entra';

@@ -118,7 +118,7 @@ export function useCompleteSetup() {
               timeZone: args.bare.timeZone,
               holidayCalendarKey: args.bare.holidayCalendarKey,
               unitName: args.bare.unitName,
-              unitKind: unitKindToWire(args.bare.unitKind),
+              unitKind: args.bare.unitKind,
               displayName: args.bare.displayName,
               email: args.bare.email,
               roles: args.bare.roles,
@@ -142,10 +142,6 @@ export function useFinishSetup() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: STATE_KEY });
   };
-}
-
-function unitKindToWire(kind: UnitKind): string {
-  return kind === 'REGION' ? 'region' : 'crossRegion';
 }
 
 // ---------------------------------------------------------------------------
