@@ -13,7 +13,6 @@ import {
 import {
   buildDayDetail,
   buildDayDetailRange,
-  buildTimelineRange,
   nightBands,
   skyPhase,
   positionOf,
@@ -42,7 +41,7 @@ function fakeCoverage(dates: readonly IsoDate[], assignments: readonly Assignmen
         actual,
         min,
         level: actual < min ? 'GAP' : 'OK',
-        appliedKey: 'weekday',
+        appliedKey: 'WEEKDAY',
       });
     }
   }
@@ -56,7 +55,7 @@ function fakeCoverage(dates: readonly IsoDate[], assignments: readonly Assignmen
  */
 const dayConfig = makeDayConfig({
   id: 'dc-all',
-  key: 'weekday',
+  key: 'WEEKDAY',
   weekdays: [1, 2, 3, 4, 5, 6, 7],
   shiftRequirements: [
     { shiftId: leadShift.id, min: 1, isDefault: true },
@@ -100,7 +99,7 @@ function setup(assignments = [
 describe('continuous range timeline', () => {
   it('builds a single day-aligned axis for the whole range', () => {
     const { index, coverageCells, assignments } = setup();
-    const timeline = buildTimelineRange({
+    const timeline = buildDayDetailRange({
       dates: DATES,
       unitIds: [testUnit.id],
       assignments,
@@ -123,7 +122,7 @@ describe('continuous range timeline', () => {
 
   it('the axis extends to fit a shift crossing midnight', () => {
     const { index, coverageCells, assignments } = setup();
-    const timeline = buildTimelineRange({
+    const timeline = buildDayDetailRange({
       dates: DATES,
       unitIds: [testUnit.id],
       assignments,
@@ -133,7 +132,7 @@ describe('continuous range timeline', () => {
 
     // Night ends at 06:00 the next day in NY time — that falls outside the
     // range's last UTC day, and the axis must accommodate it.
-    const last = timeline.lanes[0]?.blocks.at(-1);
+    const last = timeline.lanes[0]?.bars.at(-1);
     expect(last).toBeDefined();
     expect(last!.interval.end <= timeline.axis.end).toBe(true);
   });
@@ -160,7 +159,7 @@ describe('continuous range timeline', () => {
 
   it('the collapsed summary tallies coverage per day', () => {
     const { index, coverageCells, assignments } = setup();
-    const timeline = buildTimelineRange({
+    const timeline = buildDayDetailRange({
       dates: DATES,
       unitIds: [testUnit.id],
       assignments,
@@ -219,28 +218,6 @@ describe('personal bars for the whole range (Overview reuses the day view)', () 
     const gapKeys = range.lanes[0]?.bars.filter((bar) => bar.kind === 'gap').map((bar) => bar.key) ?? [];
     expect(gapKeys.length).toBeGreaterThan(1);
     expect(new Set(gapKeys).size).toBe(gapKeys.length);
-  });
-
-  it('the collapsed summary matches the aggregated timeline day for day', () => {
-    const { index, coverageCells, assignments } = setup();
-    const aggregate = buildTimelineRange({
-      dates: DATES,
-      unitIds: [testUnit.id],
-      assignments,
-      coverageCells,
-      index,
-    });
-    const perPerson = buildDayDetailRange({
-      dates: DATES,
-      unitIds: [testUnit.id],
-      assignments,
-      coverageCells,
-      index,
-    });
-
-    // Both strips share the same `dailyCoverage` — the collapsed view must
-    // read the same regardless of which expanded view is behind it.
-    expect(perPerson.lanes[0]?.daily).toEqual(aggregate.lanes[0]?.daily);
   });
 });
 

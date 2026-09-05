@@ -33,59 +33,10 @@ import type {
 } from '../domain/types.ts';
 import { formatInZone, shiftInterval } from './dates.ts';
 
-export interface TimelinePerson {
-  readonly id: PersonId;
-  readonly name: string;
-}
-
-export interface TimelineBlock {
-  readonly shiftId: ShiftId;
-  readonly code: string;
-  readonly label: string;
-  readonly color: string;
-  readonly interval: UtcInterval;
-  readonly people: readonly TimelinePerson[];
-  readonly required: number;
-  readonly filled: number;
-  readonly level: CoverageLevel;
-  /** NOTE: Shift is required but nobody is staffed on it: rendered as a dashed gap. */
-  readonly empty: boolean;
-  /**
-   * NOTE: Sub-row within the planning unit's lane.
-   *
-   * AMER runs eight shifts in the same 09:00-18:00 window. Drawn on one row,
-   * they'd stack on top of each other and only the last would show — the
-   * lane would display one shift instead of eight. Blocks are packed
-   * greedily: each takes the first sub-row it doesn't overlap with.
-   */
-  readonly row: number;
-}
-
-export interface TimelineLane {
-  readonly unitId: UnitId;
-  readonly unitName: string;
-  readonly blocks: readonly TimelineBlock[];
-  /** NOTE: Union of the unit's presence windows; `undefined` means the unit isn't working. */
-  readonly span: UtcInterval | undefined;
-  readonly gaps: number;
-  /** NOTE: How many sub-rows were needed so blocks don't overlap. */
-  readonly rowCount: number;
-}
-
 export interface Handover {
   readonly fromUnitId: UnitId;
   readonly toUnitId: UnitId;
   readonly interval: UtcInterval;
-}
-
-export interface TimelineDay {
-  readonly date: IsoDate;
-  /** NOTE: Axis from the first start to the last end, rounded to the hour. */
-  readonly axis: UtcInterval;
-  readonly lanes: readonly TimelineLane[];
-  readonly handovers: readonly Handover[];
-  /** NOTE: Headcount on shift in each hour of the axis. */
-  readonly headcountByHour: readonly number[];
 }
 
 export interface TimelineInput {
@@ -99,10 +50,13 @@ export interface TimelineInput {
 /**
  * One bar per assigned person, or one dashed bar for an unfilled requirement.
  *
- * The aggregate `TimelineBlock` above answers "is this shift covered" — it
- * collapses everyone into a count. The day drill-down answers "who,
- * specifically" — each assignment gets its own row instead of being folded
- * into `people.length`.
+ * NOTE: There used to be a second, aggregated model beside this one
+ * (`TimelineBlock`/`TimelineLane`/`TimelineDay`, built by `buildTimelineDay`
+ * and `buildTimelineRange`) that collapsed everyone on a shift into a count.
+ * The dashboard moved off it — collapsed it was not distinct enough from
+ * expanded, and expanded it still hid people behind a number — and nothing
+ * but its own tests called it afterwards. Deleted: one granularity, one set
+ * of rules about shift windows, gaps and handovers.
  */
 export interface DayDetailBar {
   readonly key: string;
@@ -135,107 +89,11 @@ export interface DayDetail {
 
 const HOUR_MS = 3_600_000;
 
-export function buildTimelineDay({
-  date,
-  unitIds,
-  assignments,
-  coverageCells,
-  index,
-}: TimelineInput): TimelineDay {
-  const onDate = assignments.filter((assignment) => assignment.date === date);
-
-  const peopleByShift = new Map<ShiftId, TimelinePerson[]>();
-  for (const assignment of onDate) {
-    if (assignment.content.kind !== 'SHIFT') continue;
-    const person = index.people.get(assignment.personId);
-    const bucket = peopleByShift.get(assignment.content.shiftId);
-    const entry = { id: assignment.personId, name: person?.displayName ?? assignment.personId };
-    if (bucket) bucket.push(entry);
-    else peopleByShift.set(assignment.content.shiftId, [entry]);
-  }
-
-  const lanes: TimelineLane[] = [];
-
-  for (const unitId of unitIds) {
-    const unit = index.units.get(unitId);
-    if (!unit) continue;
-
-    const raw: Omit<TimelineBlock, 'row'>[] = [];
-
-    // The set of required shifts for the day comes from the coverage cells
-    // themselves (server-resolved, Phase 5) rather than from a locally
-    // re-resolved day configuration — they already enumerate exactly the
-    // shifts required that day, one cell per shift.
-    for (const cell of coverageCells) {
-      if (cell.unitId !== unitId || cell.date !== date) continue;
-      const shift = index.shifts.get(cell.shiftId);
-      if (!shift || !shift.countsAsCoverage) continue;
-
-      let interval: UtcInterval;
-      try {
-        interval = shiftInterval(shift, date);
-      } catch {
-        // NOTE: A malformed shift window is the validator's concern, not the timeline's.
-        continue;
-      }
-
-      const people = peopleByShift.get(shift.id) ?? [];
-
-      raw.push({
-        shiftId: shift.id,
-        code: shift.code,
-        label: shift.label,
-        color: shift.color,
-        interval,
-        people,
-        required: cell.min,
-        filled: cell.actual,
-        level: cell.level,
-        empty: people.length === 0,
-      });
-    }
-
-    raw.sort((a, b) => a.interval.start.localeCompare(b.interval.start));
-    const blocks = packRows(raw);
-
-    lanes.push({
-      unitId,
-      unitName: unit.name,
-      blocks,
-      span: unionOf(blocks.map((block) => block.interval)),
-      gaps: blocks.filter((block) => block.level === 'GAP').length,
-      rowCount: blocks.reduce((max, block) => Math.max(max, block.row + 1), 1),
-    });
-  }
-
-  // NOTE: Units are ordered by the start of their presence, so the lane reads
-  // left to right as "the day follows the sun", not alphabetically by code.
-  lanes.sort((a, b) => (a.span?.start ?? '~').localeCompare(b.span?.start ?? '~'));
-
-  const axis = axisFor(lanes, date);
-
-  return {
-    date,
-    axis,
-    lanes,
-    handovers: handoversOf(regionLanesFor(lanes, index)),
-    headcountByHour: headcountOf(
-      lanes.flatMap((lane) =>
-        lane.blocks.filter((block) => !block.empty).map((block) => ({
-          interval: block.interval,
-          weight: block.people.length,
-        })),
-      ),
-      axis,
-    ),
-  };
-}
-
 /**
  * Person-level day detail: one bar per assignment plus one dashed bar per
- * unfilled requirement. Same unit-window and handover math as
- * `buildTimelineDay` — only the bar granularity differs, so the two share
- * `axisFor`/`handoversOf`/`headcountOf` rather than each computing its own.
+ * unfilled requirement. This is the only per-day model — `buildDayDetailRange`
+ * composes it rather than computing the range in parallel, so the drill-down
+ * and the dashboard strip cannot disagree about an edge case.
  */
 export function buildDayDetail({
   date,
@@ -254,8 +112,9 @@ export function buildDayDetail({
 
     const raw: Omit<DayDetailBar, 'row'>[] = [];
 
-    // Same source of truth as `buildTimelineDay`: the coverage cells already
-    // enumerate exactly the shifts required that day (server-resolved).
+    // The coverage cells are the source of truth for which shifts are
+    // required that day — server-resolved, one cell per shift, so nothing
+    // here re-resolves a day configuration locally.
     for (const cell of coverageCells) {
       if (cell.unitId !== unitId || cell.date !== date) continue;
       const shift = index.shifts.get(cell.shiftId);
@@ -482,10 +341,6 @@ export interface RangeDay {
   readonly width: number;
 }
 
-export interface TimelineRangeBlock extends TimelineBlock {
-  readonly date: IsoDate;
-}
-
 /** NOTE: Per-day coverage summary — what shows in a unit's collapsed header. */
 export interface DayCoverage {
   readonly date: IsoDate;
@@ -494,25 +349,8 @@ export interface DayCoverage {
   readonly level: CoverageLevel;
 }
 
-export interface TimelineRangeLane {
-  readonly unitId: UnitId;
-  readonly unitName: string;
-  readonly blocks: readonly TimelineRangeBlock[];
-  readonly rowCount: number;
-  readonly gaps: number;
-  readonly daily: readonly DayCoverage[];
-}
-
 export interface DatedHandover extends Handover {
   readonly date: IsoDate;
-}
-
-export interface TimelineRange {
-  readonly axis: UtcInterval;
-  readonly days: readonly RangeDay[];
-  readonly lanes: readonly TimelineRangeLane[];
-  readonly handovers: readonly DatedHandover[];
-  readonly headcountByHour: readonly number[];
 }
 
 export interface TimelineRangeInput {
@@ -523,79 +361,6 @@ export interface TimelineRangeInput {
   readonly index: DatasetIndex;
 }
 
-export function buildTimelineRange({
-  dates,
-  unitIds,
-  assignments,
-  coverageCells,
-  index,
-}: TimelineRangeInput): TimelineRange {
-  // NOTE: Built from the per-day model, not in parallel with it: the rules
-  // for shift windows, gaps, and handovers must stay identical, or the
-  // timeline and the drill-down would start disagreeing on edge cases.
-  const days = dates.map((date) =>
-    buildTimelineDay({ date, unitIds, assignments, coverageCells, index }),
-  );
-
-  const axis = axisOverDays(days, dates);
-
-  const byUnit = new Map<UnitId, { name: string; blocks: TimelineRangeBlock[] }>();
-  const handovers: DatedHandover[] = [];
-
-  for (const day of days) {
-    for (const lane of day.lanes) {
-      const bucket = byUnit.get(lane.unitId) ?? { name: lane.unitName, blocks: [] };
-      for (const block of lane.blocks) {
-        // NOTE: An empty, non-required shift doesn't occupy a row: otherwise
-        // a rarely used shift would inflate the lane across the whole range
-        // for nothing.
-        if (block.empty && block.level !== 'GAP') continue;
-        bucket.blocks.push({ ...block, date: day.date });
-      }
-      byUnit.set(lane.unitId, bucket);
-    }
-    for (const handover of day.handovers) handovers.push({ ...handover, date: day.date });
-  }
-
-  const coverageByDayUnit = dailyCoverage(coverageCells, dates, unitIds);
-
-  const lanes: TimelineRangeLane[] = [...byUnit.entries()].map(([unitId, bucket]) => {
-    const sorted = [...bucket.blocks].sort((a, b) =>
-      a.interval.start.localeCompare(b.interval.start),
-    );
-    const packed = packRows(sorted);
-    return {
-      unitId,
-      unitName: bucket.name,
-      blocks: packed,
-      rowCount: packed.reduce((max, block) => Math.max(max, block.row + 1), 1),
-      gaps: packed.filter((block) => block.level === 'GAP').length,
-      daily: coverageByDayUnit.get(unitId) ?? [],
-    };
-  });
-
-  // NOTE: Units are ordered by the start of their first shift in the range —
-  // the strip reads top to bottom as "the day follows the sun".
-  lanes.sort((a, b) =>
-    (a.blocks[0]?.interval.start ?? '~').localeCompare(b.blocks[0]?.interval.start ?? '~'),
-  );
-
-  return {
-    axis,
-    days: dates.map((date) => dayGeometry(axis, date)),
-    lanes,
-    handovers,
-    headcountByHour: headcountOf(
-      lanes.flatMap((lane) =>
-        lane.blocks
-          .filter((block) => !block.empty)
-          .map((block) => ({ interval: block.interval, weight: block.people.length })),
-      ),
-      axis,
-    ),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Continuous range, personal bars: the same day-detail view, but spanning
 // the full range instead of a single day.
@@ -603,13 +368,10 @@ export function buildTimelineRange({
 
 /**
  * NOTE: For a single day, `buildDayDetail` answers "who exactly is covering
- * the shift" — each assignment gets its own bar instead of a count. The
- * dashboard used to show a range via `buildTimelineRange`, i.e. aggregated
- * shift blocks — the view that didn't work well: collapsed it wasn't
- * distinct enough from expanded, and expanded it still hid people behind a
- * number. Extending day-detail to a range with this function gives the
- * dashboard strip the same grammar as day-detail, just across several days
- * at once — the same bars, the same gaps, the same handovers, one axis.
+ * the shift" — each assignment gets its own bar instead of a count. Extending
+ * day-detail to a range gives the dashboard strip the same grammar as the
+ * drill-down, just across several days at once: the same bars, the same gaps,
+ * the same handovers, one axis.
  */
 export interface DayDetailRangeBar extends DayDetailBar {
   readonly date: IsoDate;
@@ -643,7 +405,7 @@ export function buildDayDetailRange({
   coverageCells,
   index,
 }: TimelineRangeInput): DayDetailRange {
-  // NOTE: Built from the per-day model, same as `buildTimelineRange` — the
+  // NOTE: Built from the per-day model rather than in parallel with it — the
   // same rules for shift windows and gaps, no separate copy.
   const days = dates.map((date) => buildDayDetail({ date, unitIds, assignments, coverageCells, index }));
 
