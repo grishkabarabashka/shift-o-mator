@@ -14,11 +14,11 @@
 import { useMemo, useState } from 'react';
 import type { IsoDate, Person, Shift } from '../domain/types.ts';
 import { eachDate } from '../engine/dates.ts';
-import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import { PersonEditor } from '../features/people/PersonEditor.tsx';
 import { PageHeader } from '../ui/PageHeader.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
+import { useDataset, useReference } from '../store/useDataset.ts';
 
 interface Props {
   readonly view: PlanningView;
@@ -42,9 +42,8 @@ export function PeoplePage({ view, asOf }: Props) {
   const [selectedId, setSelectedId] = useState<string>();
 
   const range = useUi((s) => s.range);
-  const index = useSchedule((s) => s.index);
-  const plan = useSchedule((s) => s.plan);
-  const reference = useSchedule((s) => s.reference);
+  const { plan, index } = useDataset();
+  const reference = useReference();
 
   const stats = useMemo<PersonStats[]>(() => {
     if (!index || !plan) return [];

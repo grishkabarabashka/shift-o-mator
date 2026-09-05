@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { datasetNow } from '../store/useDataset.ts';
 import { queryClient } from '../api/queryClient.ts';
 import { mockBackend, resetMockApi, server } from '../testUtils/mockApi.ts';
 import { DEFAULT_UNIT } from '../testUtils/mockDataset.ts';
@@ -20,7 +21,7 @@ async function loadStore() {
 
 /** NOTE: The first person in the unit eligible for a role with this code. */
 function personWithShift(code: string) {
-  const { reference } = useSchedule.getState();
+  const { reference } = datasetNow();
   const shift = reference?.shifts.find((r) => r.unitId === DEFAULT_UNIT && r.code === code);
   const person = reference?.people.find(
     (p) =>
@@ -32,9 +33,7 @@ function personWithShift(code: string) {
 }
 
 function cellShiftId(personId: string, date: string): string | undefined {
-  const assignment = useSchedule
-    .getState()
-    .plan?.assignments.find((a) => a.personId === personId && a.date === date);
+  const assignment = datasetNow().plan?.assignments.find((a) => a.personId === personId && a.date === date);
   return assignment?.content.kind === 'SHIFT' ? assignment.content.shiftId : undefined;
 }
 
@@ -62,17 +61,18 @@ describe('loading', () => {
   });
 
   it('loads reference data, the published plan, and the index', () => {
-    const state = useSchedule.getState();
-    expect(state.status).toBe('ready');
-    expect(state.reference?.people.length).toBeGreaterThan(0);
-    expect(state.index?.shifts.size).toBeGreaterThan(0);
+    expect(useSchedule.getState().status).toBe('ready');
+    const data = datasetNow();
+    expect(data.reference?.people.length).toBeGreaterThan(0);
+    expect(data.index?.shifts.size).toBeGreaterThan(0);
   });
 
   it('an opened draft is empty, the plan equals published', () => {
     const state = useSchedule.getState();
     expect(state.session).toBeDefined();
     expect(state.changes).toHaveLength(0);
-    expect(state.plan?.assignments).toEqual(state.published?.assignments);
+    const data = datasetNow();
+    expect(data.plan?.assignments).toEqual(data.published?.assignments);
   });
 });
 
@@ -95,38 +95,32 @@ describe('cell edits', () => {
     const { shift, person } = personWithShift('Cover');
     if (!shift || !person) return;
     const date = freeDate(person.id);
-    const publishedBefore = useSchedule.getState().published?.assignments.length;
+    const publishedBefore = datasetNow().published?.assignments.length;
 
     useSchedule.getState().setCell(person.id, date, shift.id);
 
-    expect(useSchedule.getState().published?.assignments.length).toBe(publishedBefore);
+    expect(datasetNow().published?.assignments.length).toBe(publishedBefore);
     expect(useSchedule.getState().changes.length).toBeGreaterThan(0);
   });
 
   it('a cell keeps exactly one assignment', () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
-    const shifts = useSchedule
-      .getState()
-      .reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
+    const shifts = datasetNow().reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
     if (shifts.length < 2) return;
 
     const date = freeDate(person.id);
     useSchedule.getState().setCell(person.id, date, shifts[0]?.id ?? null);
     useSchedule.getState().setCell(person.id, date, shifts[1]?.id ?? null);
 
-    const inCell = useSchedule
-      .getState()
-      .plan?.assignments.filter((a) => a.personId === person.id && a.date === date);
+    const inCell = datasetNow().plan?.assignments.filter((a) => a.personId === person.id && a.date === date);
     expect(inCell).toHaveLength(1);
     expect(cellShiftId(person.id, date)).toBe(shifts[1]?.id);
   });
 
   it('rejects a shift from a different unit', () => {
     const { person } = personWithShift('Cover');
-    const foreignShift = useSchedule
-      .getState()
-      .reference?.shifts.find((s) => s.unitId === 'unit-emea');
+    const foreignShift = datasetNow().reference?.shifts.find((s) => s.unitId === 'unit-emea');
     if (!person || !foreignShift) return;
 
     const date = freeDate(person.id);
@@ -215,9 +209,9 @@ describe('undo and redo', () => {
   });
 
   it('undo on an empty stack breaks nothing', () => {
-    const snapshot = useSchedule.getState().plan;
+    const snapshot = datasetNow().plan;
     useSchedule.getState().undo();
-    expect(useSchedule.getState().plan).toBe(snapshot);
+    expect(datasetNow().plan).toBe(snapshot);
   });
 
   it('an edit that changes nothing does not enter the stack', () => {
@@ -242,14 +236,12 @@ describe('absences', () => {
     // not part of that decision. It used to be staged in whatever draft happened to be
     // open, so a sick day sat invisible until an unrelated planner published — and a
     // non-planner recording one got a 403 from an endpoint they had no business calling.
-    const person = useSchedule
-      .getState()
-      .reference?.people.find((p) => p.unitId === DEFAULT_UNIT && p.isIncluded);
+    const person = datasetNow().reference?.people.find((p) => p.unitId === DEFAULT_UNIT && p.isIncluded);
     if (!person) return;
 
     const undoBefore = useSchedule.getState().undoStack.length;
     const changesBefore = useSchedule.getState().changes.length;
-    const countBefore = useSchedule.getState().plan?.absences.length ?? 0;
+    const countBefore = datasetNow().plan?.absences.length ?? 0;
 
     await useSchedule.getState().saveAbsence({
       personId: person.id,
@@ -258,7 +250,7 @@ describe('absences', () => {
       to: '2026-08-26',
     });
 
-    expect(useSchedule.getState().plan?.absences).toHaveLength(countBefore + 1);
+    expect(datasetNow().plan?.absences).toHaveLength(countBefore + 1);
     expect(useSchedule.getState().undoStack).toHaveLength(undoBefore);
     // Nothing was staged. Asserted on the change list rather than on `session` being
     // absent, because an earlier test in this file may legitimately have left one open —
@@ -328,9 +320,7 @@ describe('publish', () => {
   it('publishes the latest edit of a cell repainted within the draft', async () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
-    const shifts = useSchedule
-      .getState()
-      .reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
+    const shifts = datasetNow().reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
     if (shifts.length < 2) return;
     const date = freeDate(person.id);
 
@@ -365,9 +355,7 @@ describe('publish', () => {
   it('a published cell that is cleared and repainted publishes again', async () => {
     const { person } = personWithShift('Cover');
     if (!person) return;
-    const shifts = useSchedule
-      .getState()
-      .reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
+    const shifts = datasetNow().reference?.shifts.filter((s) => person.eligibility.some((e) => e.shiftId === s.id)) ?? [];
     if (shifts.length < 2) return;
     const date = freeDate(person.id);
 

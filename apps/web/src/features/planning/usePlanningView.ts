@@ -50,6 +50,7 @@ import { indexCoverage, summarizeCoverage } from '../../engine/coverageView.ts';
 import { eachDate, holidayNameIn, isNonWorkingDayIn } from '../../engine/dates.ts';
 import { summarizeIssues } from '../../engine/issues.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
+import { useDataset, useReference } from '../../store/useDataset.ts';
 
 /** NOTE: A grid row is either a group header or a person. */
 export type GridRow =
@@ -216,9 +217,8 @@ function groupKeyOf(person: Person, groupBy: string, index: DatasetIndex): strin
 export function usePlanningView(asOf: IsoDate): PlanningView {
   const unitId = useSchedule((s) => s.unitId);
   const range = useSchedule((s) => s.range);
-  const reference = useSchedule((s) => s.reference);
-  const plan = useSchedule((s) => s.plan);
-  const index = useSchedule((s) => s.index);
+  const reference = useReference();
+  const { plan, index } = useDataset();
   const draftId = useSchedule((s) => s.session?.id);
   const selfId = useSchedule((s) => s.currentUserId);
 

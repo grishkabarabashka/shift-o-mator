@@ -17,9 +17,9 @@ import { Link, useNavigate, useParams } from 'react-router';
 import type { UtcInterval } from '../domain/types.ts';
 import { formatInZone, parseDate } from '../engine/dates.ts';
 import { buildDayDetail, hourTicks, positionOf, type DayDetailBar } from '../engine/timeline.ts';
-import { useSchedule } from '../store/useSchedule.ts';
 import { useUi } from '../store/useUi.ts';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
+import { useDataset } from '../store/useDataset.ts';
 
 const ROW_H = 24;
 
@@ -34,8 +34,7 @@ export function DayDrilldownPage({ view, now }: Props) {
   const displayZone = useUi((s) => s.displayZone);
   const setAnchor = useUi((s) => s.setScheduleAnchor);
   const select = useUi((s) => s.select);
-  const plan = useSchedule((s) => s.plan);
-  const index = useSchedule((s) => s.index);
+  const { plan, index } = useDataset();
 
   const detail = useMemo(() => {
     if (!date || !plan || !index) return undefined;

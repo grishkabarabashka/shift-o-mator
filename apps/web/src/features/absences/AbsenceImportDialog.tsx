@@ -34,6 +34,7 @@ import {
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 import { Select, type SelectOption } from '../../ui/primitives.tsx';
+import { useDataset } from '../../store/useDataset.ts';
 
 interface Props {
   readonly open: boolean;
@@ -104,9 +105,7 @@ function rememberMatch(rawKey: string, personId: string): void {
 // ---------------------------------------------------------------------------
 
 export function AbsenceImportDialog({ open, onClose }: Props) {
-  const plan = useSchedule((s) => s.plan);
-  const published = useSchedule((s) => s.published);
-  const index = useSchedule((s) => s.index);
+  const { plan, published, index } = useDataset();
   const commitAbsenceImport = useSchedule((s) => s.commitAbsenceImport);
   const setAnchor = useUi((s) => s.setScheduleAnchor);
   const navigate = useNavigate();

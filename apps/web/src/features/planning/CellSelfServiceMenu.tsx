@@ -16,6 +16,7 @@ import { useCapabilities } from '../../auth/useCapabilities.ts';
 import type { DayPortion, EventType, Location, PresenceType } from '../../domain/types.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import type { CellRef } from '../../store/useSchedule.ts';
+import { useReference } from '../../store/useDataset.ts';
 
 /** How many absence types get their own item before the rest go behind "More…". */
 const DIRECT_TYPE_LIMIT = 3;
@@ -52,9 +53,9 @@ export function CellSelfServiceMenu({
   const savePresence = useSchedule((s) => s.savePresence);
   const removePresence = useSchedule((s) => s.removePresence);
   const saveAbsence = useSchedule((s) => s.saveAbsence);
-  const eventTypes = useSchedule((s) => s.reference?.eventTypes) ?? [];
-  const presenceTypes = useSchedule((s) => s.reference?.presenceTypes) ?? [];
-  const people = useSchedule((s) => s.reference?.people) ?? [];
+  const eventTypes = useReference()?.eventTypes ?? [];
+  const presenceTypes = useReference()?.presenceTypes ?? [];
+  const people = useReference()?.people ?? [];
   const requestTypes = useRequestTypes();
   const selfId = useSchedule((s) => s.currentUserId);
   const caps = useCapabilities();

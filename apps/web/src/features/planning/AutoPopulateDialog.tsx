@@ -28,6 +28,7 @@ import { useUi } from '../../store/useUi.ts';
 import { Select } from '../../ui/primitives.tsx';
 import { resolveAutoPopulateScope } from './autoPopulateScope.ts';
 import type { PlanningView } from './usePlanningView.ts';
+import { useDataset } from '../../store/useDataset.ts';
 
 interface Props {
   readonly view: PlanningView;
@@ -39,7 +40,7 @@ export function AutoPopulateDialog({ view, open, onClose }: Props) {
   const fullRange = useUi((s) => s.range);
   const selection = useUi((s) => s.selection);
   const lockedAssignmentIds = useUi((s) => s.lockedAssignmentIds);
-  const plan = useSchedule((s) => s.plan);
+  const { plan } = useDataset();
   const commitAutoPopulate = useSchedule((s) => s.commitAutoPopulate);
   const flushNow = useSchedule((s) => s.flushNow);
 

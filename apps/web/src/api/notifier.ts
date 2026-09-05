@@ -2,7 +2,7 @@
  * The seam that lets `api/` announce the outcome of a mutation without importing `ui/`.
  *
  * WHY this exists rather than a direct `import { toast } from '../ui/toasts.ts'`: the
- * layering runs downward — `features → store → api → data → engine → domain` — and `ui`
+ * layering runs downward — `features → store → api → engine → domain` — and `ui`
  * sits at the top with `features`. ADR-0057 states the rule for `store`; `api` is a layer
  * further down, so the same edge is worse there, not better.
  *

@@ -22,6 +22,7 @@ import { useCreateRequest, useRequestTypes } from '../../api/requests.ts';
 import { useCapabilities } from '../../auth/useCapabilities.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
+import { useReference } from '../../store/useDataset.ts';
 
 /** WHY: Accrual age in days as of the reference date. This used to live in
  * `engine/compDays.ts` alongside the accrual engine itself — that file was removed
@@ -50,10 +51,9 @@ export function CompDayDialog({ asOf }: Props) {
   const createRequest = useCreateRequest();
   const requestTypes = useRequestTypes();
   const caps = useCapabilities();
-  const person = useSchedule((s) => s.reference?.people.find((p) => p.id === entry?.personId));
-  const unit = useSchedule((s) =>
-    s.reference?.units.find((u) => u.id === person?.unitId),
-  );
+  const reference = useReference();
+  const person = reference?.people.find((p) => p.id === entry?.personId);
+  const unit = reference?.units.find((u) => u.id === person?.unitId);
 
   const [actualDate, setActualDate] = useState('');
 

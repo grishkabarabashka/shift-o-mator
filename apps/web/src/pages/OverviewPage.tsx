@@ -40,12 +40,12 @@ import {
   type DayDetailRangeLane,
   type RangeDay,
 } from '../engine/timeline.ts';
-import { useSchedule } from '../store/useSchedule.ts';
 import { TODAY, useUi } from '../store/useUi.ts';
 import { useElementWidth } from '../ui/useElementWidth.ts';
 import { PageHeader } from '../ui/PageHeader.tsx';
 import { OverviewPeriodControl } from '../features/shell/OverviewPeriodControl.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
+import { useDataset, useReference } from '../store/useDataset.ts';
 
 const ROW_H = 22;
 const HEADCOUNT_H = 24;
@@ -72,9 +72,8 @@ export function OverviewPage({ view, now }: Props) {
   const focusDate = useUi((s) => s.focusDate);
   const setScheduleAnchor = useUi((s) => s.setScheduleAnchor);
   const enterOverview = useUi((s) => s.enterOverview);
-  const plan = useSchedule((s) => s.plan);
-  const index = useSchedule((s) => s.index);
-  const reference = useSchedule((s) => s.reference);
+  const { plan, index } = useDataset();
+  const reference = useReference();
 
   // NOTE: Same trick as on Schedule — the period is set before paint,
   // otherwise the first frame arrives with the wrong (month) period.

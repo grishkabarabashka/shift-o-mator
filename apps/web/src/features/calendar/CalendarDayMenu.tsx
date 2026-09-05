@@ -11,10 +11,10 @@
 import { useMemo } from 'react';
 import { CellSelfServiceMenu } from '../planning/CellSelfServiceMenu.tsx';
 import { FloatingMenu } from '../planning/FloatingMenu.tsx';
-import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi } from '../../store/useUi.ts';
 import type { IsoDate, PersonId } from '../../domain/types.ts';
 import { eachDate } from '../../engine/dates.ts';
+import { useDataset, useReference } from '../../store/useDataset.ts';
 
 export function CalendarDayMenu({
   personId,
@@ -33,8 +33,8 @@ export function CalendarDayMenu({
   readonly closedOut: boolean;
   readonly onClose: () => void;
 }) {
-  const reference = useSchedule((s) => s.reference);
-  const presenceRecords = useSchedule((s) => s.plan?.presence) ?? [];
+  const reference = useReference();
+  const presenceRecords = useDataset().plan?.presence ?? [];
   const openAbsenceCreate = useUi((s) => s.openAbsenceCreate);
 
   const cells = useMemo(

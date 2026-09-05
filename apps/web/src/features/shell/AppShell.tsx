@@ -35,6 +35,7 @@ import { NotificationBell } from './NotificationBell.tsx';
 import { BrandMark } from '../../ui/BrandMark.tsx';
 import { SkyIcon } from './SkyIcon.tsx';
 import { ToastViewport } from '../../ui/ToastViewport.tsx';
+import { useDataset, useReference } from '../../store/useDataset.ts';
 
 export interface NavItem {
   readonly to: string;
@@ -103,13 +104,13 @@ function SkipLink() {
 }
 
 function ProductHeader() {
-  const reference = useSchedule((s) => s.reference);
+  const reference = useReference();
   const editing = useSchedule((s) => s.session !== undefined);
   const dirty = useSchedule(hasDraftChanges);
   const changeCount = useSchedule((s) => s.changes.length);
   // Published, not draft: this is what every viewer is trusting right now,
   // so it should not look freshly imported until the import is published.
-  const publishedAbsences = useSchedule((s) => s.published?.absences);
+  const publishedAbsences = useDataset().published?.absences;
 
   const unitId = useUi((s) => s.unitId);
   const setUnit = useUi((s) => s.setUnit);

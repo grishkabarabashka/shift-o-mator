@@ -8,13 +8,13 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { datasetNow } from '../../store/useDataset.ts';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../App.tsx';
 import { queryClient } from '../../api/queryClient.ts';
 import { ALL_UNITS } from '../../domain/types.ts';
 import { rangeFor } from '../../engine/period.ts';
-import { useSchedule } from '../../store/useSchedule.ts';
 import { TODAY, useUi } from '../../store/useUi.ts';
 import { mockBackend, resetMockApi, server } from '../../testUtils/mockApi.ts';
 import { DEFAULT_UNIT } from '../../testUtils/mockDataset.ts';
@@ -50,7 +50,7 @@ async function openDialogForFirstCompDay() {
   await screen.findByRole('grid', {}, { timeout: 10000 });
 
   const entry = await waitFor(() => {
-    const first = useSchedule.getState().plan?.compDays[0];
+    const first = datasetNow().plan?.compDays[0];
     if (!first) throw new Error('No comp day in the mock plan');
     return first;
   });
@@ -81,6 +81,6 @@ describe('the comp day dialog', () => {
     const raised = mockBackend.requests.at(-1)!;
     expect(raised.subjectPersonId).toBe(entry.personId);
     // Nothing is settled until somebody approves.
-    expect(raised.state).toBe('submitted');
+    expect(raised.state).toBe('SUBMITTED');
   });
 });

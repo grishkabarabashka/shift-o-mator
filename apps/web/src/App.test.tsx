@@ -14,6 +14,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { datasetNow } from './store/useDataset.ts';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App.tsx';
@@ -97,7 +98,7 @@ function cellAt(personId: string, date: string): HTMLElement {
 
 /** A unit person eligible for Cover, and their free weekday. */
 function freeCoverCell(): { personId: string; date: string; shiftId: string } {
-  const state = useSchedule.getState();
+  const state = datasetNow();
   const shift = state.reference?.shifts.find((s) => s.unitId === DEFAULT_UNIT && s.code === 'Cover');
   const person = state.reference?.people.find(
     (p) =>
@@ -126,9 +127,7 @@ function freeCoverCell(): { personId: string; date: string; shiftId: string } {
 }
 
 function cellShiftId(personId: string, date: string): string | undefined {
-  const assignment = useSchedule
-    .getState()
-    .plan?.assignments.find((a) => a.personId === personId && a.date === date);
+  const assignment = datasetNow().plan?.assignments.find((a) => a.personId === personId && a.date === date);
   return assignment?.content.kind === 'SHIFT' ? assignment.content.shiftId : undefined;
 }
 
@@ -168,7 +167,7 @@ describe('shell', () => {
   });
 
   it('Settings is offered to an administrator, and shows the unit\'s real shift codes', async () => {
-    mockBackend.roles = [{ role: 'admin' }];
+    mockBackend.roles = [{ role: 'Admin' }];
     renderApp();
     fireEvent.click(await screen.findByRole('link', { name: 'Settings' }, { timeout: 10000 }));
     fireEvent.click(await screen.findByRole('button', { name: 'Shifts' }));
@@ -203,9 +202,7 @@ describe('grid', () => {
     // who is drawn: a manager holds no shifts and still takes leave, and their row is the
     // only place to record it. Deciding both with one flag meant an administrator existed
     // in the list only while you were acting as them.
-    const people = useSchedule
-      .getState()
-      .reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isActive);
+    const people = datasetNow().reference?.people.filter((p) => p.unitId === DEFAULT_UNIT && p.isActive);
 
     expect(people?.some((person) => !person.isIncluded)).toBe(true);
     // WHY the column count is derived and not the literal 31 it used to be: the `month`
@@ -316,7 +313,7 @@ describe('draft', () => {
   it('an edit in the draft does not touch published data', async () => {
     await renderSchedule();
     const { personId, date, shiftId } = freeCoverCell();
-    const publishedBefore = useSchedule.getState().published?.assignments.length;
+    const publishedBefore = datasetNow().published?.assignments.length;
 
     fireEvent.mouseDown(cellAt(personId, date));
     fireEvent.keyDown(grid(), { key: 'o' });
@@ -324,7 +321,7 @@ describe('draft', () => {
     await waitFor(() => {
       expect(cellShiftId(personId, date)).toBe(shiftId);
     });
-    expect(useSchedule.getState().published?.assignments.length).toBe(publishedBefore);
+    expect(datasetNow().published?.assignments.length).toBe(publishedBefore);
   });
 
   it('Ctrl+Z reverts an edit', async () => {

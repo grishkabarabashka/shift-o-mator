@@ -11,6 +11,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { datasetNow } from '../../store/useDataset.ts';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../App.tsx';
@@ -108,7 +109,7 @@ describe('raising a request', () => {
     // `to` was left blank: a one-day ask is the common case and must not require
     // entering the same date twice.
     expect(request.to).toBe(date);
-    expect(request.state).toBe('submitted');
+    expect(request.state).toBe('SUBMITTED');
   });
 
   it('appears in both "your requests" and the approver inbox', async () => {
@@ -165,7 +166,7 @@ describe('approving a request', () => {
 
     await waitFor(
       () => {
-        const presence = useSchedule.getState().plan?.presence ?? [];
+        const presence = datasetNow().plan?.presence ?? [];
         expect(presence.some((p) => p.typeId === 'pt-remote' && p.from === date)).toBe(true);
       },
       { timeout: 10000 },
@@ -183,9 +184,7 @@ describe('approving a request', () => {
     await screen.findByRole('grid', {}, { timeout: 10000 });
 
     const date = dateInRange();
-    const person = useSchedule
-      .getState()
-      .reference?.people.find((p) => p.isIncluded && p.defaultPresenceTypeId === 'pt-office');
+    const person = datasetNow().reference?.people.find((p) => p.isIncluded && p.defaultPresenceTypeId === 'pt-office');
     expect(person).toBeDefined();
 
     await useSchedule.getState().savePresence({
@@ -224,9 +223,7 @@ describe('approving a request', () => {
     await screen.findByRole('grid', {}, { timeout: 10000 });
 
     const date = dateInRange();
-    const person = useSchedule
-      .getState()
-      .reference?.people.find((p) => p.isIncluded && p.defaultPresenceTypeId === 'pt-office');
+    const person = datasetNow().reference?.people.find((p) => p.isIncluded && p.defaultPresenceTypeId === 'pt-office');
     expect(person).toBeDefined();
 
     const type = MOCK_REQUEST_TYPES.find((t) => t.code === 'REMOTE')!;
@@ -237,7 +234,7 @@ describe('approving a request', () => {
       to: date,
       portion: 'full',
     });
-    await apiPost(`/api/requests/${created.id}/decide`, { decision: 'approve', comment: null });
+    await apiPost(`/api/requests/${created.id}/decide`, { decision: 'APPROVE', comment: null });
     await queryClient.invalidateQueries({ queryKey: ['schedule'] });
 
     await waitFor(() => {
@@ -254,7 +251,7 @@ describe('approving a request', () => {
 
     fireEvent.click((await screen.findAllByRole('button', { name: 'Decline' }))[0]!);
 
-    await waitFor(() => expect(mockBackend.requests[0]!.state).toBe('rejected'));
+    await waitFor(() => expect(mockBackend.requests[0]!.state).toBe('REJECTED'));
     expect(mockBackend.data.presence).toHaveLength(0);
   });
 });
@@ -272,13 +269,13 @@ describe('withdrawing', () => {
     // the outcome is true clicks whichever button is actually on screen.
     await waitFor(() => {
       fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw' })[0]!);
-      expect(mockBackend.requests[0]!.state).toBe('cancelled');
+      expect(mockBackend.requests[0]!.state).toBe('CANCELLED');
     });
 
     // Leaving the presence behind would show the roster something the person
     // explicitly took back.
     await waitFor(() => expect(mockBackend.data.presence).toHaveLength(0));
-    expect(mockBackend.requests[0]!.state).toBe('cancelled');
+    expect(mockBackend.requests[0]!.state).toBe('CANCELLED');
   });
 });
 

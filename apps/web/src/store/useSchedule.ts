@@ -18,22 +18,21 @@ import {
   type ScheduleResponse,
 } from '../api/queries.ts';
 import { queryClient } from '../api/queryClient.ts';
-import { scheduleRepository } from '../data/httpRepository.ts';
+import * as scheduleApi from '../api/schedule.ts';
 import type {
   AbsenceUpsert,
   DraftSyncItem,
   PresenceUpsert,
   PublishOutcome,
-} from '../data/repository.ts';
+} from '../api/schedule.ts';
 import {
-  applyChanges,
   assignmentChange,
   compDayChange,
   isNoop,
 } from '../domain/draft.ts';
-import { buildIndex, cellKey, type DatasetIndex } from '../domain/lookup.ts';
+import { buildIndex, cellKey } from '../domain/lookup.ts';
+import { datasetOf, planNow } from './datasetCache.ts';
 import type {
-  Absence,
   Acknowledgement,
   Assignment,
   CompDayEntry,
@@ -42,12 +41,10 @@ import type {
   DraftSession,
   IsoDate,
   Person,
-  PresenceRecord,
   PersonId,
   PlanData,
   PublishConflict,
   ReferenceData,
-  ScheduleDataset,
   ShiftId,
   UnitId,
 } from '../domain/types.ts';
@@ -69,12 +66,9 @@ export interface ScheduleState {
   range: DateRange | undefined;
   currentUserId: PersonId | undefined;
 
-  reference: ReferenceData | undefined;
-  /** NOTE: Published data — what everyone sees. */
-  published: PlanData | undefined;
-  /** NOTE: Published plus the applied draft — what the grid renders. */
-  plan: PlanData | undefined;
-  index: DatasetIndex | undefined;
+  // NOTE: `reference`, `published`, `plan` and `index` are **not** here. Server state
+  // lives in the TanStack Query cache and the derivation lives in `useDataset()`; this
+  // store owns the draft and the screen's own state. See `useDataset.ts` for why.
 
   session: DraftSession | undefined;
   changes: DraftChange[];
@@ -180,24 +174,6 @@ function nextSeq(): number {
   return seqCounter;
 }
 
-/**
- * NOTE: Rebuilds `plan` and the index from published plus the draft.
- *
- * At module scope rather than inside the store, because the query-cache subscription at
- * the bottom of this file needs the same arithmetic and must not have a second copy of it.
- */
-function recomputeFor(
-  reference: ReferenceData,
-  published: PlanData,
-  changes: readonly DraftChange[],
-): { plan: PlanData; index: DatasetIndex } {
-  const plan = applyChanges(published, changes);
-  return { plan, index: buildIndex(datasetOf(reference, plan)) };
-}
-
-function datasetOf(reference: ReferenceData, plan: PlanData): ScheduleDataset {
-  return { ...reference, ...plan, history: [] };
-}
 
 /**
  * NOTE: Sync key: what the change is about, not what kind of change it is.
@@ -374,14 +350,15 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     dirtyKeys = new Set();
     pendingRange = undefined;
 
-    const plan = get().plan;
+    const { unitId, range, session, changes } = get();
+    const plan = planNow(unitId, range, session?.id, changes);
     if (keys.length === 0 || !plan) {
       set({ pendingSync: false });
       return;
     }
 
     try {
-      await scheduleRepository.syncChanges(sessionId, syncItemsFor(keys, plan));
+      await scheduleApi.syncChanges(sessionId, syncItemsFor(keys, plan));
       consecutiveFailures = 0;
       set({ syncError: undefined });
       if (touched) await revalidateTouched(touched);
@@ -434,8 +411,6 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     pendingRange = undefined;
     consecutiveFailures = 0;
   }
-  const recompute = recomputeFor;
-
   /**
    * NOTE: The caller's open draft over this scope, with its staged changes — or nothing.
    *
@@ -448,13 +423,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     range: DateRange,
   ): Promise<{ session: DraftSession; changes: DraftChange[]; overlapping: readonly DraftSession[] } | undefined> {
     try {
-      const mine = await scheduleRepository.listMyOpenDrafts(unitId, range);
+      const mine = await scheduleApi.listMyOpenDrafts(unitId, range);
       const session = mine[0];
       if (!session) return undefined;
 
       const [changes, overlapping] = await Promise.all([
-        scheduleRepository.draftChanges(session.id),
-        scheduleRepository.listOverlappingDrafts(unitId, range, session.editorPersonId),
+        scheduleApi.draftChanges(session.id),
+        scheduleApi.listOverlappingDrafts(unitId, range, session.editorPersonId),
       ]);
       return { session, changes: [...changes], overlapping };
     } catch {
@@ -463,40 +438,34 @@ export const useSchedule = create<ScheduleState>((set, get) => {
   }
 
   /**
-   * NOTE: Writes a new presence list into both `published` and `plan`.
+   * NOTE: A direct write landed — tell the queries that now hold a stale answer.
    *
-   * WHY both: presence never passes through a draft (ADR-0043), so there is no change
-   * list to replay it from — `plan` is not derivable from `published` for this one
-   * field. Recomputing the index keeps the two consistent for everything else.
+   * Time off and presence go around the draft entirely (ADR-0043, ADR-0052), so there is
+   * no change list to replay them from. This used to patch `published` in the store and
+   * recompute `plan` and the index beside it; now the server's answer is the only copy,
+   * so the write invalidates and the refetch is what reaches the screen.
+   *
+   * Both keys, deliberately. `['schedule']` is the grid's, and the contract is that
+   * invalidating it is enough for the grid to catch up, from anywhere. My calendar reads
+   * its own long window under `['my-calendar']` and would otherwise sit unchanged until a
+   * reload — the same defect, on the screen the person recorded the day from.
    */
-  /**
-   * NOTE: My calendar reads its own long window through its own query, so a direct write
-   * here has to tell it. The grid gets the row through this store; the calendar does not,
-   * and without this a day recorded from the calendar sat there unchanged until a reload —
-   * the same shape of defect as an approval never reaching the grid.
-   */
-  function invalidatePersonalCalendar(): void {
-    void queryClient.invalidateQueries({ queryKey: ['my-calendar'] });
-  }
-
-  function applyPresence(presence: readonly PresenceRecord[]): void {
-    invalidatePersonalCalendar();
-    const { reference, published, changes } = get();
-    if (!reference || !published) return;
-    const nextPublished: PlanData = { ...published, presence };
-    const { plan, index } = recompute(reference, nextPublished, changes);
-    set({ published: nextPublished, plan, index });
-  }
-
-  /** The same, for absences, which are direct writes now (ADR-0052). Any open draft is
-   * left alone: the two flows do not meet. */
-  function applyAbsences(absences: readonly Absence[]): void {
-    invalidatePersonalCalendar();
-    const { reference, published, changes } = get();
-    if (!reference || !published) return;
-    const nextPublished: PlanData = { ...published, absences };
-    const { plan, index } = recompute(reference, nextPublished, changes);
-    set({ published: nextPublished, plan, index });
+  // Awaited, not fired and forgotten: these actions are async and a caller that awaits
+  // one reasonably expects the write to be visible when it returns. Left as `void` the
+  // screen updated a round trip later, and anything reading straight afterwards saw the
+  // state from before the write.
+  //
+  // `refetchType: 'all'` because the default refetches only queries something is
+  // currently observing, and the screens that need this most are often not mounted: a
+  // day recorded from My calendar has to be right on the grid when you next open it, and
+  // the grid's entry has no observer while you are looking at the calendar. The cost is
+  // bounded — datasets are date-scoped (ADR-0041) and the client holds a couple of
+  // periods, not a year.
+  async function invalidateAfterDirectWrite(): Promise<void> {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['schedule'], refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: ['my-calendar'], refetchType: 'all' }),
+    ]);
   }
 
   /**
@@ -512,16 +481,12 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     if (meaningful.length === 0) return;
 
     const state = get();
-    const { reference, published } = state;
-    if (!reference || !published) return;
-
     const changes = [...state.changes, ...meaningful];
-    const { plan, index } = recompute(reference, published, changes);
 
+    // Only the draft is written. `plan` and the index follow from it in `useDataset()`,
+    // so there is nothing here to keep in step with them.
     set({
       changes,
-      plan,
-      index,
       ...(options.fromHistory
         ? {}
         : { undoStack: [...state.undoStack, [...meaningful]], redoStack: [] }),
@@ -536,8 +501,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     cells: readonly CellRef[],
     content: Assignment['content'] | null,
   ): DraftChange[] {
-    const { plan, index, currentUserId } = get();
-    if (!plan || !index) return [];
+    const { unitId, range, session, changes: staged, currentUserId } = get();
+    const plan = planNow(unitId, range, session?.id, staged);
+    const reference = queryClient.getQueryData<ReferenceData>(referenceQueryKey);
+    if (!plan || !reference) return [];
+    const index = buildIndex(datasetOf(reference, plan));
 
     const existing = new Map<string, Assignment>();
     for (const assignment of plan.assignments) {
@@ -658,11 +626,12 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       cancelSync();
       set({ status: 'loading', error: undefined });
       try {
-        // TanStack Query owns server state (Phase 5): both fetches go through
-        // its cache, so a second consumer of the same (unitId, range) —
-        // `usePlanningView`'s schedule query for coverage/issues — reuses this
-        // request instead of firing it again.
-        const [reference, scheduleResponse] = await Promise.all([
+        // TanStack Query owns server state: these fetches warm its cache, and
+        // `useDataset()`/`usePlanningView` read the very same entries. Nothing is copied
+        // into the store — `load` awaits them so `status` can say when the screen has
+        // something to draw, and so the draft below is resumed against a period that has
+        // actually arrived.
+        await Promise.all([
           queryClient.fetchQuery(referenceQueryOptions()),
           queryClient.fetchQuery(scheduleQueryOptions(unitId, range, undefined)),
         ]);
@@ -670,8 +639,6 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         // one was in flight — its answer is stale, and applying it now would
         // yank the screen back to a period the user has already left.
         if (seq !== loadSeq) return;
-
-        const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
 
         // WHY the draft is resumed rather than dropped: changing the unit or the period
         // used to blank `session` and `changes`, so a planner who had generated a period
@@ -686,15 +653,10 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         const resumed = await resumeDraftFor(unitId, range);
         if (seq !== loadSeq) return;
 
-        const { plan, index } = recompute(reference, published, resumed?.changes ?? []);
         set({
           status: 'ready',
           unitId,
           range,
-          reference,
-          published,
-          plan,
-          index,
           // NOTE: deliberately not reset — identity is owned by `setCurrentUser`
           // (ADR-0039) and survives changing unit or period.
           session: resumed?.session,
@@ -728,11 +690,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
       opening = (async () => {
         try {
-          const bundle = await scheduleRepository.openDraft(unitId, range, currentUserId ?? '');
+          const bundle = await scheduleApi.openDraft(unitId, range, currentUserId ?? '');
           // The server's answer for "who owns this draft" beats the client's guess: it is
           // the id that will appear in the audit trail.
           const editorId = bundle.session.editorPersonId || (currentUserId ?? '');
-          const overlapping = await scheduleRepository.listOverlappingDrafts(
+          const overlapping = await scheduleApi.listOverlappingDrafts(
             unitId,
             range,
             editorId,
@@ -773,17 +735,16 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async savePerson(person) {
-      const saved = await scheduleRepository.savePerson(person);
-      const state = get();
-      if (!state.reference || !state.plan) return;
-
-      const reference: ReferenceData = {
-        ...state.reference,
-        people: state.reference.people.map((p) => (p.id === saved.id ? saved : p)),
-      };
-      // NOTE: The index is rebuilt: the validator and role-picker read
-      // eligibility and target shares, and they need to see the edit right away.
-      set({ reference, index: buildIndex(datasetOf(reference, state.plan)) });
+      const saved = await scheduleApi.savePerson(person);
+      // The edit has to be visible at once — the validator and the shift picker read
+      // eligibility and target shares. Writing the echoed person straight into the
+      // reference cache does that without a round trip; the index rebuilds from it in
+      // `useDataset()`.
+      queryClient.setQueryData<ReferenceData>(referenceQueryKey, (current) =>
+        current
+          ? { ...current, people: current.people.map((p) => (p.id === saved.id ? saved : p)) }
+          : current,
+      );
     },
 
     async commitAutoPopulate(result) {
@@ -837,44 +798,34 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async acknowledge(issueKey, comment) {
-      const { currentUserId, plan, reference, published } = get();
-      if (!plan || !reference || !published) return;
-      // NOTE: Acknowledgements don't go through the draft: they're an
-      // assessment of the plan, not the plan itself — but, like edits, they
-      // must survive a reload, so they go straight to the repository (ADR-0012).
+      const { currentUserId } = get();
+      // NOTE: Acknowledgements don't go through the draft: they're an assessment of the
+      // plan, not the plan itself — but, like edits, they must survive a reload, so they
+      // go straight to the server.
       const ack: Acknowledgement = {
         issueKey,
         comment,
         byPersonId: currentUserId ?? 'unknown',
         at: new Date().toISOString(),
       };
-      await scheduleRepository.saveAcknowledgement(ack);
-
-      const acknowledgements = [
-        ...plan.acknowledgements.filter((a) => a.issueKey !== issueKey),
-        ack,
-      ];
-      const nextPlan = { ...plan, acknowledgements };
-      set({
-        plan: nextPlan,
-        published: { ...published, acknowledgements },
-        index: buildIndex(datasetOf(reference, nextPlan)),
-      });
+      await scheduleApi.saveAcknowledgement(ack);
+      // What the screens actually read is `acknowledgedIssueKeys` off the schedule
+      // response (`usePlanningView`), so refetching it is the whole update. The store
+      // used to keep an `acknowledgements` list of its own beside that, which nothing
+      // read — `published.acknowledgements` arrives empty from the endpoint by design.
+      void queryClient.invalidateQueries({ queryKey: ['schedule'] });
     },
 
     undo() {
       const state = get();
       const batch = state.undoStack.at(-1);
-      if (!batch || !state.reference || !state.published) return;
+      if (!batch) return;
 
       const drop = new Set(batch.map((change) => change.id));
       const changes = state.changes.filter((change) => !drop.has(change.id));
-      const { plan, index } = recompute(state.reference, state.published, changes);
 
       set({
         changes,
-        plan,
-        index,
         undoStack: state.undoStack.slice(0, -1),
         redoStack: [...state.redoStack, batch],
       });
@@ -914,14 +865,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async saveAbsence(record) {
-      const { published } = get();
-      if (!published) return;
       try {
-        const saved = await scheduleRepository.saveAbsence(record);
-        const next = published.absences.some((a) => a.id === saved.id)
-          ? published.absences.map((a) => (a.id === saved.id ? saved : a))
-          : [...published.absences, saved];
-        applyAbsences(next);
+        await scheduleApi.saveAbsence(record);
+        await invalidateAfterDirectWrite();
       } catch (error) {
         set({
           actionError: `Could not save the absence: ${error instanceof Error ? error.message : String(error)}`,
@@ -930,11 +876,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async removeAbsence(id) {
-      const { published } = get();
-      if (!published) return;
       try {
-        await scheduleRepository.deleteAbsence(id);
-        applyAbsences(published.absences.filter((a) => a.id !== id));
+        await scheduleApi.deleteAbsence(id);
+        await invalidateAfterDirectWrite();
       } catch (error) {
         set({
           actionError: `Could not remove the absence: ${error instanceof Error ? error.message : String(error)}`,
@@ -943,16 +887,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async savePresence(record) {
-      const { plan, published, reference } = get();
-      if (!plan || !published || !reference) return;
       try {
-        const saved = await scheduleRepository.savePresence(record);
-        // Replace in place when it already existed; append otherwise. The server is the
-        // source of truth for the version, so the echoed record is what goes in.
-        const next = published.presence.some((p) => p.id === saved.id)
-          ? published.presence.map((p) => (p.id === saved.id ? saved : p))
-          : [...published.presence, saved];
-        applyPresence(next);
+        await scheduleApi.savePresence(record);
+        await invalidateAfterDirectWrite();
       } catch (error) {
         set({
           actionError: `Could not save presence: ${error instanceof Error ? error.message : String(error)}`,
@@ -961,11 +898,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
     },
 
     async removePresence(id) {
-      const { published } = get();
-      if (!published) return;
       try {
-        await scheduleRepository.deletePresence(id);
-        applyPresence(published.presence.filter((p) => p.id !== id));
+        await scheduleApi.deletePresence(id);
+        await invalidateAfterDirectWrite();
       } catch (error) {
         set({
           actionError: `Could not remove presence: ${error instanceof Error ? error.message : String(error)}`,
@@ -992,7 +927,7 @@ export const useSchedule = create<ScheduleState>((set, get) => {
 
       set({ publishing: true, conflicts: [], actionError: undefined });
       try {
-        const outcome = await scheduleRepository.publishDraft(session.id);
+        const outcome = await scheduleApi.publishDraft(session.id);
         if (!outcome.ok) {
           // NOTE: The draft is kept in full: a failed publish loses nothing.
           set({ publishing: false, conflicts: outcome.conflicts });
@@ -1002,18 +937,13 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         // schedule query (any draftId, this unit/range or overlapping ones)
         // is stale now, not just this session's overlay.
         await queryClient.invalidateQueries({ queryKey: ['schedule'] });
-        const scheduleResponse = await queryClient.fetchQuery(
-          scheduleQueryOptions(unitId, range, undefined),
-        );
-        const published: PlanData = { ...scheduleResponse.plan, acknowledgements: [] };
-        const { reference } = get();
-        if (!reference) return outcome;
-        const { plan, index } = recompute(reference, published, []);
+        // Awaited rather than left to refetch on its own: closing the session below
+        // switches the grid to the no-draft key, and this makes sure that entry holds
+        // the *published* result before it does — otherwise the cells the publish just
+        // wrote blink out for a frame between losing the overlay and gaining the answer.
+        await queryClient.fetchQuery(scheduleQueryOptions(unitId, range, undefined));
         set({
           publishing: false,
-          published,
-          plan,
-          index,
           session: undefined,
           changes: [],
           undoStack: [],
@@ -1034,9 +964,9 @@ export const useSchedule = create<ScheduleState>((set, get) => {
       // NOTE: Clear the queue before the request: otherwise a delayed flush
       // would wake up after discard and try to write to a closed session.
       cancelSync();
-      if (state.session) await scheduleRepository.discardDraft(state.session.id);
-      if (!state.reference || !state.published) return;
-      const { plan, index } = recompute(state.reference, state.published, []);
+      if (state.session) await scheduleApi.discardDraft(state.session.id);
+      // Dropping the changes is the whole of it: with an empty draft, `plan` is
+      // `published`, which is what discarding means.
       set({
         session: undefined,
         changes: [],
@@ -1045,68 +975,11 @@ export const useSchedule = create<ScheduleState>((set, get) => {
         conflicts: [],
         pendingSync: false,
         syncError: undefined,
-        plan,
-        index,
       });
     },
   };
 });
 
-/**
- * The store follows the schedule query instead of snapshotting it once.
- *
- * WHY this exists at all: absences, comp days and presence reach the grid through
- * `plan` here, and `load()` was the only thing that ever filled it. Anything the
- * **server** wrote on our behalf therefore had no way in — and every approval is exactly
- * that. Approving leave from the cell menu removed the dashed pending band, which is
- * query-backed, and never drew the granted day, which is not: the cell went empty and
- * stayed empty until the tab was reloaded.
- *
- * Invalidating `['schedule']` is now enough, from anywhere, for the grid to catch up —
- * which is the property that was missing, not a faster path for one caller.
- *
- * Only a **fetch that succeeded** for the view currently on screen is taken. The delta
- * path writes the visible key with `setQueryData` (a different event) after fetching a
- * narrower range under a different key, so neither half of it can loop back through here.
- */
-queryClient.getQueryCache().subscribe((event) => {
-  if (event.type !== 'updated' || event.action.type !== 'success') return;
-
-  const key: readonly unknown[] = event.query.queryKey;
-  const state = useSchedule.getState();
-
-  // Reference data (Settings, Phase 6) has exactly the same defect `published` used to:
-  // `load()` was the only thing that ever wrote `reference`, so every admin mutation's
-  // `invalidateQueries({ queryKey: referenceQueryKey })` (api/admin.ts) marked the cache
-  // stale and changed nothing on screen. Delete a row, "Save all" says it saved, and the
-  // row sits there — dimmed while the row was pending, full-opacity again once the save
-  // cleared it from `pending` — until a full reload finally re-runs `load()`. Reference
-  // and the schedule reach the grid through the same `datasetOf`, so a stale reference is
-  // the same class of bug, just on the other input.
-  if (key.length === referenceQueryKey.length && key.every((part, i) => part === referenceQueryKey[i])) {
-    const next = event.query.state.data as ReferenceData | undefined;
-    if (!next) return;
-    if (!state.published) {
-      useSchedule.setState({ reference: next });
-      return;
-    }
-    useSchedule.setState({ reference: next, ...recomputeFor(next, state.published, state.changes) });
-    return;
-  }
-
-  const { unitId, range, reference, published, changes, session } = state;
-  if (!unitId || !range || !reference || !published) return;
-
-  const expected: readonly unknown[] = scheduleQueryKey(unitId, range, session?.id);
-  if (key.length !== expected.length) return;
-  if (key.some((part: unknown, i: number) => part !== expected[i])) return;
-
-  const next = event.query.state.data as ScheduleResponse | undefined;
-  if (!next) return;
-
-  const nextPublished: PlanData = { ...next.plan, acknowledgements: published.acknowledgements };
-  useSchedule.setState({ published: nextPublished, ...recomputeFor(reference, nextPublished, changes) });
-});
 
 /** NOTE: Whether there are unsaved edits. */
 export function hasDraftChanges(state: ScheduleState): boolean {

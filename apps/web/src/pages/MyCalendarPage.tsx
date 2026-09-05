@@ -27,6 +27,7 @@ import { useSchedule } from '../store/useSchedule.ts';
 import { CalendarSidebar } from '../features/calendar/CalendarSidebar.tsx';
 import { CalendarMonth, type CalendarDay } from '../features/calendar/CalendarMonth.tsx';
 import { CalendarDayMenu } from '../features/calendar/CalendarDayMenu.tsx';
+import { useReference } from '../store/useDataset.ts';
 
 /** How many months are on screen to begin with, and how many arrive per extension. */
 const INITIAL_AHEAD = 4;
@@ -37,7 +38,7 @@ const STEP = 3;
 const MAX_MONTHS = 24;
 
 export function MyCalendarPage() {
-  const reference = useSchedule((s) => s.reference);
+  const reference = useReference();
   const selfId = useSchedule((s) => s.currentUserId);
 
   const thisMonth = useMemo(() => DateTime.utc().startOf('month'), []);

@@ -15,11 +15,12 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useState } from 'react';
 import { useCreateRequest, useRequestTypes } from '../../api/requests.ts';
 import { useCapabilities } from '../../auth/useCapabilities.ts';
-import type { AbsenceUpsert } from '../../data/repository.ts';
+import type { AbsenceUpsert } from '../../api/schedule.ts';
 import type { DayPortion, EventType } from '../../domain/types.ts';
 import { useSchedule } from '../../store/useSchedule.ts';
 import { useUi, type AbsenceRangeTarget } from '../../store/useUi.ts';
 import { Select, type SelectOption } from '../../ui/primitives.tsx';
+import { useReference } from '../../store/useDataset.ts';
 
 const PORTION_OPTIONS: readonly SelectOption[] = [
   { value: 'FULL', label: 'Whole day' },
@@ -36,7 +37,7 @@ export function AbsenceDialog() {
   const saveAbsence = useSchedule((s) => s.saveAbsence);
   const setActionError = useSchedule((s) => s.setActionError);
   const removeAbsence = useSchedule((s) => s.removeAbsence);
-  const eventTypes = useSchedule((s) => s.reference?.eventTypes);
+  const eventTypes = useReference()?.eventTypes;
   const caps = useCapabilities();
   const requestTypes = useRequestTypes();
   const createRequest = useCreateRequest();

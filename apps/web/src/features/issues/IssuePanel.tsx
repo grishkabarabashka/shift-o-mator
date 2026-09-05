@@ -20,6 +20,7 @@ import { useUi } from '../../store/useUi.ts';
 import type { PlanningView } from '../planning/usePlanningView.ts';
 import { GapSummaryCard } from './GapSummaryCard.tsx';
 import { dateSpanLabel, groupIssues, type IssueGroup } from './grouping.ts';
+import { useDataset } from '../../store/useDataset.ts';
 
 interface Props {
   readonly view: PlanningView;
@@ -62,7 +63,7 @@ export function IssuePanel({ view, onClose }: Props) {
   const acknowledge = useSchedule((s) => s.acknowledge);
   const unitId = useSchedule((s) => s.unitId);
   const range = useSchedule((s) => s.range);
-  const index = useSchedule((s) => s.index);
+  const { index } = useDataset();
 
   const [open, setOpen] = useState<Bucket>('GAP');
   const [pendingAck, setPendingAck] = useState<Issue>();

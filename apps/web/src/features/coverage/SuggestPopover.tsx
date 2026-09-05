@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCandidateExplanation, fetchCandidates } from '../../api/planning.ts';
 import type { IsoDate, PersonId, ShiftId, UnitId } from '../../domain/types.ts';
-import { useSchedule } from '../../store/useSchedule.ts';
+import { useDataset } from '../../store/useDataset.ts';
 
 export interface SuggestTarget {
   readonly shiftId: ShiftId;
@@ -36,7 +36,7 @@ export function SuggestPopover({ target, onClose, onPick }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: target.x, top: target.y });
 
-  const plan = useSchedule((s) => s.plan);
+  const { plan } = useDataset();
 
   const busyToday = new Set(
     (plan?.assignments ?? []).filter((a) => a.date === target.date).map((a) => a.personId),

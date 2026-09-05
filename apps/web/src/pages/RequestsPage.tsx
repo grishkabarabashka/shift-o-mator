@@ -23,9 +23,9 @@ import {
 } from '../api/requests.ts';
 import type { Location } from '../domain/types.ts';
 import { Select, type SelectOption } from '../ui/primitives.tsx';
-import { useSchedule } from '../store/useSchedule.ts';
 import { PageHeader } from '../ui/PageHeader.tsx';
 import type { PlanningView } from '../features/planning/usePlanningView.ts';
+import { useReference } from '../store/useDataset.ts';
 
 /** NOTE: Plain words, not enum names — this is the only place the state is user-facing. */
 const STATE_LABEL: Record<RequestState, string> = {
@@ -168,7 +168,7 @@ function NewRequestCard({ locations }: { readonly locations: readonly Location[]
   const [siteLocationId, setSiteLocationId] = useState('');
   const [note, setNote] = useState('');
 
-  const presenceTypes = useSchedule((s) => s.reference?.presenceTypes) ?? [];
+  const presenceTypes = useReference()?.presenceTypes ?? [];
   const selected = types.data?.find((t) => t.id === typeId);
   // A way of working that names one of our offices needs to know which.
   const needsSite =

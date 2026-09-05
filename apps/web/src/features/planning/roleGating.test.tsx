@@ -9,6 +9,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { datasetNow } from '../../store/useDataset.ts';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../App.tsx';
@@ -240,16 +241,16 @@ describe('recording an absence that needs no approval', () => {
     await renderScheduleAs('Planner');
     const cell = someoneElsesCell();
     const subject = cell.getAttribute('data-person');
-    const before = useSchedule.getState().plan?.absences.length ?? 0;
+    const before = datasetNow().plan?.absences.length ?? 0;
 
     fireEvent.contextMenu(cell);
     const menu = await screen.findByRole('menu', { name: 'Assignment' });
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Not available/ }));
 
     await waitFor(() =>
-      expect(useSchedule.getState().plan?.absences.length).toBe(before + 1),
+      expect(datasetNow().plan?.absences.length).toBe(before + 1),
     );
-    expect(useSchedule.getState().plan?.absences.at(-1)?.personId).toBe(subject);
+    expect(datasetNow().plan?.absences.at(-1)?.personId).toBe(subject);
     expect(useSchedule.getState().session).toBeUndefined();
   });
 
