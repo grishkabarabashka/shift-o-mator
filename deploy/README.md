@@ -25,6 +25,12 @@ and any combination below runs.
 | **Database auth** | Windows auth (LocalDB) | managed identity | managed identity, *or* a service account + password if the database is standalone |
 | **Key Vault** | none — user secrets | not needed | not needed; only for a SQL password, if the database cannot do Entra auth |
 | **AI model** | off by default; Foundry Local or a cloud deployment (section 2b) | an Azure OpenAI deployment, by managed identity | the same, inside the corporate tenant |
+| **How it is reached** | `localhost:5173` → `localhost:5106` | one HTTPS origin: managed NGINX ingress on `<ip>.nip.io`, self-signed | one HTTPS origin: Application Gateway, real certificate |
+
+**[parameters.md](parameters.md) is the sheet to fill in as you go.** Roughly half of what
+the sections below produce — an OIDC issuer URL, an identity's object id, an application id
+— is needed again several sections later, and some of it cannot be re-derived without
+recreating the resource that produced it.
 
 Two consequences worth stating plainly:
 
@@ -103,6 +109,14 @@ You need an app registration. Reuse the sandbox one (section 6.1) by adding
 APP_ID=$(az ad app create --display-name "shift-o-mator-local" \
   --sign-in-audience AzureADMyOrg --query appId -o tsv)
 az ad app update --id $APP_ID --identifier-uris "api://$APP_ID"
+
+# v2 access tokens — required, see section 6.1 for why a fresh app registration needs this
+# (it defaults to v1 tokens, which the API's Authority below rejects on issuer, not audience).
+az rest --method PATCH \
+  --uri "https://graph.microsoft.com/v1.0/applications/$(az ad app show --id $APP_ID --query id -o tsv)" \
+  --headers "Content-Type=application/json" \
+  --body '{"api":{"requestedAccessTokenVersion":2}}'
+
 az ad sp create --id $APP_ID
 TENANT_ID=$(az account show --query tenantId -o tsv)
 echo "client id: $APP_ID / tenant: $TENANT_ID"
@@ -305,61 +319,77 @@ key-authenticated model endpoint; see "What Key Vault is for" in section 5.
 | `Ai:Model` | — | the **deployment** name | under `azure-openai` this names the deployment, not the model family |
 | `Ai:Endpoint` | — | the resource URL | required by `azure-openai`. For `openai` it is optional, but on its own it is enough: a keyless endpoint is a complete configuration |
 | `Ai:ApiKey` | user secrets, if the endpoint needs one | **unset** | `azure-openai` authenticates as the pod instead — see `ChatModel.FromConfiguration` |
+| `Auth:Jwt:RequireHttpsMetadata` | unset (`true`) | `true`, from `appsettings.Production.json` | not templated in the chart. The only reason to lower it is a test issuer served over HTTP |
+| `Auth:DirectoryRoles` | **must not exist** | **must not exist** | moved to a `SystemSetup` row (ADR-0063); present in configuration at all, it **throws at startup** rather than being ignored |
+| `ASPNETCORE_ENVIRONMENT` | `Development` | `Production` (`api.env`) | `Development` is what publishes `/openapi` and `/scalar` — never in a deployed environment |
+| `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | unset | `"true"`, set by the chart when `ingress.enabled` | honours `X-Forwarded-Proto` so `Request.Scheme` is right behind TLS termination. It also clears the trusted-proxy allowlist — the headers are then accepted from any address that can reach the pod |
+| `ASPNETCORE_URLS` | launch profile | `http://+:8080`, from the Dockerfile | HTTP only, on purpose: TLS terminates at the ingress, and `UseHttpsRedirection` is therefore skipped inside a container |
 
-### Frontend (`apps/web/.env.*`)
+### Frontend (`apps/web/.env.*` locally, `web.config.*` deployed)
 
-All `VITE_*` values are inlined into the bundle at **build time**; for a container image
-they are `--build-arg`s, not runtime settings. Full list with comments in
+Locally (`npm run dev`, no container), `VITE_*` values are read at build time from
+`.env.development.local`. In a container these settings are read at **start**, from
+`APP_*` environment variables the chart's web ConfigMap supplies — written into
+`config.js` by `apps/web/docker-entrypoint.d/40-config.sh` and read back by
+`apps/web/src/runtimeConfig.ts` (ADR-0068). One image serves every environment; changing
+any of these is a `helm upgrade`, never a rebuild. Full list with comments in
 `apps/web/.env.example`. None are secrets — a SPA client id and a scope are public by
 design.
 
-| Key | Local | Sandbox/Production |
+| Setting | Local (`VITE_*`) | Deployed (`web.config.*`) |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:5106` | the deployed API's URL |
-| `VITE_AUTH_MODE` | `stub` (or `entra`, section 2a) | `entra` |
-| `VITE_ENTRA_CLIENT_ID` / `_TENANT_ID` / `_API_SCOPE` | only when `entra` | required |
-| `VITE_ENTRA_REDIRECT_URI` | unset (defaults to the current origin) | unset unless the app is served from a different origin than it redirects to |
+| API origin | `VITE_API_URL=http://localhost:5106` | `apiUrl: ""` — the app's **own** origin behind the ingress, so a relative `/api/...` request is correct and there is no second address to name |
+| Auth mode | `VITE_AUTH_MODE=stub` (or `entra`, section 2a) | `authMode: entra` |
+| Entra client/tenant/scope | only when `entra` | `entraClientId` / `entraTenantId` / `entraApiScope` — required when `authMode: entra` |
+| Entra redirect URI | unset (defaults to the current origin) | `entraRedirectUri: ""` — same default, resolved in the browser at runtime, so the ingress host does not need to be known at deploy time |
 
-**`VITE_AUTH_MODE` and the server's `Auth:Mode` must agree.** They are set in different
-places and nothing checks them against each other: a client in `entra` against a `Stub`
-server signs you in and then has its token ignored, and the reverse sends no token to a
-server that requires one.
+**`web.config.authMode` and the server's `api.config.authMode` must agree.** They are set
+in different places and nothing checks them against each other: a client in `entra`
+against a `Stub` server signs you in and then has its token ignored, and the reverse sends
+no token to a server that requires one.
 
 ## 4. Building container images
 
 Only needed once you're targeting AKS. Build context is the **repository root** for both
-(they need the npm workspace root / other `ShiftOMator.*` projects).
+(they need the npm workspace root / other `ShiftOMator.*` projects). Images live in
+**GitHub Container Registry** (ghcr.io) rather than an Azure registry — packages default to
+**private**, so both pushing and pulling need a token: `write:packages` to push, and either
+`read:packages` or the pull secret (section 5) for AKS to pull.
+
+**Both images can be built here, together, before anything else exists.** The web image
+no longer needs the environment's public host baked in (ADR-0068) — `web.config.apiUrl`
+and the Entra settings are read from the chart's ConfigMap at container start, so the
+same web image is pushed once and deployed to sandbox, production, or anywhere else
+unchanged.
 
 ```bash
-podman build -t <acr>.azurecr.io/shift-o-mator/api:<tag> -f apps/api/Dockerfile .
-podman build -t <acr>.azurecr.io/shift-o-mator/web:<tag> \
-  --build-arg VITE_API_URL=<api url, known only after the API is deployed once — see step 7> \
-  --build-arg VITE_AUTH_MODE=entra \
-  --build-arg VITE_ENTRA_CLIENT_ID=<app id> \
-  --build-arg VITE_ENTRA_TENANT_ID=<tenant id> \
-  --build-arg VITE_ENTRA_API_SCOPE=api://<app id>/access_as_user \
-  -f apps/web/Dockerfile .
+GHCR_OWNER=<github-user-or-org>   # lowercase — ghcr.io rejects uppercase in the path
 
-az acr login --name <acr>
-podman push <acr>.azurecr.io/shift-o-mator/api:<tag>
-podman push <acr>.azurecr.io/shift-o-mator/web:<tag>
+podman build -t ghcr.io/$GHCR_OWNER/shift-o-mator/api:<tag> -f apps/api/Dockerfile .
+podman build -t ghcr.io/$GHCR_OWNER/shift-o-mator/web:<tag> -f apps/web/Dockerfile .
+
+# GHCR_TOKEN: a classic PAT with write:packages (a fine-grained token cannot manage
+# packages yet) — https://github.com/settings/tokens. Keep this shell open, or otherwise
+# keep $GHCR_OWNER/$GHCR_TOKEN around: section 5 needs them again for the cluster's pull
+# secret.
+echo $GHCR_TOKEN | podman login ghcr.io -u $GHCR_OWNER --password-stdin
+podman push ghcr.io/$GHCR_OWNER/shift-o-mator/api:<tag>
+podman push ghcr.io/$GHCR_OWNER/shift-o-mator/web:<tag>
 ```
 
-`VITE_API_URL` is inlined into the JS bundle at build time (Vite), not read at container
-start — there is no way to repoint a built web image at a different API URL without
-rebuilding it. This is why the sandbox and production sections below deploy the API
-first, read its address, then build the web image.
+**AKS needs its own credential to pull these images** — there is no `--attach-acr`
+equivalent for a non-Azure registry. That credential is a `kubectl`-created Secret, which
+needs a real cluster to create it against — one doesn't exist yet, so section 5 creates it
+right after the cluster itself, using `$GHCR_OWNER`/`$GHCR_TOKEN` from here. (A rotated or
+expired token needs that secret recreated later — nothing refreshes it automatically.)
 
-**The web build fails outright if `VITE_API_URL` is empty**, rather than producing a
-bundle that asks the nginx pod for `/api/*` and breaks only in a browser after the push.
-Behind an ingress the right value is the app's own public origin (`https://<host>`), not
-an empty string. For the same reason `.dockerignore` excludes `.env*`: Vite reads
-`.env.production` *inside* the image build, so a git-ignored local file on the machine
-doing the build would otherwise decide what a released image points at.
-
-`--set image.api.tag` / `image.web.tag` are **required** — there is no fallback to the
-chart's `appVersion`, which used to resolve to `:0.1.0`, an image nothing publishes, and
-surfaced minutes later as `ImagePullBackOff` rather than immediately as a bad command.
+**Three chart inputs refuse to default**, each because the quiet version cost real time:
+`--set image.api.tag` / `image.web.tag` (the old fallback to `appVersion` resolved to
+`:0.1.0`, an image nothing publishes), `image.registry` (an empty one rendered
+`shift-o-mator/api:<tag>`, which Docker Hub will happily be asked for and has never held),
+and `ingress.host` when the ingress is enabled (an Ingress with no host matches everything
+that reaches the controller). All three surfaced minutes later on a pod instead of
+immediately on the command line.
 
 To run both images locally against a SQL Server you already have reachable, without any
 AKS involved: `compose.yaml` in the repo root (`podman compose up --build`, needs
@@ -371,10 +401,20 @@ A real AKS environment, sized to cost close to nothing, for testing end-to-end
 (including real Entra ID login — Stub mode is local-only). Every command is explicit on
 purpose; run them one at a time and look at what each creates before moving to the next.
 
-Trade-offs versus production (section 8): a single Spot node (can be evicted any time —
-acceptable for throwaway testing, not for anything real), no Application Gateway/TLS (the
-web Service is exposed directly via a Kubernetes LoadBalancer), Azure SQL Serverless on
-the free-tier quota (auto-pauses after idle, so the first request after a pause is slow).
+Trade-offs versus production (section 8): a single regular node (no Spot — Azure refuses
+a Spot priority on a cluster's default/system node pool, only a *second*, non-system pool
+can be Spot, which would mean running two nodes instead of one; not worth it for a
+throwaway environment), the AKS application-routing add-on's managed NGINX instead of an
+Application Gateway, a self-signed certificate on an `<ip>.nip.io` host instead of a real
+name, and Azure SQL Serverless on the free-tier quota (auto-pauses after idle, so the
+first request after a pause is slow).
+
+**The ingress is not optional here, even though everything else is trimmed.** This
+environment exists to test a real Entra ID sign-in, and a browser cannot complete one
+against a plain-HTTP address: Entra rejects any redirect URI that is not HTTPS (only
+`http://localhost` is exempt), and MSAL has no `crypto.subtle` outside a secure context, so
+PKCE fails before a request is sent. Exposing the pods on bare LoadBalancer IPs would
+deploy fine and then be unusable for the one thing it is for.
 
 **No secrets anywhere**: the pod reaches SQL as its own managed identity, and the model
 the same way. So no Key Vault is created below and `azureKeyVault.enabled` stays `false` —
@@ -385,8 +425,6 @@ is for" at the end of this section for what would bring a vault back.
 RG=rg-shiftomator-sandbox
 LOCATION=eastus
 AKS=aks-shiftomator-sandbox
-ACR=shiftomatorsandbox        # must be globally unique — append your initials if taken
-KV=kv-shiftomator-sandbox
 SQL_SERVER=sql-shiftomator-sandbox
 SQL_DB=ShiftOMator
 IDENTITY=id-shiftomator-sandbox
@@ -394,19 +432,48 @@ NAMESPACE=shift-o-mator
 
 az group create --name $RG --location $LOCATION
 
-# --- Container registry, attached to the cluster we're about to create ---
-az acr create --resource-group $RG --name $ACR --sku Basic
-
-# --- AKS: 1 Spot node, workload identity, attached to the ACR above ---
+# --- AKS: 1 node, workload identity ---
+# Not Spot: Azure refuses --priority Spot on the default/system node pool (a Spot pool can
+# only be a *second*, non-system pool) — `az aks create` doesn't even accept the flag on
+# this command, it exists only on `az aks nodepool add`. Making this Spot would mean a
+# second, always-on node just to host it, which defeats the point for a throwaway sandbox.
+# No --attach-acr either: images live in GitHub Container Registry, not Azure — section 4
+# covers building/pushing them and the ghcr-pull-secret this cluster needs to pull them.
 az aks create \
   --resource-group $RG --name $AKS \
   --node-count 1 --node-vm-size Standard_B2s \
-  --priority Spot --eviction-policy Delete --spot-max-price -1 \
   --enable-oidc-issuer --enable-workload-identity \
-  --attach-acr $ACR \
   --generate-ssh-keys
 
 az aks get-credentials --resource-group $RG --name $AKS --overwrite-existing
+
+# --- The ingress controller: AKS's managed NGINX (application routing add-on). Free
+#     beyond the one load balancer it creates, and it is what gives this environment a
+#     single HTTPS origin — without which nobody can sign in (see above). The
+#     Application Gateway production is written against would need a subnet, a public IP
+#     and AGIC; nothing about the chart cares which controller it is, only the class name.
+az aks approuting enable -g $RG -n $AKS
+
+# The add-on's IngressClass is NOT named "webapprouting.kubernetes.io" — that would be a
+# reasonable guess and is wrong. Confirm the real name before setting ingress.className in
+# values-sandbox.yaml; a wrong one is not a validation error, the controller just silently
+# ignores the Ingress object (see the troubleshooting table, section 9).
+kubectl get ingressclass -o custom-columns=NAME:.metadata.name
+
+# --- The pull secret AKS needs to fetch images from GitHub Container Registry (section 4)
+#     — this is the earliest point a cluster exists to create it against, which is why it
+#     isn't back in section 4 next to the rest of the registry setup.
+kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+GHCR_EMAIL=<your email>   # any address; the field is required and never used for anything
+kubectl -n $NAMESPACE create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=$GHCR_OWNER \
+  --docker-password=$GHCR_TOKEN \
+  --docker-email=$GHCR_EMAIL
+# values-sandbox.yaml / values-prod.yaml already name it under image.pullSecrets. To
+# rotate it later: rerun this same command with `--dry-run=client -o yaml | kubectl apply
+# -f -` appended, which updates it in place instead of failing on "already exists".
+
 OIDC_ISSUER=$(az aks show -g $RG -n $AKS --query "oidcIssuerProfile.issuerUrl" -o tsv)
 
 # --- The identity the pod presents to Azure, federated with this cluster's service
@@ -456,9 +523,12 @@ az sql server create \
 az sql server firewall-rule create \
   --resource-group $RG --server $SQL_SERVER \
   --name AllowAzureServices --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+# One lookup, not two: behind CGNAT or a load-balanced VPN egress the second call can
+# return a different address, and the rule then covers a range you are not on.
+MY_IP=$(curl -s ifconfig.me)
 az sql server firewall-rule create \
   --resource-group $RG --server $SQL_SERVER \
-  --name MyIP --start-ip-address $(curl -s ifconfig.me) --end-ip-address $(curl -s ifconfig.me)
+  --name MyIP --start-ip-address $MY_IP --end-ip-address $MY_IP
 
 az sql db create \
   --resource-group $RG --server $SQL_SERVER --name $SQL_DB \
@@ -489,9 +559,14 @@ sqlcmd -S ${SQL_SERVER}.database.windows.net -d $SQL_DB -G -i grant.sql
 ```
 
 `-G` is Entra authentication; it picks up your `az login`. Then fill in
-`deploy/helm/shift-o-mator/values-sandbox.yaml`: `image.registry`,
-`workloadIdentity.clientId`, `azureKeyVault.keyvaultName`/`tenantId`, and the
-`<sql-server>` / `<tenant-id>` / `<app-id>` placeholders in `api.config`.
+`deploy/helm/shift-o-mator/values-sandbox.yaml`: `image.registry` (your `$GHCR_OWNER` from
+section 4 — `pullSecrets` is already set), `workloadIdentity.clientId`, and the
+`<sql-server>` / `<tenant-id>` / `<app-id>` placeholders in `api.config`. Record each in
+[parameters.md](parameters.md) as you go.
+
+**Nothing to fill in under `azureKeyVault`** — this environment has no vault, `enabled`
+stays `false`, and no `az keyvault create` appears above. The next subsection is what would
+bring one back.
 
 ### What Key Vault is for
 
@@ -505,7 +580,7 @@ Sorting every value the API needs by whether it is actually a secret:
 | Connection string, managed identity | No — no credential in it | ConfigMap |
 | `Auth:Jwt:Authority` | No — a public Microsoft URL | ConfigMap |
 | `Auth:Jwt:Audience` | No — a public Application ID URI | ConfigMap |
-| `VITE_ENTRA_CLIENT_ID` / scope | No — public by design in a SPA | Baked into the web image |
+| `web.config.entraClientId` / scope | No — public by design in a SPA | ConfigMap — read by the container at start, not baked into the web image (ADR-0068) |
 
 So the vault is not decoration, but it is also not on the critical path for SQL. Two
 cases keep it:
@@ -550,18 +625,54 @@ APP_ID=$(az ad app create --display-name "$APP_NAME" \
 # Expose an API scope (the Application ID URI becomes the JWT audience)
 az ad app update --id $APP_ID --identifier-uris "api://$APP_ID"
 
+# v2 access tokens — without this, new app registrations still default to v1
+# (`requestedAccessTokenVersion: null`), which issues tokens with issuer
+# `https://sts.windows.net/<tenant>/`. `Auth:Jwt:Authority` below is a v2.0 endpoint, whose
+# expected issuer is `https://login.microsoftonline.com/<tenant>/v2.0` — a v1 token fails
+# with `Bearer error="invalid_token", error_description="The issuer '...' is invalid"`, not
+# a 403 or an audience error, so it does not look like a version mismatch at first glance.
+OBJECT_ID=$(az ad app show --id $APP_ID --query id -o tsv)
+az rest --method PATCH \
+  --uri "https://graph.microsoft.com/v1.0/applications/$OBJECT_ID" \
+  --headers "Content-Type=application/json" \
+  --body '{"api":{"requestedAccessTokenVersion":2}}'
+
 az ad sp create --id $APP_ID
 TENANT_ID=$(az account show --query tenantId -o tsv)
 echo "authority: https://login.microsoftonline.com/$TENANT_ID/v2.0"
 echo "audience:  api://$APP_ID"
 ```
 
+**The portal's old Manifest editor (Azure AD Graph-backed) is being retired** — Microsoft
+stops serving it sometime between 2026-09-01 and 2026-10-01, pushing everyone onto the
+Microsoft Graph-backed one. The field above is exactly why this matters here: in the old
+editor it's called `accessTokenAcceptedVersion`; in Graph (the `az rest` call above, or the
+new manifest editor) it's `api.requestedAccessTokenVersion` — same setting, different name
+and shape, so a bookmark or a note pointing at the old field name silently stops applying.
+The `az rest`/Graph form above is what to use going forward.
+
 Two things the CLI does poorly; do them in the portal (**App registrations → your app**):
 
-- **Authentication → Add a platform → Single-page application**, redirect URI
-  `http://<api LoadBalancer IP>` — or whatever origin the web app is served from. It must
-  be the **SPA** platform: a "Web" platform expects a client secret, rejects the browser's
-  PKCE flow, and reports it as a CORS error that says nothing about the real cause.
+- **Authentication → Add a platform → Single-page application.** The redirect URI is the
+  **web app's own origin** — not the API's — because that's where the browser sits when
+  Entra ID sends it back after sign-in. Behind the ingress that origin is
+  `https://<host>`, and the same origin serves `/api`, so there is only ever one address
+  to register per environment.
+
+  **It must be HTTPS.** Entra accepts a plain-HTTP redirect URI only for
+  `http://localhost`; anything else is refused at registration time. Even if it were
+  accepted, MSAL needs `crypto.subtle`, which a browser does not expose outside a secure
+  context, so PKCE would fail before a request went out. This is the whole reason the
+  sandbox provisions an ingress and a certificate rather than two LoadBalancer IPs.
+
+  **You don't have the host yet**: it is derived from the ingress controller's IP in
+  section 7. Add the platform now with `http://localhost:5173` (useful anyway for local
+  work against this registration) and come back for the real one — nothing about
+  *deploying* depends on it, only signing in through the browser does.
+
+  It must be the **SPA** platform: a "Web" platform expects a client secret, rejects the
+  browser's PKCE flow, and reports it as a CORS error that says nothing about the real
+  cause.
 - **Expose an API → Add a scope** named `access_as_user`.
 - **App roles** → `Planner`/`Approver`/`Admin`, if you want any. Optional for the app —
   everyone signs in as Viewer without them and per-unit rights come from Settings → Roles
@@ -832,36 +943,67 @@ different unit than the screen you are looking at.
 
 ## 7. Deploy (sandbox)
 
+Both images already exist from section 4 — nothing to build here. The only thing this
+section produces that section 4 could not have known yet is the ingress host itself, and
+that is needed for `ingress.host` and the TLS certificate, not for the web image (ADR-0068
+made the web image environment-agnostic; it used to need the API Service's own LoadBalancer
+IP baked in, which meant deploying once to learn an address, rebuilding, and deploying
+again).
+
 ```bash
 kubectl create namespace shift-o-mator --dry-run=client -o yaml | kubectl apply -f -
 
-# pass 1: API only, to learn its LoadBalancer IP (see "Building container images" above)
+# --- The public origin. The add-on's controller Service lives in its own namespace and is
+#     not part of this release; `nip.io` resolves <anything>.<ip>.nip.io to that ip, which
+#     is what gives us a hostname — and therefore TLS, and therefore a sign-in — without
+#     owning a domain.
+INGRESS_IP=$(kubectl -n app-routing-system get svc nginx \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+HOST=$INGRESS_IP.nip.io
+echo "https://$HOST"
+
+# --- A self-signed certificate for it. The browser will warn once and let you through;
+#     what matters is that the origin is HTTPS, because that is what Entra requires of a
+#     redirect URI and what makes crypto.subtle (hence MSAL's PKCE) available at all. A
+#     real certificate needs a real name, which is section 8's problem.
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout tls.key -out tls.crt -subj "//CN=$HOST" -addext "subjectAltName=DNS:$HOST"
+kubectl -n shift-o-mator create secret tls shift-o-mator-tls \
+  --cert=tls.crt --key=tls.key \
+  --dry-run=client -o yaml | kubectl apply -f -
+rm tls.key tls.crt
+
+# --- Fill values-sandbox.yaml's web.config block with the app registration from section
+#     6.1 (entraClientId, entraTenantId, entraApiScope) before this step — apiUrl and
+#     entraRedirectUri stay empty; both resolve against the browser's own origin.
+#
+# --- Deploy both. `ingress.host` has no default and the chart refuses to render without
+#     it, which is why it is passed here rather than committed: it contains an IP that
+#     changes with the cluster.
 helm upgrade --install shift-o-mator ./deploy/helm/shift-o-mator \
   -f ./deploy/helm/shift-o-mator/values.yaml \
   -f ./deploy/helm/shift-o-mator/values-sandbox.yaml \
   --set image.api.tag=<tag> --set image.web.tag=<tag> \
-  --namespace shift-o-mator
-
-kubectl -n shift-o-mator get svc shift-o-mator-api -w   # wait for EXTERNAL-IP
-
-# pass 2: now build+push the web image with that address, then redeploy
-API_IP=$(kubectl -n shift-o-mator get svc shift-o-mator-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-# (build+push web:<tag> with --build-arg VITE_API_URL=http://$API_IP, see section 4)
-
-helm upgrade shift-o-mator ./deploy/helm/shift-o-mator \
-  -f ./deploy/helm/shift-o-mator/values.yaml \
-  -f ./deploy/helm/shift-o-mator/values-sandbox.yaml \
-  --set image.api.tag=<tag> --set image.web.tag=<tag> \
+  --set ingress.host=$HOST \
   --namespace shift-o-mator
 ```
+
+**Go back to section 6.1 now** and add `https://$HOST` as an SPA redirect URI — this is the
+exact address that didn't exist until this step. Nothing above depends on it; signing in
+does, and Entra's failure for a missing redirect URI names the address it was sent, so it
+is at least self-explanatory when you hit it.
 
 Verify:
 
 ```bash
 kubectl -n shift-o-mator get pods
-curl http://$API_IP/health/live
-curl http://$API_IP/health/ready     # 200 once the database is reachable
-curl http://$API_IP/api/setup/state  # {"required":true,...} until the wizard has run
+curl -k https://$HOST/api/setup/state   # {"required":true,...} until the wizard has run
+
+# The API's health endpoints are NOT under /api, so the ingress routes them to the web
+# pod's own /health. Reach the API's directly:
+kubectl -n shift-o-mator port-forward svc/shift-o-mator-api 8080:80 &
+curl http://localhost:8080/health/live
+curl http://localhost:8080/health/ready   # 200 once the database is reachable
 ```
 
 The API pod can legitimately sit in `Running` but not `Ready` for a minute or two on the
@@ -871,9 +1013,16 @@ gives that up to five minutes before liveness starts, so what used to look like
 `CrashLoopBackOff` is now just a slow first start. `kubectl -n shift-o-mator logs -l
 app.kubernetes.io/component=api` shows where it is.
 
-Then open the web address in a browser: the app shows the **setup wizard** (ADR-0059), not
-the planning grid, until somebody picks Bare or Demo. Section 6.2 covers linking your Entra
-identity to a person if it does not recognise you.
+Then open `https://$HOST` in a browser (accepting the certificate warning once): the app
+shows the **setup wizard** (ADR-0059), not the planning grid, until somebody picks Bare or
+Demo. Section 6.2 covers linking your Entra identity to a person if it does not recognise
+you.
+
+**Without an ingress at all** — if you only want to prove the API comes up, with no
+browser involved — set `api.service.type=LoadBalancer` and `ingress.enabled=false`. That
+gives the API a public IP over plain HTTP: fine for `curl`, and unusable for signing in,
+for the reasons at the top of section 5. It is a debugging affordance, not a second
+supported shape.
 
 **Cost control:**
 
@@ -884,9 +1033,11 @@ az aks start --name $AKS --resource-group $RG    # resume
 az group delete --name $RG --yes --no-wait       # delete everything, guaranteed $0 going forward
 ```
 
-The Standard Load Balancer and the Basic ACR are the two pieces that aren't strictly free
-even with the cluster stopped — delete the resource group, not just stop the cluster, when
-done for good.
+The Standard Load Balancer is the one piece that isn't strictly free even with the cluster
+stopped — delete the resource group, not just stop the cluster, when done for good.
+(GitHub Container Registry is billed separately from Azure — private-package storage and
+egress have their own free tier, generous enough that this project's image sizes will not
+reach it.)
 
 ## 8. Production — not built yet
 
@@ -897,17 +1048,30 @@ encode wrong assumptions. Revisit this section (and consider a Bicep/ARM templat
 point, once the real requirements — region, HA, backup policy — are known) when
 production is actually being planned.
 
-The difference from the sandbox (section 5) is entirely in how Key Vault access is
-granted: Azure AD Workload Identity (a user-assigned identity federated with the
-cluster's OIDC issuer for one specific service account), instead of the AKS add-on's own
-identity. This is what `azureKeyVault.authMethod: workloadIdentity` in `values.yaml`
-(the default) selects, and what `values-prod.yaml` is written against.
+**What actually differs from the sandbox** — the two environments are deliberately the same
+shape, so this list is short and each item is real work:
+
+- **The ingress.** Production is written against an Application Gateway with AGIC
+  (`ingress.className: azure-application-gateway`), which the sandbox does not use: a
+  gateway, a delegated subnet and a public IP to provision, plus
+  `az aks enable-addons --addons ingress-appgw`. None of that is in the block below,
+  because the sizing and the network it attaches to are exactly the decisions that have
+  not been made. Using the same managed NGINX as the sandbox is a legitimate answer too —
+  the chart only reads the class name.
+- **A real certificate for a real name**, in `ingress.tls.secretName`, instead of a
+  self-signed one for an `<ip>.nip.io` host. Where it comes from — a wildcard the tenant
+  already has, cert-manager, or a Key Vault certificate AGIC can reference — is the other
+  open decision.
+- **Sizing**: more than one node, a database off the free-tier quota, `replicaCount.api: 3`.
+- **Not Key Vault.** It used to be the whole of this paragraph, back when the sandbox used
+  the add-on's identity and production used workload identity. Both now use workload
+  identity, and neither has a vault, because SQL and the model are reached as the pod
+  itself. `azureKeyVault.authMethod: workloadIdentity` is simply the default.
 
 ```bash
 RG=shift-o-mator-prod-rg
 LOCATION=westeurope
 AKS=shift-o-mator-prod-aks
-ACR=shiftomatorprod
 KV=shift-o-mator-prod-kv
 IDENTITY=shift-o-mator-prod-identity
 NAMESPACE=shift-o-mator
@@ -918,11 +1082,19 @@ NAMESPACE=shift-o-mator
 az group create --name $RG --location $LOCATION
 # ... az aks create / az sql server create / az sql db create, per section 5 ...
 
-az acr create -g $RG -n $ACR --sku Basic
+# No ACR, no --attach-acr: images are pulled from GitHub Container Registry via the
+# ghcr-pull-secret from section 4 — it is per-cluster, not shared, so create it here too.
 
 az aks update -g $RG -n $AKS --enable-oidc-issuer --enable-workload-identity
-az aks enable-addons -g $RG -n $AKS --addons azure-keyvault-secrets-provider
-az aks update -g $RG -n $AKS --attach-acr $ACR
+
+# The ingress. Provision the Application Gateway and attach AGIC here (or enable the
+# application-routing add-on as the sandbox does, and set ingress.className accordingly) —
+# the chart needs a controller for the class named in values-prod.yaml and nothing else.
+# az aks enable-addons -g $RG -n $AKS --addons ingress-appgw --appgw-id <gateway id>
+
+# Only if you decided you need a vault (see below) — the CSI driver has to be there before
+# a SecretProviderClass means anything:
+# az aks enable-addons -g $RG -n $AKS --addons azure-keyvault-secrets-provider
 
 OIDC_ISSUER=$(az aks show -g $RG -n $AKS --query "oidcIssuerProfile.issuerUrl" -o tsv)
 
@@ -969,10 +1141,11 @@ Then give the identity a database user, exactly as in section 5 (`CREATE USER �
 EXTERNAL PROVIDER`) — but without `db_ddladmin` if migrations are being applied
 out-of-band by then.
 
-Put `$IDENTITY_CLIENT_ID` into `values-prod.yaml`'s `workloadIdentity.clientId` and
-`$TENANT_ID` into `azureKeyVault.tenantId`. Deploy the same way as section 7, swapping
-`values-sandbox.yaml` for `values-prod.yaml`, with an Application Gateway ingress
-(`ingress.enabled: true`) instead of a bare LoadBalancer.
+Put `$IDENTITY_CLIENT_ID` into `values-prod.yaml`'s `workloadIdentity.clientId` (and
+`$TENANT_ID` into `azureKeyVault.tenantId` only if you created a vault). Deploy the same
+way as section 7 with `values-prod.yaml` in place of `values-sandbox.yaml`, and the
+certificate and hostname already in place — `ingress.host` is committed there rather than
+passed with `--set`, because unlike the sandbox's it is a name, not this week's IP.
 
 ### Rollback
 
@@ -995,9 +1168,18 @@ does not roll back the database.
 | `Active Directory Default` picks the wrong identity, or none | the pod is missing `azure.workload.identity/use: "true"` — check `workloadIdentity.enabled` is true and the cluster has `--enable-workload-identity` |
 | `403` on every write, `Settings` never appears for anyone | `Auth:StubRole` got set to something non-empty — it must stay empty; see CLAUDE.md, this exact bug happened once |
 | `403 PRINCIPAL_NOT_MAPPED` for a real Entra ID user | nobody in the roster has that email in `Person.Email` — an admin links it on Settings → People (the error message names the address); if `GET /api/setup/state` still says `required: true` the setup wizard has not run yet (section 6.2). Also check the token carries an email claim for your tenant |
-| Browser console: CORS error calling the API | the web origin isn't in `api.config.corsAllowedOrigins` for that environment's values file — or the app registration uses a "Web" platform instead of **SPA** (section 6.1), which surfaces the same way |
-| Web app calls the wrong API host, or sends no token | the web image was built with the wrong (or no) `VITE_API_URL` / `VITE_AUTH_MODE` build-arg — rebuild, Helm values can't fix this after the fact |
+| Browser console: CORS error calling the API | behind the ingress there should be no cross-origin request at all — so `web.config.apiUrl` names an origin other than the app's own. If the API really is on another origin, that origin's caller has to be listed in `api.config.corsAllowedOrigins`. An app registration using a "Web" platform instead of **SPA** (section 6.1) surfaces the same way |
+| Web app calls the wrong API host, or sends no token | `web.config.apiUrl` / `web.config.authMode` is wrong — `helm upgrade --set web.config.apiUrl=... --set web.config.authMode=...` (or edit the values file) and the running pods pick it up on the next rollout, no rebuild needed (ADR-0068). Check the pod's `config.js` directly: `kubectl exec <web-pod> -- cat /usr/share/nginx/html/config.js` |
 | `SecretProviderClass` pod events show `AADSTS` errors | the federated credential's `--subject` doesn't match `system:serviceaccount:<namespace>:<serviceAccount.name>` exactly, or the identity lacks `get` on the Key Vault |
+| `helm` refuses to render: "image.registry is required" / "image tag is required" / "ingress.host is required" | working as intended — all three used to default to something that failed later on a pod instead. Set the first in the values file, the tags with `--set`, and the host from the ingress controller's IP (section 7) |
+| A Service stays `<pending>` / has no EXTERNAL-IP forever | it is a `ClusterIP`. Only `web.service.type`/`api.service.type` set to `LoadBalancer` get one, and neither is by default — behind an ingress nothing should |
+| Entra refuses to save the redirect URI, or sign-in fails with `crypto_nonexistent` | the origin is plain HTTP. Only `http://localhost` is exempt; every deployed environment needs the HTTPS host from section 7 |
+| Sign-in redirects back and then the app shows nothing | the redirect URI registered and the origin actually served differ (a trailing slash, `http` vs `https`, the IP instead of the `nip.io` name). They must match exactly |
+| API log: `Failed to determine the https port for redirect`, or probes 307 | `UseHttpsRedirection` is skipped when `DOTNET_RUNNING_IN_CONTAINER=true`; seeing this means the container is running without that variable, which the image sets |
+| API log: DataProtection "using an ephemeral key" / cannot write `/home/app` | `api.runAsUser` doesn't match the image's uid (1654 for the .NET runtime image, 1000 for the web image) |
+| `Auth:DirectoryRoles` throws at startup | correct: it moved to a `SystemSetup` row (ADR-0063). Remove the setting and use Settings → Roles |
+| Every path returns a bare `404 Not Found` / `nginx` from the ingress, even though `kubectl -n shift-o-mator get endpoints` shows both services with a real pod IP | `ingress.className` doesn't exactly match a real `kubectl get ingressclass` name — the controller doesn't reject the Ingress, it just never loads it. Confirm with `kubectl -n app-routing-system logs deploy/nginx \| grep "ingress class"`: `"Ignoring ingress because of error while validating ingress class"` names the mismatch |
+| Sign-in works, then every API call answers `401` with `WWW-Authenticate: Bearer error="invalid_token", error_description="The issuer '...' is invalid"` | the app registration issues v1 tokens (`api.requestedAccessTokenVersion` unset) while `api.config.jwtAuthority` is a v2.0 endpoint — see section 6.1's `az rest` step |
 
 ## What's still open
 
@@ -1011,7 +1193,14 @@ does not roll back the database.
 - **No `NetworkPolicy`, and no Content-Security-Policy.** Every pod can reach every other
   pod, and the web image ships the four cheap security headers but no CSP — `connect-src`
   would have to name the API origin, which is a build arg unknown to `nginx.conf`. Both
-  want one real origin to be written against.
+  want one real origin to be written against. The ingress now supplies exactly that: with
+  the app and the API on one origin, `connect-src 'self'` is very nearly the whole policy,
+  so this is closer than it was. The NetworkPolicy matters more than it looks, because
+  `ASPNETCORE_FORWARDEDHEADERS_ENABLED` trusts `X-Forwarded-*` from any address that can
+  reach the API pod, and today that is every pod in the cluster.
+- **The sandbox's certificate is self-signed**, so every browser warns once and no API
+  client trusts it without `-k`. A real certificate needs a real name; `nip.io` exists to
+  avoid needing one. Fine for what the environment is, and not a pattern to copy upward.
 - **The frontend is one chunk.** ~730 KB of JS, no route-level code splitting; gzip in
   nginx takes it to roughly a quarter over the wire, which is why splitting has not been
   urgent.

@@ -68,6 +68,7 @@ not something else?"
 | [0065](0065-the-calendar-allowlist-is-rows-not-a-key.md) | The holiday-import allowlist is reference-data rows, not a settings key (sibling to 0063) | accepted |
 | [0066](0066-the-wire-writes-enums-the-way-the-client-does.md) | The wire writes enums the way the client already does | accepted |
 | [0067](0067-one-owner-for-each-kind-of-state.md) | One owner for each kind of state (**supersedes 0012**, narrows 0015) | accepted |
+| [0068](0068-web-config-is-read-at-container-start.md) | The web image reads its config at container start, not at build time | accepted |
 
 ## Superseded decisions (archive)
 

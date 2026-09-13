@@ -1,8 +1,11 @@
 # Not deployed yet — see deploy/README.md section 8. Kept in step with the chart so the
-# shape is reviewable, not because anything runs from it.
+# shape is reviewable, not because anything runs from it. Every placeholder below has a
+# row in deploy/parameters.md; fill that in first.
 
 image:
-  registry: shiftomatorprod.azurecr.io
+  registry: ghcr.io/<github-owner>
+  pullSecrets:
+    - name: ghcr-pull-secret
 
 replicaCount:
   api: 3
@@ -15,8 +18,12 @@ api:
     limits: { cpu: 1000m, memory: 768Mi }
   config:
     authMode: EntraId
-    corsAllowedOrigins:
-      - https://shift-o-mator.example.com
+
+    # Empty because the ingress puts the app and the API on one origin. A second origin —
+    # a separate api.<host> — would need its web origin listed here, and would also need a
+    # separate SPA redirect URI; one origin is the simpler shape and the one the chart
+    # routes for.
+    corsAllowedOrigins: []
 
     # Managed identity, so no password and nothing secret here.
     connectionString: "Server=tcp:shift-o-mator-prod.database.windows.net,1433;Initial Catalog=ShiftOMator;Authentication=Active Directory Default;Encrypt=True;"
@@ -34,20 +41,35 @@ api:
     jwtAudience: ""     # api://<app-id>
 
 web:
-  apiUrl: https://api.shift-o-mator.example.com
+  config:
+    apiUrl: ""          # empty: app and API share one origin behind the ingress
+    authMode: entra
+    entraClientId: ""       # the prod SPA app registration's client id
+    entraTenantId: ""       # az account show --query tenantId
+    entraApiScope: ""       # api://<api-app-id>/access_as_user
+    entraRedirectUri: ""    # empty defaults to the current origin at runtime
 
 ingress:
+  # Application Gateway (AGIC), which section 8 has to provision and which the sandbox
+  # deliberately does not use. The certificate in `tls.secretName` is a real one for a real
+  # name — that is the whole difference from the sandbox's self-signed nip.io host.
+  className: azure-application-gateway
   host: shift-o-mator.example.com
+  annotations:
+    # AGIC talks to both Services over plain HTTP; TLS ends at the gateway.
+    appgw.ingress.kubernetes.io/backend-protocol: http
   tls:
     secretName: shift-o-mator-prod-tls
 
 # Nothing here is secret any more: SQL uses `Active Directory Default` and the model is an
 # Azure OpenAI deployment reached by the same identity. Switch this on only if you add a
-# SQL password or move the model to a key-authenticated `openai` endpoint.
+# SQL password or move the model to a key-authenticated `openai` endpoint — and create the
+# vault then, not before: an `enabled: false` block naming a vault that exists is a thing
+# to keep in step for no benefit.
 azureKeyVault:
   enabled: false
   authMethod: workloadIdentity
-  keyvaultName: shift-o-mator-prod-kv
+  keyvaultName: ""    # only if enabled above
   tenantId: ""        # az account show --query tenantId
 
 workloadIdentity:

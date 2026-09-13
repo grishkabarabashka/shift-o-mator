@@ -12,9 +12,18 @@ public class AuthOptions
 
     public string Mode { get; set; } = "Stub";
 
-    /// <summary>The app role (see <see cref="ShiftOMator.Domain.AppRole"/>) the stub
-    /// handler stamps onto every request when <see cref="Mode"/> is "Stub".</summary>
-    public string StubRole { get; set; } = "Planner";
+    /// <summary>
+    /// The app role (see <see cref="ShiftOMator.Domain.AppRole"/>) the stub handler stamps
+    /// onto every request when <see cref="Mode"/> is "Stub".
+    /// <para>
+    /// Empty by default, and it must stay that way: this is an <em>override</em>, and while
+    /// it defaulted to "Planner" the stored grants were never read — nobody was ever an
+    /// Admin or an Approver, Settings never appeared, and no Approve button rendered.
+    /// Nothing reads this property today (<c>Program.cs</c> reads the configuration key
+    /// directly), so the default only matters as the trap it once was.
+    /// </para>
+    /// </summary>
+    public string StubRole { get; set; } = string.Empty;
 
     /// <summary>Which person the stub acts as. Empty lets <see cref="ActorResolver"/>
     /// pick a deterministic one from the roster.</summary>

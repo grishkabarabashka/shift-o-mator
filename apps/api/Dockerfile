@@ -14,8 +14,12 @@ RUN dotnet publish ShiftOMator.Api/ShiftOMator.Api.csproj -c Release -o /app --n
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-RUN addgroup --system --gid 1000 app && adduser --system --uid 1000 --ingroup app app
 COPY --from=build /app ./
+# `app` is the runtime image's own user, uid **1654** (`APP_UID`), not a uid this file
+# picks: creating one at 1000 fails here, because the group name is already taken. The Helm
+# chart has to pin the same number (`api.runAsUser`) — pinned at 1000 the process cannot
+# read its own $HOME (`/home/app`, mode 0750, owned by 1654) and ASP.NET Core silently
+# stops persisting DataProtection keys.
 RUN chown -R app:app /app
 USER app
 

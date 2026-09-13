@@ -1,0 +1,17 @@
+# Read by apps/web/docker-entrypoint.d/40-config.sh at container start and written into
+# config.js, which apps/web/src/runtimeConfig.ts reads via window.__APP_CONFIG__ — not
+# baked into the image at build time (ADR-0068). None of these are secrets: a SPA client id
+# and a scope are public by design, same as when they were VITE_* build-args.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "shift-o-mator.instance" . }}-web-config
+  labels:
+    {{- include "shift-o-mator.labels" . | nindent 4 }}
+data:
+  APP_API_URL: {{ .Values.web.config.apiUrl | quote }}
+  APP_AUTH_MODE: {{ .Values.web.config.authMode | quote }}
+  APP_ENTRA_CLIENT_ID: {{ .Values.web.config.entraClientId | quote }}
+  APP_ENTRA_TENANT_ID: {{ .Values.web.config.entraTenantId | quote }}
+  APP_ENTRA_API_SCOPE: {{ .Values.web.config.entraApiScope | quote }}
+  APP_ENTRA_REDIRECT_URI: {{ .Values.web.config.entraRedirectUri | quote }}

@@ -1,11 +1,22 @@
 shift-o-mator deployed to namespace {{ .Release.Namespace }}.
 
 {{ if .Values.ingress.enabled -}}
-  API:  https://{{ .Values.ingress.host }}/api
-  Web:  https://{{ .Values.ingress.host }}/
+  App:  https://{{ .Values.ingress.host }}/
+  API:  https://{{ .Values.ingress.host }}/api   (same origin — that is what lets the SPA
+        sign in: Entra refuses a non-HTTPS redirect URI, and MSAL needs a secure context)
+
+  The API's health endpoints are NOT under /api and are therefore not routed by this
+  Ingress — the web pod answers /health with its own. Reach them directly:
+    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "shift-o-mator.instance" . }}-api 8080:80
+    curl http://localhost:8080/health/ready
 {{- else -}}
   No ingress. Find the addresses with:
     kubectl -n {{ .Release.Namespace }} get svc
+
+  With api.service.type=ClusterIP (the default) the API has no external address at all;
+  use `kubectl port-forward svc/{{ include "shift-o-mator.instance" . }}-api 8080:80`.
+  Note that a browser sign-in cannot work over a plain-HTTP address: Entra rejects the
+  redirect URI and MSAL has no crypto.subtle outside a secure context.
 {{- end }}
 
 Before this starts successfully:
@@ -25,6 +36,9 @@ Before this starts successfully:
      them — a CSI mount fails outright on an object that is not there.
 {{- end }}
 
-  Last: the web image must already have been built with the right VITE_API_URL and
-  VITE_AUTH_MODE (apps/web/Dockerfile build args). This chart cannot change them
-  afterwards — Vite inlines them at build time.
+  Last: web.config.apiUrl / web.config.authMode (and the Entra client/tenant/scope
+  settings) are read by the web pod at start, from the web-config ConfigMap this release
+  just applied — this chart *can* change them on a later `helm upgrade` (ADR-0068). If
+  auth mode is entra, check web.config.entraClientId/entraTenantId/entraApiScope are all
+  set, or the pod will refuse to start. deploy/parameters.md section E is the sheet that
+  records which values this release was deployed with.

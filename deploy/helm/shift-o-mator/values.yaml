@@ -1,8 +1,18 @@
 # Defaults common to every environment. Override in values-sandbox.yaml / values-prod.yaml
 # (helm upgrade --install -f values.yaml -f values-<env>.yaml).
+#
+# deploy/parameters.md is the sheet to fill in *before* running any of this: it lists every
+# value below that has to come from somewhere — Azure, the registry, the app registration —
+# and where each one is read back from.
 
 image:
-  registry: ""            # e.g. myregistry.azurecr.io — set per environment
+  # Required, like the tag: an empty registry used to render `shift-o-mator/api:<tag>`,
+  # which Docker Hub will happily be asked for and has never held.
+  registry: ""            # e.g. ghcr.io/<github-owner> — set per environment
+  # A docker-registry Secret name, created once per cluster with `kubectl create secret
+  # docker-registry` (deploy/README.md section 4) — a private ghcr.io package needs it to
+  # be pulled; a public one needs nothing here.
+  pullSecrets: []          # e.g. [{name: ghcr-pull-secret}]
   api:
     repository: shift-o-mator/api
     tag: ""                # set per deploy (git sha or release tag), never "latest"
@@ -18,6 +28,16 @@ replicaCount:
 api:
   port: 8080
   env: Production
+  # The uid the .NET runtime image ships (`APP_UID=1654`), not an arbitrary number: the pod
+  # security context pins it, and pinning the *wrong* one leaves the process locked out of
+  # its own $HOME (`/home/app`, mode 0750, owned by 1654), where ASP.NET Core keeps
+  # DataProtection keys. The web image is a different number on purpose — see web.runAsUser.
+  runAsUser: 1654
+  service:
+    # ClusterIP unless the API has to be reached without an ingress. A LoadBalancer here is
+    # a public IP with no TLS: fine for curl, useless for the app, because a browser cannot
+    # complete an Entra sign-in against a plain-HTTP origin.
+    type: ClusterIP
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
@@ -57,17 +77,41 @@ api:
 
 web:
   port: 8080
+  # The web image creates its own user at 1000 (nginx's packaged `nginx` user is 101 and
+  # owns none of what this image writes). Different from api.runAsUser by necessity, not
+  # by accident.
+  runAsUser: 1000
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
-  apiUrl: ""   # baked into the image at build time (Dockerfile ARG VITE_API_URL) — not a runtime setting
   service:
-    type: ClusterIP   # sandbox overrides to LoadBalancer (or leave ClusterIP + kubectl port-forward for true $0)
+    type: ClusterIP   # the ingress reaches it in-cluster; LoadBalancer only without one
+  # Read by the container at start (docker-entrypoint.d/40-config.sh), not baked into the
+  # image — one web image serves every environment (ADR-0068). None of these are secrets:
+  # a SPA client id and a scope are public by design, same as when they were build-args.
+  config:
+    # Empty is correct behind the ingress: app and API share one origin, so the prefix is
+    # nothing and requests go to `/api/...` on the same host. Only local dev and a setup
+    # without an ingress need this set to an absolute URL.
+    apiUrl: ""
+    authMode: stub
+    entraClientId: ""
+    entraTenantId: ""
+    entraApiScope: ""
+    # Empty defaults to the current origin at runtime (window.location.origin) — the same
+    # fallback entraConfig.ts always had for local dev, now also the deployed default.
+    entraRedirectUri: ""
 
 ingress:
+  # The shape everything else assumes: app and API on one origin, TLS terminated here. It
+  # is not optional decoration — a browser sign-in needs an HTTPS origin (Entra refuses a
+  # non-HTTPS redirect URI, MSAL needs a secure context for PKCE), so an environment
+  # anybody signs in to needs this on.
   enabled: true
-  className: azure-application-gateway
-  host: ""
+  className: azure-application-gateway   # sandbox: webapprouting.kubernetes.azure.com
+  host: ""                               # required when enabled — the template refuses a blank one
+  # Controller-specific; set them where the controller is chosen, not here.
+  annotations: {}
   tls:
     enabled: true
     secretName: shift-o-mator-tls

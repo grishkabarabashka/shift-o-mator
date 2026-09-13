@@ -49,7 +49,9 @@ because they are the screens most of the eighty people ever need
 
 Three gates, in this order, and the order is the point:
 
-1. **`EntraGate`** (`VITE_AUTH_MODE=entra`) — MSAL, redirect flow, `sessionStorage`.
+1. **`EntraGate`** (`AUTH_MODE=entra`, read via `runtimeConfig.setting` — `VITE_AUTH_MODE`
+   locally, `APP_AUTH_MODE` in a container, ADR-0068) — MSAL, redirect flow,
+   `sessionStorage`.
    It installs a token provider into `api/client.ts` via `setAccessTokenProvider`:
    **injected, never imported**, because MSAL lives in `auth/`, which sits *above* `api/`
    in the layering ([ADR-0058](adr/0058-entra-id-identity-is-linked-by-email.md)).

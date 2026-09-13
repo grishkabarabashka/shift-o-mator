@@ -346,6 +346,9 @@ one Helm chart (`deploy/helm/shift-o-mator`), with `values-sandbox.yaml` and
 | JWT settings | `Authority` / `Audience` as ConfigMap values | An issuer URL and an Application ID URI authenticate nothing on their own |
 | Key Vault | `azureKeyVault.enabled: false` by default | Nothing in either environment needs a secret. Create one only for a SQL password or a key-authenticated model endpoint |
 | AI in the chart | `aiProvider: none` | Under `azure-openai` a blank endpoint or deployment name **throws at startup**; crash-looping the API over an optional feature is the worse failure |
+| Reaching it | one HTTPS origin per environment: the ingress routes `/api` to the API and `/` to the web pod | Two LoadBalancer IPs deploy fine and cannot be signed in to — Entra refuses a non-HTTPS redirect URI and MSAL needs a secure context for PKCE. Same-origin also means no CORS and one redirect URI to register |
+| The pods' uid | pinned per image (`api.runAsUser: 1654`, `web.runAsUser: 1000`) | The .NET runtime image ships `app` at 1654 and the web image creates one at 1000; a single pinned number locks one of them out of its own `$HOME` |
+| Missing deploy inputs | `image.registry`, both image tags and `ingress.host` **refuse to render** | Each one, defaulted, produced a deployment that failed minutes later on a pod instead of immediately on the command line |
 
 Under `azure-openai` a missing key is normal, so the misconfiguration that gets caught is a
 blank `Ai:Endpoint`/`Ai:Model`. Under `openai` a key *or* an endpoint counts as configured,

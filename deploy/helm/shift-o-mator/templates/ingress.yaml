@@ -1,33 +1,48 @@
 {{- if .Values.ingress.enabled }}
+{{- /* A host is what an Ingress matches on: with an empty one the rule matches every
+       request that reaches the controller, which on a shared controller means adopting
+       somebody else's traffic, and on a dedicated one means an app that answers on an
+       address nothing else knows. Both are worse than refusing to render. */ -}}
+{{- $host := required "ingress.host is required when ingress.enabled — set it in the environment's values file (e.g. <ingress-ip>.nip.io in the sandbox)" .Values.ingress.host -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: shift-o-mator
+  name: {{ include "shift-o-mator.instance" . }}
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
+  {{- /* Controller-specific, so they come from the environment's values file rather than
+         being hard-coded: an `appgw.ingress.kubernetes.io/*` annotation on an NGINX
+         ingress is ignored, which is harmless but reads as though it were doing
+         something. */ -}}
+  {{- with .Values.ingress.annotations }}
   annotations:
-    appgw.ingress.kubernetes.io/backend-protocol: http
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls.enabled }}
   tls:
-    - hosts: [{{ .Values.ingress.host | quote }}]
+    - hosts: [{{ $host | quote }}]
       secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    - host: {{ $host | quote }}
       http:
         paths:
+          # /api first: paths are matched most-specific-first by every conformant
+          # controller, but writing them in this order keeps the intent readable — the API
+          # and the app are one origin, which is what lets the SPA hold a same-origin
+          # redirect URI and send no cross-origin request at all.
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: shift-o-mator-api
+                name: {{ include "shift-o-mator.instance" . }}-api
                 port: { number: 80 }
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: shift-o-mator-web
+                name: {{ include "shift-o-mator.instance" . }}-web
                 port: { number: 80 }
 {{- end }}

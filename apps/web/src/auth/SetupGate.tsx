@@ -269,9 +269,9 @@ function SetupWizard({ stubMode }: { readonly stubMode: boolean }) {
  * whichever fixture person holds the global Admin grant, so people arrived in a system
  * where their address belonged to a stranger with no explanation anywhere.
  *
- * It also catches the mismatch nothing else does. The client's mode is baked into its
- * build (`VITE_AUTH_MODE`) and the server's is chosen at startup (`Auth:Mode`); when they
- * disagree the symptom is either a token nobody validates or no token at all, and the
+ * It also catches the mismatch nothing else does. The client's mode is read at container
+ * start (`AUTH_MODE`, ADR-0068) and the server's is chosen at startup (`Auth:Mode`); when
+ * they disagree the symptom is either a token nobody validates or no token at all, and the
  * error it produces names neither half (ADR-0063).
  */
 /**
@@ -317,12 +317,12 @@ function WhoAmIUnavailable({ error }: { readonly error: unknown }) {
               </li>
             ) : null}
             <li>
-              The client is built with <strong>VITE_AUTH_MODE={AUTH_MODE}</strong>. The server has
+              This client is configured with <strong>AUTH_MODE={AUTH_MODE}</strong>. The server has
               to be running the matching <code>Auth:Mode</code> — nothing checks the two against
               each other, and mismatched, the token is either ignored or never sent.
             </li>
             <li>
-              <code>VITE_ENTRA_API_SCOPE</code> must be the scope exposed by the <em>API's</em> app
+              <code>ENTRA_API_SCOPE</code> must be the scope exposed by the <em>API's</em> app
               registration. A Microsoft Graph scope produces a token with the wrong audience and
               every call comes back 401.
             </li>

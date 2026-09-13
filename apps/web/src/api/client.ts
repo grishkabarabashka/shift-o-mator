@@ -14,8 +14,15 @@
  * cannot produce anything worth importing.
  */
 
-export const API_BASE_URL: string =
-  ((import.meta.env as Record<string, string | undefined>).VITE_API_URL) ?? 'http://localhost:5106';
+import { setting } from '../runtimeConfig';
+
+/**
+ * Empty is a legal — and behind an ingress the correct — value: the app and the API share
+ * one origin there, so the prefix is nothing and `/api/...` goes to the same host. The
+ * localhost default applies only when the setting is absent entirely, which is `npm run dev`
+ * without an `.env.development.local`. `??` is what keeps those two cases apart (ADR-0068).
+ */
+export const API_BASE_URL: string = setting('API_URL') ?? 'http://localhost:5106';
 
 export class ApiError extends Error {
   constructor(

@@ -173,7 +173,18 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+// Not in a container: there is no HTTPS port to redirect to. The image listens on plain
+// HTTP only (ASPNETCORE_URLS in apps/api/Dockerfile) because TLS terminates at the ingress,
+// so the middleware logs "Failed to determine the https port for redirect" on every start
+// and does nothing — and the moment a port were configured it would answer the kubelet's
+// HTTP probes with a 307 and fail them. The `https` launch profile is what this is for.
+if (!string.Equals(
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+        "true",
+        StringComparison.OrdinalIgnoreCase))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors(ClientCorsPolicy);
 

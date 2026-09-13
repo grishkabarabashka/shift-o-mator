@@ -30,8 +30,10 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      args:
-        VITE_API_URL: http://localhost:5106
+    # Read at container start, not baked into the image (ADR-0068) — change this and
+    # `docker compose up -d --no-build web` picks it up without a rebuild.
+    environment:
+      APP_API_URL: http://localhost:5106
     ports:
       - "8081:8080"
     depends_on:

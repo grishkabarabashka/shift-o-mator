@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: shift-o-mator-api
+  name: {{ include "shift-o-mator.instance" . }}-api
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
@@ -28,9 +28,26 @@ spec:
         azure.workload.identity/use: "true"
         {{- end }}
     spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ .Values.serviceAccount.name }}
       securityContext:
-        {{- include "shift-o-mator.podSecurityContext" . | nindent 8 }}
+        {{- include "shift-o-mator.podSecurityContext" (dict "uid" .Values.api.runAsUser) | nindent 8 }}
+      {{- if gt (int .Values.replicaCount.api) 1 }}
+      # `ScheduleAnyway`, not `DoNotSchedule`: the sandbox is a one-node cluster, where a
+      # hard constraint would leave the second replica Pending forever rather than merely
+      # unspread. On a real pool this spreads the replicas across nodes, which is what
+      # makes the PodDisruptionBudget below mean anything during a node drain.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 14 }}
+      {{- end }}
       containers:
         - name: api
           image: {{ include "shift-o-mator.image" (dict "root" $ "repository" .Values.image.api.repository "tag" .Values.image.api.tag) }}
@@ -46,10 +63,10 @@ spec:
           # one values file rather than to two.
           envFrom:
             - configMapRef:
-                name: shift-o-mator-api-config
+                name: {{ include "shift-o-mator.instance" . }}-api-config
             {{- if .Values.azureKeyVault.enabled }}
             - secretRef:
-                name: shift-o-mator-secrets
+                name: {{ include "shift-o-mator.instance" . }}-secrets
             {{- end }}
           volumeMounts:
             {{- if .Values.azureKeyVault.enabled }}
@@ -83,17 +100,23 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: shift-o-mator-kv
+              secretProviderClass: {{ include "shift-o-mator.instance" . }}-kv
         {{- end }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: shift-o-mator-api
+  name: {{ include "shift-o-mator.instance" . }}-api
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
+  # ClusterIP by default: behind an ingress the API is reached at /api on the same origin
+  # as the app, which is the only shape where a browser sign-in works (Entra refuses a
+  # non-HTTPS redirect URI, and MSAL needs a secure context for PKCE). `LoadBalancer` is
+  # for reaching the API directly without an ingress — a public IP with no TLS, which is a
+  # debugging affordance, not a way to serve the app.
+  type: {{ .Values.api.service.type | default "ClusterIP" }}
   selector:
     {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "api") | nindent 4 }}
   ports:
@@ -106,7 +129,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: shift-o-mator-api
+  name: {{ include "shift-o-mator.instance" . }}-api
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: api

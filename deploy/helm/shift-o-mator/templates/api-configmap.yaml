@@ -5,7 +5,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: shift-o-mator-api-config
+  name: {{ include "shift-o-mator.instance" . }}-api-config
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
 data:
@@ -14,8 +14,14 @@ data:
   # Behind an ingress that terminates TLS, the request reaches the pod as plain HTTP and
   # `Request.Scheme` is `http` unless X-Forwarded-Proto is honoured. This is ASP.NET Core's
   # own switch for the ForwardedHeaders middleware, so it needs no code — and it is set
-  # only with an ingress in front, because trusting those headers with the Service exposed
-  # directly (the sandbox's LoadBalancer) would mean trusting whatever the caller sends.
+  # only with an ingress in front, because with the Service exposed directly (a
+  # LoadBalancer) it would mean trusting whatever the caller sends.
+  #
+  # Note what the switch does beyond turning the middleware on: it *clears* KnownNetworks
+  # and KnownProxies, so the headers are accepted from any source address, not just the
+  # ingress controller's. In-cluster that is anything able to reach the pod — which, with
+  # no NetworkPolicy, is every pod. Worth knowing before anything trusts the forwarded
+  # client IP for more than a log line.
   ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
   {{- end }}
   Auth__Mode: {{ .Values.api.config.authMode | quote }}

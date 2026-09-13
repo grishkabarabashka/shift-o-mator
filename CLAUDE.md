@@ -16,16 +16,17 @@ the rota; time off and presence are written directly and reviewed by approval);
 **Phase 12** gave the UI a design language (elevation, measure, a type scale, real
 breakpoints) and a feedback layer; **Phase 13** made Entra ID sign-in real and the app
 deployable to AKS; **Phase 14** replaced the seeding flags with a first-run setup screen.
-Since Phase 14, eight decisions landed outside a phase: the model is a **deployment**,
+Since Phase 14, nine decisions landed outside a phase: the model is a **deployment**,
 not a vendor (ADR-0060); Settings saves people as **one batch** (ADR-0061); directory
 roles are **off by default**, so the database is the single source (ADR-0062); a setting
 read per request is a **row**, not configuration (ADR-0063); notifications have a
 **policy matrix and a delivery log** (ADR-0064 — steps 1 and 2 of it; nothing is delivered
 externally yet); and the holiday-import allowlist is **rows**, not a settings key
-(ADR-0065); the wire writes enums the way the client already does (ADR-0066); and there
+(ADR-0065); the wire writes enums the way the client already does (ADR-0066); there
 is **one owner for each kind of state** — Query for server data, Zustand for the draft
-(ADR-0067, deleting `ScheduleRepository`). Code and design agree; the ADR index is
-complete through 0067.
+(ADR-0067, deleting `ScheduleRepository`); and the web image reads its **config at
+container start**, not at build time, so one image serves every environment (ADR-0068).
+Code and design agree; the ADR index is complete through 0068.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -443,15 +444,38 @@ dotnet test
   a rare race into a certain outage. The alternative, a Helm hook Job, would need a
   migrate-only mode, a second pod spec and a second identity binding to arbitrate something
   the database already can
-- **Three deploy inputs fail loudly rather than silently**, each because the quiet version
-  cost real time: the web image build **refuses a blank `VITE_API_URL`** (an omitted
-  build-arg on the deploy's second pass used to produce a bundle that fails only in a
-  browser); the Helm `image` helper **requires a tag** rather than falling back to
-  `Chart.AppVersion`, which resolved to an image nothing publishes; and the API deployment
-  carries a **`checksum/config`** annotation, without which a `helm upgrade` that changes
-  only the ConfigMap leaves the pods on the old values. `.dockerignore` excludes `.env*`
-  for the same reason — Vite reads `.env.production` inside the image build, so a
-  developer's git-ignored local file would otherwise decide what a release points at
+- **Deploy inputs fail loudly rather than silently**, each because the quiet version cost
+  real time: the web **container refuses to start** if `APP_AUTH_MODE=entra` and any of
+  the three Entra settings is blank (`docker-entrypoint.d/40-config.sh` — moved here from
+  the image build in ADR-0068, since these are runtime settings now, not build-args); the
+  Helm `image` helper **requires a tag** rather than falling back to `Chart.AppVersion`
+  (an image nothing publishes) and **requires `image.registry`** (a blank one resolved to
+  Docker Hub); `ingress.host` **is required when the ingress is enabled**, because a
+  hostless Ingress matches everything that reaches the controller; and both the API and
+  web deployments carry a **`checksum/config`** annotation, without which a `helm upgrade`
+  that changes only a ConfigMap leaves the pods on the old values
+- **Every deployed environment is one HTTPS origin**, ingress-routed: `/api` to the API
+  Service, `/` to the web pod. Not a production nicety — it is the only shape that can be
+  signed in to. Entra refuses a redirect URI that is not HTTPS (only `http://localhost` is
+  exempt) and MSAL has no `crypto.subtle` outside a secure context, so a pair of bare
+  LoadBalancer IPs deploys green and is unusable. The sandbox gets there with the AKS
+  application-routing add-on, an `<ingress-ip>.nip.io` host and a self-signed certificate;
+  production with an Application Gateway and a real one. Same origin also means **no CORS**
+  (`corsAllowedOrigins` is empty in both) and one redirect URI per environment
+- **The two images run as different uids, and the chart pins each**: the .NET runtime image
+  ships `app` at **1654** (`APP_UID`, `/home/app` mode 0750) and the web image creates one
+  at **1000**. One number for both — which is what `podSecurityContext` used to hard-code —
+  locks the API out of its own `$HOME` and silently stops DataProtection persisting keys.
+  `api.runAsUser` / `web.runAsUser` exist for exactly this, and creating a uid-1000 user in
+  the API Dockerfile is not the fix: the group name is already taken
+- **Resource names are prefixed with the release name** (`shift-o-mator.instance`), not the
+  chart name. Selector labels were already release-scoped; names were not, so two releases
+  in one namespace would have collided on `-api-config` and `-secrets` long before the
+  selectors mattered. With the documented release name the rendered names are unchanged
+- **`deploy/parameters.md` is the sheet of everything a deploy needs recorded** — tenant
+  and identity ids, the app registration, image tags, the build args the web image was
+  built with. About half of it cannot be re-derived without recreating the resource that
+  produced it
 - **The demo roster is trimmed at seed time**, not in the fixture: `fixture-dataset.json`
   keeps all 76 people because the Phase 8 baseline comparison is only meaningful over the
   full team, while the database gets `DemoPeoplePerUnit` working people per unit plus every

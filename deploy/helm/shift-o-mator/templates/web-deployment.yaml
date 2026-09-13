@@ -1,10 +1,7 @@
-# No env vars here: VITE_API_URL is baked into the JS bundle at image build time
-# (apps/web/Dockerfile ARG), because Vite inlines import.meta.env.VITE_* at build,
-# not at container start. Rebuild-and-push the web image, don't try to override it here.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: shift-o-mator-web
+  name: {{ include "shift-o-mator.instance" . }}-web
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: web
@@ -15,18 +12,44 @@ spec:
       {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # Without this a `helm upgrade` that changes only web-configmap.yaml (a new API
+        # origin, a tenant switch) leaves the pods running the old config.js contents,
+        # because nothing in the pod spec itself changed — same reasoning as the API
+        # deployment's checksum/config.
+        checksum/config: {{ include (print $.Template.BasePath "/web-configmap.yaml") . | sha256sum }}
       labels:
         {{- include "shift-o-mator.labels" . | nindent 8 }}
         {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 8 }}
     spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # This pod serves static files and calls nothing: it needs neither a Kubernetes API
+      # token nor an Azure identity. The API's pod is the opposite case and keeps its
+      # service account — the workload-identity webhook projects its own token there.
+      automountServiceAccountToken: false
       securityContext:
-        {{- include "shift-o-mator.podSecurityContext" . | nindent 8 }}
+        {{- include "shift-o-mator.podSecurityContext" (dict "uid" .Values.web.runAsUser) | nindent 8 }}
+      {{- if gt (int .Values.replicaCount.web) 1 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "shift-o-mator.selectorLabels" (dict "root" $ "component" "web") | nindent 14 }}
+      {{- end }}
       containers:
         - name: web
           image: {{ include "shift-o-mator.image" (dict "root" $ "repository" .Values.image.web.repository "tag" .Values.image.web.tag) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- include "shift-o-mator.containerSecurityContext" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "shift-o-mator.instance" . }}-web-config
           ports:
             - name: http
               containerPort: {{ .Values.web.port }}
@@ -44,7 +67,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: shift-o-mator-web
+  name: {{ include "shift-o-mator.instance" . }}-web
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: web
@@ -60,7 +83,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: shift-o-mator-web
+  name: {{ include "shift-o-mator.instance" . }}-web
   labels:
     {{- include "shift-o-mator.labels" . | nindent 4 }}
     app.kubernetes.io/component: web

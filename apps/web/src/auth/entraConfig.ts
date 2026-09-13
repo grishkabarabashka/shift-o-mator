@@ -6,15 +6,15 @@
  * mode. Asking the server first would mean an unauthenticated call to find out that calls
  * must be authenticated.
  *
- * `VITE_*` values are inlined at build time (Vite), so a deployed web image carries the
- * environment it was built for — see `apps/web/Dockerfile` and `deploy/README.md`. Local
- * development sets them in `.env.development.local`, which is git-ignored, because a
- * client id is tenant-specific and not ours to commit.
+ * Settings come through `runtimeConfig.setting`, which prefers `window.__APP_CONFIG__`
+ * (written by the container at start from `APP_*` env vars) over the `VITE_*` build-time
+ * value — so one web image serves every environment (ADR-0068). Local development sets
+ * `VITE_*` in `.env.development.local`, which is git-ignored, because a client id is
+ * tenant-specific and not ours to commit.
  */
 
 import type { Configuration, PopupRequest } from '@azure/msal-browser';
-
-const env = import.meta.env as Record<string, string | undefined>;
+import { setting } from '../runtimeConfig';
 
 /**
  * `entra` turns sign-in on. Anything else (including unset) leaves the app talking to a
@@ -25,15 +25,15 @@ const env = import.meta.env as Record<string, string | undefined>;
  * every request would be attributed to whoever the stub picked. An explicit mode makes
  * that a startup error instead (see `readRequired`).
  */
-export const AUTH_MODE: 'stub' | 'entra' = env.VITE_AUTH_MODE === 'entra' ? 'entra' : 'stub';
+export const AUTH_MODE: 'stub' | 'entra' = setting('AUTH_MODE') === 'entra' ? 'entra' : 'stub';
 
 export const isEntraMode = AUTH_MODE === 'entra';
 
 function readRequired(name: string): string {
-  const value = env[name]?.trim();
+  const value = setting(name);
   if (!value) {
     throw new Error(
-      `${name} is required when VITE_AUTH_MODE=entra. ` +
+      `${name} is required when AUTH_MODE=entra (container: APP_${name}, local dev: VITE_${name}). ` +
         'See deploy/README.md — "Entra ID for local development".',
     );
   }
@@ -45,8 +45,8 @@ function readRequired(name: string): string {
  * Entra settings it has no use for.
  */
 export function msalConfiguration(): Configuration {
-  const clientId = readRequired('VITE_ENTRA_CLIENT_ID');
-  const tenantId = readRequired('VITE_ENTRA_TENANT_ID');
+  const clientId = readRequired('ENTRA_CLIENT_ID');
+  const tenantId = readRequired('ENTRA_TENANT_ID');
 
   return {
     auth: {
@@ -55,7 +55,7 @@ export function msalConfiguration(): Configuration {
       // Defaults to the current origin, which is what both local dev (5173) and the
       // deployed SPA want. Registering that exact origin as a redirect URI is the
       // manual step the README spells out.
-      redirectUri: env.VITE_ENTRA_REDIRECT_URI?.trim() || window.location.origin,
+      redirectUri: setting('ENTRA_REDIRECT_URI') || window.location.origin,
       postLogoutRedirectUri: window.location.origin,
     },
     cache: {
@@ -77,5 +77,5 @@ export function msalConfiguration(): Configuration {
  * the API would reject it, and the failure reads as "signed in but everything is 401".
  */
 export function apiTokenRequest(): Pick<PopupRequest, 'scopes'> {
-  return { scopes: [readRequired('VITE_ENTRA_API_SCOPE')] };
+  return { scopes: [readRequired('ENTRA_API_SCOPE')] };
 }
