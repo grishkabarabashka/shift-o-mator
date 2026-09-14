@@ -769,6 +769,7 @@ Notification {
   kind          REQUEST_SUBMITTED | REQUEST_APPROVED | REQUEST_REJECTED
               | REQUEST_APPLY_FAILED | REQUEST_SUPERSEDED
               | COMP_DAY_AGING | COVERAGE_GAP
+              | IMPERSONATED          an admin started acting as you (ADR-0069)
   title, body?
   subjectType?, subjectId?              for deep links
   createdAt, readAt?                    readAt is the recipient's own state
@@ -967,7 +968,9 @@ ChangeHistoryEntry {
   snapshotJson?    state after the action; null on delete
   personId?        who the record is about, when there is one
   summary?         prose, for entities whose snapshot is not worth rendering
-  actorId, at
+  actorId
+  impersonatedById?  the administrator, when the actor was being acted as (ADR-0069)
+  at
 }                                                                   append-only
 
 Acknowledgement   { issueKey, comment, byPersonId, at }

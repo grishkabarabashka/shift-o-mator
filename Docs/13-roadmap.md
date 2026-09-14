@@ -132,6 +132,13 @@ to empty**, which deletes rows in dependency order and hands the wizard back.
   be in. Both headers are read only by `StubAuthenticationHandler`, which exists only in
   stub mode.
 
+  Not to be confused with **acting as somebody else**, which ships
+  ([ADR-0069](adr/0069-acting-as-somebody-else.md)): `X-Impersonate-PersonId` is honoured in
+  every auth mode, is checked server-side against the caller's own `Admin` grant, and is
+  recorded — in the subject's inbox and on every audit row it produces. The `dev` pill and
+  the **Act as** picker sit in the same popover and are different kinds of thing; only one
+  of them exists in a deployed environment.
+
 - **External notification delivery.** The manager in front of it is built: Settings →
   Notifications carries the (kind × channel) matrix and the delivery log, and an enabled
   cell writes `PENDING` rows that accumulate

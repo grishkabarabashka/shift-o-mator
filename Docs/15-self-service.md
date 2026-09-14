@@ -429,6 +429,13 @@ asker's role does not enter into it. A planner owns the rota, not other people's
 The write-access question is separate: a planner of your unit may *act on* your row at all.
 What they may do there is decided by the thing they are recording.
 
+An **administrator** of your unit has a third option, and it is a different shape again:
+they can act **as** you ([ADR-0069](adr/0069-acting-as-somebody-else.md)). That is not
+writing on your row from outside — the request is yours, raised with your roles, and it
+goes to your approvers exactly as if you had raised it. The history keeps both names, and
+you are told in your inbox each time it starts. It exists because "there is no button on my
+screen" is a question nobody can answer from their own screen.
+
 ## The inbox
 
 A bell in the shell, with an unread count.

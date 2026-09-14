@@ -55,7 +55,7 @@ ShiftOMator.Api                minimal APIs, DTOs, auth, OpenAPI document
   │                            → Application, Infrastructure, Domain
   ├─ *Endpoints.cs              one file per resource; Admin/ for /api/admin/*
   ├─ Contracts/                 every request and response is a named record
-  ├─ Auth/                      ActorResolver, Capabilities, ChangeAudit, the stub handler
+  ├─ Auth/                      ActorResolver, Capabilities, ChangeAudit, Impersonation, the stub handler
   ├─ Insights/                  ChatModel and the two explanation services
   └─ Setup/                     the first-run endpoints and SetupGateMiddleware
   │
@@ -195,7 +195,8 @@ hand-written in `api/queries.ts` and `api/mapping.ts`. If we want generated type
 |---|---|---|
 | `/setup/state` | GET | **Anonymous.** Whether setup is required, and whether the server is in stub mode — nothing else ([ADR-0059](adr/0059-setup-is-a-screen-not-a-flag.md)) |
 | `/setup` | POST | Run the first-run wizard: `Bare` or `Demo`. Refused once `SystemSetup` exists |
-| `/auth/me` | GET | Current identity (stub in dev, Entra ID in production) |
+| `/auth/me` | GET | Current identity (stub in dev, Entra ID in production), the grants it carries, and — while acting as somebody else — who is really signed in |
+| `/auth/impersonate` | POST | Start acting as another person. Admin of their unit, and no global grant of theirs you lack. Writes the history row and tells them ([ADR-0069](adr/0069-acting-as-somebody-else.md)). Stopping needs no call — the client drops the header |
 | `/reference` | GET | Planning units (with their shifts/day-configs/absence-capacity-rules), locations, people, holidays |
 | `/schedule` | GET | Coverage, issues and the plan slice for a unit + range; optional `draftId` overlays that draft's uncommitted changes without publishing |
 | `/drafts` | POST | Open a new draft session |
@@ -267,6 +268,30 @@ Rules:
   per-resource check ([ADR-0046](adr/0046-routing-is-not-authorization.md)).
 - **The actor is the authenticated principal, never a request field**
   ([ADR-0039](adr/0039-actor-identity-from-the-token.md)).
+- **Acting as somebody else is the one thing that moves the actor, and it is checked before
+  it moves it** ([ADR-0069](adr/0069-acting-as-somebody-else.md)). `X-Impersonate-PersonId`
+  is resolved by `RoleClaimsTransformation`, which verifies the caller is an `Admin` of the
+  subject's unit and holds every *global* grant the subject holds, then stamps
+  `sfm:impersonating`. From that point `ActorResolver.RequireAsync` answers with the
+  subject and every endpoint follows without knowing lenses exist. Three properties hold
+  the design together, and each has a test:
+  - the subject's grants **replace** the caller's rather than adding to them — the baseline
+    `Viewer` and any stub override are removed from the identity first, because a union
+    produces a caller stronger than either person;
+  - every audit row written while it is open carries `ChangeHistoryEntry.ImpersonatedById`,
+    stamped by `ImpersonationAuditInterceptor` on `SaveChanges` rather than by each of the
+    ~30 call sites that write one — a missed call site fails nothing and writes the single
+    row with the hole in it. Interceptors are wired **explicitly** in `AddInfrastructure`:
+    EF resolves `IEnumerable<IInterceptor>` from the application container, so registering
+    only under `ISaveChangesInterceptor` finds nothing and runs nothing, silently;
+  - a header the caller may not use is a **403** from `ImpersonationGuard`, never a quiet
+    fall-back to their own identity — the client sends it on every request, so ignoring it
+    would render the caller's own rows under somebody else's name with nothing on screen
+    wrong.
+
+  One endpoint refuses under a lens: `/me/calendar-feed` (read and reset). That URL holds
+  `Person.CalendarToken`, which is the entire authentication on the only anonymous route in
+  the product and outlives the session.
 - Unhandled exceptions become a typed `ErrorResponse` with the same shape the
   hand-caught ones use, and every response carries an `X-Correlation-Id`.
 

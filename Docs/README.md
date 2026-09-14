@@ -13,7 +13,9 @@ Shift planning and coverage for a global application support team.
 > as a scoped set, and the two write paths), ADR-0057 for Phase 12 (the design language),
 > ADR-0058 and ADR-0060 for Phase 13 (Entra ID, a deployable app, and a model that is a
 > deployment rather than a vendor) and ADR-0059 and ADR-0061 for Phase 14 (first-run setup,
-> and Settings saving people as one unit).
+> and Settings saving people as one unit). ADR-0062–0069 landed outside a phase; of those
+> ADR-0069 is the one that changes a rule people rely on — an administrator can act as
+> somebody in a unit they administer, and the audit row then carries both names.
 
 ## Product and model
 

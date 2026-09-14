@@ -115,6 +115,19 @@ linked to a person by their work email, by hand
 switcher exists only in stub mode, picks a **person** and never a role, and is gated on the
 server saying it is in stub mode.
 
+**There is one way for the actor to become somebody else, and it is earned rather than
+asserted.** An administrator can act as a person in a unit they administer — their roles,
+their rows, their writes — because "why is there no Approve button on my screen" is
+answered by being there, and because the alternative was a screenshot request and three
+round trips ([ADR-0069](adr/0069-acting-as-somebody-else.md)). ADR-0039 is intact: what it
+forbids is an actor taken from a request *body*, which anybody could write, and this one is
+stamped only after a server-side check against grants the caller actually holds. The audit
+trail stays whole because every row written while it is open carries **both** names —
+`ChangeHistoryEntry.ImpersonatedById` beside `ActorId`. The scope is the argument: inside
+their own unit an administrator gains nothing they could not grant themselves on
+Settings → Roles in one click, which is why the reach stops at that unit and at any global
+grant the subject holds and they do not.
+
 **Everyone is also an employee.** Recording where you are working and asking for leave is
 available to every authenticated person and is not a role
 ([ADR-0046](adr/0046-routing-is-not-authorization.md)): "can I edit my own record" is a

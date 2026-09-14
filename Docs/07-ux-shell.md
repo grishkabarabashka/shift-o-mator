@@ -27,8 +27,21 @@ clocks** (hidden on small screens); the **notification bell**
 ([ADR-0044](adr/0044-in-app-inbox-first.md)); user badge with avatar, display name and
 access role.
 
-The user badge opens a popover holding identity (read-only), and a **Display** control
-beside it holds the timezone choice. It is not in the header itself — the header shows the
+The user badge opens a popover holding identity (read-only), the grants behind it, and —
+for anyone who administers a unit — **Act as**, a person picker that puts the whole product
+into somebody else's account ([ADR-0069](adr/0069-acting-as-somebody-else.md)). A **Display**
+control beside it holds the timezone choice.
+
+While that is open the shell says so in three places at once, because the failure it guards
+against is forgetting whose account you are changing things in:
+
+- a **full-width amber strip** under the masthead, with the subject's name and the way out;
+- the badge keeps showing **your own** name, with `acting as …` beneath it — every other
+  surface becomes the subject, which is exactly why this corner must not: it is the one
+  place still answering "who am I";
+- the **avatar** carries the subject's initials in a `--warn` ring. Below `sm` the names are
+  hidden and the ring is the whole signal, which is the right trade there: "whose screen is
+  this" is the more urgent question when the strip has wrapped out of view. It is not in the header itself — the header shows the
 clocks, and choosing a zone is a preference set once — and it is not in Settings either,
 because Settings is admin-only and everybody needs this one
 ([ADR-0051](adr/0051-roles-are-a-scoped-set.md)).
