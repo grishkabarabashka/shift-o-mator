@@ -11,11 +11,17 @@
 # real Entra ID sign-in, and a browser cannot do one against a plain-HTTP address. Entra
 # refuses a non-HTTPS redirect URI (only `http://localhost` is exempt) and MSAL has no
 # `crypto.subtle` outside a secure context, so PKCE fails before a request is ever sent.
-# `<ingress-ip>.nip.io` plus a self-signed certificate is what makes that origin exist
-# without a domain to register — see deploy/README.md section 7.
+# The origin is an Azure DNS label on the ingress controller's public IP plus a Let's
+# Encrypt certificate issued by cert-manager — see deploy/README.md section 7.
 #
-# NOT for anything resembling production: one node, a self-signed certificate, a database
-# on the free-tier quota that auto-pauses.
+# It used to be `<ingress-ip>.nip.io` with a hand-made self-signed certificate, and both
+# halves of that were unreachable from a corporate network: `nip.io` is categorised as
+# dynamic DNS by corporate web filters and blocked before TLS is negotiated, and an
+# inspecting proxy validates the origin certificate itself, so the browser's "proceed
+# anyway" never gets a chance to run. Do not go back to a wildcard-DNS host.
+#
+# NOT for anything resembling production: one node, a database on the free-tier quota that
+# auto-pauses.
 
 image:
   registry: "ghcr.io/grishkabarabashka"   # ghcr.io/<github-owner> — required, see deploy/README.md section 4
@@ -85,10 +91,18 @@ ingress:
   # the Application Gateway production is written against: no gateway to provision, no
   # subnet to delegate, and it is free beyond the one load balancer it creates.
   className: webapprouting.kubernetes.azure.com   # `kubectl get ingressclass` — NOT the ".io" name
-  host: ""            # <ingress-ip>.nip.io — pass with --set, it is not known until the controller has an IP
+  # A name, not this week's IP, so it is committed rather than passed with --set: the DNS
+  # label rides on the controller's public IP and survives a redeploy. `--set ingress.host`
+  # still overrides it. Set the label with the add-on's NginxIngressController CRD, not an
+  # annotation on the `nginx` Service — the add-on reconciles that away (section 7).
+  host: "shiftomator-sandbox.eastus.cloudapp.azure.com"
+  annotations:
+    # cert-manager watches for this and issues the secret named below. The ClusterIssuer is
+    # cluster-scoped and not part of this release (section 7) — the chart only names it.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
   tls:
     enabled: true
-    secretName: shift-o-mator-tls   # self-signed, created by hand in section 7
+    secretName: shift-o-mator-tls   # written by cert-manager; do not create it by hand
 
 azureKeyVault:
   enabled: false      # nothing here is secret; see the header and README section 5

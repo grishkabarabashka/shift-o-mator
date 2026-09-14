@@ -25,7 +25,7 @@ and any combination below runs.
 | **Database auth** | Windows auth (LocalDB) | managed identity | managed identity, *or* a service account + password if the database is standalone |
 | **Key Vault** | none — user secrets | not needed | not needed; only for a SQL password, if the database cannot do Entra auth |
 | **AI model** | off by default; Foundry Local or a cloud deployment (section 2b) | an Azure OpenAI deployment, by managed identity | the same, inside the corporate tenant |
-| **How it is reached** | `localhost:5173` → `localhost:5106` | one HTTPS origin: managed NGINX ingress on `<ip>.nip.io`, self-signed | one HTTPS origin: Application Gateway, real certificate |
+| **How it is reached** | `localhost:5173` → `localhost:5106` | one HTTPS origin: managed NGINX ingress on `<label>.<region>.cloudapp.azure.com`, Let's Encrypt via cert-manager | one HTTPS origin: Application Gateway, real certificate |
 
 **[parameters.md](parameters.md) is the sheet to fill in as you go.** Roughly half of what
 the sections below produce — an OIDC issuer URL, an identity's object id, an application id
@@ -405,8 +405,8 @@ Trade-offs versus production (section 8): a single regular node (no Spot — Azu
 a Spot priority on a cluster's default/system node pool, only a *second*, non-system pool
 can be Spot, which would mean running two nodes instead of one; not worth it for a
 throwaway environment), the AKS application-routing add-on's managed NGINX instead of an
-Application Gateway, a self-signed certificate on an `<ip>.nip.io` host instead of a real
-name, and Azure SQL Serverless on the free-tier quota (auto-pauses after idle, so the
+Application Gateway, a certificate issued by cert-manager on an Azure DNS label rather than
+a name the organisation owns, and Azure SQL Serverless on the free-tier quota (auto-pauses after idle, so the
 first request after a pause is slow).
 
 **The ingress is not optional here, even though everything else is trimmed.** This
@@ -954,37 +954,80 @@ again).
 kubectl create namespace shift-o-mator --dry-run=client -o yaml | kubectl apply -f -
 
 # --- The public origin. The add-on's controller Service lives in its own namespace and is
-#     not part of this release; `nip.io` resolves <anything>.<ip>.nip.io to that ip, which
-#     is what gives us a hostname — and therefore TLS, and therefore a sign-in — without
-#     owning a domain.
-INGRESS_IP=$(kubectl -n app-routing-system get svc nginx \
-  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-HOST=$INGRESS_IP.nip.io
+#     not part of this release, and it owns its public IP — so the DNS label goes on the
+#     add-on's CRD. An annotation written straight onto the `nginx` Service is reconciled
+#     away within minutes.
+kubectl get nginxingresscontroller       # expect: default
+kubectl patch nginxingresscontroller default --type=merge -p '{
+  "spec": { "loadBalancerAnnotations": {
+    "service.beta.kubernetes.io/azure-dns-label-name": "shiftomator-sandbox" } } }'
+
+HOST=shiftomator-sandbox.$LOCATION.cloudapp.azure.com
+nslookup $HOST      # must answer, and with the controller's own IP
 echo "https://$HOST"
+```
 
-# --- A self-signed certificate for it. The browser will warn once and let you through;
-#     what matters is that the origin is HTTPS, because that is what Entra requires of a
-#     redirect URI and what makes crypto.subtle (hence MSAL's PKCE) available at all. A
-#     real certificate needs a real name, which is section 8's problem.
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout tls.key -out tls.crt -subj "//CN=$HOST" -addext "subjectAltName=DNS:$HOST"
-kubectl -n shift-o-mator create secret tls shift-o-mator-tls \
-  --cert=tls.crt --key=tls.key \
-  --dry-run=client -o yaml | kubectl apply -f -
-rm tls.key tls.crt
+This used to be `<ingress-ip>.nip.io` with a hand-made self-signed certificate. Both halves
+were unreachable from a corporate network: **`nip.io` is categorised as dynamic DNS** by
+corporate web filters and blocked before TLS is negotiated, and an inspecting proxy
+validates the **origin** certificate itself, so the browser's "proceed anyway" never runs.
+`cloudapp.azure.com` is an ordinary Microsoft-owned name that filters treat as cloud
+infrastructure, and it is on the Public Suffix List — so each label is its own registered
+domain for Let's Encrypt's rate limits. `nip.io` is not, which means every nip.io
+certificate in the world shares one 50-per-week quota and issuance frequently fails
+outright. Do not go back to a wildcard-DNS host.
 
+Now a real certificate for that name, renewed by itself:
+
+```bash
+# --- cert-manager, cluster-scoped and not part of this release.
+helm repo add jetstack https://charts.jetstack.io && helm repo update
+helm upgrade --install cert-manager jetstack/cert-manager \
+  --namespace cert-manager --create-namespace --set crds.enabled=true
+
+# --- The issuer. `ingressClassName` is load-bearing: cert-manager creates its own Ingress
+#     for the ACME challenge, and with the wrong class the controller ignores it exactly as
+#     it ignores ours (see the 404 row in section 9) — the order then sits in `pending`
+#     until it expires, with nothing logged that names the cause.
+cat <<YAML | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: <your address>
+    privateKeySecretRef: { name: letsencrypt-prod-account-key }
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: webapprouting.kubernetes.azure.com
+YAML
+
+# --- If a self-signed secret from an earlier deploy is still there, delete it:
+#     cert-manager will not overwrite a Secret it did not issue, and the stale certificate
+#     goes on being served with nothing appearing to be wrong.
+kubectl -n shift-o-mator delete secret shift-o-mator-tls --ignore-not-found
+```
+
+HTTP-01 needs port 80 reachable from the internet, which the controller's load balancer
+already is; the solver Ingress sets its own `ssl-redirect: false`. Rehearse against
+`https://acme-staging-v02.api.letsencrypt.org/directory` if you would rather not spend the
+production quota on a typo — the staging certificate is untrusted, so switch the issuer
+back once an order completes.
+
+```bash
 # --- Fill values-sandbox.yaml's web.config block with the app registration from section
 #     6.1 (entraClientId, entraTenantId, entraApiScope) before this step — apiUrl and
 #     entraRedirectUri stay empty; both resolve against the browser's own origin.
 #
-# --- Deploy both. `ingress.host` has no default and the chart refuses to render without
-#     it, which is why it is passed here rather than committed: it contains an IP that
-#     changes with the cluster.
+# --- Deploy both. `ingress.host` is committed in values-sandbox.yaml now that it is a name
+#     rather than this week's IP; `--set ingress.host=` still overrides it.
 helm upgrade --install shift-o-mator ./deploy/helm/shift-o-mator \
   -f ./deploy/helm/shift-o-mator/values.yaml \
   -f ./deploy/helm/shift-o-mator/values-sandbox.yaml \
   --set image.api.tag=<tag> --set image.web.tag=<tag> \
-  --set ingress.host=$HOST \
   --namespace shift-o-mator
 ```
 
@@ -997,7 +1040,9 @@ Verify:
 
 ```bash
 kubectl -n shift-o-mator get pods
-curl -k https://$HOST/api/setup/state   # {"required":true,...} until the wizard has run
+# No -k: the certificate is publicly trusted, and dropping the flag is the test.
+kubectl -n shift-o-mator describe certificate shift-o-mator-tls   # Ready=True before this
+curl https://$HOST/api/setup/state       # {"required":true,...} until the wizard has run
 
 # The API's health endpoints are NOT under /api, so the ingress routes them to the web
 # pod's own /health. Reach the API's directly:
@@ -1013,7 +1058,8 @@ gives that up to five minutes before liveness starts, so what used to look like
 `CrashLoopBackOff` is now just a slow first start. `kubectl -n shift-o-mator logs -l
 app.kubernetes.io/component=api` shows where it is.
 
-Then open `https://$HOST` in a browser (accepting the certificate warning once): the app
+Then open `https://$HOST` in a browser — including from a corporate network, which is what
+the hostname and the certificate are both for: the app
 shows the **setup wizard** (ADR-0059), not the planning grid, until somebody picks Bare or
 Demo. Section 6.2 covers linking your Entra identity to a person if it does not recognise
 you.
@@ -1111,10 +1157,11 @@ shape, so this list is short and each item is real work:
   because the sizing and the network it attaches to are exactly the decisions that have
   not been made. Using the same managed NGINX as the sandbox is a legitimate answer too —
   the chart only reads the class name.
-- **A real certificate for a real name**, in `ingress.tls.secretName`, instead of a
-  self-signed one for an `<ip>.nip.io` host. Where it comes from — a wildcard the tenant
-  already has, cert-manager, or a Key Vault certificate AGIC can reference — is the other
-  open decision.
+- **A name the organisation owns**, rather than the sandbox's Azure DNS label. The
+  certificate itself is no longer the open question — the sandbox answers it with
+  cert-manager and Let's Encrypt, and the same ClusterIssuer works here — but a wildcard the
+  tenant already has, or a Key Vault certificate AGIC can reference, are still live
+  alternatives once the name is decided.
 - **Sizing**: more than one node, a database off the free-tier quota, `replicaCount.api: 3`.
 - **Not Key Vault.** It used to be the whole of this paragraph, back when the sandbox used
   the add-on's identity and production used workload identity. Both now use workload
@@ -1228,7 +1275,11 @@ does not roll back the database.
 | `helm` refuses to render: "image.registry is required" / "image tag is required" / "ingress.host is required" | working as intended — all three used to default to something that failed later on a pod instead. Set the first in the values file, the tags with `--set`, and the host from the ingress controller's IP (section 7) |
 | A Service stays `<pending>` / has no EXTERNAL-IP forever | it is a `ClusterIP`. Only `web.service.type`/`api.service.type` set to `LoadBalancer` get one, and neither is by default — behind an ingress nothing should |
 | Entra refuses to save the redirect URI, or sign-in fails with `crypto_nonexistent` | the origin is plain HTTP. Only `http://localhost` is exempt; every deployed environment needs the HTTPS host from section 7 |
-| Sign-in redirects back and then the app shows nothing | the redirect URI registered and the origin actually served differ (a trailing slash, `http` vs `https`, the IP instead of the `nip.io` name). They must match exactly |
+| Sign-in redirects back and then the app shows nothing | the redirect URI registered and the origin actually served differ (a trailing slash, `http` vs `https`, the IP instead of the `cloudapp.azure.com` name). They must match exactly |
+| The browser still warns about the certificate, or `curl` needs `-k` | the old hand-made `shift-o-mator-tls` Secret is still there. cert-manager will not overwrite a Secret it did not issue, so it goes on being served: `kubectl -n shift-o-mator delete secret shift-o-mator-tls`, then `kubectl -n shift-o-mator delete certificate shift-o-mator-tls` to make it re-issue |
+| `kubectl -n shift-o-mator get order` sits in `pending` forever | the ClusterIssuer's `solvers[0].http01.ingress.ingressClassName` doesn't match the real ingress class, so the controller ignores the challenge Ingress exactly as it ignores a mis-classed one (the 404 row above). Also check the host resolves publicly and port 80 reaches the controller |
+| A corporate network shows a filter page rather than the app | the hostname's category, not the certificate. `nip.io` and every other wildcard-DNS service is blocked as dynamic DNS — that is why the sandbox moved to an Azure DNS label. If `cloudapp.azure.com` is blocked too, the answer is a domain the organisation owns, or an allowlist request for the one host |
+| The DNS label disappears from the public IP | it was set with `az network public-ip update` or an annotation on the `nginx` Service; the add-on reconciles both away. Set it on the `NginxIngressController` CRD (section 7) |
 | API log: `Failed to determine the https port for redirect`, or probes 307 | `UseHttpsRedirection` is skipped when `DOTNET_RUNNING_IN_CONTAINER=true`; seeing this means the container is running without that variable, which the image sets |
 | API log: DataProtection "using an ephemeral key" / cannot write `/home/app` | `api.runAsUser` doesn't match the image's uid (1654 for the .NET runtime image, 1000 for the web image) |
 | `Auth:DirectoryRoles` throws at startup | correct: it moved to a `SystemSetup` row (ADR-0063). Remove the setting and use Settings → Roles |
@@ -1252,9 +1303,10 @@ does not roll back the database.
   so this is closer than it was. The NetworkPolicy matters more than it looks, because
   `ASPNETCORE_FORWARDEDHEADERS_ENABLED` trusts `X-Forwarded-*` from any address that can
   reach the API pod, and today that is every pod in the cluster.
-- **The sandbox's certificate is self-signed**, so every browser warns once and no API
-  client trusts it without `-k`. A real certificate needs a real name; `nip.io` exists to
-  avoid needing one. Fine for what the environment is, and not a pattern to copy upward.
+- **The sandbox's hostname is an Azure DNS label**, not a name the organisation owns. The
+  certificate is real (cert-manager, Let's Encrypt, renewed automatically), so nothing has
+  to trust anything by hand — but the address still reads as infrastructure rather than as
+  a product, and a filter that blocks `cloudapp.azure.com` wholesale would need a domain.
 - **The frontend is one chunk.** ~730 KB of JS, no route-level code splitting; gzip in
   nginx takes it to roughly a quarter over the wire, which is why splitting has not been
   urgent.
