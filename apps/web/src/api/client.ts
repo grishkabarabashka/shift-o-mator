@@ -56,6 +56,45 @@ export function setDebugIdentity(next: { personId?: string; role?: string } | un
 }
 
 /**
+ * The impersonation lens: an administrator viewing the product as somebody else
+ * (ADR-0069). Unlike the `X-Debug-*` pair above this is honoured in every auth mode and
+ * checked server-side against the caller's own Admin grant.
+ *
+ * WHY it is persisted in `sessionStorage` and read at module load: the Entra sign-in is a
+ * **redirect** flow, so a token renewal reloads the page. Holding the subject only in React
+ * state meant the lens silently closed mid-session and the screen quietly became the
+ * administrator's own — the one failure that looks like nothing happening. Per tab, not per
+ * browser: two tabs looking at two people is a reasonable thing to want, and a lens that
+ * outlived the window would be a trap.
+ */
+const IMPERSONATION_KEY = 'sfm.impersonate';
+
+function readStoredImpersonation(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(IMPERSONATION_KEY) ?? undefined;
+  } catch {
+    // Private windows and blocked site data throw on access rather than returning null.
+    return undefined;
+  }
+}
+
+let impersonatedPersonId: string | undefined = readStoredImpersonation();
+
+export function setImpersonation(personId: string | undefined): void {
+  impersonatedPersonId = personId;
+  try {
+    if (personId) window.sessionStorage.setItem(IMPERSONATION_KEY, personId);
+    else window.sessionStorage.removeItem(IMPERSONATION_KEY);
+  } catch {
+    // Not fatal: the lens then lasts until the next reload, which is the old behaviour.
+  }
+}
+
+export function getImpersonation(): string | undefined {
+  return impersonatedPersonId;
+}
+
+/**
  * How a request gets its bearer token, when there is one to get.
  *
  * WHY injected rather than imported: layering runs `features → store → api → …`, and MSAL
@@ -109,6 +148,7 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(debugIdentity?.personId ? { 'X-Debug-PersonId': debugIdentity.personId } : {}),
       ...(debugIdentity?.role ? { 'X-Debug-Role': debugIdentity.role } : {}),
+      ...(impersonatedPersonId ? { 'X-Impersonate-PersonId': impersonatedPersonId } : {}),
       ...init?.headers,
     },
   });

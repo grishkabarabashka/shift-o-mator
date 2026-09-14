@@ -7,7 +7,7 @@
  * doesn't re-pick the unit when jumping from Overview to the schedule.
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider.tsx';
 import { type Location, type Person } from '../../domain/types.ts';
@@ -24,6 +24,7 @@ import { useNow } from '../../ui/useNow.ts';
 import * as Popover from '@radix-ui/react-popover';
 import {
   useIdentitySwitcher,
+  useImpersonation,
   type AuthIdentity,
 } from '../../auth/AuthProvider.tsx';
 import { isEntraMode } from '../../auth/entraConfig.ts';
@@ -78,6 +79,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
       <SkipLink />
       <ProductHeader />
       <Masthead />
+      <ImpersonationBanner />
       {/* A real landmark, and the target of the skip link: the shell was header + nav + a
           plain div, so "skip to content" had nowhere to land and a screen reader had no
           main region to jump to. */}
@@ -170,7 +172,7 @@ function ProductHeader() {
         <NotificationBell />
 
         <div className="flex items-center gap-2.5">
-          <IdentityMenu identity={identity} units={units} />
+          <IdentityMenu identity={identity} units={units} people={people} />
           {identity.stubMode ? <IdentitySwitcher people={people} current={identity} /> : null}
           {isEntraMode ? <SignOutButton /> : null}
         </div>
@@ -192,9 +194,11 @@ function ProductHeader() {
 function IdentityMenu({
   identity,
   units,
+  people,
 }: {
   readonly identity: AuthIdentity;
   readonly units: readonly { readonly id: string; readonly name: string }[];
+  readonly people: readonly Person[];
 }) {
   const unitName = (unitId: string): string =>
     units.find((u) => u.id === unitId)?.name ?? unitId;
@@ -220,16 +224,44 @@ function IdentityMenu({
         <button
           type="button"
           className="flex items-center gap-2.5 rounded-lg px-1 py-0.5 hover:bg-hover"
-          aria-label={`Signed in as ${identity.displayName}. Show roles.`}
+          aria-label={
+            identity.impersonatedBy
+              ? `Signed in as ${identity.impersonatedBy.displayName}, acting as ${identity.displayName}. Show roles.`
+              : `Signed in as ${identity.displayName}. Show roles.`
+          }
         >
           {/* The name only. The role summary that used to sit under it said something
               different from the menu below — elided, one line wide, and hidden outright
               below `sm` — so the header now asks the question and the menu answers it,
-              rather than both half-answering it in different words. */}
-          <span className="hidden min-w-0 truncate text-sm font-semibold sm:block">
-            {identity.displayName}
-          </span>
-          <span aria-hidden className="avatar">
+              rather than both half-answering it in different words.
+
+              Under a lens the name shown is the **signed-in** one, with the subject on a
+              second line. The other way round — the subject in the header — is what the
+              product actually becomes, and is exactly why it is wrong here: this corner is
+              the one place that has to keep answering "who am I", and an administrator
+              three screens deep reading somebody else's name in it has no anchor left. */}
+          {identity.impersonatedBy ? (
+            <span className="hidden min-w-0 flex-col items-end leading-tight sm:flex">
+              <span className="truncate text-sm font-semibold">
+                {identity.impersonatedBy.displayName}
+              </span>
+              <span className="truncate text-[10.5px] text-warn">
+                acting as {identity.displayName}
+              </span>
+            </span>
+          ) : (
+            <span className="hidden min-w-0 truncate text-sm font-semibold sm:block">
+              {identity.displayName}
+            </span>
+          )}
+          {/* The avatar stays the **subject's**: it sits beside the acted-as line, it is
+              what every row in the grid is about right now, and below `sm` it is the only
+              thing left — where "whose screen is this" is the more urgent question, and the
+              banner is still there to answer the other one. */}
+          <span
+            aria-hidden
+            className={`avatar${identity.impersonatedBy ? ' avatar--lens' : ''}`}
+          >
             {initialsOf(identity.displayName)}
           </span>
         </button>
@@ -271,9 +303,100 @@ function IdentityMenu({
             does not approve. Grants are edited on Settings → Roles and take effect on the
             next request.
           </p>
+
+          {/* Offered while a lens is already open too: switching straight from one person
+              to another is the normal way to compare two accounts, and closing the current
+              one first would be a step that exists only because of how this is built. */}
+          {identity.canImpersonate ? <ImpersonationPicker people={people} /> : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+/**
+ * A full-width strip, for as long as an administrator is acting as somebody else
+ * (ADR-0069).
+ *
+ * WHY a strip and not a pill in the header: every other identity signal in this shell is a
+ * small thing in a corner, and this one has to be impossible to stop noticing. The lens
+ * carries real write power — the subject's roles, on the subject's rows — so the failure it
+ * guards against is not misreading a screen, it is forgetting whose account you are
+ * changing things in.
+ *
+ * `role="status"` rather than `alert`: it is a standing condition, not an event, and an
+ * assertive live region would interrupt a screen reader on every navigation.
+ */
+function ImpersonationBanner() {
+  const identity = useAuth();
+  const { stop } = useImpersonation();
+
+  if (!identity.impersonatedBy) return null;
+
+  return (
+    <div
+      role="status"
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-warn bg-warn-soft px-4 py-1.5 text-[12px] text-warn"
+    >
+      <span className="font-semibold">Acting as {identity.displayName}</span>
+      <span className="min-w-0 flex-1 truncate opacity-90">
+        Their roles, their rows — anything you change is theirs, and the history records that
+        you made it. They have been told.
+      </span>
+      <button type="button" className="btn btn--sm" onClick={stop}>
+        Stop acting as them
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Picks somebody to act as (ADR-0069).
+ *
+ * WHY it lives inside the identity menu rather than beside the dev switcher: it is a
+ * product feature with a server-side permission check, not a development convenience, and
+ * putting the two next to each other would suggest they are the same kind of thing. It is
+ * also the only place the roles list is already on screen, which is what somebody is
+ * usually looking at when they decide whose account they need to be in.
+ *
+ * The list is not filtered by unit. A unit Admin may only act as their own people, but the
+ * client cannot be the one deciding that — the server owns the check and would have to be
+ * asked anyway, and a list that quietly omits names looks like a missing roster rather than
+ * a permission. A refusal comes back as a message naming the reason.
+ */
+function ImpersonationPicker({ people }: { readonly people: readonly Person[] }) {
+  const { start } = useImpersonation();
+  const [error, setError] = useState<string>();
+
+  const options: readonly SelectOption[] = [
+    { value: '', label: '— pick a person —' },
+    ...[...people]
+      .filter((person) => person.isActive)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map((person) => ({ value: person.id, label: person.displayName })),
+  ];
+
+  return (
+    <div className="mt-2 border-t border-line pt-2">
+      <p className="mb-1 px-1 text-[10.5px] tracking-wide text-faint uppercase">Act as</p>
+      <Select
+        value=""
+        onChange={(personId) => {
+          if (!personId) return;
+          setError(undefined);
+          void start(personId).catch((cause: unknown) => {
+            setError(cause instanceof Error ? cause.message : 'Could not open that view.');
+          });
+        }}
+        options={options}
+        ariaLabel="Act as another person"
+      />
+      {error ? <p className="mt-1 px-1 text-[11px] text-bad">{error}</p> : null}
+      <p className="mt-1 px-1 text-[10.5px] text-faint">
+        Their screen and their roles, and you can do what they could do. They are told, and
+        the history keeps both names.
+      </p>
+    </div>
   );
 }
 

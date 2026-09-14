@@ -14,6 +14,11 @@ public enum NotificationKind
     RequestSuperseded,
     CompDayAging,
     CoverageGap,
+
+    /// <summary>An administrator opened this person's view of the product (ADR-0069).
+    /// Written to the subject, never to the administrator: being looked at is a thing that
+    /// happened to them, and nothing else in the product would ever mention it.</summary>
+    Impersonated,
 }
 
 /// <summary>

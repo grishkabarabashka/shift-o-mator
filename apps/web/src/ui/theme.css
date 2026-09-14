@@ -682,6 +682,15 @@
   }
   .select__content {
     min-width: var(--radix-select-trigger-width);
+    /* A long list has to end somewhere. Without a bound the content grows past the
+       bottom of the window and there is nothing overflowing to scroll — the wheel
+       does nothing and the names below the fold are simply unreachable. The People
+       pickers are the ones that hit it: ~80 rows. Radix measures the space it has and
+       publishes it here; `flex` is what lets its own `Viewport` (inline `flex: 1;
+       overflow: auto`) become the scrolling box. */
+    display: flex;
+    flex-direction: column;
+    max-height: var(--radix-select-content-available-height);
     padding: 5px;
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
@@ -1120,6 +1129,19 @@
     font-weight: 700;
     box-shadow:
       inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+      0 1px 2px rgb(16 24 40 / 0.10);
+  }
+
+  /* The initials in the header belong to the person being acted as, not to whoever is
+     signed in (ADR-0069). Below `sm` the name beside it is hidden and this is the whole of
+     the identity block, so the ring changes colour rather than the shape moving: the same
+     circle in `--warn` reads as "this is not you" at a glance, and matches the banner it
+     is explained by. */
+  .avatar--lens {
+    color: var(--warn);
+    background: var(--warn-soft);
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent),
       0 1px 2px rgb(16 24 40 / 0.10);
   }
 

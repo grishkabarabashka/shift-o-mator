@@ -100,6 +100,7 @@ namespace ShiftOMator.Infrastructure.Migrations
                     AffectedTo = table.Column<DateOnly>(type: "date", nullable: true),
                     Summary = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ActorId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ImpersonatedById = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     At = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>

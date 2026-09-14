@@ -26,7 +26,8 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react';
-import { apiGet, setDebugIdentity } from '../api/client.ts';
+import { apiGet, getImpersonation, setDebugIdentity } from '../api/client.ts';
+import { startImpersonation, stopImpersonation } from '../api/impersonation.ts';
 
 // `AppRole`/`APP_ROLES` live in `domain/` (ADR-0066 casing, ADR-0051 semantics) and are
 // re-exported here because most callers reach for them alongside the identity.
@@ -48,6 +49,17 @@ export interface AuthIdentity {
   /** NOTE: true only when the server runs `Auth:Mode=Stub`, which is the only mode that
    * honours the dev identity headers. Gates the switcher out of any real deployment. */
   readonly stubMode: boolean;
+  /**
+   * The administrator behind an open lens, or undefined (ADR-0069).
+   *
+   * NOTE: when this is set, every field above describes the **subject** — that is the
+   * whole point. What it does not change is who a write is attributed to, which is still
+   * the person named here.
+   */
+  readonly impersonatedBy?: { readonly personId: string; readonly displayName: string };
+  /** Holds Admin somewhere, so the lens is worth offering. Whether it may be opened over a
+   * *particular* person is the server's answer, on the POST. */
+  readonly canImpersonate?: boolean;
 }
 
 interface WireMe {
@@ -55,6 +67,8 @@ interface WireMe {
   readonly displayName?: string | null;
   readonly roles?: readonly { role?: string | null; unitId?: string | null }[] | null;
   readonly stubMode?: boolean;
+  readonly impersonatedBy?: { readonly personId?: string | null; readonly displayName?: string | null } | null;
+  readonly canImpersonate?: boolean;
 }
 
 /**
@@ -90,8 +104,15 @@ export interface SwitcherState {
   readonly set: Dispatch<SetStateAction<DebugIdentity | undefined>>;
 }
 
+/** The open lens, so the provider can re-key `/api/auth/me` and the shell can close it. */
+interface LensState {
+  readonly subject: string | undefined;
+  readonly set: Dispatch<SetStateAction<string | undefined>>;
+}
+
 const AuthContext = createContext<AuthIdentity | undefined>(undefined);
 const SwitcherContext = createContext<SwitcherState | undefined>(undefined);
+const LensContext = createContext<LensState | undefined>(undefined);
 
 export function AuthProvider({
   children,
@@ -106,8 +127,14 @@ export function AuthProvider({
   // not select".
   const [override, setOverride] = useState<DebugIdentity>();
 
+  // WHY the lens subject is React state as well as a module variable in `api/client.ts`:
+  // the query key below has to change when it does, or switching person would answer from
+  // the cached `/api/auth/me` of the person before. The module variable is what puts the
+  // header on every *other* request; this is what makes this one refetch.
+  const [lens, setLens] = useState<string | undefined>(() => getImpersonation());
+
   const query = useQuery({
-    queryKey: ['auth', 'me', override?.personId ?? '', override?.role ?? ''],
+    queryKey: ['auth', 'me', override?.personId ?? '', override?.role ?? '', lens ?? ''],
     queryFn: () => apiGet<WireMe>('/api/auth/me'),
     enabled: identity === undefined,
     staleTime: Infinity,
@@ -133,6 +160,17 @@ export function AuthProvider({
         .filter((grant): grant is RoleGrant => grant.role !== undefined),
       resolved: true,
       stubMode: me.stubMode === true,
+      // Everything above describes the subject while this is set — the server decides
+      // that, not the client, so there is nothing to merge here (ADR-0069).
+      ...(me.impersonatedBy?.personId
+        ? {
+            impersonatedBy: {
+              personId: me.impersonatedBy.personId,
+              displayName: me.impersonatedBy.displayName ?? me.impersonatedBy.personId,
+            },
+          }
+        : {}),
+      canImpersonate: me.canImpersonate === true,
     };
   }, [identity, query.data, override?.role]);
 
@@ -141,9 +179,13 @@ export function AuthProvider({
     [override],
   );
 
+  const lensState = useMemo<LensState>(() => ({ subject: lens, set: setLens }), [lens]);
+
   return (
     <AuthContext.Provider value={value}>
-      <SwitcherContext.Provider value={switcher}>{children}</SwitcherContext.Provider>
+      <SwitcherContext.Provider value={switcher}>
+        <LensContext.Provider value={lensState}>{children}</LensContext.Provider>
+      </SwitcherContext.Provider>
     </AuthContext.Provider>
   );
 }
@@ -221,4 +263,42 @@ export function useIdentitySwitcher() {
 /** What the switcher is currently overriding, if anything. */
 export function useIdentityOverride(): DebugIdentity | undefined {
   return useContext(SwitcherContext)?.override;
+}
+
+/**
+ * Opens and closes the impersonation lens (ADR-0069).
+ *
+ * Every cache entry was filtered by identity on the server — the inbox, My calendar, what
+ * the grid lets you touch — so the whole cache is reset rather than invalidated key by
+ * key, exactly as the dev switcher does. Looking through somebody else's screen is not an
+ * incremental change to what is on screen.
+ *
+ * `resetQueries` and not `clear()`: clearing drops the observers too, so every screen is
+ * briefly dataless and `/api/auth/me` falls back to "unresolved" mid-interaction.
+ */
+export function useImpersonation(): {
+  readonly start: (personId: string) => Promise<void>;
+  readonly stop: () => void;
+} {
+  const queryClient = useQueryClient();
+  const lens = useContext(LensContext);
+
+  const start = useCallback(
+    async (personId: string) => {
+      // Awaited, and the header is only set inside: a refused lens must not leave the
+      // client sending a header the server answers 403 to for the rest of the session.
+      await startImpersonation(personId);
+      lens?.set(personId);
+      await queryClient.resetQueries();
+    },
+    [queryClient, lens],
+  );
+
+  const stop = useCallback(() => {
+    stopImpersonation();
+    lens?.set(undefined);
+    void queryClient.resetQueries();
+  }, [queryClient, lens]);
+
+  return { start, stop };
 }

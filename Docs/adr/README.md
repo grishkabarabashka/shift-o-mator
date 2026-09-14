@@ -69,6 +69,7 @@ not something else?"
 | [0066](0066-the-wire-writes-enums-the-way-the-client-does.md) | The wire writes enums the way the client already does | accepted |
 | [0067](0067-one-owner-for-each-kind-of-state.md) | One owner for each kind of state (**supersedes 0012**, narrows 0015) | accepted |
 | [0068](0068-web-config-is-read-at-container-start.md) | The web image reads its config at container start, not at build time | accepted |
+| [0069](0069-acting-as-somebody-else.md) | Acting as somebody else, with both names in the trail | accepted |
 
 ## Superseded decisions (archive)
 

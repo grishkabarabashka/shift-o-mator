@@ -201,6 +201,29 @@ their unit. Revoking the last global admin is refused, since nothing else could 
 back. Every grant writes a history row: "who made them an approver" is the first question
 after a bad approval.
 
+## Acting as somebody else
+
+**Who:** an `Admin` of that person's unit, who also holds any global role that person holds.
+
+Pick a name under **Act as** in the identity menu. You then *are* them, for everything the
+product does: their calendar, their requests, their inbox, their roles, their rows. Try the
+thing they said did not work; it will do what it does for them
+([ADR-0069](adr/0069-acting-as-somebody-else.md)).
+
+Anything you change is theirs — and the history records that **you** made it, on every row,
+next to their name. The banner stays up until you stop, and the header keeps showing your
+own name with "acting as …" under it.
+
+Two refusals, and only two. You cannot act as somebody holding a global role you do not
+hold, since that would take you outside the unit you administer. And you cannot read or
+reset their calendar feed address: that URL is a standing credential which outlives the
+session and which they cannot see was taken.
+
+The person is told, in their inbox, every time. There is no silent version of this.
+
+Not to be confused with the `dev` pill beside it, which exists only when the server runs
+`Auth:Mode=Stub` and cannot appear in a deployed environment.
+
 ## Starting a system
 
 **Who:** whoever opens it first — and after that, a **global** `Admin`.

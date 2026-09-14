@@ -124,6 +124,11 @@ else
     });
 }
 
+// Discovered by `AddDbContext` from the application container (EF Core 7+). One place
+// stamps who was really at the keyboard on every audit row, because thirty call sites is
+// thirty chances to forget one (ADR-0069).
+builder.Services.AddScoped<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor, ImpersonationAuditInterceptor>();
+
 // Scoped, because it caches the resolved person for the lifetime of one request and
 // reads the roster to verify the claim (ADR-0039).
 builder.Services.AddScoped<ActorResolver>();
@@ -195,6 +200,9 @@ app.UseMiddleware<ShiftOMator.Api.Setup.SetupGateMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication, because the claim it reads is stamped by RoleClaimsTransformation.
+app.UseMiddleware<ImpersonationGuard>();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
 app.MapGet("/health/ready", async (ShiftOMatorDbContext db) =>

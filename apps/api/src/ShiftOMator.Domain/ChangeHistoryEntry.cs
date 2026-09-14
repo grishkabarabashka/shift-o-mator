@@ -58,5 +58,19 @@ public class ChangeHistoryEntry
     public string? Summary { get; set; }
 
     public required string ActorId { get; set; }
+
+    /// <summary>
+    /// The administrator who was actually at the keyboard, when the actor was being acted
+    /// **as** (ADR-0069). Null for the overwhelming majority of rows.
+    ///
+    /// WHY a second column rather than putting the administrator in <see cref="ActorId"/>:
+    /// impersonation exists so an administrator can do what that person could do, so the
+    /// change has to *be* theirs — a leave record raised under a lens belongs to them and
+    /// the engines must read it as theirs. But ADR-0032 made this table the whole of the
+    /// access control and ADR-0039 made the actor unforgeable, so a row that omitted who
+    /// was really there would be the one hole in it. Both, or the design does not hold.
+    /// </summary>
+    public string? ImpersonatedById { get; set; }
+
     public required DateTimeOffset At { get; set; }
 }

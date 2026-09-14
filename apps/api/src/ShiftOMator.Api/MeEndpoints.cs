@@ -94,6 +94,12 @@ public static class MeEndpoints
         app.MapGet("/api/me/calendar-feed", async (
             ClaimsPrincipal user, ActorResolver actors, HttpContext http, CancellationToken ct) =>
         {
+            // Deliberately the actor and never the lens subject: the feed URL contains that
+            // person's CalendarToken, which is the entire authentication on the only anonymous
+            // route in the product. Handing an administrator somebody else's is handing them a
+            // credential that outlives the lens and that the subject cannot see was taken.
+            if (user.Refuse("Reading a calendar feed address") is { } refused) return refused;
+
             var person = await actors.RequirePersonAsync(user, ct);
             if (person is null) return Results.NotFound(new NotFoundResponse("PERSON_NOT_FOUND", "me"));
             return Results.Ok(new CalendarFeedResponse(FeedUrl(http, person.CalendarToken)));
@@ -106,6 +112,8 @@ public static class MeEndpoints
             ClaimsPrincipal user, ActorResolver actors, HttpContext http,
             ShiftOMatorDbContext db, CancellationToken ct) =>
         {
+            if (user.Refuse("Resetting a calendar feed address") is { } refused) return refused;
+
             var me = await actors.RequireAsync(user, ct);
             var person = await db.People.FirstOrDefaultAsync(p => p.Id == me, ct);
             if (person is null) return Results.NotFound(new NotFoundResponse("PERSON_NOT_FOUND", me));

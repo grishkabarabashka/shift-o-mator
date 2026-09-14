@@ -50,7 +50,12 @@ public static class CellHistoryEndpoints
                     change.At,
                     KindOf(change.EntityType),
                     change.ActorId,
-                    names.GetValueOrDefault(change.ActorId),
+                    // "Dana Okafor (by Hanna Fletcher)" when an administrator made the change
+                    // while acting as them (ADR-0069). Appended to the *name* rather than
+                    // given a field of its own: every reader of this timeline is asking "who
+                    // did this", and an answer that needs two columns to be true is one most
+                    // of them will read only half of.
+                    ActorLabel(names, change.ActorId, change.ImpersonatedById),
                     Prefixed(allPeople, names, change.PersonId,
                         change.Summary ?? $"{change.EntityType} {Verb(change.Action)}"),
                     null));
@@ -98,6 +103,17 @@ public static class CellHistoryEndpoints
 
     /// <summary>In the day-wide view every line has to say who it is about; in the
     /// single-person view repeating the name on every line is noise.</summary>
+    /// <summary>The actor, and the administrator behind them when there was one.</summary>
+    private static string? ActorLabel(
+        IReadOnlyDictionary<string, string> names, string actorId, string? impersonatedById)
+    {
+        var actor = names.GetValueOrDefault(actorId);
+        if (impersonatedById is null) return actor;
+
+        var by = names.GetValueOrDefault(impersonatedById) ?? impersonatedById;
+        return actor is null ? $"(by {by})" : $"{actor} (by {by})";
+    }
+
     private static string Prefixed(
         bool allPeople, IReadOnlyDictionary<string, string> names, string? personId, string summary) =>
         allPeople && personId is not null

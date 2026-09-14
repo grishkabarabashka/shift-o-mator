@@ -36,10 +36,29 @@ public sealed class ActorResolver(
 {
     private string? _cached;
 
-    /// <summary>The acting person's id. Throws <see cref="UnmappedPrincipalException"/>
-    /// when the principal cannot be mapped, which the exception handler turns into
-    /// <c>403 PRINCIPAL_NOT_MAPPED</c>.</summary>
-    public async Task<string> RequireAsync(ClaimsPrincipal user, CancellationToken ct = default)
+    /// <summary>
+    /// The acting person's id — the impersonation subject when a lens is open, otherwise
+    /// the signed-in person. Throws <see cref="UnmappedPrincipalException"/> when the
+    /// principal cannot be mapped, which the exception handler turns into
+    /// <c>403 PRINCIPAL_NOT_MAPPED</c>.
+    ///
+    /// WHY a lens moves this and ADR-0039 still holds: the claim it reads is stamped by
+    /// <see cref="RoleClaimsTransformation"/> only after a server-side permission check, so
+    /// it is no more caller-supplied than the token is. What ADR-0039 forbids is an actor
+    /// taken from a request *body*, which anybody could write; this one has to be earned.
+    /// The administrator is not lost either — <see cref="RequireRealActorAsync"/> names them
+    /// and every audit row carries them (ADR-0069).
+    /// </summary>
+    public async Task<string> RequireAsync(ClaimsPrincipal user, CancellationToken ct = default) =>
+        user.SubjectOrNull() ?? await RequireRealActorAsync(user, ct);
+
+    /// <summary>
+    /// The signed-in person, lens or no lens. Two callers only: the audit stamp, and the
+    /// claims transformation that decides whether a lens may be opened at all — both of
+    /// which are asking "who is really here", which is a different question from "whose
+    /// change is this".
+    /// </summary>
+    public async Task<string> RequireRealActorAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
         if (_cached is not null) return _cached;
 

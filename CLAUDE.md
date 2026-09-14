@@ -24,9 +24,11 @@ read per request is a **row**, not configuration (ADR-0063); notifications have 
 externally yet); and the holiday-import allowlist is **rows**, not a settings key
 (ADR-0065); the wire writes enums the way the client already does (ADR-0066); there
 is **one owner for each kind of state** — Query for server data, Zustand for the draft
-(ADR-0067, deleting `ScheduleRepository`); and the web image reads its **config at
-container start**, not at build time, so one image serves every environment (ADR-0068).
-Code and design agree; the ADR index is complete through 0068.
+(ADR-0067, deleting `ScheduleRepository`); the web image reads its **config at
+container start**, not at build time, so one image serves every environment (ADR-0068);
+and an administrator can **act as** somebody else — their roles, their rows, their writes,
+with the trail carrying both names (ADR-0069).
+Code and design agree; the ADR index is complete through 0069.
 
 The repo is a monorepo: `apps/web` (frontend) and `apps/api` (backend), an npm
 workspace root at the repository root with no other members.
@@ -402,6 +404,38 @@ dotnet test
     never from `store`** — the layering runs downward, and `store` reaching into `ui` is
     the first edge going the wrong way. `ui/ErrorBoundary.tsx` is the one class component
     in the codebase; `getDerivedStateFromError` has no hook equivalent. (ADR-0057)
+
+36. **Acting as somebody else makes them the actor, and the trail carries both names.** An
+    Admin sends `X-Impersonate-PersonId` (honoured in **every** auth mode, unlike the
+    `X-Debug-*` pair); `RoleClaimsTransformation` checks it and stamps `sfm:impersonating`,
+    after which `ActorResolver.RequireAsync` answers with the subject and every endpoint
+    follows without knowing lenses exist. ADR-0039 still holds — what it forbids is an
+    actor from a request *body*; this one is earned. **The grants are replaced, never
+    merged** (the baseline Viewer and any debug override are removed before the subject's
+    are added) — a union makes the caller stronger than either person.
+    **`ChangeHistoryEntry.ImpersonatedById`** names who was really there, stamped by
+    `ImpersonationAuditInterceptor` on `SaveChanges` rather than by ~30 call sites, because
+    a forgotten one writes the one row with the hole in it. **The interceptor must be
+    registered as `IInterceptor`**: EF resolves `IEnumerable<IInterceptor>` from the app
+    container, so registering only `ISaveChangesInterceptor` finds nothing, runs nothing and
+    fails nothing. Scope: `Admin` over the subject's unit **and** no global grant the
+    subject holds that the caller lacks — the first is the ordinary "could grant it to
+    themselves anyway" argument, the second exists because that argument stops at the unit
+    boundary and without it a unit Admin acts as the global Admin and comes out
+    administering everything. Opening one is a **POST** (`/api/auth/impersonate`) because
+    that is what writes the history row and notifies the subject. A header the caller may
+    not use is a **403** (`ImpersonationGuard`), never a silent fall-back. **One refusal**
+    (`IMPERSONATION_READ_ONLY`): the calendar feed address, read and reset — that URL is a
+    standing credential outliving the session that the subject cannot see was taken. The
+    **header keeps the signed-in name** with "acting as …" beneath and the subject's
+    initials in `--warn`; the rest of the product becomes the subject, which is why that
+    corner must not. Two traps: the audit row for opening a lens is `RecordConfiguration`,
+    not `RecordPerson` — the latter stamps `PersonId`, which the **cell** history filters
+    on, and a dateless row matches every day, so one lens wrote "started acting as" onto
+    every cell of that person's year; and `RoleClaimsTransformation` no longer returns early
+    on the stub role override, because `ApiTestFactory` pins `Auth:StubRole` on every
+    request and the early return made the lens both untestable and silently inert wherever
+    that setting had been set. (ADR-0069)
 
 ## Technical decisions
 

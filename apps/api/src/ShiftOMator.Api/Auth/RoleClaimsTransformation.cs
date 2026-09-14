@@ -33,7 +33,7 @@ namespace ShiftOMator.Api.Auth;
 /// "may read the rota" is a row that can only ever be wrong — and it is also the answer
 /// for somebody who signs in successfully but is in no list at all: they read, nothing more.
 /// </summary>
-public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTransformation
+public class RoleClaimsTransformation(IServiceScopeFactory scopes, IHttpContextAccessor http) : IClaimsTransformation
 {
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
@@ -51,15 +51,20 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
         // Checked before the person id, not after: the stub can be configured with a role
         // and no person at all, and letting ActorResolver pick the person is the whole
         // point of that mode.
-        if (principal.FindFirst(StubAuthenticationHandler.OverrideRolesClaim) is { } over)
+        //
+        // WHY it no longer returns early: an impersonation lens has to be resolved even
+        // under an override, and the test factory pins `Auth:StubRole` for every request it
+        // makes — so returning here made the lens untestable and, worse, made it silently do
+        // nothing in any deployment that had ever set that setting (ADR-0069).
+        var over = principal.FindFirst(StubAuthenticationHandler.OverrideRolesClaim);
+        var overridden = over is not null;
+        if (over is not null)
         {
             foreach (var name in over.Value.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
                 if (Enum.TryParse<AppRole>(name.Trim(), ignoreCase: true, out var role))
                     identity.AddClaim(Capabilities.ClaimFor(role, null));
             }
-
-            return principal;
         }
 
         using var scope = scopes.CreateScope();
@@ -78,7 +83,8 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
         //
         // Sits before the actor is resolved, deliberately: an app role is granted by the
         // token, so somebody who holds one but maps to no `Person` still holds it.
-        if (await db.SystemSetups.AsNoTracking().Select(x => x.DirectoryRoles).FirstOrDefaultAsync())
+        if (!overridden
+            && await db.SystemSetups.AsNoTracking().Select(x => x.DirectoryRoles).FirstOrDefaultAsync())
         {
             // Materialized before the loop, and that is load-bearing: `FindAll` is a lazy
             // view over the identity's own claim collection, so adding to it while
@@ -103,7 +109,7 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
         try
         {
             personId = await scope.ServiceProvider.GetRequiredService<ActorResolver>()
-                .RequireAsync(principal);
+                .RequireRealActorAsync(principal);
         }
         catch (UnmappedPrincipalException)
         {
@@ -112,14 +118,105 @@ public class RoleClaimsTransformation(IServiceScopeFactory scopes) : IClaimsTran
             return principal;
         }
 
-        var grants = await db.RoleAssignments.AsNoTracking()
-            .Where(r => r.PersonId == personId)
-            .Select(r => new { r.Role, r.UnitId })
-            .ToListAsync();
+        // An override *replaces* the stored grants rather than adding to them, which is what
+        // makes "what does a plain Viewer see" testable on an account that is a Planner.
+        var own = overridden
+            ? [.. identity.FindAll(Capabilities.RoleClaim).Select(ParseGrant)]
+            : await GrantsOfAsync(db, personId);
 
-        foreach (var grant in grants)
-            identity.AddClaim(Capabilities.ClaimFor(grant.Role, grant.UnitId));
+        // Resolved before anything is stamped: a lens *replaces* the grants, and the check
+        // that it may has to run against the caller's own — which by then would be gone.
+        var lens = await ResolveLensAsync(db, personId, own);
+
+        if (lens.Denied is not null)
+        {
+            identity.AddClaim(new Claim(Impersonation.DeniedClaim, lens.Denied));
+        }
+        else if (lens.SubjectId is not null)
+        {
+            identity.AddClaim(new Claim(Impersonation.SubjectClaim, lens.SubjectId));
+            identity.AddClaim(new Claim(Impersonation.ImpersonatorClaim, personId));
+        }
+
+        if (lens.SubjectGrants is not null)
+        {
+            // Everything stamped so far belongs to the administrator — the baseline Viewer,
+            // and any debug override. It is *removed*, not added to: a lens replaces who you
+            // are, and a union would quietly make the caller more powerful than either
+            // person, which is the one outcome this must never produce.
+            foreach (var stale in identity.FindAll(Capabilities.RoleClaim).ToList())
+                identity.RemoveClaim(stale);
+
+            // The subject's grants, entire: acting as somebody means being able to do what
+            // they could do, or the lens only ever proves that the button is where they said
+            // it was (ADR-0069). The escalation this would otherwise open — acting as the
+            // holder of a global grant you lack — is refused above, not trimmed here.
+            foreach (var grant in lens.SubjectGrants)
+                identity.AddClaim(Capabilities.ClaimFor(grant.Role, grant.UnitId));
+        }
+        else if (!overridden)
+        {
+            foreach (var grant in own)
+                identity.AddClaim(Capabilities.ClaimFor(grant.Role, grant.UnitId));
+        }
 
         return principal;
     }
+
+    private static Impersonation.Grant ParseGrant(Claim claim)
+    {
+        var parts = claim.Value.Split('|', 2);
+        return new Impersonation.Grant(
+            Enum.Parse<AppRole>(parts[0], ignoreCase: true),
+            parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null);
+    }
+
+    private static async Task<List<Impersonation.Grant>> GrantsOfAsync(
+        ShiftOMatorDbContext db, string personId) =>
+        [.. (await db.RoleAssignments.AsNoTracking()
+                .Where(r => r.PersonId == personId)
+                .Select(r => new { r.Role, r.UnitId })
+                .ToListAsync())
+            .Select(r => new Impersonation.Grant(r.Role, r.UnitId))];
+
+    /// <summary>
+    /// Resolves <c>X-Impersonate-PersonId</c> (ADR-0069): who is being acted as, what they
+    /// hold, or why not.
+    ///
+    /// A denial is returned rather than thrown, and is stamped as a claim rather than
+    /// silently dropped, because the client sends this header on every request while a lens
+    /// is open. Quietly ignoring it would show an administrator their own calendar, own
+    /// inbox and own balances under somebody else's name — wrong in a way nothing on screen
+    /// would reveal. <see cref="ImpersonationGuard"/> turns the claim into a 403.
+    /// </summary>
+    private async Task<(string? SubjectId, List<Impersonation.Grant>? SubjectGrants, string? Denied)>
+        ResolveLensAsync(ShiftOMatorDbContext db, string actorId, IReadOnlyList<Impersonation.Grant> own)
+    {
+        var requested = http.HttpContext?.Request.Headers[Impersonation.Header].ToString().Trim();
+        if (string.IsNullOrEmpty(requested)) return (null, null, null);
+
+        // Acting as yourself is the absence of a lens, not a denial: the client clears the
+        // header on exit, and a race that leaves it set for one request should not 403.
+        if (requested == actorId) return (null, null, null);
+
+        var subject = await db.People.AsNoTracking()
+            .Where(p => p.Id == requested)
+            .Select(p => new { p.Id, p.UnitId })
+            .FirstOrDefaultAsync();
+
+        // An inactive person is deliberately still reachable: "why does this leaver still
+        // show on the rota" is a question asked after the account is switched off.
+        if (subject is null) return (null, null, requested);
+
+        var subjectGrants = await GrantsOfAsync(db, subject.Id);
+        if (!Impersonation.MayImpersonate(own, subjectGrants, subject.UnitId))
+            return (null, null, requested);
+
+        // Viewer is granted to everyone signed in and is not stored, so it has to be added
+        // back here — otherwise acting as an engineer produces somebody with no roles at all.
+        subjectGrants.Add(new Impersonation.Grant(AppRole.Viewer, null));
+
+        return (subject.Id, subjectGrants, null);
+    }
+
 }
