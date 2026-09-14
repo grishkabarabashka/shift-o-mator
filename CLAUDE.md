@@ -451,6 +451,12 @@ dotnet test
   already there. Startup refuses with a message naming the fix
   (`EnsureSchemaIsReconcilableAsync`) instead of the opaque
   `There is already an object named 'Absences'`, and **`--reset-db`** drops and rebuilds.
+  **`--reset-db` is local-only in practice**: the chart passes no `args` to the API
+  container, and the flag needs `DROP DATABASE`, which the deployed managed identity cannot
+  do — it holds `db_ddladmin`, enough for tables and not for the database. So a regenerated
+  migration orphans the **sandbox** as well, and the recovery there is dropping the tables
+  by hand and leaving the database (the SQL user for the managed identity lives inside it):
+  `deploy/README.md` section 7, "Resetting the sandbox database".
   **Every test database needs a reason, and there are more of them than this paragraph
   used to admit** — `ShiftOMatorPeopleBatchTests` and six `ShiftOMatorSetupDiag*` are also
   real databases that outlive a run. The reliable way to find them all before regenerating

@@ -1024,6 +1024,59 @@ gives the API a public IP over plain HTTP: fine for `curl`, and unusable for sig
 for the reasons at the top of section 5. It is a debugging affordance, not a second
 supported shape.
 
+### Resetting the sandbox database, by hand
+
+While the schema is a single regenerated `InitialCreate` (CLAUDE.md), **every schema change
+orphans the sandbox database**. The next deploy does not fail obscurely — the API refuses to
+start and says so (`EnsureSchemaIsReconcilableAsync`) — but it does not fix itself either,
+and the two obvious recoveries are both dead ends here:
+
+- **`--reset-db` cannot be reached.** The chart passes no `args` to the API container, and
+  the flag needs `DROP DATABASE`, which the managed identity cannot do: it holds
+  `db_ddladmin` (section 5), enough for tables and not for the database.
+- **Settings → Maintenance → Reset is the wrong tool.** It deletes *rows*, not schema
+  ([ADR-0059](../Docs/adr/0059-setup-is-a-screen-not-a-flag.md)) — and it is unreachable
+  anyway, because the pod that would serve it is the one refusing to start.
+
+So drop the **tables** and leave the database. Keeping the database is the point: the
+`CREATE USER … FROM EXTERNAL PROVIDER` and its role memberships live inside it, and
+deleting the database means granting them again before a pod can log in. Run this as
+yourself — you are the server's Entra admin, the identity is not:
+
+```bash
+cat > reset.sql <<'SQL'
+DECLARE @sql nvarchar(max) = N'';
+
+-- Foreign keys first, so the table drops need no dependency order.
+SELECT @sql += N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id))
+  + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+  + N' DROP CONSTRAINT ' + QUOTENAME(name) + N';'
+FROM sys.foreign_keys;
+
+SELECT @sql += N'DROP TABLE ' + QUOTENAME(SCHEMA_NAME(schema_id))
+  + N'.' + QUOTENAME(name) + N';'
+FROM sys.tables;
+
+EXEC sp_executesql @sql;
+SQL
+
+sqlcmd -S ${SQL_SERVER}.database.windows.net -d $SQL_DB -G -i reset.sql
+kubectl -n shift-o-mator rollout restart deploy/shift-o-mator-api
+```
+
+`__EFMigrationsHistory` goes with everything else, which is what makes EF see a clean
+database rather than a half-applied one. On restart both replicas migrate under
+`MigrationLock`, so the second waits and then finds nothing to do, and `FixtureSeeder` puts
+the reference rows back. There is no `SystemSetup` row any more, so the app comes up on the
+**setup wizard** — pick Bare or Demo as on a first deploy.
+
+`az sql db delete && az sql db create` is a shorter command and a worse trade: it takes the
+database user with it, so the next pod start fails its SQL login until section 5's
+`grant.sql` has been run again.
+
+Once the schema stops being regenerated this whole subsection stops being needed, along
+with `db_ddladmin`.
+
 **Cost control:**
 
 ```bash
@@ -1165,6 +1218,7 @@ does not roll back the database.
 | API pod `CrashLoopBackOff`, log says `Missing ConnectionStrings:ShiftOMator` | `api.config.connectionString` is empty in the values file for that environment |
 | API pod starts, then SQL login fails for the managed identity | the `CREATE USER … FROM EXTERNAL PROVIDER` step (section 5) was skipped, or names the client id instead of the identity's **name** |
 | SQL errors mentioning `CREATE TABLE` permission | the identity lacks `db_ddladmin`, which EF migrations need at startup |
+| API pod refuses to start, log names a migration the build does not have | correct, and deliberate: `InitialCreate` was regenerated, so the database is orphaned. Drop the tables by hand — section 7, "Resetting the sandbox database". `--reset-db` is not reachable in the cluster and Settings → Maintenance → Reset is the wrong tool; that subsection says why |
 | `Active Directory Default` picks the wrong identity, or none | the pod is missing `azure.workload.identity/use: "true"` — check `workloadIdentity.enabled` is true and the cluster has `--enable-workload-identity` |
 | `403` on every write, `Settings` never appears for anyone | `Auth:StubRole` got set to something non-empty — it must stay empty; see CLAUDE.md, this exact bug happened once |
 | `403 PRINCIPAL_NOT_MAPPED` for a real Entra ID user | nobody in the roster has that email in `Person.Email` — an admin links it on Settings → People (the error message names the address); if `GET /api/setup/state` still says `required: true` the setup wizard has not run yet (section 6.2). Also check the token carries an email claim for your tenant |
